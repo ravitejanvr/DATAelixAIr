@@ -1,9 +1,7 @@
-import { motion } from "framer-motion";
-
 const GlobeVisual = () => (
   <div className="dark-card border rounded-3xl p-9 text-center">
     <p className="text-xs font-medium uppercase tracking-[0.08em] text-dark-muted mb-6">
-      Global Deployment Network
+      Why AI in Healthcare Matters
     </p>
 
     {/* Globe rings */}
@@ -16,17 +14,17 @@ const GlobeVisual = () => (
       <div className="absolute inset-[30px] rounded-full border-[1.5px] border-dashed border-primary/20" />
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="w-[90px] h-[90px] rounded-full bg-gradient-to-br from-primary-light to-primary flex items-center justify-center text-4xl animate-spin-rev">
-          🌐
+          🧠
         </div>
       </div>
     </div>
 
-    {/* Stats */}
+    {/* Real industry stats */}
     <div className="flex justify-around">
       {[
-        { val: "30+", label: "Countries" },
-        { val: "500+", label: "Facilities" },
-        { val: "24/7", label: "Support" },
+        { val: "30%", label: "Less Doc Time" },
+        { val: "£50K+", label: "Savings/Clinic" },
+        { val: "7K+", label: "UK GP Practices" },
       ].map((s) => (
         <div key={s.label}>
           <div className="font-display text-2xl font-bold text-primary">{s.val}</div>

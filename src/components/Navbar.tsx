@@ -27,8 +27,11 @@ const Navbar = () => {
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 glass-nav border-b border-border transition-shadow ${scrolled ? "shadow-md" : ""}`}>
       <div className="container mx-auto flex items-center justify-between h-[68px] px-4">
-        <Link to="/" className="font-display font-extrabold text-xl tracking-tight text-foreground">
-          DATA<span className="text-primary">elix</span>AIr
+        <Link to="/" className="flex items-center gap-2">
+          <img src="/images/elixair-logo.jpg" alt="elixAIr" className="h-9 w-auto rounded" />
+          <span className="font-display font-extrabold text-xl tracking-tight text-foreground">
+            elix<span className="text-primary">AIr</span>
+          </span>
         </Link>
 
         {/* Desktop */}
