@@ -11,23 +11,22 @@ const HeroDashboard = () => (
     className="relative"
   >
     <div className="bg-card border border-border rounded-[20px] p-7 shadow-card relative overflow-hidden">
-      {/* Top accent bar */}
       <div className="absolute top-0 left-0 right-0 h-[3px] gradient-teal" />
 
       <div className="absolute -top-4 right-6 bg-foreground text-background text-xs font-medium px-3.5 py-1.5 rounded-full tracking-wide">
-        <span className="text-green-400 mr-1">●</span> Live Dashboard
+        <span className="text-green-400 mr-1">●</span> AI Scribe Active
       </div>
 
       <p className="text-xs font-medium uppercase tracking-[0.08em] text-gray-mid mb-5 mt-2">
-        Hospital Performance Overview
+        Clinical Documentation AI
       </p>
 
-      {/* Metrics */}
+      {/* Metrics — from pitch deck */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { val: "+38", unit: "%", label: "Productivity" },
-          { val: "+22", unit: "%", label: "Revenue" },
-          { val: "99", unit: "%", label: "Uptime" },
+          { val: "30", unit: "%", label: "Less Doc Time" },
+          { val: "£50K", unit: "+", label: "Annual Savings" },
+          { val: "99.5", unit: "%", label: "Accuracy" },
         ].map((m) => (
           <div key={m.label} className="text-center">
             <div className="font-display text-3xl font-bold text-foreground leading-none">
@@ -55,14 +54,14 @@ const HeroDashboard = () => (
     {/* Mini cards */}
     <div className="grid grid-cols-2 gap-3 mt-3">
       <div className="bg-card border border-border rounded-[14px] p-4 shadow-card">
-        <div className="w-9 h-9 rounded-[10px] teal-muted-bg flex items-center justify-center text-base mb-2.5">🔒</div>
-        <p className="text-xs font-medium text-foreground">HIPAA Compliant</p>
-        <p className="font-display text-lg font-bold text-primary mt-0.5">Active</p>
+        <div className="w-9 h-9 rounded-[10px] teal-muted-bg flex items-center justify-center text-base mb-2.5">🛡️</div>
+        <p className="text-xs font-medium text-foreground">NHS DTAC</p>
+        <p className="font-display text-lg font-bold text-primary mt-0.5">Compliant</p>
       </div>
       <div className="bg-card border border-border rounded-[14px] p-4 shadow-card">
         <div className="w-9 h-9 rounded-[10px] teal-muted-bg flex items-center justify-center text-base mb-2.5">⚡</div>
-        <p className="text-xs font-medium text-foreground">AI Inference</p>
-        <p className="font-display text-lg font-bold text-primary mt-0.5">12ms</p>
+        <p className="text-xs font-medium text-foreground">Real-Time</p>
+        <p className="font-display text-lg font-bold text-primary mt-0.5">Transcription</p>
       </div>
     </div>
   </motion.div>
