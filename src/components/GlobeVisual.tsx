@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 const GlobeVisual = () => (
   <div className="dark-card border rounded-3xl p-9 text-center">
     <p className="text-xs font-medium uppercase tracking-[0.08em] text-dark-muted mb-6">
-      UK & Global Healthcare
+      Global Deployment Network
     </p>
 
     {/* Globe rings */}
@@ -21,11 +21,11 @@ const GlobeVisual = () => (
       </div>
     </div>
 
-    {/* Stats — verified from deck */}
+    {/* Stats */}
     <div className="flex justify-around">
       {[
-        { val: "7,000+", label: "GP Practices" },
-        { val: "200+", label: "NHS Trusts" },
+        { val: "30+", label: "Countries" },
+        { val: "500+", label: "Facilities" },
         { val: "24/7", label: "Support" },
       ].map((s) => (
         <div key={s.label}>

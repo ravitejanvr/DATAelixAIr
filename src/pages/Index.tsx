@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowRight, Heart, Clock, ShieldCheck, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import HeroDashboard from "@/components/HeroDashboard";
 import GlobeVisual from "@/components/GlobeVisual";
 
@@ -12,28 +12,28 @@ const fadeUp = {
 
 const services = [
   {
-    icon: "🤖", title: "AI-Powered Clinical Scribe", featured: true,
-    desc: "Real-time AI transcription and clinical note generation — fully integrated with NHS systems like EMIS and SystmOne.",
-    tags: ["Real-Time Transcription", "EHR Integration", "NHS-Ready"],
+    icon: "🤖", title: "Clinical AI Automation", featured: false,
+    desc: "Automate administrative workflows, clinical documentation, and scheduling — freeing clinicians to focus on patient care.",
+    tags: ["NLP Documentation", "Smart Scheduling", "Billing AI"],
   },
   {
     icon: "📊", title: "Predictive Analytics", featured: false,
-    desc: "Harness clinical data to predict patient deterioration, readmission risks, and demand surges before they happen.",
+    desc: "Harness your hospital's data to predict patient deterioration, readmission risks, and demand surges before they happen.",
     tags: ["Risk Stratification", "Demand Forecasting", "Population Health"],
   },
   {
-    icon: "🔗", title: "Interoperability & Integration", featured: false,
-    desc: "Seamlessly connect disparate systems — EHRs, labs, imaging — using HL7 FHIR standards for unified patient data.",
-    tags: ["HL7 / FHIR", "EMIS", "SystmOne"],
+    icon: "🔗", title: "Interoperability & Integration", featured: true,
+    desc: "Seamlessly connect disparate systems — EHRs, labs, imaging, and wearables — using HL7 FHIR standards for unified data.",
+    tags: ["HL7 / FHIR", "EHR Integration", "API Layer"],
   },
   {
     icon: "🛡️", title: "Compliance & Security", featured: false,
-    desc: "Zero-trust, end-to-end encrypted platform with full GDPR, NHS DTAC, and regional regulatory compliance.",
-    tags: ["GDPR", "NHS DTAC", "ISO 27001"],
+    desc: "Zero-trust, end-to-end encrypted platform ensures full HIPAA, GDPR, and regional regulatory compliance with audit trails.",
+    tags: ["HIPAA", "GDPR", "ISO 27001"],
   },
   {
     icon: "💰", title: "Revenue Cycle Optimisation", featured: false,
-    desc: "AI-driven coding accuracy, denial prediction, and claims management to maximise reimbursements.",
+    desc: "AI-driven coding accuracy, denial prediction, and claims management to maximise reimbursements and accelerate cash flow.",
     tags: ["Claims AI", "Coding Accuracy", "Denial Mgmt"],
   },
   {
@@ -43,32 +43,25 @@ const services = [
   },
 ];
 
-// Stats sourced from pitch deck and NHS publications
 const stats = [
-  { value: "50", suffix: "%", label: "Clinician Time Spent on Documentation" },
-  { value: "30", suffix: "%", label: "Documentation Time Reduction" },
-  { value: "£10B", suffix: "+", label: "NHS Annual Admin Spend" },
-  { value: "7,000", suffix: "+", label: "GP Practices in the UK" },
+  { value: "500", suffix: "+", label: "Hospitals & Clinics Served" },
+  { value: "38", suffix: "%", label: "Avg. Productivity Gain" },
+  { value: "30", suffix: "+", label: "Countries Worldwide" },
+  { value: "99", suffix: "%", label: "SLA Uptime Guarantee" },
 ];
 
 const pillars = [
-  { icon: "🏛️", name: "Regulatory First", text: "GDPR, NHS DTAC, and UK data standards compliant by design." },
-  { icon: "🔗", name: "Interoperability", text: "HL7, FHIR, EMIS, SystmOne — zero-friction EHR integration." },
-  { icon: "🛡️", name: "Data Security", text: "End-to-end encryption, zero-trust architecture, full audit trails." },
-  { icon: "🌍", name: "NHS Innovation", text: "Currently receiving guidance from NHS Innovation Service." },
-];
-
-const patientBenefits = [
-  { icon: Heart, title: "Better Patient Satisfaction", desc: "More face-to-face time with doctors means patients feel heard and cared for." },
-  { icon: Clock, title: "Faster Care Delivery", desc: "Reduced documentation burden means quicker diagnoses and treatment plans." },
-  { icon: ShieldCheck, title: "More Accurate Records", desc: "AI-generated notes reduce human error, leading to safer clinical outcomes." },
-  { icon: Users, title: "Reduced Clinician Burnout", desc: "Burnout affects 1 in 3 UK healthcare professionals — our AI gives time back." },
+  { icon: "🏛️", name: "Regulatory First", text: "HIPAA, GDPR, NHS compliant by design across all deployments." },
+  { icon: "🔗", name: "Interoperability", text: "HL7, FHIR and EHR-native integrations for zero friction." },
+  { icon: "🛡️", name: "Data Security", text: "End-to-end encryption, zero-trust architecture, audit trails." },
+  { icon: "🌍", name: "Global Reach", text: "Deployed in 30+ countries with localised compliance support." },
 ];
 
 const Index = () => (
   <div>
     {/* Hero */}
     <section className="min-h-screen relative overflow-hidden">
+      {/* Background effects */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_85%_40%,hsl(var(--teal)/0.10),transparent_70%),radial-gradient(ellipse_50%_50%_at_15%_80%,hsl(var(--teal-light)/0.06),transparent_60%)]" />
       <div className="absolute inset-0 hero-grid-bg" />
 
@@ -81,11 +74,11 @@ const Index = () => (
             </motion.div>
 
             <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.6rem,5vw,4.2rem)] font-extrabold leading-[1.05] tracking-tight text-foreground">
-              Data That Thinks.{"\n"}<em className="not-italic text-primary">Outcomes</em>{"\n"}That Matter.
+              Elevate Clinical{"\n"}Outcomes with{"\n"}<em className="not-italic text-primary">Intelligent AI</em>
             </motion.h1>
 
             <motion.p variants={fadeUp} custom={2} className="mt-6 text-[clamp(1rem,1.4vw,1.15rem)] font-light leading-relaxed text-muted-foreground max-w-[480px]">
-              DATAelixAIr delivers intelligent, secure AI solutions that automate clinical documentation and unlock actionable insights — enabling clinicians to provide safer, more efficient, and patient-centred care.
+              DATAelixAIr delivers tailored AI services to hospitals and clinics worldwide — boosting productivity, growing revenue, and ensuring full regulatory compliance and data security.
             </motion.p>
 
             <motion.div variants={fadeUp} custom={3} className="mt-10 flex flex-wrap gap-4">
@@ -105,7 +98,7 @@ const Index = () => (
       </div>
     </section>
 
-    {/* Stats — sourced from pitch deck */}
+    {/* Stats */}
     <section className="border-y border-border">
       <div className="container mx-auto px-4 py-10">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
@@ -128,40 +121,6 @@ const Index = () => (
       </div>
     </section>
 
-    {/* Patient Satisfaction */}
-    <section className="py-24 bg-background">
-      <div className="container mx-auto px-4">
-        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
-          <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3.5">Patient-Centred Care</p>
-          <h2 className="font-display text-[clamp(2rem,3.5vw,3rem)] font-extrabold leading-[1.1] tracking-tight text-foreground max-w-xl mx-auto">
-            Putting <em className="not-italic text-primary">Patients First</em> Through Smarter AI
-          </h2>
-          <p className="mt-4 text-base font-light leading-relaxed text-muted-foreground max-w-lg mx-auto">
-            When clinicians spend less time on paperwork, patients get more face-to-face care, faster diagnoses, and better outcomes.
-          </p>
-        </motion.div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {patientBenefits.map((b, i) => (
-            <motion.div
-              key={b.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.08 }}
-              className="bg-card border border-border rounded-[20px] p-8 hover:border-primary hover:shadow-card-hover transition-all hover:-translate-y-1"
-            >
-              <div className="w-12 h-12 rounded-2xl teal-muted-bg border teal-muted-border flex items-center justify-center mb-5">
-                <b.icon className="w-5 h-5 text-primary" />
-              </div>
-              <h3 className="font-display text-base font-bold text-foreground mb-2">{b.title}</h3>
-              <p className="text-sm font-light leading-relaxed text-muted-foreground">{b.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-
     {/* About */}
     <section id="about" className="bg-dark py-24">
       <div className="container mx-auto px-4">
@@ -172,10 +131,10 @@ const Index = () => (
               AI Built for the Realities of <em className="not-italic text-primary">Modern Healthcare</em>
             </h2>
             <p className="mt-5 text-base font-light leading-relaxed text-dark-muted max-w-lg">
-              DATAelixAIr bridges the gap between cutting-edge AI and the complex operational demands of healthcare. Our AI-powered scribe listens, transcribes, and drafts clinical notes in real time — fully integrated with NHS systems.
+              DATAelixAIr bridges the gap between cutting-edge artificial intelligence and the complex operational demands of healthcare institutions. Our solutions are purpose-built — respecting clinical workflows, regulatory frameworks, and the sensitivity of patient data.
             </p>
             <p className="mt-4 text-base font-light leading-relaxed text-dark-muted max-w-lg">
-              From single GP practices to large hospital networks, we craft scalable solutions that respect clinical workflows, regulatory frameworks, and patient data sensitivity.
+              From single-site clinics to large hospital networks, we craft scalable, interoperable AI systems that slot seamlessly into existing infrastructures — no disruption, just results.
             </p>
 
             <div className="grid grid-cols-2 gap-4 mt-12">
@@ -257,10 +216,10 @@ const Index = () => (
         {/* Compliance band */}
         <div className="mt-10 teal-muted-bg border teal-muted-border rounded-2xl px-8 py-7 flex items-center justify-between flex-wrap gap-5">
           <p className="text-sm font-medium text-foreground">
-            🔒 All solutions are fully certified and compliant with healthcare standards
+            🔒 All solutions are fully certified and compliant with global healthcare standards
           </p>
           <div className="flex flex-wrap gap-3">
-            {["GDPR", "NHS DTAC", "ISO 27001", "HL7 FHIR", "SOC 2"].map((b) => (
+            {["HIPAA", "GDPR", "NHS DSP", "ISO 27001", "HL7 FHIR", "SOC 2"].map((b) => (
               <span key={b} className="text-xs font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-lg bg-card border teal-muted-border text-primary">
                 {b}
               </span>
