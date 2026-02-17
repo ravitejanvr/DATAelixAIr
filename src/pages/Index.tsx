@@ -1,9 +1,8 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Heart, Users, Handshake, Lightbulb } from "lucide-react";
 import HeroDashboard from "@/components/HeroDashboard";
-import GlobeVisual from "@/components/GlobeVisual";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
@@ -28,7 +27,7 @@ const services = [
   },
   {
     icon: "🛡️", title: "Compliance & Security", featured: false,
-    desc: "Zero-trust, end-to-end encrypted platform ensures full HIPAA, GDPR, and regional regulatory compliance with audit trails.",
+    desc: "Building towards full HIPAA, GDPR, and regional regulatory compliance with end-to-end encryption and audit trails.",
     tags: ["HIPAA", "GDPR", "ISO 27001"],
   },
   {
@@ -37,31 +36,23 @@ const services = [
     tags: ["Claims AI", "Coding Accuracy", "Denial Mgmt"],
   },
   {
-    icon: "🎓", title: "Training & Change Management", featured: false,
-    desc: "We partner with your teams through adoption — custom training programmes and dedicated support for lasting impact.",
-    tags: ["Staff Training", "Ongoing Support", "KPI Tracking"],
+    icon: "❤️", title: "Patient Satisfaction & Engagement", featured: false,
+    desc: "Improve patient experience with digital intake, feedback loops, personalised care pathways, and proactive communication.",
+    tags: ["Patient Portal", "Feedback AI", "Care Pathways"],
   },
 ];
 
-const stats = [
-  { value: "500", suffix: "+", label: "Hospitals & Clinics Served" },
-  { value: "38", suffix: "%", label: "Avg. Productivity Gain" },
-  { value: "30", suffix: "+", label: "Countries Worldwide" },
-  { value: "99", suffix: "%", label: "SLA Uptime Guarantee" },
-];
-
 const pillars = [
-  { icon: "🏛️", name: "Regulatory First", text: "HIPAA, GDPR, NHS compliant by design across all deployments." },
-  { icon: "🔗", name: "Interoperability", text: "HL7, FHIR and EHR-native integrations for zero friction." },
-  { icon: "🛡️", name: "Data Security", text: "End-to-end encryption, zero-trust architecture, audit trails." },
-  { icon: "🌍", name: "Global Reach", text: "Deployed in 30+ countries with localised compliance support." },
+  { icon: "🏛️", name: "Regulatory Alignment", text: "Actively building towards HIPAA, GDPR, and NHS compliance across all deployments." },
+  { icon: "🔗", name: "Interoperability", text: "HL7, FHIR and EHR-native integrations designed for seamless adoption." },
+  { icon: "🛡️", name: "Data Security", text: "End-to-end encryption, zero-trust architecture, and comprehensive audit trails." },
+  { icon: "❤️", name: "Patient-Centric", text: "Every solution is designed to improve patient satisfaction and clinical outcomes." },
 ];
 
 const Index = () => (
   <div>
     {/* Hero */}
     <section className="min-h-screen relative overflow-hidden">
-      {/* Background effects */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_85%_40%,hsl(var(--teal)/0.10),transparent_70%),radial-gradient(ellipse_50%_50%_at_15%_80%,hsl(var(--teal-light)/0.06),transparent_60%)]" />
       <div className="absolute inset-0 hero-grid-bg" />
 
@@ -74,16 +65,16 @@ const Index = () => (
             </motion.div>
 
             <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.6rem,5vw,4.2rem)] font-extrabold leading-[1.05] tracking-tight text-foreground">
-              Elevate Clinical{"\n"}Outcomes with{"\n"}<em className="not-italic text-primary">Intelligent AI</em>
+              Tailored AI for{"\n"}Every Hospital &{"\n"}<em className="not-italic text-primary">Clinic's Needs</em>
             </motion.h1>
 
             <motion.p variants={fadeUp} custom={2} className="mt-6 text-[clamp(1rem,1.4vw,1.15rem)] font-light leading-relaxed text-muted-foreground max-w-[480px]">
-              DATAelixAIr delivers tailored AI services to hospitals and clinics worldwide — boosting productivity, growing revenue, and ensuring full regulatory compliance and data security.
+              DATAelixAIr crafts bespoke AI solutions for healthcare facilities — improving patient satisfaction, boosting productivity, and navigating regulatory compliance. We're inviting hospitals, investors, and collaborators worldwide to shape the future of healthcare AI.
             </motion.p>
 
             <motion.div variants={fadeUp} custom={3} className="mt-10 flex flex-wrap gap-4">
               <Button variant="default" size="lg" asChild>
-                <Link to="/contact">Book a Demo →</Link>
+                <Link to="/contact">Partner With Us →</Link>
               </Button>
               <Button variant="outline" size="lg" asChild>
                 <Link to="/services">Explore Services</Link>
@@ -98,11 +89,16 @@ const Index = () => (
       </div>
     </section>
 
-    {/* Stats */}
+    {/* Mission Strip */}
     <section className="border-y border-border">
       <div className="container mx-auto px-4 py-10">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-          {stats.map((s, i) => (
+          {[
+            { icon: Heart, label: "Patient Satisfaction First", desc: "Every solution we build puts patient experience at the centre" },
+            { icon: Lightbulb, label: "Tailored Solutions", desc: "Custom AI designed for your unique workflows and challenges" },
+            { icon: Handshake, label: "Open to Collaboration", desc: "Seeking pilot partners, investors, and advisors worldwide" },
+            { icon: Users, label: "Built for Healthcare", desc: "Purpose-built by healthcare & AI specialists together" },
+          ].map((s, i) => (
             <motion.div
               key={s.label}
               initial={{ opacity: 0, y: 20 }}
@@ -111,10 +107,9 @@ const Index = () => (
               transition={{ delay: i * 0.1 }}
               className="text-center"
             >
-              <div className="font-display text-[clamp(2rem,3.5vw,3rem)] font-extrabold text-foreground leading-none">
-                {s.value}<span className="text-primary">{s.suffix}</span>
-              </div>
-              <div className="text-xs text-gray-mid mt-1.5">{s.label}</div>
+              <s.icon className="mx-auto text-primary mb-2" size={28} />
+              <div className="font-display text-sm font-bold text-foreground">{s.label}</div>
+              <div className="text-xs text-muted-foreground mt-1">{s.desc}</div>
             </motion.div>
           ))}
         </div>
@@ -124,17 +119,17 @@ const Index = () => (
     {/* About */}
     <section id="about" className="bg-dark py-24">
       <div className="container mx-auto px-4">
-        <div className="grid lg:grid-cols-2 gap-20 items-center">
+        <div className="max-w-3xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary-light mb-3.5">Who We Are</p>
             <h2 className="font-display text-[clamp(2rem,3.5vw,3rem)] font-extrabold leading-[1.1] tracking-tight text-dark-foreground max-w-xl">
               AI Built for the Realities of <em className="not-italic text-primary">Modern Healthcare</em>
             </h2>
             <p className="mt-5 text-base font-light leading-relaxed text-dark-muted max-w-lg">
-              DATAelixAIr bridges the gap between cutting-edge artificial intelligence and the complex operational demands of healthcare institutions. Our solutions are purpose-built — respecting clinical workflows, regulatory frameworks, and the sensitivity of patient data.
+              DATAelixAIr bridges the gap between cutting-edge artificial intelligence and the complex operational demands of healthcare institutions. We're a young, ambitious company building purpose-built solutions — respecting clinical workflows, regulatory frameworks, and the sensitivity of patient data.
             </p>
             <p className="mt-4 text-base font-light leading-relaxed text-dark-muted max-w-lg">
-              From single-site clinics to large hospital networks, we craft scalable, interoperable AI systems that slot seamlessly into existing infrastructures — no disruption, just results.
+              We're seeking early adopters, pilot partners, and collaborators who share our vision of making healthcare smarter, more efficient, and deeply patient-centric.
             </p>
 
             <div className="grid grid-cols-2 gap-4 mt-12">
@@ -147,10 +142,6 @@ const Index = () => (
               ))}
             </div>
           </motion.div>
-
-          <div className="hidden lg:block">
-            <GlobeVisual />
-          </div>
         </div>
       </div>
     </section>
@@ -203,7 +194,7 @@ const Index = () => (
                   <span key={t} className={`text-[0.7rem] font-medium tracking-wide px-2.5 py-1 rounded-full border ${
                     s.featured
                       ? "bg-background/5 border-background/10 text-background/40"
-                      : "bg-card border-border text-gray-mid"
+                      : "bg-card border-border text-muted-foreground"
                   }`}>
                     {t}
                   </span>
@@ -216,7 +207,7 @@ const Index = () => (
         {/* Compliance band */}
         <div className="mt-10 teal-muted-bg border teal-muted-border rounded-2xl px-8 py-7 flex items-center justify-between flex-wrap gap-5">
           <p className="text-sm font-medium text-foreground">
-            🔒 All solutions are fully certified and compliant with global healthcare standards
+            🔒 Building towards full certification with global healthcare standards
           </p>
           <div className="flex flex-wrap gap-3">
             {["HIPAA", "GDPR", "NHS DSP", "ISO 27001", "HL7 FHIR", "SOC 2"].map((b) => (
@@ -226,6 +217,37 @@ const Index = () => (
             ))}
           </div>
         </div>
+      </div>
+    </section>
+
+    {/* Investors, Partners & Collaborators CTA */}
+    <section className="bg-dark py-24">
+      <div className="container mx-auto px-4 text-center max-w-3xl">
+        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+          <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary-light mb-3.5">Join Our Journey</p>
+          <h2 className="font-display text-[clamp(2rem,3.5vw,3rem)] font-extrabold leading-[1.1] tracking-tight text-dark-foreground">
+            Seeking <em className="not-italic text-primary">Investors</em>, Partners & <em className="not-italic text-primary">Collaborators</em>
+          </h2>
+          <p className="mt-5 text-dark-muted font-light leading-relaxed max-w-lg mx-auto">
+            We're at an exciting early stage — building transformative AI for healthcare. Whether you're an investor, hospital leader, advisor, or technology partner, we'd love to explore how we can create impact together.
+          </p>
+          <div className="grid sm:grid-cols-3 gap-4 mt-12">
+            {[
+              { icon: "🏦", title: "Investors", desc: "Fund the future of healthcare AI. Early-stage opportunity with massive global potential." },
+              { icon: "🏥", title: "Pilot Partners", desc: "Be among the first hospitals to benefit from tailored AI — with dedicated support." },
+              { icon: "🧠", title: "Advisors & Experts", desc: "Lend your expertise in healthcare, AI, regulation, or strategy to shape our direction." },
+            ].map((item) => (
+              <div key={item.title} className="dark-card border rounded-2xl p-6 hover:border-primary/40 hover:bg-primary/5 transition-all">
+                <div className="text-3xl mb-3">{item.icon}</div>
+                <h4 className="font-display text-sm font-bold text-dark-foreground mb-1.5">{item.title}</h4>
+                <p className="text-xs text-dark-muted/60 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          <Button variant="default" size="lg" className="mt-10" asChild>
+            <Link to="/contact">Get in Touch →</Link>
+          </Button>
+        </motion.div>
       </div>
     </section>
   </div>

@@ -28,14 +28,14 @@ const Contact = () => {
             {/* Contact Info */}
             <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
               <p className="text-dark-muted font-light leading-relaxed mb-10">
-                Whether you're a single clinic or a multi-site hospital network, our team will work with you to design a solution that fits your workflows, budget, and compliance requirements.
+                Whether you're a single clinic or a multi-site hospital network, an investor or a potential advisor — we'd love to hear from you. Let's explore how we can collaborate.
               </p>
 
               <div className="space-y-7">
                 {[
-                  { icon: "📧", label: "Email", value: "hello@dataelixair.com" },
-                  { icon: "📞", label: "Phone", value: "+1 (800) DATA-AIR" },
-                  { icon: "🌍", label: "Coverage", value: "Worldwide — 30+ Countries" },
+                  { icon: "📧", label: "Email", value: "raviteja.nvr@elixair.uk" },
+                  { icon: "📞", label: "Phone", value: "07471 522177" },
+                  { icon: "🤝", label: "Open To", value: "Pilots, Investors, Partners & Advisors" },
                   { icon: "⏰", label: "Response Time", value: "Within 24 Hours" },
                 ].map((c) => (
                   <div key={c.label} className="flex items-start gap-4">
@@ -57,72 +57,48 @@ const Contact = () => {
                 <div className="text-center p-10 teal-muted-bg border teal-muted-border rounded-[20px]">
                   <div className="text-4xl mb-3">✅</div>
                   <h3 className="font-display text-xl font-bold text-dark-foreground">Message Received!</h3>
-                  <p className="text-sm text-dark-muted mt-2">Our healthcare AI specialists will be in touch within 24 hours.</p>
+                  <p className="text-sm text-dark-muted mt-2">Our team will be in touch within 24 hours.</p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-2">
                       <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">First Name</label>
-                      <input
-                        required
-                        placeholder="John"
-                        className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all"
-                      />
+                      <input required placeholder="John" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
                     </div>
                     <div className="flex flex-col gap-2">
                       <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">Last Name</label>
-                      <input
-                        required
-                        placeholder="Smith"
-                        className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all"
-                      />
+                      <input required placeholder="Smith" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
                     </div>
                   </div>
 
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">Work Email</label>
-                    <input
-                      required
-                      type="email"
-                      placeholder="john@hospital.org"
-                      className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all"
-                    />
+                    <input required type="email" placeholder="john@hospital.org" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
                   </div>
 
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">Organisation</label>
-                    <input
-                      required
-                      placeholder="Hospital / Clinic Name"
-                      className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all"
-                    />
+                    <input required placeholder="Hospital / Clinic / Company Name" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">Organisation Type</label>
-                    <select
-                      required
-                      className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground outline-none focus:border-primary focus:bg-primary/5 transition-all"
-                    >
+                    <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">I am a…</label>
+                    <select required className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground outline-none focus:border-primary focus:bg-primary/5 transition-all">
                       <option value="">Select type…</option>
-                      <option>Hospital — Large (&gt;500 beds)</option>
-                      <option>Hospital — Medium (100–500 beds)</option>
-                      <option>Clinic / Outpatient Centre</option>
+                      <option>Hospital / Clinic Leader</option>
                       <option>Healthcare Network</option>
+                      <option>Investor</option>
+                      <option>Advisor / Consultant</option>
+                      <option>Technology Partner</option>
                       <option>Government / NHS Trust</option>
                       <option>Other</option>
                     </select>
                   </div>
 
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">How can we help?</label>
-                    <textarea
-                      required
-                      rows={4}
-                      placeholder="Tell us about your challenges..."
-                      className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all resize-y min-h-[120px]"
-                    />
+                    <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">How can we collaborate?</label>
+                    <textarea required rows={4} placeholder="Tell us about your interest in partnering or investing..." className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all resize-y min-h-[120px]" />
                   </div>
 
                   <Button variant="default" size="lg" type="submit" className="self-start mt-2">

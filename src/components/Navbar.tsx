@@ -9,6 +9,7 @@ const navLinks = [
   { label: "Services", path: "/services" },
   { label: "Solutions", path: "/solutions" },
   { label: "Pricing", path: "/pricing" },
+  { label: "Blog", path: "/blog" },
   { label: "Affiliate", path: "/affiliate" },
   { label: "Contact", path: "/contact" },
 ];
@@ -27,8 +28,11 @@ const Navbar = () => {
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 glass-nav border-b border-border transition-shadow ${scrolled ? "shadow-md" : ""}`}>
       <div className="container mx-auto flex items-center justify-between h-[68px] px-4">
-        <Link to="/" className="font-display font-extrabold text-xl tracking-tight text-foreground">
-          DATA<span className="text-primary">elix</span>AIr
+        <Link to="/" className="font-display font-extrabold text-xl tracking-tight">
+          <span className="text-primary">DATA</span>
+          <span className="text-foreground">elix</span>
+          <span className="text-primary">AI</span>
+          <span className="text-foreground">r</span>
         </Link>
 
         {/* Desktop */}
@@ -50,7 +54,7 @@ const Navbar = () => {
 
         <div className="hidden md:block">
           <Button variant="dark" size="sm" asChild>
-            <Link to="/contact">Book a Demo</Link>
+            <Link to="/contact">Partner With Us</Link>
           </Button>
         </div>
 
@@ -80,7 +84,7 @@ const Navbar = () => {
                 </Link>
               ))}
               <Button variant="default" className="mt-6" asChild>
-                <Link to="/contact" onClick={() => setOpen(false)}>Book a Demo →</Link>
+                <Link to="/contact" onClick={() => setOpen(false)}>Partner With Us →</Link>
               </Button>
             </div>
           </motion.div>
