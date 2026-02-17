@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 const navLinks = [
-  { label: "Home", path: "/" },
+  { label: "About", path: "/#about" },
   { label: "Services", path: "/services" },
   { label: "Solutions", path: "/solutions" },
   { label: "Pricing", path: "/pricing" },
@@ -15,25 +15,32 @@ const navLinks = [
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass-dark border-b border-primary/10">
-      <div className="container mx-auto flex items-center justify-between h-16 px-4">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="text-xl font-display font-bold gradient-text">DATAelixAIr</span>
+    <nav className={`fixed top-0 left-0 right-0 z-50 glass-nav border-b border-border transition-shadow ${scrolled ? "shadow-md" : ""}`}>
+      <div className="container mx-auto flex items-center justify-between h-[68px] px-4">
+        <Link to="/" className="font-display font-extrabold text-xl tracking-tight text-foreground">
+          DATA<span className="text-primary">elix</span>AIr
         </Link>
 
         {/* Desktop */}
-        <div className="hidden md:flex items-center gap-1">
+        <div className="hidden md:flex items-center gap-9">
           {navLinks.map((link) => (
             <Link
               key={link.path}
               to={link.path}
-              className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`text-sm font-medium tracking-wide transition-colors ${
                 location.pathname === link.path
-                  ? "text-primary bg-primary/10"
-                  : "text-hero-foreground/70 hover:text-hero-foreground hover:bg-primary/5"
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-primary"
               }`}
             >
               {link.label}
@@ -41,17 +48,14 @@ const Navbar = () => {
           ))}
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="text-hero-foreground/70 hover:text-hero-foreground" asChild>
-            <Link to="/contact">Book Demo</Link>
-          </Button>
-          <Button variant="hero" size="sm" asChild>
-            <Link to="/contact">Get Started</Link>
+        <div className="hidden md:block">
+          <Button variant="dark" size="sm" asChild>
+            <Link to="/contact">Book a Demo</Link>
           </Button>
         </div>
 
         {/* Mobile */}
-        <button onClick={() => setOpen(!open)} className="md:hidden text-hero-foreground">
+        <button onClick={() => setOpen(!open)} className="md:hidden text-foreground">
           {open ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
@@ -62,25 +66,21 @@ const Navbar = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden glass-dark border-t border-primary/10"
+            className="md:hidden bg-background border-t border-border"
           >
-            <div className="flex flex-col p-4 gap-1">
+            <div className="flex flex-col p-6 gap-2">
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
                   to={link.path}
                   onClick={() => setOpen(false)}
-                  className={`px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                    location.pathname === link.path
-                      ? "text-primary bg-primary/10"
-                      : "text-hero-foreground/70 hover:text-hero-foreground"
-                  }`}
+                  className="font-display text-2xl font-bold py-3 border-b border-border text-foreground hover:text-primary transition-colors"
                 >
                   {link.label}
                 </Link>
               ))}
-              <Button variant="hero" className="mt-3" asChild>
-                <Link to="/contact" onClick={() => setOpen(false)}>Get Started</Link>
+              <Button variant="default" className="mt-6" asChild>
+                <Link to="/contact" onClick={() => setOpen(false)}>Book a Demo →</Link>
               </Button>
             </div>
           </motion.div>
