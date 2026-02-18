@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import SEO from "@/components/SEO";
 import { Bot, BarChart3, Link2, ShieldCheck, DollarSign, GraduationCap, Smartphone, TrendingUp, Search } from "lucide-react";
 
 const services = [
@@ -53,6 +54,7 @@ const services = [
 
 const Services = () => (
   <div>
+    <SEO title="Services — DATAelixAIr" description="Comprehensive healthcare AI services including clinical automation, predictive analytics, interoperability, compliance, and explainable AI." />
     <section className="pt-32 pb-24 bg-background">
       <div className="container mx-auto px-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl">

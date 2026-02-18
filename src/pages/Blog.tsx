@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, ExternalLink } from "lucide-react";
+import SEO from "@/components/SEO";
 
 const articles = [
   {
@@ -44,6 +45,7 @@ const articles = [
 
 const Blog = () => (
   <div>
+    <SEO title="Blog & Insights — DATAelixAIr" description="Curated articles from McKinsey, Nature, and WHO on how AI is transforming hospitals and clinical practice worldwide." />
     <section className="pt-32 pb-24 bg-background">
       <div className="container mx-auto px-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl">
