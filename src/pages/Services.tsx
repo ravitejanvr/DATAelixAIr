@@ -1,50 +1,51 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { Bot, BarChart3, Link2, ShieldCheck, DollarSign, GraduationCap, Smartphone, TrendingUp, Search } from "lucide-react";
 
 const services = [
   {
-    icon: "🤖", title: "Clinical AI Automation",
+    icon: Bot, title: "Clinical AI Automation",
     desc: "Automate administrative workflows, clinical documentation, and scheduling — freeing clinicians to focus on patient care and cutting operational costs.",
     features: ["NLP Documentation", "Smart Scheduling", "Billing AI", "Workflow Engine"],
   },
   {
-    icon: "📊", title: "Predictive Analytics",
+    icon: BarChart3, title: "Predictive Analytics",
     desc: "Harness your hospital's data to predict patient deterioration, readmission risks, and demand surges before they happen — improving outcomes and resource efficiency.",
     features: ["Risk Stratification", "Demand Forecasting", "Population Health", "Readmission AI"],
   },
   {
-    icon: "🔗", title: "Interoperability & Integration",
+    icon: Link2, title: "Interoperability & Integration",
     desc: "Seamlessly connect disparate systems — EHRs, labs, imaging, and wearables — using HL7 FHIR standards for a unified, real-time patient data ecosystem.",
     features: ["HL7 / FHIR", "EHR Integration", "API Layer", "Legacy Connectors"],
   },
   {
-    icon: "🛡️", title: "Compliance & Security",
+    icon: ShieldCheck, title: "Compliance & Security",
     desc: "Our zero-trust, end-to-end encrypted platform ensures full HIPAA, GDPR, and regional regulatory compliance, with complete audit trails and data sovereignty.",
     features: ["HIPAA", "GDPR", "ISO 27001", "SOC 2 Type II"],
   },
   {
-    icon: "💰", title: "Revenue Cycle Optimisation",
+    icon: DollarSign, title: "Revenue Cycle Optimisation",
     desc: "AI-driven coding accuracy, denial prediction, and claims management to maximise reimbursements and accelerate cash flow for your institution.",
     features: ["Claims AI", "Coding Accuracy", "Denial Mgmt", "A/R Optimization"],
   },
   {
-    icon: "🎓", title: "Training & Change Management",
+    icon: GraduationCap, title: "Training & Change Management",
     desc: "We partner with your teams through adoption — from custom training programmes to dedicated support — ensuring AI delivers lasting impact across your organisation.",
     features: ["Staff Training", "Ongoing Support", "KPI Tracking", "Change Strategy"],
   },
   {
-    icon: "📱", title: "Patient Engagement",
+    icon: Smartphone, title: "Patient Engagement",
     desc: "Improve patient satisfaction with digital intake, telehealth integration, appointment reminders, and secure messaging portals.",
     features: ["Patient Portal", "Telehealth", "Reminders", "Feedback"],
   },
   {
-    icon: "📈", title: "Quality & Reporting",
+    icon: TrendingUp, title: "Quality & Reporting",
     desc: "Meet quality benchmarks and reporting requirements with automated data collection, analysis, and submission to regulatory bodies.",
     features: ["Quality Measures", "Auto Reporting", "Benchmarking", "Accreditation"],
   },
   {
-    icon: "🔍", title: "Explainable AI",
+    icon: Search, title: "Explainable AI",
     desc: "Transparent, interpretable AI models that clinicians can trust — every recommendation comes with clear reasoning, audit trails, and decision rationale to support clinical confidence and regulatory alignment.",
     features: ["Interpretability", "Decision Audit", "Clinical Trust", "Model Transparency"],
   },
@@ -80,8 +81,8 @@ const Services = () => (
             >
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="flex items-start gap-5 relative z-10">
-                <div className="w-[52px] h-[52px] rounded-[14px] teal-muted-bg border teal-muted-border flex items-center justify-center text-2xl shrink-0">
-                  {s.icon}
+                <div className="w-[52px] h-[52px] rounded-[14px] teal-muted-bg border teal-muted-border flex items-center justify-center shrink-0">
+                  <s.icon className="text-primary" size={24} />
                 </div>
                 <div>
                   <h3 className="font-display text-xl font-bold text-foreground">{s.title}</h3>
