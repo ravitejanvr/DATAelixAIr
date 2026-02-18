@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowRight, Heart, Users, Handshake, Lightbulb } from "lucide-react";
+import { ArrowRight, Heart, Users, Handshake, Lightbulb, Sparkles } from "lucide-react";
 import HeroDashboard from "@/components/HeroDashboard";
 
 const fadeUp = {
@@ -40,6 +40,11 @@ const services = [
     desc: "Improve patient experience with digital intake, feedback loops, personalised care pathways, and proactive communication.",
     tags: ["Patient Portal", "Feedback AI", "Care Pathways"],
   },
+  {
+    icon: "🔍", title: "Explainable AI", featured: false,
+    desc: "Transparent, interpretable AI models that clinicians can trust — every recommendation comes with clear reasoning, audit trails, and decision rationale.",
+    tags: ["Interpretability", "Decision Audit", "Clinical Trust", "Model Transparency"],
+  },
 ];
 
 const pillars = [
@@ -51,41 +56,52 @@ const pillars = [
 
 const Index = () => (
   <div>
-    {/* Hero */}
-    <section className="min-h-screen relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_85%_40%,hsl(var(--teal)/0.10),transparent_70%),radial-gradient(ellipse_50%_50%_at_15%_80%,hsl(var(--teal-light)/0.06),transparent_60%)]" />
+    {/* Hero — centered, Heidi/Lyrebird-inspired */}
+    <section className="min-h-screen relative overflow-hidden flex items-center">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_30%,hsl(var(--teal)/0.08),transparent_70%)]" />
       <div className="absolute inset-0 hero-grid-bg" />
 
+      {/* Decorative sparkles */}
+      <Sparkles className="absolute top-[18%] left-[12%] text-primary/20 w-5 h-5 animate-pulse" />
+      <Sparkles className="absolute top-[30%] right-[15%] text-primary/15 w-4 h-4 animate-pulse" style={{ animationDelay: "1s" }} />
+      <Sparkles className="absolute bottom-[25%] left-[20%] text-primary/10 w-3 h-3 animate-pulse" style={{ animationDelay: "2s" }} />
+
       <div className="container mx-auto px-4 pt-32 pb-24 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          <motion.div initial="hidden" animate="visible">
-            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 teal-muted-bg border teal-muted-border px-3.5 py-1.5 rounded-full text-xs font-medium uppercase tracking-[0.06em] text-primary mb-7">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              AI-Powered Healthcare Solutions
-            </motion.div>
-
-            <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.6rem,5vw,4.2rem)] font-extrabold leading-[1.05] tracking-tight text-foreground">
-              Tailored AI for{"\n"}Every Hospital &{"\n"}<em className="not-italic text-primary">Clinic's Needs</em>
-            </motion.h1>
-
-            <motion.p variants={fadeUp} custom={2} className="mt-6 text-[clamp(1rem,1.4vw,1.15rem)] font-light leading-relaxed text-muted-foreground max-w-[480px]">
-              DATAelixAIr crafts bespoke AI solutions for healthcare facilities — improving patient satisfaction, boosting productivity, and navigating regulatory compliance. We're inviting hospitals, investors, and collaborators worldwide to shape the future of healthcare AI.
-            </motion.p>
-
-            <motion.div variants={fadeUp} custom={3} className="mt-10 flex flex-wrap gap-4">
-              <Button variant="default" size="lg" asChild>
-                <Link to="/contact">Partner With Us →</Link>
-              </Button>
-              <Button variant="outline" size="lg" asChild>
-                <Link to="/services">Explore Services</Link>
-              </Button>
-            </motion.div>
+        <motion.div initial="hidden" animate="visible" className="text-center max-w-3xl mx-auto">
+          <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 teal-muted-bg border teal-muted-border px-3.5 py-1.5 rounded-full text-xs font-medium uppercase tracking-[0.06em] text-primary mb-8">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            AI-Powered Healthcare
           </motion.div>
 
-          <div className="hidden lg:block">
-            <HeroDashboard />
-          </div>
-        </div>
+          <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.8rem,5.5vw,4.5rem)] font-extrabold leading-[1.05] tracking-tight text-foreground">
+            Intelligent AI,{" "}
+            <em className="not-italic text-primary italic font-display">personalised</em>
+            <br />for your practice.
+          </motion.h1>
+
+          <motion.p variants={fadeUp} custom={2} className="mt-7 text-[clamp(1.05rem,1.5vw,1.2rem)] font-light leading-relaxed text-muted-foreground max-w-xl mx-auto">
+            Every hospital is different. Our AI adapts to your workflows, regulations, and patient needs — so you can focus on what matters most: care.
+          </motion.p>
+
+          <motion.div variants={fadeUp} custom={3} className="mt-10 flex flex-wrap justify-center gap-4">
+            <Button variant="default" size="lg" asChild>
+              <Link to="/contact">Partner With Us →</Link>
+            </Button>
+            <Button variant="outline" size="lg" asChild>
+              <Link to="/services">Explore Services</Link>
+            </Button>
+          </motion.div>
+        </motion.div>
+
+        {/* Dashboard below hero text on large screens */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7, duration: 0.9 }}
+          className="hidden lg:block mt-20 max-w-2xl mx-auto"
+        >
+          <HeroDashboard />
+        </motion.div>
       </div>
     </section>
 
