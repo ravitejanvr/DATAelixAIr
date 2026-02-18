@@ -9,7 +9,7 @@ import Services from "./pages/Services";
 import Solutions from "./pages/Solutions";
 import Pricing from "./pages/Pricing";
 import Blog from "./pages/Blog";
-import Affiliate from "./pages/Affiliate";
+
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
 
@@ -28,7 +28,7 @@ const App = () => (
             <Route path="/solutions" element={<Solutions />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/blog" element={<Blog />} />
-            <Route path="/affiliate" element={<Affiliate />} />
+            
             <Route path="/contact" element={<Contact />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
