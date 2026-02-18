@@ -54,12 +54,12 @@ const Pricing = () => (
     <section className="pt-32 pb-24 bg-background">
       <div className="container mx-auto px-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center max-w-2xl mx-auto">
-          <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3.5">Partner With Us</p>
+         <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3.5">Collaborate With Us</p>
           <h1 className="font-display text-[clamp(2.2rem,4vw,3.5rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
-            Join Us at the <em className="not-italic text-primary">Ground Floor</em>
+            Shape the Future of <em className="not-italic text-primary">Healthcare AI</em> — Together
           </h1>
           <p className="mt-5 text-muted-foreground font-light leading-relaxed">
-            We're building something transformative. Instead of fixed pricing, we're inviting pilot partners, strategic collaborators, and investors to grow with us from the start.
+            We believe the best solutions are built through partnership. Whether you're a hospital ready to pilot, a strategic collaborator, or an investor with vision — there's a seat at the table for you.
           </p>
         </motion.div>
       </div>
