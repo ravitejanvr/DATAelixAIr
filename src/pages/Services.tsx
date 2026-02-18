@@ -2,51 +2,51 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import SEO from "@/components/SEO";
-import { Bot, BarChart3, Link2, ShieldCheck, DollarSign, GraduationCap, Smartphone, TrendingUp, Search } from "lucide-react";
+import { Bot, BarChart3, Link2, ShieldCheck, DollarSign, GraduationCap, Smartphone, TrendingUp, Search, ArrowRight } from "lucide-react";
 
 const services = [
   {
-    icon: Bot, title: "Clinical AI Automation",
+    icon: Bot, title: "Clinical AI Automation", slug: "clinical-ai-automation",
     desc: "Automate administrative workflows, clinical documentation, and scheduling — freeing clinicians to focus on patient care and cutting operational costs.",
     features: ["NLP Documentation", "Smart Scheduling", "Billing AI", "Workflow Engine"],
   },
   {
-    icon: BarChart3, title: "Predictive Analytics",
+    icon: BarChart3, title: "Predictive Analytics", slug: "predictive-analytics",
     desc: "Harness your hospital's data to predict patient deterioration, readmission risks, and demand surges before they happen — improving outcomes and resource efficiency.",
     features: ["Risk Stratification", "Demand Forecasting", "Population Health", "Readmission AI"],
   },
   {
-    icon: Link2, title: "Interoperability & Integration",
+    icon: Link2, title: "Interoperability & Integration", slug: "interoperability-integration",
     desc: "Seamlessly connect disparate systems — EHRs, labs, imaging, and wearables — using HL7 FHIR standards for a unified, real-time patient data ecosystem.",
     features: ["HL7 / FHIR", "EHR Integration", "API Layer", "Legacy Connectors"],
   },
   {
-    icon: ShieldCheck, title: "Compliance & Security",
+    icon: ShieldCheck, title: "Compliance & Security", slug: "compliance-security",
     desc: "Our zero-trust, end-to-end encrypted platform ensures full HIPAA, GDPR, and regional regulatory compliance, with complete audit trails and data sovereignty.",
     features: ["HIPAA", "GDPR", "ISO 27001", "SOC 2 Type II"],
   },
   {
-    icon: DollarSign, title: "Revenue Cycle Optimisation",
+    icon: DollarSign, title: "Revenue Cycle Optimisation", slug: "revenue-cycle-optimisation",
     desc: "AI-driven coding accuracy, denial prediction, and claims management to maximise reimbursements and accelerate cash flow for your institution.",
     features: ["Claims AI", "Coding Accuracy", "Denial Mgmt", "A/R Optimization"],
   },
   {
-    icon: GraduationCap, title: "Training & Change Management",
+    icon: GraduationCap, title: "Training & Change Management", slug: "training-change-management",
     desc: "We partner with your teams through adoption — from custom training programmes to dedicated support — ensuring AI delivers lasting impact across your organisation.",
     features: ["Staff Training", "Ongoing Support", "KPI Tracking", "Change Strategy"],
   },
   {
-    icon: Smartphone, title: "Patient Engagement",
+    icon: Smartphone, title: "Patient Engagement", slug: "patient-engagement",
     desc: "Improve patient satisfaction with digital intake, telehealth integration, appointment reminders, and secure messaging portals.",
     features: ["Patient Portal", "Telehealth", "Reminders", "Feedback"],
   },
   {
-    icon: TrendingUp, title: "Quality & Reporting",
+    icon: TrendingUp, title: "Quality & Reporting", slug: "quality-reporting",
     desc: "Meet quality benchmarks and reporting requirements with automated data collection, analysis, and submission to regulatory bodies.",
     features: ["Quality Measures", "Auto Reporting", "Benchmarking", "Accreditation"],
   },
   {
-    icon: Search, title: "Explainable AI",
+    icon: Search, title: "Explainable AI", slug: "explainable-ai",
     desc: "Transparent, interpretable AI models that clinicians can trust — every recommendation comes with clear reasoning, audit trails, and decision rationale to support clinical confidence and regulatory alignment.",
     features: ["Interpretability", "Decision Audit", "Clinical Trust", "Model Transparency"],
   },
@@ -63,7 +63,7 @@ const Services = () => (
             Comprehensive <em className="not-italic text-primary">Healthcare</em> Solutions
           </h1>
           <p className="mt-5 text-muted-foreground font-light leading-relaxed">
-            Every service is tailored to your country's regulations, your organization's size, and your specific operational challenges.
+            Every service is tailored to your country's regulations, your organization's size, and your specific operational challenges. Click any service to explore the full details.
           </p>
         </motion.div>
       </div>
@@ -79,25 +79,32 @@ const Services = () => (
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.06 }}
-              className="group border border-border rounded-[20px] p-9 bg-card hover:border-primary hover:-translate-y-1 hover:shadow-card-hover transition-all relative overflow-hidden"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="flex items-start gap-5 relative z-10">
-                <div className="w-[52px] h-[52px] rounded-[14px] teal-muted-bg border teal-muted-border flex items-center justify-center shrink-0">
-                  <s.icon className="text-primary" size={24} />
-                </div>
-                <div>
-                  <h3 className="font-display text-xl font-bold text-foreground">{s.title}</h3>
-                  <p className="mt-2.5 text-sm text-muted-foreground font-light leading-relaxed">{s.desc}</p>
-                  <div className="flex flex-wrap gap-2 mt-5">
-                    {s.features.map((f) => (
-                      <span key={f} className="text-[0.7rem] font-medium tracking-wide px-2.5 py-1 rounded-full border border-border bg-card text-gray-mid">
-                        {f}
-                      </span>
-                    ))}
+              <Link
+                to={`/services/${s.slug}`}
+                className="group block border border-border rounded-[20px] p-9 bg-card hover:border-primary hover:-translate-y-1 hover:shadow-card-hover transition-all relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex items-start gap-5 relative z-10">
+                  <div className="w-[52px] h-[52px] rounded-[14px] teal-muted-bg border teal-muted-border flex items-center justify-center shrink-0">
+                    <s.icon className="text-primary" size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-display text-xl font-bold text-foreground">{s.title}</h3>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                    </div>
+                    <p className="mt-2.5 text-sm text-muted-foreground font-light leading-relaxed">{s.desc}</p>
+                    <div className="flex flex-wrap gap-2 mt-5">
+                      {s.features.map((f) => (
+                        <span key={f} className="text-[0.7rem] font-medium tracking-wide px-2.5 py-1 rounded-full border border-border bg-card text-muted-foreground">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             </motion.div>
           ))}
         </div>
