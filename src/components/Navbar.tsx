@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
-import brainLogo from "@/assets/brain-logo.png";
+import brainLogo from "@/assets/brain-logo-nobg.png";
 import { AnimatePresence, motion } from "framer-motion";
 
 const navLinks = [
