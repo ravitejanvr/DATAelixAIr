@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import brainLogo from "@/assets/brain-logo.png";
+import brainLogo from "@/assets/brain-logo-nobg.png";
 
 const Footer = () => (
   <footer className="bg-dark border-t border-border/10">

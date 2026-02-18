@@ -1,15 +1,22 @@
 import { motion } from "framer-motion";
-import { ShieldCheck, Zap, Activity, TrendingUp, Users } from "lucide-react";
+import { Brain, Activity, Shield, Zap, ArrowUpRight } from "lucide-react";
 
-const data = [
-  { label: "Mon", value: 35 },
-  { label: "Tue", value: 55 },
-  { label: "Wed", value: 45 },
-  { label: "Thu", value: 70 },
-  { label: "Fri", value: 60 },
-  { label: "Sat", value: 85 },
-  { label: "Sun", value: 50 },
-  { label: "Avg", value: 65 },
+const metrics = [
+  { label: "AI Accuracy", value: "99.2%", trend: "+2.1%", icon: Brain },
+  { label: "Response Time", value: "12ms", trend: "-34%", icon: Zap },
+  { label: "Compliance", value: "100%", trend: "Active", icon: Shield },
+];
+
+const nodes = [
+  { x: 20, y: 25, label: "EHR", delay: 0 },
+  { x: 80, y: 20, label: "Lab", delay: 0.2 },
+  { x: 50, y: 50, label: "AI Engine", delay: 0.4, main: true },
+  { x: 15, y: 75, label: "Imaging", delay: 0.6 },
+  { x: 85, y: 75, label: "Billing", delay: 0.8 },
+];
+
+const connections = [
+  [0, 2], [1, 2], [2, 3], [2, 4],
 ];
 
 const HeroDashboard = () => (
@@ -19,70 +26,123 @@ const HeroDashboard = () => (
     transition={{ delay: 0.5, duration: 1.2 }}
     className="relative"
   >
-    <div className="bg-card border border-border rounded-[20px] p-7 shadow-card relative overflow-hidden">
-      {/* Top accent bar */}
+    <div className="bg-card border border-border rounded-[20px] shadow-card relative overflow-hidden">
+      {/* Top accent */}
       <div className="absolute top-0 left-0 right-0 h-[3px] gradient-teal" />
 
-      <div className="absolute -top-4 right-6 bg-foreground text-background text-xs font-medium px-3.5 py-1.5 rounded-full tracking-wide flex items-center gap-1.5">
-        <Activity className="w-3 h-3 text-green-400" />
-        <span>Live Dashboard</span>
+      {/* Header */}
+      <div className="px-7 pt-7 pb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            AI Integration Hub
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
+          <Activity className="w-3.5 h-3.5" />
+          Live
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-5 mt-2">
-        <TrendingUp className="w-4 h-4 text-primary" />
-        <p className="text-xs font-medium uppercase tracking-[0.08em] text-gray-mid">
-          Hospital Performance Overview
-        </p>
+      {/* Network Visualization */}
+      <div className="px-7 pb-4">
+        <div className="relative h-[160px] bg-muted/40 rounded-xl overflow-hidden">
+          {/* Grid pattern */}
+          <div className="absolute inset-0 opacity-30"
+            style={{
+              backgroundImage: "radial-gradient(circle, hsl(var(--primary) / 0.15) 1px, transparent 1px)",
+              backgroundSize: "20px 20px",
+            }}
+          />
+          
+          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+            {connections.map(([from, to], i) => (
+              <motion.line
+                key={i}
+                x1={`${nodes[from].x}%`} y1={`${nodes[from].y}%`}
+                x2={`${nodes[to].x}%`} y2={`${nodes[to].y}%`}
+                stroke="hsl(var(--primary))"
+                strokeWidth="0.4"
+                strokeOpacity="0.3"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ delay: 0.8 + i * 0.2, duration: 0.8 }}
+              />
+            ))}
+            {/* Animated data pulses along connections */}
+            {connections.map(([from, to], i) => (
+              <motion.circle
+                key={`pulse-${i}`}
+                r="1"
+                fill="hsl(var(--primary))"
+                initial={{ opacity: 0 }}
+                animate={{
+                  cx: [nodes[from].x, nodes[to].x],
+                  cy: [nodes[from].y, nodes[to].y],
+                  opacity: [0, 1, 1, 0],
+                }}
+                transition={{
+                  delay: 1.5 + i * 0.3,
+                  duration: 2,
+                  repeat: Infinity,
+                  repeatDelay: 1,
+                }}
+              />
+            ))}
+          </svg>
+
+          {/* Nodes */}
+          {nodes.map((node, i) => (
+            <motion.div
+              key={i}
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.6 + node.delay, type: "spring", stiffness: 200 }}
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${node.x}%`, top: `${node.y}%` }}
+            >
+              <div className={`rounded-full flex items-center justify-center ${
+                node.main
+                  ? "w-12 h-12 gradient-teal shadow-teal"
+                  : "w-8 h-8 bg-card border border-border shadow-sm"
+              }`}>
+                {node.main ? (
+                  <Brain className="w-5 h-5 text-primary-foreground" />
+                ) : (
+                  <span className="text-[0.55rem] font-semibold text-foreground">{node.label}</span>
+                )}
+              </div>
+              {node.main && (
+                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[0.6rem] font-bold text-primary whitespace-nowrap">
+                  {node.label}
+                </span>
+              )}
+            </motion.div>
+          ))}
+        </div>
       </div>
 
       {/* Metrics */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        {[
-          { val: "+38", unit: "%", label: "Productivity", icon: TrendingUp },
-          { val: "+22", unit: "%", label: "Revenue", icon: Activity },
-          { val: "99", unit: "%", label: "Uptime", icon: Zap },
-        ].map((m) => (
-          <div key={m.label} className="text-center bg-muted/40 rounded-xl p-3">
-            <m.icon className="w-4 h-4 text-primary mx-auto mb-1.5" />
-            <div className="font-display text-2xl font-bold text-foreground leading-none">
-              {m.val}<span className="text-primary">{m.unit}</span>
-            </div>
-            <div className="text-xs text-gray-mid mt-1">{m.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Chart */}
-      <div className="bg-muted rounded-xl p-4 h-[110px] flex items-end gap-2">
-        {data.map((d, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <div
-              className={`w-full rounded-t-md transition-all ${
-                d.value >= 65 ? "gradient-teal-vertical shadow-[0_0_12px_hsl(var(--teal)/0.3)]" : "bg-gray-mid/30"
-              }`}
-              style={{ height: `${d.value}%` }}
-            />
-            <span className="text-[0.6rem] text-gray-mid">{d.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-
-    {/* Mini cards */}
-    <div className="grid grid-cols-2 gap-3 mt-3">
-      <div className="bg-card border border-border rounded-[14px] p-4 shadow-card">
-        <div className="w-9 h-9 rounded-[10px] teal-muted-bg flex items-center justify-center mb-2.5">
-          <ShieldCheck className="w-5 h-5 text-primary" />
+      <div className="px-7 pb-7">
+        <div className="grid grid-cols-3 gap-3">
+          {metrics.map((m, i) => (
+            <motion.div
+              key={m.label}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.2 + i * 0.1 }}
+              className="bg-muted/40 rounded-xl p-3 text-center"
+            >
+              <m.icon className="w-4 h-4 text-primary mx-auto mb-1" />
+              <div className="font-display text-lg font-bold text-foreground leading-none">{m.value}</div>
+              <div className="text-[0.6rem] text-muted-foreground mt-1">{m.label}</div>
+              <div className="flex items-center justify-center gap-0.5 mt-1">
+                <ArrowUpRight className="w-2.5 h-2.5 text-primary" />
+                <span className="text-[0.55rem] text-primary font-medium">{m.trend}</span>
+              </div>
+            </motion.div>
+          ))}
         </div>
-        <p className="text-xs font-medium text-foreground">HIPAA Compliant</p>
-        <p className="font-display text-lg font-bold text-primary mt-0.5">Active</p>
-      </div>
-      <div className="bg-card border border-border rounded-[14px] p-4 shadow-card">
-        <div className="w-9 h-9 rounded-[10px] teal-muted-bg flex items-center justify-center mb-2.5">
-          <Zap className="w-5 h-5 text-primary" />
-        </div>
-        <p className="text-xs font-medium text-foreground">AI Inference</p>
-        <p className="font-display text-lg font-bold text-primary mt-0.5">12ms</p>
       </div>
     </div>
   </motion.div>

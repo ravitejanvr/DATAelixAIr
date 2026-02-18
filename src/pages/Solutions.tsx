@@ -1,27 +1,27 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ArrowRight } from "lucide-react";
 import SEO from "@/components/SEO";
 
 const solutions = [
   {
-    name: "Small Clinics & Outpatient Centres",
+    name: "Small Clinics & Outpatient Centres", slug: "small-clinics",
     desc: "Streamlined AI that fits lean operations — automating admin, improving patient flow, and boosting satisfaction without complexity.",
     features: ["Appointment optimisation", "Digital patient intake", "Automated billing & coding", "Patient feedback analytics"],
   },
   {
-    name: "Mid-Size Hospitals (100–500 beds)",
+    name: "Mid-Size Hospitals (100–500 beds)", slug: "mid-size-hospitals",
     desc: "Comprehensive AI covering clinical workflows, compliance, and revenue — tailored to your departments, staff, and patient mix.",
     features: ["Department-level analytics", "Predictive staffing", "EHR integration", "Regulatory compliance monitoring"],
   },
   {
-    name: "Large Hospitals & Networks",
+    name: "Large Hospitals & Networks", slug: "large-hospitals",
     desc: "Enterprise-scale AI across multiple sites — with unified dashboards, cross-facility analytics, and advanced interoperability.",
     features: ["Multi-site management", "Cross-facility data sharing", "Custom AI model training", "Dedicated support team"],
   },
   {
-    name: "Speciality & Niche Clinics",
+    name: "Speciality & Niche Clinics", slug: "specialty-clinics",
     desc: "AI tuned for speciality workflows — from ophthalmology to oncology — with domain-specific models and compliance.",
     features: ["Speciality-specific AI models", "Targeted outcome tracking", "Niche compliance support", "Patient journey mapping"],
   },
@@ -45,7 +45,7 @@ const Solutions = () => (
             Built for <em className="not-italic text-primary">Your</em> Facility
           </h1>
           <p className="mt-5 text-muted-foreground font-light leading-relaxed">
-            Every hospital and clinic is different. Our AI solutions are designed from the ground up to fit your specific size, speciality, workflows, and regulatory environment.
+            Every hospital and clinic is different. Our AI solutions are designed from the ground up to fit your specific size, speciality, workflows, and regulatory environment. Click any solution to explore the full details.
           </p>
         </motion.div>
       </div>
@@ -60,31 +60,39 @@ const Solutions = () => (
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: i * 0.08 }}
-            className="border border-border rounded-[20px] p-9 bg-card hover:shadow-card transition-all"
           >
-            <div className="flex flex-col lg:flex-row gap-8">
-              <div className="lg:w-1/3">
-                <h3 className="font-display text-xl font-bold text-foreground">{s.name}</h3>
-                <p className="text-sm text-muted-foreground mt-2 font-light leading-relaxed">{s.desc}</p>
+            <Link
+              to={`/solutions/${s.slug}`}
+              className="group block border border-border rounded-[20px] p-9 bg-card hover:border-primary hover:shadow-card-hover hover:-translate-y-0.5 transition-all"
+            >
+              <div className="flex flex-col lg:flex-row gap-8">
+                <div className="lg:w-1/3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-display text-xl font-bold text-foreground">{s.name}</h3>
+                    <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2 font-light leading-relaxed">{s.desc}</p>
+                </div>
+                <div className="lg:w-2/3 flex items-center">
+                  <ul className="grid sm:grid-cols-2 gap-3 flex-1">
+                    {s.features.map((f) => (
+                      <li key={f} className="flex items-center gap-2 text-sm text-foreground">
+                        <CheckCircle2 className="text-primary shrink-0" size={16} />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all hidden lg:block ml-4 shrink-0" />
+                </div>
               </div>
-              <div className="lg:w-2/3">
-                <ul className="grid sm:grid-cols-2 gap-3">
-                  {s.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-foreground">
-                      <CheckCircle2 className="text-primary shrink-0" size={16} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+            </Link>
           </motion.div>
         ))}
       </div>
     </section>
 
     {/* Regulatory Roadmap */}
-    <section className="py-20 bg-muted">
+    <section className="py-20 bg-muted/30">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3.5">Regulatory Roadmap</p>
