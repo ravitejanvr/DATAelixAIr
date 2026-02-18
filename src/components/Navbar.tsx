@@ -29,8 +29,8 @@ const Navbar = () => {
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 glass-nav border-b border-border transition-shadow ${scrolled ? "shadow-md" : ""}`}>
       <div className="container mx-auto flex items-center justify-between h-[68px] px-4">
-        <Link to="/" className="flex items-center gap-2 font-display font-extrabold text-xl tracking-tight">
-          <img src={brainLogo} alt="DATAelixAIr brain logo" className="h-8 w-8 object-contain" />
+        <Link to="/" className="flex items-center gap-1.5 font-display font-extrabold text-xl tracking-tight">
+          <img src={brainLogo} alt="DATAelixAIr" className="h-7 w-7 object-contain -mr-0.5" />
           <span>
             <span className="text-primary">DATA</span>
             <span className="text-foreground">elix</span>
