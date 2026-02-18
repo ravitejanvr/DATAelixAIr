@@ -59,32 +59,32 @@ const governanceFramework = [
   {
     icon: ShieldCheck,
     title: "Clinical Governance",
-    desc: "An integrated approach towards management of inputs, structures, and processes to improve healthcare service delivery outcomes — ensuring accountability, transparency, and continuous quality improvement.",
+    desc: "A rigorous, institution-wide framework that unifies leadership accountability, evidence-based practice, and continuous quality improvement — ensuring every clinical decision is transparent, measurable, and aligned with the highest standards of patient care.",
   },
   {
     icon: Globe,
     title: "Global Patient Safety Action Plan 2021–2030",
-    desc: "WHO's vision: a world where no one is harmed in healthcare. Over 50% of patient harm is avoidable through safer systems, innovation, workforce capacity building, and patient engagement.",
+    desc: "Anchored in WHO's landmark vision of eliminating avoidable harm, our approach operationalises all seven strategic objectives — from fostering a no-blame safety culture and empowering patients as partners, to building resilient health systems capable of sustained, data-driven improvement.",
   },
   {
     icon: AlertTriangle,
     title: "Risk Management & Assessment",
-    desc: "Systematic identification and mitigation of risks using tools like Root Cause Analysis, FMEA, Fishbone diagrams, risk matrices, and Lean Six Sigma — proven to improve patient safety worldwide.",
+    desc: "A proactive, multi-layered discipline that moves beyond reactive incident response. We deploy Root Cause Analysis, Failure Mode & Effects Analysis, Ishikawa mapping, and quantitative risk matrices within a Lean Six Sigma methodology — systematically identifying latent hazards, quantifying their impact, and embedding preventive controls across every level of clinical operations.",
   },
   {
     icon: ClipboardCheck,
     title: "Audit & Evaluation",
-    desc: "Clinical audits, patient satisfaction surveys, incident reporting systems, and outcome measures help identify areas for improvement and ensure the highest standards of care delivery.",
+    desc: "Structured clinical audit cycles, real-time outcome tracking, and validated patient experience measures form a closed-loop system — where every finding drives targeted intervention, and every intervention is evaluated for measurable impact on care quality and safety.",
   },
   {
     icon: FileCheck,
     title: "Accountability & Performance",
-    desc: "Multi-directional accountability across providers, organisations, regulators, and communities — supported by KPIs, balanced scorecards, and professional development programmes.",
+    desc: "Multi-directional accountability that extends from the boardroom to the bedside. Performance is governed through balanced scorecards, benchmarked KPIs, and professional development frameworks — ensuring that every stakeholder, from frontline clinicians to executive leadership, is measurably invested in patient outcomes.",
   },
   {
     icon: BookOpen,
     title: "Information Management",
-    desc: "Leveraging EHRs, health information exchanges, AI, and blockchain to make clinical governance more transparent, accountable, and data-driven while safeguarding patient privacy.",
+    desc: "Harnessing interoperable EHRs, health information exchanges, and AI-powered analytics to transform raw clinical data into actionable governance intelligence — enabling real-time decision support, predictive safety insights, and full regulatory traceability while maintaining uncompromising data privacy.",
   },
 ];
 
