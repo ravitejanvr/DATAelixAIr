@@ -5,40 +5,40 @@ import { ArrowRight, ExternalLink } from "lucide-react";
 
 const articles = [
   {
-    source: "CapTech",
-    title: "2026 Healthcare Trends: Strategic Imperatives for Effective AI",
-    description: "Explores how health systems should prioritise AI investments in 2026, covering operational efficiency, clinical decision support, and the role of leadership in driving adoption.",
-    url: "https://www.captechconsulting.com/insights/2026-healthcare-trends-strategic-imperatives-for-effective-ai",
+    source: "McKinsey",
+    title: "What to Expect in US Healthcare in 2026 and Beyond",
+    description: "McKinsey examines the financial strain on US healthcare and where AI-driven opportunities are emerging across provider, payer, and services segments.",
+    url: "https://www.mckinsey.com/industries/healthcare/our-insights/what-to-expect-in-us-healthcare",
   },
   {
-    source: "BCG",
-    title: "How AI Agents and Tech Will Transform Health Care in 2026",
-    description: "Boston Consulting Group outlines how autonomous AI agents, ambient documentation, and new care models will reshape the healthcare landscape over the coming year.",
-    url: "https://www.bcg.com/publications/2025/how-ai-agents-tech-will-transform-health-care-in-2026",
+    source: "Nature Medicine",
+    title: "Generative Artificial Intelligence in Medicine",
+    description: "A comprehensive review of how generative AI models are being applied across diagnostics, drug discovery, and clinical decision support in modern medicine.",
+    url: "https://www.nature.com/articles/s41591-025-03983-2",
+  },
+  {
+    source: "McKinsey",
+    title: "The Coming Evolution of Healthcare AI Toward a Modular Architecture",
+    description: "Why the surge in AI healthcare tools is prompting a shift from point solutions to integrated, modular architectures and clinical-data foundries.",
+    url: "https://www.mckinsey.com/industries/healthcare/our-insights/the-coming-evolution-of-healthcare-ai-toward-a-modular-architecture",
+  },
+  {
+    source: "WHO Europe",
+    title: "AI Is Reshaping Health Systems: State of Readiness Across the WHO European Region",
+    description: "The World Health Organisation assesses how prepared European health systems are to adopt and govern artificial intelligence responsibly.",
+    url: "https://www.who.int/europe/publications/i/item/WHO-EURO-2025-12707-52481-81028",
   },
   {
     source: "Nature",
-    title: "The Landscape of AI Implementation in US Hospitals",
-    description: "A comprehensive look at adoption patterns, barriers, and early outcomes as US hospitals integrate artificial intelligence into clinical and operational workflows.",
-    url: "https://www.nature.com/articles/s41746-025-01532-8",
+    title: "Advancing Healthcare AI Governance Through a Comprehensive Maturity Model",
+    description: "A systematic review proposing a maturity model for healthcare organisations to assess and advance their AI governance frameworks.",
+    url: "https://www.nature.com/articles/s41746-026-02418-7",
   },
   {
-    source: "Scientific American",
-    title: "AI Is Entering Health Care, and Nurses Are Being Asked to Trust It",
-    description: "An examination of how frontline clinicians — especially nurses — are experiencing the AI transition, and what trust, training, and transparency mean in practice.",
-    url: "https://www.scientificamerican.com/article/ai-is-entering-health-care-and-nurses-are-being-asked-to-trust-it/",
-  },
-  {
-    source: "Global Healthcare Resource",
-    title: "Six Healthcare Trends to Watch in 2026",
-    description: "From precision medicine to AI-powered diagnostics, this article highlights the six macro trends that will define how healthcare organisations operate and innovate in 2026.",
-    url: "https://www.globalhealthcareresource.com/six-healthcare-trends-to-watch-in-2026/",
-  },
-  {
-    source: "Cigna Newsroom",
-    title: "Top Health Care Trends for 2026",
-    description: "Cigna's outlook on the forces shaping healthcare — including the growing role of AI in preventive care, member engagement, and operational transformation.",
-    url: "https://newsroom.cigna.com/top-health-care-trends-for-2026",
+    source: "McKinsey",
+    title: "Agentic AI and the Race to a Touchless Revenue Cycle",
+    description: "How agentic AI could cut healthcare providers' cost to collect by 30–60%, optimise payment accuracy, and refocus the workforce on patient experience.",
+    url: "https://www.mckinsey.com/industries/healthcare/our-insights/agentic-ai-and-the-race-to-a-touchless-revenue-cycle",
   },
 ];
 
