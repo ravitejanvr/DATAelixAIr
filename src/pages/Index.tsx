@@ -183,29 +183,29 @@ const Index = () => (
     </section>
 
     {/* About */}
-    <section id="about" className="relative py-24 overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(220 30% 10%), hsl(200 25% 14%), hsl(180 20% 12%))' }}>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_20%_40%,hsl(var(--teal)/0.08),transparent_70%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_40%_at_80%_70%,hsl(var(--primary)/0.06),transparent_60%)]" />
+    <section id="about" className="relative py-24 overflow-hidden bg-card">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_20%_40%,hsl(var(--teal)/0.06),transparent_70%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_40%_at_80%_70%,hsl(var(--primary)/0.04),transparent_60%)]" />
       <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-3xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary-light mb-3.5">Who We Are</p>
-            <h2 className="font-display text-[clamp(2rem,3.5vw,3rem)] font-extrabold leading-[1.1] tracking-tight text-dark-foreground max-w-xl">
+            <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3.5">Who We Are</p>
+            <h2 className="font-display text-[clamp(2rem,3.5vw,3rem)] font-extrabold leading-[1.1] tracking-tight text-foreground max-w-xl">
               AI Built for the Realities of <em className="not-italic text-primary">Modern Healthcare</em>
             </h2>
-            <p className="mt-5 text-base font-light leading-relaxed text-dark-muted max-w-lg">
+            <p className="mt-5 text-base font-light leading-relaxed text-muted-foreground max-w-lg">
               DATAelixAIr bridges the gap between cutting-edge artificial intelligence and the complex operational demands of healthcare institutions. We're a young, ambitious company building purpose-built solutions — respecting clinical workflows, regulatory frameworks, and the sensitivity of patient data.
             </p>
-            <p className="mt-4 text-base font-light leading-relaxed text-dark-muted max-w-lg">
+            <p className="mt-4 text-base font-light leading-relaxed text-muted-foreground max-w-lg">
               We're seeking early adopters, pilot partners, and collaborators who share our vision of making healthcare smarter, more efficient, and deeply patient-centric.
             </p>
 
             <div className="grid grid-cols-2 gap-4 mt-12">
               {pillars.map((p) => (
-                <Link key={p.name} to="/solutions" className="dark-card border rounded-2xl p-6 hover:border-primary/40 hover:bg-primary/5 transition-all group">
+                <Link key={p.name} to="/solutions" className="bg-background border border-border rounded-2xl p-6 hover:border-primary/40 hover:shadow-card-hover transition-all group">
                   <p.icon className="text-primary mb-3 group-hover:scale-110 transition-transform" size={24} />
-                  <h4 className="font-display text-sm font-bold text-dark-foreground mb-1.5">{p.name}</h4>
-                  <p className="text-xs text-dark-muted/60 leading-relaxed">{p.text}</p>
+                  <h4 className="font-display text-sm font-bold text-foreground mb-1.5">{p.name}</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{p.text}</p>
                 </Link>
               ))}
             </div>
@@ -274,14 +274,14 @@ const Index = () => (
     </section>
 
     {/* Services — clickable cards */}
-    <section className="relative py-24 overflow-hidden" style={{ background: 'linear-gradient(160deg, hsl(215 30% 10%), hsl(210 28% 13%), hsl(195 22% 11%))' }}>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_50%_at_70%_30%,hsl(var(--teal)/0.07),transparent_60%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_40%_at_20%_80%,hsl(var(--primary)/0.05),transparent_50%)]" />
+    <section className="relative py-24 overflow-hidden bg-card">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_50%_at_70%_30%,hsl(var(--teal)/0.05),transparent_60%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_40%_at_20%_80%,hsl(var(--primary)/0.04),transparent_50%)]" />
       <div className="container mx-auto px-4 relative z-10">
         <div className="flex justify-between items-end mb-16 flex-wrap gap-6">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary-light mb-3.5">What We Offer</p>
-            <h2 className="font-display text-[clamp(2rem,3.5vw,3rem)] font-extrabold leading-[1.1] tracking-tight text-dark-foreground">
+            <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3.5">What We Offer</p>
+            <h2 className="font-display text-[clamp(2rem,3.5vw,3rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
               Tailored AI Solutions for<br />Every <em className="not-italic text-primary">Healthcare Need</em>
             </h2>
           </div>
@@ -303,8 +303,8 @@ const Index = () => (
                 to={`/services/${s.slug}`}
                 className={`group block relative overflow-hidden border rounded-[20px] p-9 transition-all hover:-translate-y-1 ${
                   s.featured
-                    ? "bg-foreground border-foreground hover:shadow-[0_16px_40px_rgba(0,0,0,0.25)]"
-                    : "dark-card border hover:border-primary/40 hover:bg-primary/5"
+                    ? "bg-secondary text-secondary-foreground border-secondary hover:shadow-lg"
+                    : "bg-background border-border hover:border-primary/40 hover:shadow-card-hover"
                 }`}
               >
                 {!s.featured && (
@@ -316,20 +316,20 @@ const Index = () => (
                   <s.icon className="text-primary" size={24} />
                 </div>
                 <div className="flex items-center justify-between mb-3 relative z-10">
-                  <h3 className={`font-display text-lg font-bold ${s.featured ? "text-background" : "text-dark-foreground"}`}>
+                  <h3 className={`font-display text-lg font-bold ${s.featured ? "text-secondary-foreground" : "text-foreground"}`}>
                     {s.title}
                   </h3>
-                  <ArrowRight className={`w-4 h-4 group-hover:translate-x-1 transition-transform ${s.featured ? "text-background/40" : "text-dark-muted/40 group-hover:text-primary"}`} />
+                  <ArrowRight className={`w-4 h-4 group-hover:translate-x-1 transition-transform ${s.featured ? "text-secondary-foreground/40" : "text-muted-foreground/40 group-hover:text-primary"}`} />
                 </div>
-                <p className={`text-sm leading-relaxed font-light relative z-10 ${s.featured ? "text-background/50" : "text-dark-muted/60"}`}>
+                <p className={`text-sm leading-relaxed font-light relative z-10 ${s.featured ? "text-secondary-foreground/60" : "text-muted-foreground"}`}>
                   {s.desc}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-5 relative z-10">
                   {s.tags.map((t) => (
                     <span key={t} className={`text-[0.7rem] font-medium tracking-wide px-2.5 py-1 rounded-full border ${
                       s.featured
-                        ? "bg-background/5 border-background/10 text-background/40"
-                        : "bg-card/5 border-border/20 text-dark-muted/50"
+                        ? "bg-secondary-foreground/5 border-secondary-foreground/10 text-secondary-foreground/50"
+                        : "teal-muted-bg teal-muted-border text-primary"
                     }`}>
                       {t}
                     </span>
@@ -342,12 +342,12 @@ const Index = () => (
 
         {/* Compliance band */}
         <div className="mt-10 teal-muted-bg border teal-muted-border rounded-2xl px-8 py-7 flex items-center justify-between flex-wrap gap-5">
-          <p className="text-sm font-medium text-dark-foreground flex items-center gap-2">
+          <p className="text-sm font-medium text-foreground flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-primary" /> Building towards full certification with global healthcare standards
           </p>
           <div className="flex flex-wrap gap-3">
             {["HIPAA", "GDPR", "NHS DSP", "ISO 27001", "HL7 FHIR", "SOC 2"].map((b) => (
-              <span key={b} className="text-xs font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-lg bg-card/10 border teal-muted-border text-primary">
+              <span key={b} className="text-xs font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-lg bg-background border teal-muted-border text-primary">
                 {b}
               </span>
             ))}
