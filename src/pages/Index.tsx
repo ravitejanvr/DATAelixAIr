@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowRight, Heart, Users, Handshake, Lightbulb, Sparkles } from "lucide-react";
+import { ArrowRight, Heart, Users, Handshake, Lightbulb, Sparkles, Bot, BarChart3, Link2, ShieldCheck, DollarSign, HeartPulse, Search, Building2, Hospital, BrainCircuit } from "lucide-react";
 import HeroDashboard from "@/components/HeroDashboard";
 
 const fadeUp = {
@@ -11,47 +11,47 @@ const fadeUp = {
 
 const services = [
   {
-    icon: "🤖", title: "Clinical AI Automation", featured: false,
+    icon: Bot, title: "Clinical AI Automation", featured: false,
     desc: "Automate administrative workflows, clinical documentation, and scheduling — freeing clinicians to focus on patient care.",
     tags: ["NLP Documentation", "Smart Scheduling", "Billing AI"],
   },
   {
-    icon: "📊", title: "Predictive Analytics", featured: false,
+    icon: BarChart3, title: "Predictive Analytics", featured: false,
     desc: "Harness your hospital's data to predict patient deterioration, readmission risks, and demand surges before they happen.",
     tags: ["Risk Stratification", "Demand Forecasting", "Population Health"],
   },
   {
-    icon: "🔗", title: "Interoperability & Integration", featured: true,
+    icon: Link2, title: "Interoperability & Integration", featured: true,
     desc: "Seamlessly connect disparate systems — EHRs, labs, imaging, and wearables — using HL7 FHIR standards for unified data.",
     tags: ["HL7 / FHIR", "EHR Integration", "API Layer"],
   },
   {
-    icon: "🛡️", title: "Compliance & Security", featured: false,
+    icon: ShieldCheck, title: "Compliance & Security", featured: false,
     desc: "Building towards full HIPAA, GDPR, and regional regulatory compliance with end-to-end encryption and audit trails.",
     tags: ["HIPAA", "GDPR", "ISO 27001"],
   },
   {
-    icon: "💰", title: "Revenue Cycle Optimisation", featured: false,
+    icon: DollarSign, title: "Revenue Cycle Optimisation", featured: false,
     desc: "AI-driven coding accuracy, denial prediction, and claims management to maximise reimbursements and accelerate cash flow.",
     tags: ["Claims AI", "Coding Accuracy", "Denial Mgmt"],
   },
   {
-    icon: "❤️", title: "Patient Satisfaction & Engagement", featured: false,
+    icon: HeartPulse, title: "Patient Satisfaction & Engagement", featured: false,
     desc: "Improve patient experience with digital intake, feedback loops, personalised care pathways, and proactive communication.",
     tags: ["Patient Portal", "Feedback AI", "Care Pathways"],
   },
   {
-    icon: "🔍", title: "Explainable AI", featured: false,
+    icon: Search, title: "Explainable AI", featured: false,
     desc: "Transparent, interpretable AI models that clinicians can trust — every recommendation comes with clear reasoning, audit trails, and decision rationale.",
     tags: ["Interpretability", "Decision Audit", "Clinical Trust", "Model Transparency"],
   },
 ];
 
 const pillars = [
-  { icon: "🏛️", name: "Regulatory Alignment", text: "Actively building towards HIPAA, GDPR, and NHS compliance across all deployments." },
-  { icon: "🔗", name: "Interoperability", text: "HL7, FHIR and EHR-native integrations designed for seamless adoption." },
-  { icon: "🛡️", name: "Data Security", text: "End-to-end encryption, zero-trust architecture, and comprehensive audit trails." },
-  { icon: "❤️", name: "Patient-Centric", text: "Every solution is designed to improve patient satisfaction and clinical outcomes." },
+  { icon: ShieldCheck, name: "Regulatory Alignment", text: "Actively building towards HIPAA, GDPR, and NHS compliance across all deployments." },
+  { icon: Link2, name: "Interoperability", text: "HL7, FHIR and EHR-native integrations designed for seamless adoption." },
+  { icon: ShieldCheck, name: "Data Security", text: "End-to-end encryption, zero-trust architecture, and comprehensive audit trails." },
+  { icon: HeartPulse, name: "Patient-Centric", text: "Every solution is designed to improve patient satisfaction and clinical outcomes." },
 ];
 
 const Index = () => (
@@ -151,7 +151,7 @@ const Index = () => (
             <div className="grid grid-cols-2 gap-4 mt-12">
               {pillars.map((p) => (
                 <div key={p.name} className="dark-card border rounded-2xl p-6 hover:border-primary/40 hover:bg-primary/5 transition-all">
-                  <div className="text-2xl mb-3">{p.icon}</div>
+                  <p.icon className="text-primary mb-3" size={24} />
                   <h4 className="font-display text-sm font-bold text-dark-foreground mb-1.5">{p.name}</h4>
                   <p className="text-xs text-dark-muted/60 leading-relaxed">{p.text}</p>
                 </div>
@@ -194,10 +194,10 @@ const Index = () => (
               {!s.featured && (
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               )}
-              <div className={`w-[52px] h-[52px] rounded-[14px] flex items-center justify-center text-2xl mb-6 relative z-10 border ${
+              <div className={`w-[52px] h-[52px] rounded-[14px] flex items-center justify-center mb-6 relative z-10 border ${
                 s.featured ? "teal-muted-bg border-primary/30" : "teal-muted-bg teal-muted-border"
               }`}>
-                {s.icon}
+                <s.icon className={s.featured ? "text-primary" : "text-primary"} size={24} />
               </div>
               <h3 className={`font-display text-lg font-bold mb-3 relative z-10 ${s.featured ? "text-background" : "text-foreground"}`}>
                 {s.title}
@@ -222,8 +222,8 @@ const Index = () => (
 
         {/* Compliance band */}
         <div className="mt-10 teal-muted-bg border teal-muted-border rounded-2xl px-8 py-7 flex items-center justify-between flex-wrap gap-5">
-          <p className="text-sm font-medium text-foreground">
-            🔒 Building towards full certification with global healthcare standards
+          <p className="text-sm font-medium text-foreground flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-primary" /> Building towards full certification with global healthcare standards
           </p>
           <div className="flex flex-wrap gap-3">
             {["HIPAA", "GDPR", "NHS DSP", "ISO 27001", "HL7 FHIR", "SOC 2"].map((b) => (
@@ -249,12 +249,12 @@ const Index = () => (
           </p>
           <div className="grid sm:grid-cols-3 gap-4 mt-12">
             {[
-              { icon: "🏦", title: "Investors", desc: "Fund the future of healthcare AI. Early-stage opportunity with massive global potential." },
-              { icon: "🏥", title: "Pilot Partners", desc: "Be among the first hospitals to benefit from tailored AI — with dedicated support." },
-              { icon: "🧠", title: "Advisors & Experts", desc: "Lend your expertise in healthcare, AI, regulation, or strategy to shape our direction." },
+              { icon: Building2, title: "Investors", desc: "Fund the future of healthcare AI. Early-stage opportunity with massive global potential." },
+              { icon: Hospital, title: "Pilot Partners", desc: "Be among the first hospitals to benefit from tailored AI — with dedicated support." },
+              { icon: BrainCircuit, title: "Advisors & Experts", desc: "Lend your expertise in healthcare, AI, regulation, or strategy to shape our direction." },
             ].map((item) => (
               <div key={item.title} className="dark-card border rounded-2xl p-6 hover:border-primary/40 hover:bg-primary/5 transition-all">
-                <div className="text-3xl mb-3">{item.icon}</div>
+                <item.icon className="text-primary mb-3" size={28} />
                 <h4 className="font-display text-sm font-bold text-dark-foreground mb-1.5">{item.title}</h4>
                 <p className="text-xs text-dark-muted/60 leading-relaxed">{item.desc}</p>
               </div>
