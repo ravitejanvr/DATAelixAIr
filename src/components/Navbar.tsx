@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
+import brainLogo from "@/assets/brain-logo.png";
 import { AnimatePresence, motion } from "framer-motion";
 
 const navLinks = [
@@ -28,11 +29,14 @@ const Navbar = () => {
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 glass-nav border-b border-border transition-shadow ${scrolled ? "shadow-md" : ""}`}>
       <div className="container mx-auto flex items-center justify-between h-[68px] px-4">
-        <Link to="/" className="font-display font-extrabold text-xl tracking-tight">
-          <span className="text-primary">DATA</span>
-          <span className="text-foreground">elix</span>
-          <span className="text-primary">AI</span>
-          <span className="text-foreground">r</span>
+        <Link to="/" className="flex items-center gap-2 font-display font-extrabold text-xl tracking-tight">
+          <img src={brainLogo} alt="DATAelixAIr brain logo" className="h-8 w-8 object-contain" />
+          <span>
+            <span className="text-primary">DATA</span>
+            <span className="text-foreground">elix</span>
+            <span className="text-primary">AI</span>
+            <span className="text-foreground">r</span>
+          </span>
         </Link>
 
         {/* Desktop */}
