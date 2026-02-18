@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, Heart, Users, Handshake, Lightbulb, Sparkles, Bot, BarChart3, Link2, ShieldCheck, DollarSign, HeartPulse, Search, Building2, Hospital, BrainCircuit } from "lucide-react";
 import HeroDashboard from "@/components/HeroDashboard";
+import SEO from "@/components/SEO";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
@@ -56,6 +57,24 @@ const pillars = [
 
 const Index = () => (
   <div>
+    <SEO
+      title="DATAelixAIr — Intelligent AI, Personalised for Your Practice"
+      description="DATAelixAIr transforms healthcare with AI-powered solutions tailored to your hospital's workflows, regulations, and patient needs."
+    />
+    {/* JSON-LD Organization Schema */}
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "DATAelixAIr",
+          url: "https://dataelixair.lovable.app",
+          description: "AI-powered healthcare data solutions for hospitals and clinics worldwide.",
+          sameAs: [],
+        }),
+      }}
+    />
     {/* Hero — centered, Heidi/Lyrebird-inspired */}
     <section className="min-h-screen relative overflow-hidden flex items-center">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_30%,hsl(var(--teal)/0.08),transparent_70%)]" />

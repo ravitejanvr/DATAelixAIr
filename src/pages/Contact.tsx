@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import SEO from "@/components/SEO";
 
 const Contact = () => {
   const { toast } = useToast();
@@ -15,6 +16,7 @@ const Contact = () => {
 
   return (
     <div>
+      <SEO title="Contact Us — DATAelixAIr" description="Get in touch with DATAelixAIr. Whether you're a clinic, hospital, investor, or advisor — let's explore how we can transform healthcare together." />
       <section className="bg-dark pt-32 pb-24">
         <div className="container mx-auto px-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl">
