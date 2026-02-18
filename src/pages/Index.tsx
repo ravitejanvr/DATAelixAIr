@@ -119,10 +119,7 @@ const Index = () => (
 
       <div className="container mx-auto px-4 pt-32 pb-24 relative z-10">
         <motion.div initial="hidden" animate="visible" className="text-center max-w-3xl mx-auto">
-          <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 teal-muted-bg border teal-muted-border px-3.5 py-1.5 rounded-full text-xs font-medium uppercase tracking-[0.06em] text-primary mb-8">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            AI-Powered Healthcare
-          </motion.div>
+          <motion.div variants={fadeUp} custom={0} className="mb-8" />
 
           <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.8rem,5.5vw,4.5rem)] font-extrabold leading-[1.05] tracking-tight text-foreground">
             Intelligent AI,{" "}
@@ -303,7 +300,7 @@ const Index = () => (
                 to={`/services/${s.slug}`}
                 className={`group block relative overflow-hidden border rounded-[20px] p-9 transition-all hover:-translate-y-1 ${
                   s.featured
-                    ? "bg-secondary text-secondary-foreground border-secondary hover:shadow-lg"
+                    ? "bg-background border-primary/30 shadow-card hover:shadow-card-hover"
                     : "bg-background border-border hover:border-primary/40 hover:shadow-card-hover"
                 }`}
               >
@@ -316,19 +313,19 @@ const Index = () => (
                   <s.icon className="text-primary" size={24} />
                 </div>
                 <div className="flex items-center justify-between mb-3 relative z-10">
-                  <h3 className={`font-display text-lg font-bold ${s.featured ? "text-secondary-foreground" : "text-foreground"}`}>
+                  <h3 className={`font-display text-lg font-bold ${s.featured ? "text-foreground" : "text-foreground"}`}>
                     {s.title}
                   </h3>
-                  <ArrowRight className={`w-4 h-4 group-hover:translate-x-1 transition-transform ${s.featured ? "text-secondary-foreground/40" : "text-muted-foreground/40 group-hover:text-primary"}`} />
+                  <ArrowRight className={`w-4 h-4 group-hover:translate-x-1 transition-transform ${s.featured ? "text-muted-foreground/40 group-hover:text-primary" : "text-muted-foreground/40 group-hover:text-primary"}`} />
                 </div>
-                <p className={`text-sm leading-relaxed font-light relative z-10 ${s.featured ? "text-secondary-foreground/60" : "text-muted-foreground"}`}>
+                <p className={`text-sm leading-relaxed font-light relative z-10 ${s.featured ? "text-muted-foreground" : "text-muted-foreground"}`}>
                   {s.desc}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-5 relative z-10">
                   {s.tags.map((t) => (
                     <span key={t} className={`text-[0.7rem] font-medium tracking-wide px-2.5 py-1 rounded-full border ${
                       s.featured
-                        ? "bg-secondary-foreground/5 border-secondary-foreground/10 text-secondary-foreground/50"
+                        ? "teal-muted-bg teal-muted-border text-primary"
                         : "teal-muted-bg teal-muted-border text-primary"
                     }`}>
                       {t}
