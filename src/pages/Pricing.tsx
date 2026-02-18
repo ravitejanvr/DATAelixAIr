@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { CheckCircle2, Rocket, Building2, Globe } from "lucide-react";
+import SEO from "@/components/SEO";
 
 const partnerships = [
   {
@@ -51,6 +52,7 @@ const partnerships = [
 
 const Pricing = () => (
   <div>
+    <SEO title="Collaborate With Us — DATAelixAIr" description="Partner with DATAelixAIr through pilot programs, strategic investment, or advisory roles. Shape the future of healthcare AI together." />
     <section className="pt-32 pb-24 bg-background">
       <div className="container mx-auto px-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center max-w-2xl mx-auto">

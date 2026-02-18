@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { CheckCircle2 } from "lucide-react";
+import SEO from "@/components/SEO";
 
 const solutions = [
   {
@@ -35,6 +36,7 @@ const regions = [
 
 const Solutions = () => (
   <div>
+    <SEO title="Solutions — DATAelixAIr" description="AI solutions tailored to your facility size, speciality, and regulatory environment — from small clinics to large hospital networks." />
     <section className="pt-32 pb-24 bg-background">
       <div className="container mx-auto px-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl">
