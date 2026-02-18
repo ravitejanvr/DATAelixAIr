@@ -43,6 +43,11 @@ const services = [
     desc: "Meet quality benchmarks and reporting requirements with automated data collection, analysis, and submission to regulatory bodies.",
     features: ["Quality Measures", "Auto Reporting", "Benchmarking", "Accreditation"],
   },
+  {
+    icon: "🔍", title: "Explainable AI",
+    desc: "Transparent, interpretable AI models that clinicians can trust — every recommendation comes with clear reasoning, audit trails, and decision rationale to support clinical confidence and regulatory alignment.",
+    features: ["Interpretability", "Decision Audit", "Clinical Trust", "Model Transparency"],
+  },
 ];
 
 const Services = () => (
