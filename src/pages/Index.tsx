@@ -183,8 +183,10 @@ const Index = () => (
     </section>
 
     {/* About */}
-    <section id="about" className="bg-dark py-24">
-      <div className="container mx-auto px-4">
+    <section id="about" className="relative py-24 overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(220 30% 10%), hsl(200 25% 14%), hsl(180 20% 12%))' }}>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_20%_40%,hsl(var(--teal)/0.08),transparent_70%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_40%_at_80%_70%,hsl(var(--primary)/0.06),transparent_60%)]" />
+      <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-3xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary-light mb-3.5">Who We Are</p>
@@ -272,8 +274,10 @@ const Index = () => (
     </section>
 
     {/* Services — clickable cards */}
-    <section className="py-24 bg-dark">
-      <div className="container mx-auto px-4">
+    <section className="relative py-24 overflow-hidden" style={{ background: 'linear-gradient(160deg, hsl(215 30% 10%), hsl(210 28% 13%), hsl(195 22% 11%))' }}>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_50%_at_70%_30%,hsl(var(--teal)/0.07),transparent_60%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_40%_at_20%_80%,hsl(var(--primary)/0.05),transparent_50%)]" />
+      <div className="container mx-auto px-4 relative z-10">
         <div className="flex justify-between items-end mb-16 flex-wrap gap-6">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary-light mb-3.5">What We Offer</p>
