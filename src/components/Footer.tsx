@@ -4,8 +4,8 @@ import brainLogo from "@/assets/brain-logo.png";
 const Footer = () => (
   <footer className="bg-dark border-t border-border/10">
     <div className="container mx-auto px-4 py-10 flex flex-col md:flex-row justify-between items-center gap-5">
-      <Link to="/" className="flex items-center gap-2 font-display font-extrabold text-xl">
-        <img src={brainLogo} alt="DATAelixAIr brain logo" className="h-8 w-8 object-contain" />
+      <Link to="/" className="flex items-center gap-1.5 font-display font-extrabold text-xl">
+        <img src={brainLogo} alt="DATAelixAIr" className="h-7 w-7 object-contain -mr-0.5" />
         <span>
           <span className="text-primary">DATA</span>
           <span className="text-dark-foreground">elix</span>
