@@ -91,8 +91,8 @@ const governanceFramework = [
 const Index = () => (
   <div>
     <SEO
-      title="DATAelixAIr — Intelligent AI, Personalised for Your Practice"
-      description="DATAelixAIr transforms healthcare with AI-powered solutions tailored to your hospital's workflows, regulations, and patient needs."
+      title="DATAelixAIr — AI Built for Modern Healthcare"
+      description="DATAelixAIr delivers AI solutions tailored to hospital workflows — clinical automation, predictive analytics, and interoperability for better patient outcomes."
     />
     {/* JSON-LD Organization Schema */}
     <script
