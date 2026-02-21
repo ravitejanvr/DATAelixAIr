@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, Heart, Users, Handshake, Lightbulb, Sparkles, Bot, BarChart3, Link2, ShieldCheck, DollarSign, HeartPulse, Search, Building2, Hospital, BrainCircuit, FileCheck, AlertTriangle, ClipboardCheck, Globe, BookOpen } from "lucide-react";
 import HeroDashboard from "@/components/HeroDashboard";
+import TrustSection from "@/components/TrustSection";
 import SEO from "@/components/SEO";
 
 const fadeUp = {
@@ -352,6 +353,9 @@ const Index = () => (
         </div>
       </div>
     </section>
+
+    {/* Trust & Security Section */}
+    <TrustSection />
 
     {/* Investors, Partners & Collaborators CTA */}
     <section className="bg-background py-24">
