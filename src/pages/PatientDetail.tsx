@@ -1,0 +1,314 @@
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import SEO from "@/components/SEO";
+import brainLogo from "@/assets/brain-logo-nobg.png";
+import {
+  ArrowLeft, User, Phone, Mail, Pill, AlertTriangle,
+  Calendar, FileText, Stethoscope, Activity, Clock,
+  LogOut, Loader2, ChevronRight, BookOpen
+} from "lucide-react";
+import type { Json } from "@/integrations/supabase/types";
+
+interface Patient {
+  id: string;
+  name: string;
+  age: number | null;
+  gender: string | null;
+  phone: string | null;
+  email: string | null;
+  abha_id: string | null;
+  current_medications: string[] | null;
+  allergies: string[] | null;
+  medical_history: Json | null;
+  language_preference: string | null;
+  created_at: string;
+}
+
+interface Consultation {
+  id: string;
+  chief_complaint: string | null;
+  ai_summary: string | null;
+  status: string | null;
+  soap_subjective: string | null;
+  soap_assessment: string | null;
+  soap_plan: string | null;
+  created_at: string;
+  follow_up_date: string | null;
+  tests_ordered: string[] | null;
+}
+
+export default function PatientDetail() {
+  const { id } = useParams<{ id: string }>();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [consultations, setConsultations] = useState<Consultation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (id) fetchData();
+  }, [id]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    const [patientRes, consultRes] = await Promise.all([
+      supabase.from("patients").select("*").eq("id", id!).single(),
+      supabase
+        .from("consultations")
+        .select("id, chief_complaint, ai_summary, status, soap_subjective, soap_assessment, soap_plan, created_at, follow_up_date, tests_ordered")
+        .eq("patient_id", id!)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (patientRes.error) {
+      toast({ title: "Patient not found", description: patientRes.error.message, variant: "destructive" });
+      navigate("/patients");
+      return;
+    }
+    setPatient(patientRes.data);
+    setConsultations(consultRes.data || []);
+    setLoading(false);
+  };
+
+  const statusColor: Record<string, string> = {
+    draft: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    in_progress: "bg-blue-100 text-blue-800 border-blue-200",
+    completed: "bg-green-100 text-green-800 border-green-200",
+    shared: "bg-purple-100 text-purple-800 border-purple-200",
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!patient) return null;
+
+  return (
+    <>
+      <SEO title={`${patient.name} — DATAelixAIr`} description="Patient details and consultation history" />
+
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-card/95 backdrop-blur border-b border-border px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <img src={brainLogo} alt="Logo" className="h-8" />
+          <div>
+            <h1 className="text-sm font-bold text-foreground">DATAelixAIr Clinical Agent</h1>
+            <p className="text-xs text-muted-foreground">RAG-Powered Decision Support</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/clinical")}>
+            <Stethoscope className="h-4 w-4 mr-1" /> Clinical Agent
+          </Button>
+          <span className="text-xs text-muted-foreground">{user?.email}</span>
+          <Button variant="ghost" size="icon" onClick={async () => { await signOut(); navigate("/auth"); }}>
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto p-6">
+        {/* Back + title */}
+        <Button variant="ghost" size="sm" className="mb-4" onClick={() => navigate("/patients")}>
+          <ArrowLeft className="h-4 w-4 mr-1" /> Back to Patients
+        </Button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Patient Info Card */}
+          <Card className="lg:col-span-1">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">{patient.name}</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {patient.age && `${patient.age}y`} {patient.gender && `• ${patient.gender}`}
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Contact */}
+              {(patient.phone || patient.email) && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contact</h4>
+                  {patient.phone && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="h-3.5 w-3.5 text-muted-foreground" /> {patient.phone}
+                    </div>
+                  )}
+                  {patient.email && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground" /> {patient.email}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* IDs */}
+              {patient.abha_id && (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">ABHA ID</h4>
+                  <p className="text-sm font-mono">{patient.abha_id}</p>
+                </div>
+              )}
+
+              {/* Medications */}
+              {patient.current_medications && patient.current_medications.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+                    <Pill className="h-3 w-3" /> Current Medications
+                  </h4>
+                  <div className="flex flex-wrap gap-1">
+                    {patient.current_medications.map((med, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">{med}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Allergies */}
+              {patient.allergies && patient.allergies.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3 text-destructive" /> Allergies
+                  </h4>
+                  <div className="flex flex-wrap gap-1">
+                    {patient.allergies.map((a, i) => (
+                      <Badge key={i} variant="destructive" className="text-xs">{a}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Registered */}
+              <div className="pt-2 border-t border-border">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Calendar className="h-3 w-3" />
+                  Registered {new Date(patient.created_at).toLocaleDateString()}
+                </div>
+              </div>
+
+              {/* Run analysis button */}
+              <Button className="w-full mt-2" onClick={() => navigate("/clinical", { state: { patient } })}>
+                <Stethoscope className="h-4 w-4 mr-1" /> Run Clinical Analysis
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Consultation History / EHR Timeline */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <Activity className="h-5 w-5 text-primary" /> Consultation History
+              </h3>
+              <p className="text-sm text-muted-foreground">{consultations.length} consultations</p>
+            </div>
+
+            {consultations.length === 0 ? (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-40" />
+                  <p className="text-lg font-medium text-foreground">No consultations yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Run a clinical analysis to create the first consultation record
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="relative">
+                {/* Timeline line */}
+                <div className="absolute left-5 top-0 bottom-0 w-px bg-border" />
+
+                <div className="space-y-4">
+                  {consultations.map((c, idx) => (
+                    <div key={c.id} className="relative pl-12">
+                      {/* Timeline dot */}
+                      <div className={`absolute left-3.5 top-4 h-3 w-3 rounded-full border-2 border-card ${
+                        c.status === "completed" ? "bg-green-500" :
+                        c.status === "in_progress" ? "bg-blue-500" :
+                        "bg-yellow-500"
+                      }`} />
+
+                      <Card className="hover:border-primary/30 transition-colors">
+                        <CardContent className="py-4 px-5">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-semibold text-foreground">
+                                  {c.chief_complaint || "Clinical Assessment"}
+                                </span>
+                                <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full border ${
+                                  statusColor[c.status || "draft"] || statusColor.draft
+                                }`}>
+                                  {c.status || "draft"}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                {new Date(c.created_at).toLocaleString()}
+                                {c.follow_up_date && (
+                                  <span className="ml-2 flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    Follow-up: {new Date(c.follow_up_date).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* AI Summary preview */}
+                          {c.ai_summary && (
+                            <p className="text-sm text-muted-foreground line-clamp-2 mt-2 border-l-2 border-primary/30 pl-3">
+                              {c.ai_summary.substring(0, 200)}...
+                            </p>
+                          )}
+
+                          {/* SOAP preview */}
+                          {!c.ai_summary && c.soap_assessment && (
+                            <p className="text-sm text-muted-foreground line-clamp-2 mt-2 border-l-2 border-primary/30 pl-3">
+                              {c.soap_assessment.substring(0, 200)}...
+                            </p>
+                          )}
+
+                          {/* Tests ordered */}
+                          {c.tests_ordered && c.tests_ordered.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {c.tests_ordered.slice(0, 3).map((t, i) => (
+                                <Badge key={i} variant="outline" className="text-[10px]">
+                                  <BookOpen className="h-2.5 w-2.5 mr-0.5" /> {t}
+                                </Badge>
+                              ))}
+                              {c.tests_ordered.length > 3 && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  +{c.tests_ordered.length - 3} more
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    </>
+  );
+}
