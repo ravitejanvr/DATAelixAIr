@@ -132,6 +132,9 @@ export default function Clinical() {
             <Badge variant="outline" className="text-[10px] font-mono ml-2">PhD Prototype</Badge>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+              <Activity className="h-4 w-4 mr-1" /> Dashboard
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/patients")}>
               <User className="h-4 w-4 mr-1" /> Patients
             </Button>
