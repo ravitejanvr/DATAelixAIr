@@ -59,6 +59,8 @@ export default function Clinical() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ClinicalAgentResponse | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [savedConsultationId, setSavedConsultationId] = useState<string | null>(null);
+  const [savedPatientId, setSavedPatientId] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
     setLoading(true);
@@ -100,7 +102,7 @@ export default function Clinical() {
       }
 
       if (patientId) {
-        const { error } = await supabase.from("consultations").insert({
+        const { data: consultData, error } = await supabase.from("consultations").insert({
           patient_id: patientId,
           doctor_id: user?.id,
           chief_complaint: conditions,
@@ -115,11 +117,13 @@ export default function Clinical() {
           tests_ordered: response.assessment.tests_recommended || [],
           ai_summary: response.assessment.summary || "",
           status: "draft",
-        });
+        }).select("id").single();
 
         if (error) {
           console.error("Failed to save consultation:", error.message);
         } else {
+          setSavedConsultationId(consultData.id);
+          setSavedPatientId(patientId);
           toast({ title: "Consultation saved", description: `Linked to ${patientLabel}` });
         }
       }
@@ -282,7 +286,12 @@ export default function Clinical() {
 
             {result && a && (
               <>
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                {savedConsultationId && (
+                  <Button variant="outline" size="sm" onClick={() => navigate(`/prescriptions?consultation=${savedConsultationId}&patient=${savedPatientId}`)}>
+                    <Pill className="h-4 w-4 mr-1" /> Generate Prescription
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
                   <Share2 className="h-4 w-4 mr-1" /> Share / Export Report
                 </Button>
