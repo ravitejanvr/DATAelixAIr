@@ -19,6 +19,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, Loader2
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import VoiceRecorder from "@/components/VoiceRecorder";
 
 function SeverityBadge({ severity }: { severity: string }) {
   const config: Record<string, { className: string; icon: React.ReactNode }> = {
@@ -145,6 +146,18 @@ export default function Clinical() {
 
           {/* LEFT: Patient Input */}
           <div className="lg:col-span-1 space-y-4">
+            <VoiceRecorder
+              onExtracted={(data) => {
+                if (data.name) setPatientName(data.name);
+                if (data.age) setPatientAge(data.age);
+                if (data.gender) setPatientGender(data.gender);
+                if (data.conditions) setConditions(data.conditions);
+                if (data.symptoms) setSymptoms(data.symptoms);
+                if (data.ethnicity) setEthnicity(data.ethnicity);
+                if (data.medications) setMedications(data.medications);
+                if (data.clinicalQuery) setClinicalQuery(data.clinicalQuery);
+              }}
+            />
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
