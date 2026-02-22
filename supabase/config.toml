@@ -1,1 +1,7 @@
 project_id = "mhqdqilzkqvbgtygtlab"
+
+[functions.pubmed-search]
+verify_jwt = false
+
+[functions.clinical-agent]
+verify_jwt = false
