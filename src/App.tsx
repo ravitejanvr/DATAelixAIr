@@ -23,6 +23,7 @@ import Clinical from "./pages/Clinical";
 import Patients from "./pages/Patients";
 import PatientDetail from "./pages/PatientDetail";
 import Dashboard from "./pages/Dashboard";
+import Prescriptions from "./pages/Prescriptions";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +50,7 @@ const App = () => (
               <Route path="/clinical" element={<ProtectedRoute><Clinical /></ProtectedRoute>} />
               <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
               <Route path="/patients/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
+              <Route path="/prescriptions" element={<ProtectedRoute><Prescriptions /></ProtectedRoute>} />
 
               {/* Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
