@@ -78,10 +78,30 @@ export default function Clinical() {
       const response = await runClinicalAgent(patientData, clinicalQuery, drugs);
       setResult(response);
 
-      // Save consultation to DB if patient is linked
-      if (linkedPatient?.id) {
+      // Always save consultation — create patient if not linked
+      let patientId = linkedPatient?.id;
+      let patientLabel = linkedPatient?.name || patientName;
+
+      if (!patientId) {
+        // Create a quick patient record
+        const { data: newPatient, error: patientError } = await supabase.from("patients").insert({
+          name: patientName,
+          age: parseInt(patientAge) || null,
+          gender: patientGender,
+          doctor_id: user?.id,
+          current_medications: medications.split(",").map(s => s.trim()).filter(Boolean),
+        }).select("id").single();
+
+        if (patientError) {
+          console.error("Failed to create patient:", patientError.message);
+        } else {
+          patientId = newPatient.id;
+        }
+      }
+
+      if (patientId) {
         const { error } = await supabase.from("consultations").insert({
-          patient_id: linkedPatient.id,
+          patient_id: patientId,
           doctor_id: user?.id,
           chief_complaint: conditions,
           soap_subjective: response.assessment.soap_notes?.subjective || "",
@@ -100,7 +120,7 @@ export default function Clinical() {
         if (error) {
           console.error("Failed to save consultation:", error.message);
         } else {
-          toast({ title: "Consultation saved", description: `Linked to ${linkedPatient.name}` });
+          toast({ title: "Consultation saved", description: `Linked to ${patientLabel}` });
         }
       }
     } catch (err: any) {
