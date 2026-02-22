@@ -166,29 +166,41 @@ serve(async (req) => {
       });
     }
 
-    // Build search queries from patient data
-    const searchTerms: string[] = [];
-    if (patientData) {
-      const { age, gender, conditions, symptoms, ethnicity } = patientData;
-      if (conditions) searchTerms.push(...(Array.isArray(conditions) ? conditions : [conditions]));
-      if (symptoms) searchTerms.push(...(Array.isArray(symptoms) ? symptoms : [symptoms]));
-      if (ethnicity) searchTerms.push(ethnicity);
-      // Add recent year filter
-      const currentYear = new Date().getFullYear();
-      searchTerms.push(`${currentYear - 2}:${currentYear}[pdat]`);
+    // Build simple, targeted search queries from patient data
+    const primaryTerms: string[] = [];
+    if (patientData?.conditions && Array.isArray(patientData.conditions)) {
+      primaryTerms.push(...patientData.conditions);
     }
-    if (query) searchTerms.push(query);
+    if (patientData?.symptoms && Array.isArray(patientData.symptoms)) {
+      primaryTerms.push(...patientData.symptoms);
+    }
 
-    const searchQuery = searchTerms.join(" ");
+    // Use conditions as primary query, clinical query as secondary
+    const conditionQuery = primaryTerms.slice(0, 3).join(" AND ");
+    const clinicalQuery = query || "";
 
-    // Parallel: PubMed search + Europe PMC + Drug interactions
-    const [pubmedArticles, epmcArticles, drugInteractions] = await Promise.all([
-      searchPubMed(searchQuery, 5),
-      searchEuropePMC(searchQuery, 3),
+    // Run two separate focused searches for better coverage
+    const searches: Promise<any[]>[] = [];
+    if (conditionQuery) {
+      searches.push(searchPubMed(conditionQuery + " treatment", 4));
+      searches.push(searchEuropePMC(conditionQuery, 3));
+    }
+    if (clinicalQuery && clinicalQuery !== conditionQuery) {
+      searches.push(searchPubMed(clinicalQuery, 3));
+    }
+
+    const [drugInteractions, ...articleArrays] = await Promise.all([
       drugs.length >= 2 ? checkDrugInteractions(drugs) : Promise.resolve(""),
+      ...searches,
     ]);
 
-    const allArticles = [...pubmedArticles, ...epmcArticles];
+    // Flatten and deduplicate by PMID
+    const seen = new Set<string>();
+    const allArticles = (articleArrays as any[][]).flat().filter(a => {
+      if (!a?.pmid || seen.has(a.pmid)) return false;
+      seen.add(a.pmid);
+      return true;
+    });
 
     // Build context for AI
     const evidenceContext = allArticles.map((a, i) =>
