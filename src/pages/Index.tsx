@@ -192,7 +192,7 @@ const Index = () => (
               AI Built for the Realities of <em className="not-italic text-primary">Modern Healthcare</em>
             </h2>
             <p className="mt-5 text-base font-light leading-relaxed text-muted-foreground max-w-lg">
-              DATAelixAIr bridges the gap between cutting-edge artificial intelligence and the complex operational demands of healthcare institutions. We're a young, ambitious company building purpose-built solutions — respecting clinical workflows, regulatory frameworks, and the sensitivity of patient data.
+              DATAelixAIr™ bridges the gap between cutting-edge artificial intelligence and the complex operational demands of healthcare institutions. We're a young, ambitious company building purpose-built solutions — respecting clinical workflows, regulatory frameworks, and the sensitivity of patient data.
             </p>
             <p className="mt-4 text-base font-light leading-relaxed text-muted-foreground max-w-lg">
               We're seeking early adopters, pilot partners, and collaborators who share our vision of making healthcare smarter, more efficient, and deeply patient-centric.
