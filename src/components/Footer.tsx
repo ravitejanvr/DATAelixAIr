@@ -16,6 +16,7 @@ const Footer = () => {
               <span className="text-dark-foreground">elix</span>
               <span className="text-primary">AI</span>
               <span className="text-dark-foreground">r</span>
+              <sup className="text-[0.5em] text-dark-muted">™</sup>
             </span>
           </Link>
           <div className="flex gap-7 flex-wrap justify-center">
@@ -42,11 +43,8 @@ const Footer = () => {
           <p className="text-[0.65rem] text-dark-muted/60 leading-relaxed">
             Not for emergency use. For registered healthcare professionals only.
           </p>
-          <p className="text-[0.65rem] text-dark-muted/60">
-            Serving Hyderabad clinics &amp; healthcare institutions worldwide.
-          </p>
           <p className="text-xs text-dark-muted/40">
-            © {new Date().getFullYear()} Elixair. All rights reserved. | <a href="mailto:raviteja.nvr@elixair.uk" className="hover:text-primary transition-colors">raviteja.nvr@elixair.uk</a>
+            © {new Date().getFullYear()} DATAelixAIr™. All rights reserved. | <a href="mailto:raviteja.nvr@elixair.uk" className="hover:text-primary transition-colors">raviteja.nvr@elixair.uk</a>
           </p>
         </div>
       </div>
