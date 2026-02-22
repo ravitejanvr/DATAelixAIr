@@ -257,7 +257,7 @@ export default function PatientDetail() {
                                   {c.status || "draft"}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <Clock className="h-3 w-3" />
                                 {new Date(c.created_at).toLocaleString()}
                                 {c.follow_up_date && (
@@ -266,6 +266,14 @@ export default function PatientDetail() {
                                     Follow-up: {new Date(c.follow_up_date).toLocaleDateString()}
                                   </span>
                                 )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="ml-auto text-xs h-6 px-2"
+                                  onClick={(e) => { e.stopPropagation(); navigate(`/prescriptions?consultation=${c.id}&patient=${patient.id}`); }}
+                                >
+                                  <Pill className="h-3 w-3 mr-1" /> Rx
+                                </Button>
                               </div>
                             </div>
                           </div>
