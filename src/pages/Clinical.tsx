@@ -16,10 +16,11 @@ import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   Activity, AlertTriangle, Beaker, BookOpen, ClipboardList,
   LogOut, Pill, Search, Shield, Stethoscope, User, FileText,
-  CheckCircle2, XCircle, AlertCircle, Loader2
+  CheckCircle2, XCircle, AlertCircle, Loader2, Share2
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import VoiceRecorder from "@/components/VoiceRecorder";
+import ReportShareDialog from "@/components/ReportShareDialog";
 
 function SeverityBadge({ severity }: { severity: string }) {
   const config: Record<string, { className: string; icon: React.ReactNode }> = {
@@ -57,6 +58,7 @@ export default function Clinical() {
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ClinicalAgentResponse | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const handleAnalyze = async () => {
     setLoading(true);
@@ -256,6 +258,12 @@ export default function Clinical() {
             )}
 
             {result && a && (
+              <>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+                  <Share2 className="h-4 w-4 mr-1" /> Share / Export Report
+                </Button>
+              </div>
               <Tabs defaultValue="summary" className="space-y-4">
                 <TabsList className="grid grid-cols-5 w-full">
                   <TabsTrigger value="summary" className="text-xs">Summary</TabsTrigger>
@@ -488,6 +496,13 @@ export default function Clinical() {
                   </Card>
                 </TabsContent>
               </Tabs>
+              <ReportShareDialog
+                open={shareOpen}
+                onOpenChange={setShareOpen}
+                result={result}
+                patientName={patientName}
+              />
+              </>
             )}
           </div>
         </div>
