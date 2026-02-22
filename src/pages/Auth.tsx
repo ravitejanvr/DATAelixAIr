@@ -26,7 +26,7 @@ export default function Auth() {
     if (error) {
       toast({ title: "Login failed", description: error.message, variant: "destructive" });
     } else {
-      navigate("/clinical");
+      navigate("/dashboard");
     }
   };
 
@@ -49,7 +49,7 @@ export default function Auth() {
     if (error) {
       toast({ title: "Signup failed", description: error.message, variant: "destructive" });
     } else if (data.session) {
-      navigate("/clinical");
+      navigate("/dashboard");
     } else {
       toast({ title: "Check your email", description: "We sent a verification link to confirm your account." });
     }

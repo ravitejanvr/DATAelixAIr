@@ -22,6 +22,7 @@ import Auth from "./pages/Auth";
 import Clinical from "./pages/Clinical";
 import Patients from "./pages/Patients";
 import PatientDetail from "./pages/PatientDetail";
+import Dashboard from "./pages/Dashboard";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ const App = () => (
             <Routes>
               {/* Clinical routes - no marketing layout */}
               <Route path="/auth" element={<Auth />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/clinical" element={<ProtectedRoute><Clinical /></ProtectedRoute>} />
               <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
               <Route path="/patients/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
