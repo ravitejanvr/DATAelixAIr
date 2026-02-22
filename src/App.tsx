@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ConsentProvider } from "@/contexts/ConsentContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Layout from "./components/Layout";
 import ScrollToTop from "./components/ScrollToTop";
 import Index from "./pages/Index";
@@ -17,35 +18,49 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
+import Auth from "./pages/Auth";
+import Clinical from "./pages/Clinical";
 
 const queryClient = new QueryClient();
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
+  if (!user) return <Navigate to="/auth" replace />;
+  return <>{children}</>;
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <ConsentProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <ScrollToTop />
-          <Layout>
+      <AuthProvider>
+        <ConsentProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <ScrollToTop />
             <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/services" element={<Services />} />
-              <Route path="/services/:slug" element={<ServiceDetail />} />
-              <Route path="/solutions" element={<Solutions />} />
-              <Route path="/solutions/:slug" element={<SolutionDetail />} />
-              <Route path="/pricing" element={<Pricing />} />
-              <Route path="/blog" element={<Blog />} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/terms" element={<Terms />} />
+              {/* Clinical routes - no marketing layout */}
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/clinical" element={<ProtectedRoute><Clinical /></ProtectedRoute>} />
+
+              {/* Marketing site */}
+              <Route path="/" element={<Layout><Index /></Layout>} />
+              <Route path="/services" element={<Layout><Services /></Layout>} />
+              <Route path="/services/:slug" element={<Layout><ServiceDetail /></Layout>} />
+              <Route path="/solutions" element={<Layout><Solutions /></Layout>} />
+              <Route path="/solutions/:slug" element={<Layout><SolutionDetail /></Layout>} />
+              <Route path="/pricing" element={<Layout><Pricing /></Layout>} />
+              <Route path="/blog" element={<Layout><Blog /></Layout>} />
+              <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
+              <Route path="/terms" element={<Layout><Terms /></Layout>} />
               <Route path="/affiliate" element={<Navigate to="/" replace />} />
-              <Route path="/contact" element={<Contact />} />
-              <Route path="*" element={<NotFound />} />
+              <Route path="/contact" element={<Layout><Contact /></Layout>} />
+              <Route path="*" element={<Layout><NotFound /></Layout>} />
             </Routes>
-          </Layout>
-        </BrowserRouter>
-      </ConsentProvider>
+          </BrowserRouter>
+        </ConsentProvider>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
