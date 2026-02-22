@@ -37,7 +37,7 @@ export default function Auth() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -48,6 +48,8 @@ export default function Auth() {
     setLoading(false);
     if (error) {
       toast({ title: "Signup failed", description: error.message, variant: "destructive" });
+    } else if (data.session) {
+      navigate("/clinical");
     } else {
       toast({ title: "Check your email", description: "We sent a verification link to confirm your account." });
     }
