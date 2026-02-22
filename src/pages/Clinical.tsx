@@ -119,7 +119,10 @@ export default function Clinical() {
             </div>
             <Badge variant="outline" className="text-[10px] font-mono ml-2">PhD Prototype</Badge>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/patients")}>
+              <User className="h-4 w-4 mr-1" /> Patients
+            </Button>
             <span className="text-xs text-muted-foreground hidden sm:inline">{user?.email}</span>
             <Button variant="ghost" size="sm" onClick={() => { signOut(); navigate("/auth"); }}>
               <LogOut className="h-4 w-4" />

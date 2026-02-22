@@ -20,6 +20,8 @@ import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Clinical from "./pages/Clinical";
+import Patients from "./pages/Patients";
+import PatientDetail from "./pages/PatientDetail";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +45,8 @@ const App = () => (
               {/* Clinical routes - no marketing layout */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/clinical" element={<ProtectedRoute><Clinical /></ProtectedRoute>} />
+              <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
+              <Route path="/patients/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
 
               {/* Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
