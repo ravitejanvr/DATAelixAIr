@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
-  Users, Plus, Search, LogOut, ArrowLeft, Stethoscope,
+  Users, Plus, Search, LogOut, ArrowLeft, Stethoscope, Activity,
   User, Phone, Mail, Calendar, Loader2, ChevronRight
 } from "lucide-react";
 
@@ -122,6 +122,9 @@ export default function Patients() {
           <Badge variant="outline" className="text-[10px] font-mono">PhD Prototype</Badge>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+            <Activity className="h-4 w-4 mr-1" /> Dashboard
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => navigate("/clinical")}>
             <Stethoscope className="h-4 w-4 mr-1" /> Clinical Agent
           </Button>
