@@ -14,13 +14,248 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      consultations: {
+        Row: {
+          ai_summary: string | null
+          billing_amount: number | null
+          billing_details: Json | null
+          chief_complaint: string | null
+          created_at: string
+          doctor_id: string
+          drug_interactions: Json | null
+          drug_recommendations: Json | null
+          follow_up_date: string | null
+          id: string
+          patient_id: string
+          pubmed_citations: Json | null
+          raw_transcript: string | null
+          risk_assessment: Json | null
+          soap_assessment: string | null
+          soap_objective: string | null
+          soap_plan: string | null
+          soap_subjective: string | null
+          status: string | null
+          tests_ordered: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          ai_summary?: string | null
+          billing_amount?: number | null
+          billing_details?: Json | null
+          chief_complaint?: string | null
+          created_at?: string
+          doctor_id: string
+          drug_interactions?: Json | null
+          drug_recommendations?: Json | null
+          follow_up_date?: string | null
+          id?: string
+          patient_id: string
+          pubmed_citations?: Json | null
+          raw_transcript?: string | null
+          risk_assessment?: Json | null
+          soap_assessment?: string | null
+          soap_objective?: string | null
+          soap_plan?: string | null
+          soap_subjective?: string | null
+          status?: string | null
+          tests_ordered?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          ai_summary?: string | null
+          billing_amount?: number | null
+          billing_details?: Json | null
+          chief_complaint?: string | null
+          created_at?: string
+          doctor_id?: string
+          drug_interactions?: Json | null
+          drug_recommendations?: Json | null
+          follow_up_date?: string | null
+          id?: string
+          patient_id?: string
+          pubmed_citations?: Json | null
+          raw_transcript?: string | null
+          risk_assessment?: Json | null
+          soap_assessment?: string | null
+          soap_objective?: string | null
+          soap_plan?: string | null
+          soap_subjective?: string | null
+          status?: string | null
+          tests_ordered?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultations_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patients: {
+        Row: {
+          aadhaar_hash: string | null
+          abha_id: string | null
+          age: number | null
+          allergies: string[] | null
+          created_at: string
+          current_medications: string[] | null
+          doctor_id: string
+          email: string | null
+          gender: string | null
+          id: string
+          language_preference: string | null
+          medical_history: Json | null
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          aadhaar_hash?: string | null
+          abha_id?: string | null
+          age?: number | null
+          allergies?: string[] | null
+          created_at?: string
+          current_medications?: string[] | null
+          doctor_id: string
+          email?: string | null
+          gender?: string | null
+          id?: string
+          language_preference?: string | null
+          medical_history?: Json | null
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aadhaar_hash?: string | null
+          abha_id?: string | null
+          age?: number | null
+          allergies?: string[] | null
+          created_at?: string
+          current_medications?: string[] | null
+          doctor_id?: string
+          email?: string | null
+          gender?: string | null
+          id?: string
+          language_preference?: string | null
+          medical_history?: Json | null
+          name?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      prescriptions: {
+        Row: {
+          consultation_id: string
+          created_at: string
+          doctor_id: string
+          dosage: string
+          drug_name: string
+          duration: string | null
+          frequency: string | null
+          id: string
+          instructions: string | null
+          interactions: Json | null
+          patient_id: string
+          route: string | null
+          severity: string | null
+        }
+        Insert: {
+          consultation_id: string
+          created_at?: string
+          doctor_id: string
+          dosage: string
+          drug_name: string
+          duration?: string | null
+          frequency?: string | null
+          id?: string
+          instructions?: string | null
+          interactions?: Json | null
+          patient_id: string
+          route?: string | null
+          severity?: string | null
+        }
+        Update: {
+          consultation_id?: string
+          created_at?: string
+          doctor_id?: string
+          dosage?: string
+          drug_name?: string
+          duration?: string | null
+          frequency?: string | null
+          id?: string
+          instructions?: string | null
+          interactions?: Json | null
+          patient_id?: string
+          route?: string | null
+          severity?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescriptions_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "consultations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescriptions_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          clinic_name: string | null
+          created_at: string
+          full_name: string
+          id: string
+          license_number: string | null
+          phone: string | null
+          specialization: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          clinic_name?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          license_number?: string | null
+          phone?: string | null
+          specialization?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          clinic_name?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          license_number?: string | null
+          phone?: string | null
+          specialization?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_doctor_for_patient: {
+        Args: { p_patient_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
