@@ -119,6 +119,9 @@ export default function Dashboard() {
             <Button variant="ghost" size="sm" onClick={() => navigate("/patients")}>
               <Users className="h-4 w-4 mr-1" /> Patients
             </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/prescriptions")}>
+              <Pill className="h-4 w-4 mr-1" /> Rx
+            </Button>
             <span className="text-xs text-muted-foreground hidden sm:inline">{user?.email}</span>
             <Button variant="ghost" size="sm" onClick={() => { signOut(); navigate("/auth"); }}>
               <LogOut className="h-4 w-4" />
@@ -152,9 +155,9 @@ export default function Dashboard() {
             <Users className="h-5 w-5" />
             <span className="text-xs">All Patients</span>
           </Button>
-          <Button onClick={() => navigate("/clinical")} variant="outline" className="h-auto py-3 flex-col gap-1" size="lg">
-            <FileText className="h-5 w-5" />
-            <span className="text-xs">Voice Consult</span>
+          <Button onClick={() => navigate("/prescriptions")} variant="outline" className="h-auto py-3 flex-col gap-1" size="lg">
+            <Pill className="h-5 w-5" />
+            <span className="text-xs">Prescriptions</span>
           </Button>
         </div>
 
