@@ -34,9 +34,11 @@ const Contact = () => {
               </p>
 
               <div className="space-y-7">
-                {[
+              {[
+                  { icon: "👤", label: "Founder & CEO", value: "Raviteja Natukula, MBA — Global Healthcare Management & Leadership" },
                   { icon: "📧", label: "Email", value: "raviteja.nvr@elixair.uk" },
-                  { icon: "📞", label: "Phone", value: "07471 522177" },
+                  { icon: "🇬🇧", label: "UK", value: "+44 7471 522177" },
+                  { icon: "🇮🇳", label: "India", value: "+91 9985 937007" },
                   { icon: "🤝", label: "Open To", value: "Pilots, Investors, Partners & Advisors" },
                   { icon: "⏰", label: "Response Time", value: "Within 24 Hours" },
                 ].map((c) => (
