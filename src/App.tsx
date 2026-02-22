@@ -24,6 +24,7 @@ import Patients from "./pages/Patients";
 import PatientDetail from "./pages/PatientDetail";
 import Dashboard from "./pages/Dashboard";
 import Prescriptions from "./pages/Prescriptions";
+import ConsultationDetail from "./pages/ConsultationDetail";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
               <Route path="/patients/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
               <Route path="/prescriptions" element={<ProtectedRoute><Prescriptions /></ProtectedRoute>} />
+              <Route path="/consultations/:id" element={<ProtectedRoute><ConsultationDetail /></ProtectedRoute>} />
 
               {/* Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />

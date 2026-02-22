@@ -243,7 +243,7 @@ export default function PatientDetail() {
                         "bg-yellow-500"
                       }`} />
 
-                      <Card className="hover:border-primary/30 transition-colors">
+                      <Card className="hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate(`/consultations/${c.id}`)}>
                         <CardContent className="py-4 px-5">
                           <div className="flex items-start justify-between mb-2">
                             <div>
