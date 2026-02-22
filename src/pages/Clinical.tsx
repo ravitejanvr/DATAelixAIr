@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { runClinicalAgent, type PatientData, type ClinicalAgentResponse } from "@/lib/clinical-api";
 import { Button } from "@/components/ui/button";
@@ -38,16 +38,20 @@ function SeverityBadge({ severity }: { severity: string }) {
 export default function Clinical() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
+  // Patient from navigation state (from patient detail page)
+  const linkedPatient = (location.state as any)?.patient || null;
+
   // Patient input state
-  const [patientName, setPatientName] = useState("Ravi");
-  const [patientAge, setPatientAge] = useState("45");
-  const [patientGender, setPatientGender] = useState("male");
+  const [patientName, setPatientName] = useState(linkedPatient?.name || "Ravi");
+  const [patientAge, setPatientAge] = useState(String(linkedPatient?.age || "45"));
+  const [patientGender, setPatientGender] = useState(linkedPatient?.gender || "male");
   const [conditions, setConditions] = useState("Type 2 Diabetes, HbA1c 7.8, retinopathy risk");
   const [symptoms, setSymptoms] = useState("blurring vision 2 months, family history diabetes");
   const [ethnicity, setEthnicity] = useState("South Asian / Indian");
-  const [medications, setMedications] = useState("Metformin");
+  const [medications, setMedications] = useState(linkedPatient?.current_medications?.join(", ") || "Metformin");
   const [clinicalQuery, setClinicalQuery] = useState("Assess retinopathy risk, recommend treatment plan with evidence");
 
   const [loading, setLoading] = useState(false);
@@ -71,26 +75,31 @@ export default function Clinical() {
       const response = await runClinicalAgent(patientData, clinicalQuery, drugs);
       setResult(response);
 
-      // Save consultation to DB
-      const { error } = await supabase.from("consultations").insert({
-        patient_id: null as any, // Will be linked when patient is saved
-        doctor_id: user?.id,
-        chief_complaint: conditions,
-        soap_subjective: response.assessment.soap_notes?.subjective || "",
-        soap_objective: response.assessment.soap_notes?.objective || "",
-        soap_assessment: response.assessment.soap_notes?.assessment || "",
-        soap_plan: response.assessment.soap_notes?.plan || "",
-        risk_assessment: response.assessment.risk_assessment || {},
-        drug_recommendations: response.assessment.drug_recommendations || [],
-        drug_interactions: response.assessment.drug_interactions || [],
-        pubmed_citations: response.assessment.citations || [],
-        tests_ordered: response.assessment.tests_recommended || [],
-        ai_summary: response.assessment.summary || "",
-        status: "draft",
-      }).select().maybeSingle();
+      // Save consultation to DB if patient is linked
+      if (linkedPatient?.id) {
+        const { error } = await supabase.from("consultations").insert({
+          patient_id: linkedPatient.id,
+          doctor_id: user?.id,
+          chief_complaint: conditions,
+          soap_subjective: response.assessment.soap_notes?.subjective || "",
+          soap_objective: response.assessment.soap_notes?.objective || "",
+          soap_assessment: response.assessment.soap_notes?.assessment || "",
+          soap_plan: response.assessment.soap_notes?.plan || "",
+          risk_assessment: response.assessment.risk_assessment || {},
+          drug_recommendations: response.assessment.drug_recommendations || [],
+          drug_interactions: response.assessment.drug_interactions || [],
+          pubmed_citations: response.assessment.citations || [],
+          tests_ordered: response.assessment.tests_recommended || [],
+          ai_summary: response.assessment.summary || "",
+          status: "draft",
+        });
 
-      // Silently handle - consultation saved if patient exists
-      if (error) console.log("Consultation save deferred - patient not yet created");
+        if (error) {
+          console.error("Failed to save consultation:", error.message);
+        } else {
+          toast({ title: "Consultation saved", description: `Linked to ${linkedPatient.name}` });
+        }
+      }
     } catch (err: any) {
       toast({
         title: "Analysis failed",
