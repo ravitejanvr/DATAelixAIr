@@ -36,6 +36,7 @@ const Navbar = () => {
             <span className="text-foreground">elix</span>
             <span className="text-primary">AI</span>
             <span className="text-foreground">r</span>
+            <sup className="text-[0.5em] text-muted-foreground">™</sup>
           </span>
         </Link>
 
