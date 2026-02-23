@@ -116,8 +116,8 @@ export default function Patients() {
         <div className="flex items-center gap-3">
           <img src={brainLogo} alt="Logo" className="h-8" />
           <div>
-            <h1 className="text-sm font-bold text-foreground">DATAelixAIr Clinical Agent</h1>
-            <p className="text-xs text-muted-foreground">RAG-Powered Decision Support</p>
+            <h1 className="text-sm font-bold text-foreground">DATAelixAIr CDSS</h1>
+            <p className="text-xs text-muted-foreground">Clinical Decision Support System</p>
           </div>
           <Badge variant="outline" className="text-[10px] font-mono">PhD Prototype</Badge>
         </div>
@@ -126,7 +126,7 @@ export default function Patients() {
             <Activity className="h-4 w-4 mr-1" /> Dashboard
           </Button>
           <Button variant="ghost" size="sm" onClick={() => navigate("/clinical")}>
-            <Stethoscope className="h-4 w-4 mr-1" /> Clinical Agent
+            <Stethoscope className="h-4 w-4 mr-1" /> CDSS Analysis
           </Button>
           <span className="text-xs text-muted-foreground">{user?.email}</span>
           <Button variant="ghost" size="icon" onClick={async () => { await signOut(); navigate("/auth"); }}>

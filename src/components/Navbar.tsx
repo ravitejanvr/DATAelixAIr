@@ -59,7 +59,7 @@ const Navbar = () => {
 
         <div className="hidden md:flex items-center gap-3">
           <Button variant="outline" size="sm" asChild>
-            <Link to="/dashboard">Clinical Platform</Link>
+            <Link to="/dashboard">CDSS Platform</Link>
           </Button>
           <Button variant="dark" size="sm" asChild>
             <Link to="/contact">Partner With Us</Link>
@@ -92,7 +92,7 @@ const Navbar = () => {
                 </Link>
               ))}
               <Button variant="outline" className="mt-4" asChild>
-                <Link to="/dashboard" onClick={() => setOpen(false)}>Clinical Platform</Link>
+                <Link to="/dashboard" onClick={() => setOpen(false)}>CDSS Platform</Link>
               </Button>
               <Button variant="default" className="mt-2" asChild>
                 <Link to="/contact" onClick={() => setOpen(false)}>Partner With Us →</Link>
