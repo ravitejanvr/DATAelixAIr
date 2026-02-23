@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import { useConsent } from "@/contexts/ConsentContext";
-import { Linkedin, Twitter } from "lucide-react";
+import { Linkedin } from "lucide-react";
 
 const Footer = () => {
   const { reopenBanner } = useConsent();
@@ -41,8 +41,10 @@ const Footer = () => {
             <a href="https://www.linkedin.com/company/107182001/admin/dashboard/" target="_blank" rel="noopener noreferrer" className="text-dark-muted hover:text-primary transition-colors" aria-label="LinkedIn">
               <Linkedin size={18} />
             </a>
-            <a href="https://x.com/dataelixair" target="_blank" rel="noopener noreferrer" className="text-dark-muted hover:text-primary transition-colors" aria-label="X / Twitter">
-              <Twitter size={18} />
+            <a href="https://x.com/dataelixair" target="_blank" rel="noopener noreferrer" className="text-dark-muted hover:text-primary transition-colors" aria-label="X">
+              <svg viewBox="0 0 24 24" width={18} height={18} fill="currentColor" aria-hidden="true">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
             </a>
           </div>
         </div>
