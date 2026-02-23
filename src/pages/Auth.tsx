@@ -57,13 +57,13 @@ export default function Auth() {
 
   return (
     <>
-      <SEO title="Login — DATAelixAIr Clinical Platform" description="Sign in to access the AI-powered clinical decision support platform." />
+      <SEO title="Login — DATAelixAIr CDSS" description="Sign in to access the AI-powered Clinical Decision Support System (CDSS)." />
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md shadow-lg border-border">
           <CardHeader className="text-center space-y-2">
             <img src={brainLogo} alt="DATAelixAIr" className="h-12 mx-auto" />
-            <CardTitle className="text-2xl font-bold">Clinical Platform</CardTitle>
-            <CardDescription>AI-Powered Clinical Decision Support</CardDescription>
+            <CardTitle className="text-2xl font-bold">Clinical Decision Support System</CardTitle>
+            <CardDescription>AI-Powered CDSS with PubMed Evidence</CardDescription>
             <span className="inline-block px-3 py-1 text-xs font-mono rounded-full bg-primary/10 text-primary">
               PhD Research Prototype
             </span>

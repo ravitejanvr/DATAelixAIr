@@ -100,7 +100,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <SEO title="Dashboard — DATAelixAIr" description="Clinical dashboard overview" />
+      <SEO title="CDSS Dashboard — DATAelixAIr" description="Clinical Decision Support System dashboard overview" />
 
       <header className="fixed top-0 left-0 right-0 z-50 glass-nav border-b border-border px-4 py-2">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -108,13 +108,13 @@ export default function Dashboard() {
             <img src={brainLogo} alt="DATAelixAIr" className="h-8" />
             <div>
               <h1 className="text-sm font-bold text-foreground">DATAelixAIr</h1>
-              <p className="text-xs text-muted-foreground">Clinical Dashboard</p>
+              <p className="text-xs text-muted-foreground">CDSS Dashboard</p>
             </div>
             <Badge variant="outline" className="text-[10px] font-mono ml-2">PhD Prototype</Badge>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => navigate("/clinical")}>
-              <Stethoscope className="h-4 w-4 mr-1" /> Analysis
+              <Stethoscope className="h-4 w-4 mr-1" /> CDSS Analysis
             </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/patients")}>
               <Users className="h-4 w-4 mr-1" /> Patients
@@ -145,19 +145,20 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <Button onClick={() => navigate("/clinical")} className="h-auto py-3 flex-col gap-1" size="lg">
             <Stethoscope className="h-5 w-5" />
-            <span className="text-xs">New Analysis</span>
+            <span className="text-xs">New CDSS Analysis</span>
           </Button>
           <Button onClick={() => navigate("/patients")} variant="outline" className="h-auto py-3 flex-col gap-1" size="lg">
             <Plus className="h-5 w-5" />
-            <span className="text-xs">Add Patient</span>
+            <span className="text-xs">Register Patient</span>
           </Button>
           <Button onClick={() => navigate("/patients")} variant="outline" className="h-auto py-3 flex-col gap-1" size="lg">
             <Users className="h-5 w-5" />
-            <span className="text-xs">All Patients</span>
+            <span className="text-xs">Patient Records</span>
           </Button>
+
           <Button onClick={() => navigate("/prescriptions")} variant="outline" className="h-auto py-3 flex-col gap-1" size="lg">
             <Pill className="h-5 w-5" />
-            <span className="text-xs">Prescriptions</span>
+            <span className="text-xs">Write Prescription</span>
           </Button>
         </div>
 
