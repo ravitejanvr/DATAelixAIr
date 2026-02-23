@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
-import { Stethoscope, User, ShieldCheck, Scale, Brain, Globe, FileCheck, Settings, MapPin, Search, Loader2, Star, X } from "lucide-react";
+import { Stethoscope, User, ShieldCheck, Scale, Brain, Globe, FileCheck, Settings, MapPin, Search, Loader2, Star, X, HeartPulse, Pill, FlaskConical, CalendarCheck, ClipboardList } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ClinicResult {
   place_id: string;
@@ -160,7 +161,8 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<"doctor" | "patient" | "admin">("doctor");
+  const [role, setRole] = useState<string>("doctor");
+  const [roleSubtype, setRoleSubtype] = useState("");
   const [clinicName, setClinicName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -181,6 +183,8 @@ export default function Auth() {
       const userRole = roles?.[0]?.role;
       if (userRole === "patient") {
         navigate("/patient-portal");
+      } else if (userRole === "front_desk" || userRole === "care_coordinator") {
+        navigate("/dashboard");
       } else {
         navigate("/dashboard");
       }
@@ -198,7 +202,7 @@ export default function Auth() {
       email,
       password,
       options: {
-        data: { full_name: fullName, role, clinic_name: clinicName },
+        data: { full_name: fullName, role, role_subtype: roleSubtype, clinic_name: clinicName },
         emailRedirectTo: window.location.origin + (role === "patient" ? "/patient-portal" : "/dashboard"),
       },
     });
@@ -206,9 +210,11 @@ export default function Auth() {
     if (error) {
       toast({ title: "Signup failed", description: error.message, variant: "destructive" });
     } else if (data.session) {
-      // Update profile with clinic name
-      if (clinicName) {
-        await supabase.from("profiles").update({ clinic_name: clinicName }).eq("user_id", data.user!.id);
+      if (clinicName || roleSubtype) {
+        await supabase.from("profiles").update({
+          ...(clinicName ? { clinic_name: clinicName } : {}),
+          ...(roleSubtype ? { role_subtype: roleSubtype } : {}),
+        }).eq("user_id", data.user!.id);
       }
       navigate(role === "patient" ? "/patient-portal" : "/dashboard");
     } else {
@@ -261,52 +267,100 @@ export default function Auth() {
                 <form onSubmit={handleSignup} className="space-y-4 mt-4">
                   <div>
                     <Label className="text-sm font-semibold mb-2 block">I am a…</Label>
-                    <div className="grid grid-cols-3 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setRole("doctor")}
-                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                          role === "doctor"
-                            ? "border-primary bg-primary/5 text-foreground"
-                            : "border-border hover:border-primary/40 text-muted-foreground"
-                        }`}
-                      >
-                        <Stethoscope className={`h-5 w-5 ${role === "doctor" ? "text-primary" : ""}`} />
-                        <span className="text-xs font-medium">Healthcare Professional</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRole("patient")}
-                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                          role === "patient"
-                            ? "border-primary bg-primary/5 text-foreground"
-                            : "border-border hover:border-primary/40 text-muted-foreground"
-                        }`}
-                      >
-                        <User className={`h-5 w-5 ${role === "patient" ? "text-primary" : ""}`} />
-                        <span className="text-xs font-medium">Patient</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRole("admin")}
-                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
-                          role === "admin"
-                            ? "border-primary bg-primary/5 text-foreground"
-                            : "border-border hover:border-primary/40 text-muted-foreground"
-                        }`}
-                      >
-                        <Settings className={`h-5 w-5 ${role === "admin" ? "text-primary" : ""}`} />
-                        <span className="text-xs font-medium">Admin</span>
-                      </button>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { key: "doctor", icon: Stethoscope, label: "Doctor / Consultant" },
+                        { key: "nurse", icon: HeartPulse, label: "Nursing / Allied Health" },
+                        { key: "pharmacist", icon: Pill, label: "Pharmacy / Lab" },
+                        { key: "care_coordinator", icon: CalendarCheck, label: "Coordinator / Front Desk" },
+                        { key: "patient", icon: User, label: "Patient" },
+                        { key: "admin", icon: Settings, label: "Admin / Owner" },
+                      ] as const).map((r) => (
+                        <button
+                          key={r.key}
+                          type="button"
+                          onClick={() => { setRole(r.key); setRoleSubtype(""); }}
+                          className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border-2 transition-all text-center ${
+                            role === r.key
+                              ? "border-primary bg-primary/5 text-foreground"
+                              : "border-border hover:border-primary/40 text-muted-foreground"
+                          }`}
+                        >
+                          <r.icon className={`h-5 w-5 ${role === r.key ? "text-primary" : ""}`} />
+                          <span className="text-[10px] font-medium leading-tight">{r.label}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
+
+                  {/* Role subtype dropdown - context-specific */}
+                  {role === "nurse" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Specialisation</Label>
+                      <Select value={roleSubtype} onValueChange={setRoleSubtype}>
+                        <SelectTrigger><SelectValue placeholder="Select your role…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="nurse">Nurse</SelectItem>
+                          <SelectItem value="physiotherapist">Physiotherapist</SelectItem>
+                          <SelectItem value="dietitian">Dietitian / Nutritionist</SelectItem>
+                          <SelectItem value="psychologist">Psychologist</SelectItem>
+                          <SelectItem value="occupational_therapist">Occupational Therapist</SelectItem>
+                          <SelectItem value="speech_therapist">Speech Therapist</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {role === "pharmacist" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Specialisation</Label>
+                      <Select value={roleSubtype} onValueChange={setRoleSubtype}>
+                        <SelectTrigger><SelectValue placeholder="Select your role…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                          <SelectItem value="lab_technician">Lab Technician</SelectItem>
+                          <SelectItem value="radiologist">Radiologist / Imaging</SelectItem>
+                          <SelectItem value="pathologist">Pathologist</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {role === "care_coordinator" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Specialisation</Label>
+                      <Select value={roleSubtype} onValueChange={setRoleSubtype}>
+                        <SelectTrigger><SelectValue placeholder="Select your role…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="care_coordinator">Care Coordinator / Case Manager</SelectItem>
+                          <SelectItem value="front_desk">Front Desk / Reception</SelectItem>
+                          <SelectItem value="billing">Billing / Insurance</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {role === "doctor" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Specialisation</Label>
+                      <Select value={roleSubtype} onValueChange={setRoleSubtype}>
+                        <SelectTrigger><SelectValue placeholder="Select your specialisation…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="general_practitioner">General Practitioner</SelectItem>
+                          <SelectItem value="specialist">Specialist / Consultant</SelectItem>
+                          <SelectItem value="surgeon">Surgeon</SelectItem>
+                          <SelectItem value="pediatrician">Pediatrician</SelectItem>
+                          <SelectItem value="psychiatrist">Psychiatrist</SelectItem>
+                          <SelectItem value="emergency">Emergency Medicine</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Full Name</Label>
-                    <Input id="signup-name" value={fullName} onChange={e => setFullName(e.target.value)} required placeholder={role === "doctor" ? "Dr. Ravi Kumar" : "Your full name"} />
+                    <Input id="signup-name" value={fullName} onChange={e => setFullName(e.target.value)} required placeholder={role === "patient" ? "Your full name" : "Dr. / Mr. / Ms."} />
                   </div>
 
-                  {/* Clinic Locator - shown for doctors and admins */}
-                  {(role === "doctor" || role === "admin") && (
+                  {/* Clinic Locator - shown for all non-patient roles */}
+                  {role !== "patient" && (
                     <ClinicSelector value={clinicName} onChange={setClinicName} />
                   )}
 
