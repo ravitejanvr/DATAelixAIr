@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,159 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
-import { Stethoscope, User, ShieldCheck, Scale, Brain, Globe, FileCheck, Settings } from "lucide-react";
+import { Stethoscope, User, ShieldCheck, Scale, Brain, Globe, FileCheck, Settings, MapPin, Search, Loader2, Star, X } from "lucide-react";
+
+interface ClinicResult {
+  place_id: string;
+  name: string;
+  address: string;
+  rating: number | null;
+  user_ratings_total: number;
+  open_now: boolean | null;
+}
+
+function ClinicSelector({ value, onChange }: { value: string; onChange: (name: string) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ClinicResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [autoDetecting, setAutoDetecting] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const searchClinics = async (searchQuery: string) => {
+    if (!searchQuery.trim()) { setResults([]); return; }
+    setSearching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("places-search", {
+        body: { query: searchQuery },
+      });
+      if (!error && data?.clinics) {
+        setResults(data.clinics);
+        setShowDropdown(true);
+      }
+    } catch {
+      // silent
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleNearby = async () => {
+    if (!navigator.geolocation) return;
+    setAutoDetecting(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { data, error } = await supabase.functions.invoke("places-search", {
+            body: { lat: pos.coords.latitude, lon: pos.coords.longitude, type: "nearby" },
+          });
+          if (!error && data?.clinics) {
+            setResults(data.clinics);
+            setShowDropdown(true);
+          }
+        } catch {
+          // silent
+        } finally {
+          setAutoDetecting(false);
+        }
+      },
+      () => setAutoDetecting(false)
+    );
+  };
+
+  const handleInputChange = (val: string) => {
+    setQuery(val);
+    if (value) onChange(""); // clear selection when typing
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => searchClinics(val), 400);
+  };
+
+  const selectClinic = (clinic: ClinicResult) => {
+    onChange(clinic.name);
+    setQuery(clinic.name);
+    setShowDropdown(false);
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative space-y-1.5">
+      <Label className="text-sm flex items-center gap-1">
+        <MapPin className="h-3.5 w-3.5 text-primary" /> Clinic / Hospital
+      </Label>
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={value || query}
+            onChange={e => handleInputChange(e.target.value)}
+            onFocus={() => results.length > 0 && setShowDropdown(true)}
+            placeholder="Search clinic or hospital..."
+            className="pl-9 pr-8"
+          />
+          {value && (
+            <button
+              type="button"
+              onClick={() => { onChange(""); setQuery(""); setResults([]); }}
+              className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+          {searching && <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin text-primary" />}
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={handleNearby} disabled={autoDetecting} className="shrink-0 text-xs px-2">
+          {autoDetecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+        </Button>
+      </div>
+      {showDropdown && results.length > 0 && (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-background border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {results.map((c) => (
+            <button
+              key={c.place_id}
+              type="button"
+              onClick={() => selectClinic(c)}
+              className="w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors border-b border-border last:border-0"
+            >
+              <p className="text-sm font-medium truncate">{c.name}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{c.address}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                {c.rating && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-600">
+                    <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" /> {c.rating}
+                    <span className="text-muted-foreground">({c.user_ratings_total})</span>
+                  </span>
+                )}
+                {c.open_now !== null && (
+                  <span className={`text-[10px] ${c.open_now ? "text-green-600" : "text-red-500"}`}>
+                    {c.open_now ? "Open" : "Closed"}
+                  </span>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"doctor" | "patient" | "admin">("doctor");
+  const [clinicName, setClinicName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -52,7 +198,7 @@ export default function Auth() {
       email,
       password,
       options: {
-        data: { full_name: fullName, role },
+        data: { full_name: fullName, role, clinic_name: clinicName },
         emailRedirectTo: window.location.origin + (role === "patient" ? "/patient-portal" : "/dashboard"),
       },
     });
@@ -60,6 +206,10 @@ export default function Auth() {
     if (error) {
       toast({ title: "Signup failed", description: error.message, variant: "destructive" });
     } else if (data.session) {
+      // Update profile with clinic name
+      if (clinicName) {
+        await supabase.from("profiles").update({ clinic_name: clinicName }).eq("user_id", data.user!.id);
+      }
       navigate(role === "patient" ? "/patient-portal" : "/dashboard");
     } else {
       toast({ title: "Check your email", description: "We sent a verification link to confirm your account." });
@@ -154,6 +304,12 @@ export default function Auth() {
                     <Label htmlFor="signup-name">Full Name</Label>
                     <Input id="signup-name" value={fullName} onChange={e => setFullName(e.target.value)} required placeholder={role === "doctor" ? "Dr. Ravi Kumar" : "Your full name"} />
                   </div>
+
+                  {/* Clinic Locator - shown for doctors and admins */}
+                  {(role === "doctor" || role === "admin") && (
+                    <ClinicSelector value={clinicName} onChange={setClinicName} />
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
                     <Input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="you@example.com" />
