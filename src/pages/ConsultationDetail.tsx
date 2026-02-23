@@ -122,14 +122,14 @@ export default function ConsultationDetail() {
         <div className="flex items-center gap-3">
           <img src={brainLogo} alt="Logo" className="h-8" />
           <div>
-            <h1 className="text-sm font-bold text-foreground">DATAelixAIr</h1>
-            <p className="text-xs text-muted-foreground">Consultation Detail</p>
+            <h1 className="text-sm font-bold text-foreground">DATAelixAIr CDSS</h1>
+            <p className="text-xs text-muted-foreground">Clinical Decision Support System</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>Dashboard</Button>
           <Button variant="ghost" size="sm" onClick={() => navigate("/clinical")}>
-            <Stethoscope className="h-4 w-4 mr-1" /> Analysis
+            <Stethoscope className="h-4 w-4 mr-1" /> CDSS Analysis
           </Button>
           <span className="text-xs text-muted-foreground hidden sm:inline">{user?.email}</span>
           <Button variant="ghost" size="icon" onClick={async () => { await signOut(); navigate("/auth"); }}>
