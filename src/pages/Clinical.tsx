@@ -16,7 +16,7 @@ import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   Activity, AlertTriangle, Beaker, BookOpen, ClipboardList,
   LogOut, Pill, Search, Shield, Stethoscope, User, FileText,
-  CheckCircle2, XCircle, AlertCircle, Loader2, Share2, Wind
+  CheckCircle2, XCircle, AlertCircle, Loader2, Share2, Wind, Edit3, Save
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import VoiceRecorder from "@/components/VoiceRecorder";
@@ -38,13 +38,19 @@ function SeverityBadge({ severity }: { severity: string }) {
   );
 }
 
+// Determine local language from geolocation coordinates (India-centric)
+function getLocalLanguage(lat: number, lon: number): "hindi" | "telugu" {
+  // Rough bounding: Andhra Pradesh / Telangana → Telugu, else Hindi
+  if (lat >= 13 && lat <= 19.5 && lon >= 76 && lon <= 84.5) return "telugu";
+  return "hindi";
+}
+
 export default function Clinical() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
 
-  // Patient from navigation state (from patient detail page)
   const linkedPatient = (location.state as any)?.patient || null;
 
   // Patient input state
@@ -65,13 +71,26 @@ export default function Clinical() {
   const [aqiData, setAqiData] = useState<any>(null);
   const [aqiLoading, setAqiLoading] = useState(false);
   const [patientLocation, setPatientLocation] = useState("");
+  const [geoCoords, setGeoCoords] = useState<{ lat: number; lon: number } | null>(null);
 
-  // Auto-fetch AQI on mount using browser geolocation
+  // --- Editable draft state ---
+  const [editMode, setEditMode] = useState(false);
+  const [editSummary, setEditSummary] = useState("");
+  const [editSoapS, setEditSoapS] = useState("");
+  const [editSoapO, setEditSoapO] = useState("");
+  const [editSoapA, setEditSoapA] = useState("");
+  const [editSoapP, setEditSoapP] = useState("");
+  const [editFollowUp, setEditFollowUp] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFinalized, setIsFinalized] = useState(false);
+
+  // Auto-fetch AQI on mount
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           const { latitude, longitude } = pos.coords;
+          setGeoCoords({ lat: latitude, lon: longitude });
           setAqiLoading(true);
           try {
             const { data, error } = await supabase.functions.invoke("air-quality", {
@@ -92,9 +111,25 @@ export default function Clinical() {
     }
   }, []);
 
+  // When result arrives, populate editable fields
+  useEffect(() => {
+    if (result?.assessment) {
+      const a = result.assessment;
+      setEditSummary(a.summary || "");
+      setEditSoapS(a.soap_notes?.subjective || "");
+      setEditSoapO(a.soap_notes?.objective || "");
+      setEditSoapA(a.soap_notes?.assessment || "");
+      setEditSoapP(a.soap_notes?.plan || "");
+      setEditFollowUp(a.follow_up || "");
+      setEditMode(true);
+      setIsFinalized(false);
+    }
+  }, [result]);
+
   const handleAnalyze = async () => {
     setLoading(true);
     setResult(null);
+    setIsFinalized(false);
     try {
       const patientData: PatientData = {
         name: patientName,
@@ -111,12 +146,9 @@ export default function Clinical() {
       const response = await runClinicalAgent(patientData, clinicalQuery, drugs);
       setResult(response);
 
-      // Always save consultation — create patient if not linked
+      // Save as draft
       let patientId = linkedPatient?.id;
-      let patientLabel = linkedPatient?.name || patientName;
-
       if (!patientId) {
-        // Create a quick patient record
         const { data: newPatient, error: patientError } = await supabase.from("patients").insert({
           name: patientName,
           age: parseInt(patientAge) || null,
@@ -124,12 +156,7 @@ export default function Clinical() {
           doctor_id: user?.id,
           current_medications: medications.split(",").map(s => s.trim()).filter(Boolean),
         }).select("id").single();
-
-        if (patientError) {
-          console.error("Failed to create patient:", patientError.message);
-        } else {
-          patientId = newPatient.id;
-        }
+        if (!patientError) patientId = newPatient.id;
       }
 
       if (patientId) {
@@ -150,26 +177,67 @@ export default function Clinical() {
           status: "draft",
         }).select("id").single();
 
-        if (error) {
-          console.error("Failed to save consultation:", error.message);
-        } else {
+        if (!error) {
           setSavedConsultationId(consultData.id);
           setSavedPatientId(patientId);
-          toast({ title: "Consultation saved", description: `Linked to ${patientLabel}` });
+          toast({ title: "Draft saved", description: "AI notes generated. Review, edit and finalize below." });
         }
       }
     } catch (err: any) {
-      toast({
-        title: "Analysis failed",
-        description: err.message || "Something went wrong",
-        variant: "destructive",
-      });
+      toast({ title: "Analysis failed", description: err.message || "Something went wrong", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
+  const handleFinalize = async () => {
+    if (!savedConsultationId || !result) return;
+    setIsSubmitting(true);
+    try {
+      // Update consultation with clinician edits
+      const { error } = await supabase.from("consultations").update({
+        ai_summary: editSummary,
+        soap_subjective: editSoapS,
+        soap_objective: editSoapO,
+        soap_assessment: editSoapA,
+        soap_plan: editSoapP,
+        status: "completed",
+      }).eq("id", savedConsultationId);
+
+      if (error) throw new Error(error.message);
+
+      // Update result object with edited content for the report
+      const updatedResult: ClinicalAgentResponse = {
+        ...result,
+        assessment: {
+          ...result.assessment,
+          summary: editSummary,
+          soap_notes: {
+            subjective: editSoapS,
+            objective: editSoapO,
+            assessment: editSoapA,
+            plan: editSoapP,
+          },
+          follow_up: editFollowUp,
+        },
+      };
+      setResult(updatedResult);
+      setIsFinalized(true);
+      setEditMode(false);
+
+      toast({ title: "Consultation finalized", description: "Generating bilingual report..." });
+
+      // Auto-open the share dialog — it will auto-translate
+      setTimeout(() => setShareOpen(true), 300);
+    } catch (err: any) {
+      toast({ title: "Failed to finalize", description: err.message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const a = result?.assessment;
+  const detectedLang = geoCoords ? getLocalLanguage(geoCoords.lat, geoCoords.lon) : "hindi";
 
   return (
     <>
@@ -306,11 +374,11 @@ export default function Clinical() {
                   <Label className="text-xs">Clinical Query</Label>
                   <Textarea value={clinicalQuery} onChange={e => setClinicalQuery(e.target.value)} placeholder="What do you want to assess?" rows={2} />
                 </div>
-                <Button onClick={handleAnalyze} disabled={loading} className="w-full" size="lg">
+                <Button onClick={handleAnalyze} disabled={loading || isFinalized} className="w-full" size="lg">
                   {loading ? (
                     <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Running CDSS Analysis...</>
                   ) : (
-                    <><Stethoscope className="h-4 w-4 mr-2" /> Run CDSS Analysis</>
+                    <><Stethoscope className="h-4 w-4 mr-2" /> {result ? "Re-run Analysis" : "Run CDSS Analysis"}</>
                   )}
                 </Button>
               </CardContent>
@@ -329,7 +397,7 @@ export default function Clinical() {
                     drug recommendations, and structured SOAP notes.
                   </p>
                   <p className="text-xs text-primary/70 mt-3 font-medium">
-                    → Your next step: Fill in patient details on the left, then click the analysis button.
+                    Flow: Record → AI Generates Notes → You Edit & Submit → Bilingual PDF Auto-generated
                   </p>
                   <div className="flex gap-2 mt-4 flex-wrap justify-center">
                     <Badge variant="outline"><Search className="h-3 w-3 mr-1" /> PubMed RAG</Badge>
@@ -405,254 +473,333 @@ export default function Clinical() {
 
             {result && a && (
               <>
-              <div className="flex justify-end gap-2">
-                {savedConsultationId && (
-                  <Button variant="outline" size="sm" onClick={() => navigate(`/prescriptions?consultation=${savedConsultationId}&patient=${savedPatientId}`)}>
-                    <Pill className="h-4 w-4 mr-1" /> Generate Prescription
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
-                  <Share2 className="h-4 w-4 mr-1" /> Share / Export Report
-                </Button>
-              </div>
-              <Tabs defaultValue="summary" className="space-y-4">
-                <TabsList className="grid grid-cols-5 w-full">
-                  <TabsTrigger value="summary" className="text-xs">Summary</TabsTrigger>
-                  <TabsTrigger value="soap" className="text-xs">SOAP Notes</TabsTrigger>
-                  <TabsTrigger value="drugs" className="text-xs">Drugs</TabsTrigger>
-                  <TabsTrigger value="risk" className="text-xs">Risk</TabsTrigger>
-                  <TabsTrigger value="evidence" className="text-xs">Evidence</TabsTrigger>
-                </TabsList>
+                {/* Step indicator */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className="bg-green-100 text-green-800 border-green-200">
+                    <CheckCircle2 className="h-3 w-3 mr-1" /> Step 1: AI Notes Generated
+                  </Badge>
+                  {editMode && !isFinalized && (
+                    <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+                      <Edit3 className="h-3 w-3 mr-1" /> Step 2: Review & Edit
+                    </Badge>
+                  )}
+                  {isFinalized && (
+                    <Badge className="bg-green-100 text-green-800 border-green-200">
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> Step 3: Finalized — Bilingual Report Ready
+                    </Badge>
+                  )}
+                </div>
 
-                {/* SUMMARY */}
-                <TabsContent value="summary">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <ClipboardList className="h-5 w-5 text-primary" /> Clinical Summary
+                {/* Editable Draft Panel */}
+                {editMode && !isFinalized && (
+                  <Card className="border-amber-200 bg-amber-50/30">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2 text-amber-800">
+                        <Edit3 className="h-5 w-5" /> Review & Edit AI-Generated Notes
                       </CardTitle>
-                      <CardDescription>Generated {new Date(result.timestamp).toLocaleString()}</CardDescription>
+                      <CardDescription>
+                        Review the AI-generated clinical notes below. Edit as needed, then click "Finalize & Generate Report" to auto-generate the bilingual PDF with prescription.
+                      </CardDescription>
                     </CardHeader>
-                    <CardContent className="prose prose-sm max-w-none">
-                      {a.raw ? (
-                        <ReactMarkdown>{a.summary || ""}</ReactMarkdown>
-                      ) : (
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label className="text-xs font-semibold">Clinical Summary</Label>
+                        <Textarea value={editSummary} onChange={e => setEditSummary(e.target.value)} rows={3} />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs font-semibold">S — Subjective</Label>
+                          <Textarea value={editSoapS} onChange={e => setEditSoapS(e.target.value)} rows={3} />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-semibold">O — Objective</Label>
+                          <Textarea value={editSoapO} onChange={e => setEditSoapO(e.target.value)} rows={3} />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-semibold">A — Assessment</Label>
+                          <Textarea value={editSoapA} onChange={e => setEditSoapA(e.target.value)} rows={3} />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-semibold">P — Plan</Label>
+                          <Textarea value={editSoapP} onChange={e => setEditSoapP(e.target.value)} rows={3} />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold">Follow-up</Label>
+                        <Input value={editFollowUp} onChange={e => setEditFollowUp(e.target.value)} />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Button onClick={handleFinalize} disabled={isSubmitting} size="lg" className="flex-1">
+                          {isSubmitting ? (
+                            <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Finalizing & Translating...</>
+                          ) : (
+                            <><Save className="h-4 w-4 mr-2" /> Finalize & Generate Bilingual Report</>
+                          )}
+                        </Button>
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          Auto-translate: {detectedLang === "telugu" ? "Telugu" : "Hindi"}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Action buttons for finalized report */}
+                {isFinalized && (
+                  <div className="flex gap-2">
+                    {savedConsultationId && (
+                      <Button variant="outline" size="sm" onClick={() => navigate(`/prescriptions?consultation=${savedConsultationId}&patient=${savedPatientId}`)}>
+                        <Pill className="h-4 w-4 mr-1" /> View Prescription
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+                      <Share2 className="h-4 w-4 mr-1" /> Download / Share Report
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setEditMode(true); setIsFinalized(false); }}>
+                      <Edit3 className="h-4 w-4 mr-1" /> Edit Again
+                    </Button>
+                  </div>
+                )}
+
+                <Tabs defaultValue="summary" className="space-y-4">
+                  <TabsList className="grid grid-cols-5 w-full">
+                    <TabsTrigger value="summary" className="text-xs">Summary</TabsTrigger>
+                    <TabsTrigger value="soap" className="text-xs">SOAP Notes</TabsTrigger>
+                    <TabsTrigger value="drugs" className="text-xs">Drugs</TabsTrigger>
+                    <TabsTrigger value="risk" className="text-xs">Risk</TabsTrigger>
+                    <TabsTrigger value="evidence" className="text-xs">Evidence</TabsTrigger>
+                  </TabsList>
+
+                  {/* SUMMARY */}
+                  <TabsContent value="summary">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <ClipboardList className="h-5 w-5 text-primary" /> Clinical Summary
+                        </CardTitle>
+                        <CardDescription>Generated {new Date(result.timestamp).toLocaleString()}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="prose prose-sm max-w-none">
+                        {a.raw ? (
+                          <ReactMarkdown>{a.summary || ""}</ReactMarkdown>
+                        ) : (
+                          <>
+                            <p className="text-foreground">{a.summary}</p>
+                            {a.icd_codes && a.icd_codes.length > 0 && (
+                              <div className="mt-4">
+                                <h4 className="font-semibold text-sm">ICD-11 Codes</h4>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                  {a.icd_codes.map((c, i) => (
+                                    <Badge key={i} variant="secondary" className="text-xs">
+                                      {c.code}: {c.description}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {a.tests_recommended && a.tests_recommended.length > 0 && (
+                              <div className="mt-4">
+                                <h4 className="font-semibold text-sm flex items-center gap-1">
+                                  <Beaker className="h-4 w-4" /> Tests Recommended
+                                </h4>
+                                <ul className="list-disc pl-5 text-sm">
+                                  {a.tests_recommended.map((t, i) => <li key={i}>{t}</li>)}
+                                </ul>
+                              </div>
+                            )}
+                            {a.follow_up && (
+                              <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                                <h4 className="font-semibold text-sm">Follow-up</h4>
+                                <p className="text-sm">{a.follow_up}</p>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {a.disclaimer && (
+                          <p className="text-xs text-muted-foreground italic mt-4 p-2 bg-muted/30 rounded">
+                            ⚕️ {a.disclaimer}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* SOAP NOTES */}
+                  <TabsContent value="soap">
+                    <div className="grid gap-4">
+                      {a.soap_notes && (
                         <>
-                          <p className="text-foreground">{a.summary}</p>
-                          {a.icd_codes && a.icd_codes.length > 0 && (
-                            <div className="mt-4">
-                              <h4 className="font-semibold text-sm">ICD-11 Codes</h4>
-                              <div className="flex flex-wrap gap-2 mt-1">
-                                {a.icd_codes.map((c, i) => (
-                                  <Badge key={i} variant="secondary" className="text-xs">
-                                    {c.code}: {c.description}
-                                  </Badge>
+                          {[
+                            { label: "Subjective", content: a.soap_notes.subjective, color: "bg-blue-50 border-blue-200" },
+                            { label: "Objective", content: a.soap_notes.objective, color: "bg-green-50 border-green-200" },
+                            { label: "Assessment", content: a.soap_notes.assessment, color: "bg-amber-50 border-amber-200" },
+                            { label: "Plan", content: a.soap_notes.plan, color: "bg-purple-50 border-purple-200" },
+                          ].map((section, i) => (
+                            <Card key={i} className={`border ${section.color}`}>
+                              <CardHeader className="pb-2">
+                                <CardTitle className="text-base">
+                                  <span className="font-mono text-primary mr-2">{section.label[0]}</span>
+                                  {section.label}
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="prose prose-sm max-w-none">
+                                <ReactMarkdown>{section.content}</ReactMarkdown>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </>
+                      )}
+                      {!a.soap_notes && (
+                        <Card><CardContent className="py-8 text-center text-muted-foreground">No SOAP notes generated.</CardContent></Card>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  {/* DRUGS */}
+                  <TabsContent value="drugs">
+                    <div className="space-y-4">
+                      {a.drug_recommendations && a.drug_recommendations.length > 0 && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <Pill className="h-5 w-5 text-primary" /> Drug Recommendations
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-3">
+                              {a.drug_recommendations.map((d, i) => (
+                                <div key={i} className="p-3 rounded-lg border bg-card">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <h4 className="font-semibold">{d.drug}</h4>
+                                    <Badge variant="outline" className="text-xs">Evidence: {d.evidence_level}</Badge>
+                                  </div>
+                                  <p className="text-sm"><strong>Dosage:</strong> {d.dosage} — {d.frequency}</p>
+                                  <p className="text-sm text-muted-foreground">{d.rationale}</p>
+                                  {d.interactions && <p className="text-xs mt-1 text-amber-600">⚠️ {d.interactions}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {a.drug_interactions && a.drug_interactions.length > 0 && (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <AlertTriangle className="h-5 w-5 text-amber-500" /> Drug Interactions
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {a.drug_interactions.map((d, i) => (
+                                <div key={i} className="p-3 rounded-lg border flex items-start gap-3">
+                                  <SeverityBadge severity={d.severity} />
+                                  <div>
+                                    <p className="text-sm font-medium">{d.drugs.join(" + ")}</p>
+                                    <p className="text-xs text-muted-foreground">{d.description}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  {/* RISK */}
+                  <TabsContent value="risk">
+                    {a.risk_assessment && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Shield className="h-5 w-5 text-primary" /> Risk Assessment
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="p-4 rounded-lg bg-primary/5 border border-primary/10 text-center">
+                            <p className="text-sm font-medium text-muted-foreground">{a.risk_assessment.primary_risk}</p>
+                            <p className="text-3xl font-bold text-primary mt-1">{a.risk_assessment.risk_percentage}</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <h4 className="text-sm font-semibold text-red-600 mb-2">Risk Factors</h4>
+                              <ul className="text-sm space-y-1">
+                                {a.risk_assessment.risk_factors?.map((r, i) => (
+                                  <li key={i} className="flex items-start gap-1"><XCircle className="h-3 w-3 text-red-400 mt-0.5 shrink-0" /> {r}</li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-semibold text-green-600 mb-2">Protective Factors</h4>
+                              <ul className="text-sm space-y-1">
+                                {a.risk_assessment.protective_factors?.map((p, i) => (
+                                  <li key={i} className="flex items-start gap-1"><CheckCircle2 className="h-3 w-3 text-green-400 mt-0.5 shrink-0" /> {p}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                          {a.guidelines_referenced && a.guidelines_referenced.length > 0 && (
+                            <div className="mt-3">
+                              <h4 className="text-sm font-semibold mb-1">Guidelines Referenced</h4>
+                              <div className="flex flex-wrap gap-1">
+                                {a.guidelines_referenced.map((g, i) => (
+                                  <Badge key={i} variant="outline" className="text-xs">{g}</Badge>
                                 ))}
                               </div>
                             </div>
                           )}
-                          {a.tests_recommended && a.tests_recommended.length > 0 && (
-                            <div className="mt-4">
-                              <h4 className="font-semibold text-sm flex items-center gap-1">
-                                <Beaker className="h-4 w-4" /> Tests Recommended
-                              </h4>
-                              <ul className="list-disc pl-5 text-sm">
-                                {a.tests_recommended.map((t, i) => <li key={i}>{t}</li>)}
-                              </ul>
-                            </div>
-                          )}
-                          {a.follow_up && (
-                            <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/10">
-                              <h4 className="font-semibold text-sm">Follow-up</h4>
-                              <p className="text-sm">{a.follow_up}</p>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {a.disclaimer && (
-                        <p className="text-xs text-muted-foreground italic mt-4 p-2 bg-muted/30 rounded">
-                          ⚕️ {a.disclaimer}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* SOAP NOTES */}
-                <TabsContent value="soap">
-                  <div className="grid gap-4">
-                    {a.soap_notes && (
-                      <>
-                        {[
-                          { label: "Subjective", content: a.soap_notes.subjective, color: "bg-blue-50 border-blue-200" },
-                          { label: "Objective", content: a.soap_notes.objective, color: "bg-green-50 border-green-200" },
-                          { label: "Assessment", content: a.soap_notes.assessment, color: "bg-amber-50 border-amber-200" },
-                          { label: "Plan", content: a.soap_notes.plan, color: "bg-purple-50 border-purple-200" },
-                        ].map((section, i) => (
-                          <Card key={i} className={`border ${section.color}`}>
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-base">
-                                <span className="font-mono text-primary mr-2">{section.label[0]}</span>
-                                {section.label}
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent className="prose prose-sm max-w-none">
-                              <ReactMarkdown>{section.content}</ReactMarkdown>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </>
-                    )}
-                    {!a.soap_notes && (
-                      <Card><CardContent className="py-8 text-center text-muted-foreground">No SOAP notes generated.</CardContent></Card>
-                    )}
-                  </div>
-                </TabsContent>
-
-                {/* DRUGS */}
-                <TabsContent value="drugs">
-                  <div className="space-y-4">
-                    {a.drug_recommendations && a.drug_recommendations.length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <Pill className="h-5 w-5 text-primary" /> Drug Recommendations
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-3">
-                            {a.drug_recommendations.map((d, i) => (
-                              <div key={i} className="p-3 rounded-lg border bg-card">
-                                <div className="flex items-center justify-between mb-1">
-                                  <h4 className="font-semibold">{d.drug}</h4>
-                                  <Badge variant="outline" className="text-xs">Evidence: {d.evidence_level}</Badge>
-                                </div>
-                                <p className="text-sm"><strong>Dosage:</strong> {d.dosage} — {d.frequency}</p>
-                                <p className="text-sm text-muted-foreground">{d.rationale}</p>
-                                {d.interactions && <p className="text-xs mt-1 text-amber-600">⚠️ {d.interactions}</p>}
-                              </div>
-                            ))}
-                          </div>
                         </CardContent>
                       </Card>
                     )}
+                  </TabsContent>
 
-                    {a.drug_interactions && a.drug_interactions.length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5 text-amber-500" /> Drug Interactions
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            {a.drug_interactions.map((d, i) => (
-                              <div key={i} className="p-3 rounded-lg border flex items-start gap-3">
-                                <SeverityBadge severity={d.severity} />
-                                <div>
-                                  <p className="text-sm font-medium">{d.drugs.join(" + ")}</p>
-                                  <p className="text-xs text-muted-foreground">{d.description}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                </TabsContent>
-
-                {/* RISK */}
-                <TabsContent value="risk">
-                  {a.risk_assessment && (
+                  {/* EVIDENCE */}
+                  <TabsContent value="evidence">
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2">
-                          <Shield className="h-5 w-5 text-primary" /> Risk Assessment
+                          <BookOpen className="h-5 w-5 text-primary" /> PubMed Evidence ({result.evidence.length} articles)
                         </CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="p-4 rounded-lg bg-primary/5 border border-primary/10 text-center">
-                          <p className="text-sm font-medium text-muted-foreground">{a.risk_assessment.primary_risk}</p>
-                          <p className="text-3xl font-bold text-primary mt-1">{a.risk_assessment.risk_percentage}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <h4 className="text-sm font-semibold text-red-600 mb-2">Risk Factors</h4>
-                            <ul className="text-sm space-y-1">
-                              {a.risk_assessment.risk_factors?.map((r, i) => (
-                                <li key={i} className="flex items-start gap-1"><XCircle className="h-3 w-3 text-red-400 mt-0.5 shrink-0" /> {r}</li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-semibold text-green-600 mb-2">Protective Factors</h4>
-                            <ul className="text-sm space-y-1">
-                              {a.risk_assessment.protective_factors?.map((p, i) => (
-                                <li key={i} className="flex items-start gap-1"><CheckCircle2 className="h-3 w-3 text-green-400 mt-0.5 shrink-0" /> {p}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                        {a.guidelines_referenced && a.guidelines_referenced.length > 0 && (
-                          <div className="mt-3">
-                            <h4 className="text-sm font-semibold mb-1">Guidelines Referenced</h4>
-                            <div className="flex flex-wrap gap-1">
-                              {a.guidelines_referenced.map((g, i) => (
-                                <Badge key={i} variant="outline" className="text-xs">{g}</Badge>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {a.citations && a.citations.length > 0 && (
+                            <div className="mb-4">
+                              <h4 className="text-sm font-semibold mb-2">Cited in Assessment</h4>
+                              {a.citations.map((c, i) => (
+                                <div key={i} className="p-2 rounded border bg-primary/5 mb-2">
+                                  <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline">
+                                    PMID:{c.pmid} — {c.title}
+                                  </a>
+                                  <p className="text-xs text-muted-foreground mt-0.5">{c.relevance}</p>
+                                </div>
                               ))}
                             </div>
-                          </div>
-                        )}
+                          )}
+                          <h4 className="text-sm font-semibold">All Retrieved Articles</h4>
+                          {result.evidence.map((e, i) => (
+                            <div key={i} className="p-3 rounded-lg border">
+                              <a href={e.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline">
+                                PMID:{e.pmid} ({e.year})
+                              </a>
+                              <p className="text-sm mt-1">{e.title}</p>
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-3">{e.abstract}</p>
+                            </div>
+                          ))}
+                        </div>
                       </CardContent>
                     </Card>
-                  )}
-                </TabsContent>
-
-                {/* EVIDENCE */}
-                <TabsContent value="evidence">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <BookOpen className="h-5 w-5 text-primary" /> PubMed Evidence ({result.evidence.length} articles)
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {a.citations && a.citations.length > 0 && (
-                          <div className="mb-4">
-                            <h4 className="text-sm font-semibold mb-2">Cited in Assessment</h4>
-                            {a.citations.map((c, i) => (
-                              <div key={i} className="p-2 rounded border bg-primary/5 mb-2">
-                                <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline">
-                                  PMID:{c.pmid} — {c.title}
-                                </a>
-                                <p className="text-xs text-muted-foreground mt-0.5">{c.relevance}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <h4 className="text-sm font-semibold">All Retrieved Articles</h4>
-                        {result.evidence.map((e, i) => (
-                          <div key={i} className="p-3 rounded-lg border">
-                            <a href={e.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline">
-                              PMID:{e.pmid} ({e.year})
-                            </a>
-                            <p className="text-sm mt-1">{e.title}</p>
-                            <p className="text-xs text-muted-foreground mt-1 line-clamp-3">{e.abstract}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-              <ReportShareDialog
-                open={shareOpen}
-                onOpenChange={setShareOpen}
-                result={result}
-                patientName={patientName}
-              />
+                  </TabsContent>
+                </Tabs>
+                <ReportShareDialog
+                  open={shareOpen}
+                  onOpenChange={setShareOpen}
+                  result={result}
+                  patientName={patientName}
+                  autoTranslateLanguage={isFinalized ? detectedLang : undefined}
+                />
               </>
             )}
           </div>
