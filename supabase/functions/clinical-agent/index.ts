@@ -140,7 +140,16 @@ KNOWLEDGE SOURCES (use ALL when analyzing patient data for maximum accuracy):
 - DailyMed: FDA-approved drug labeling, dosage guidelines, contraindications
 - WHO ICD-11: standardized diagnostic classification codes
 - RxNav / RxNorm: drug interaction checking with severity grading
+- Google Air Quality API: real-time AQI data for environmental health risk assessment
 - Evidence-based guidelines: NICE, AHA, ESC, ADA, WHO protocols
+
+ENVIRONMENTAL HEALTH:
+When AQI data is provided, factor air quality into risk assessments especially for:
+- Respiratory conditions (asthma, COPD, bronchitis)
+- Cardiovascular disease (pollution increases MI/stroke risk)
+- Pregnancy (PM2.5 exposure risks)
+- Pediatric and geriatric patients (higher vulnerability)
+- Outdoor exercise recommendations
 
 CRITICAL RULES:
 1. You are a CLINICAL DECISION SUPPORT tool, NOT a replacement for clinical judgment
@@ -274,10 +283,23 @@ serve(async (req) => {
       `[${i + 1}] PMID:${a.pmid} (${a.year}) "${a.title}" - ${a.abstract}`
     ).join("\n\n");
 
+    // Build AQI context if available
+    const aqiData = patientData?.aqi;
+    let aqiContext = "No AQI data available.";
+    if (aqiData && aqiData.aqi !== null) {
+      aqiContext = `AQI: ${aqiData.aqi} (${aqiData.category})
+Dominant Pollutant: ${aqiData.dominantPollutant || "Unknown"}
+Pollutants: ${aqiData.pollutants?.map((p: any) => `${p.displayName}: ${p.concentration} ${p.unit}`).join(", ") || "N/A"}
+Health Recommendations: ${JSON.stringify(aqiData.healthRecommendations || {})}`;
+    }
+
     const userMessage = `PATIENT DATA:
 ${JSON.stringify(patientData || {}, null, 2)}
 
 CLINICAL QUERY: ${query || "Provide comprehensive clinical assessment"}
+
+AIR QUALITY INDEX (Environmental Factor):
+${aqiContext}
 
 PUBMED EVIDENCE (${allArticles.length} articles found):
 ${evidenceContext || "No PubMed articles found for this query."}
@@ -296,7 +318,7 @@ ${icdContext || "No ICD-11 codes resolved."}
 
 DRUGS TO ASSESS: ${drugs.join(", ") || "None specified"}
 
-Please provide a comprehensive clinical assessment in the JSON format specified. Cite the PubMed evidence provided above using their PMID numbers.`;
+Please provide a comprehensive clinical assessment in the JSON format specified. Cite the PubMed evidence provided above using their PMID numbers. Factor in air quality data when relevant to respiratory, cardiovascular, or other pollution-sensitive conditions.`;
 
     // Call Lovable AI
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {

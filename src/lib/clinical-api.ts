@@ -10,6 +10,14 @@ export interface PatientData {
   medications?: string[];
   labValues?: Record<string, string>;
   familyHistory?: string[];
+  location?: { lat: number; lon: number };
+  aqi?: {
+    aqi: number | null;
+    category: string;
+    dominantPollutant: string | null;
+    pollutants: Array<{ code: string; displayName: string; concentration: number; unit: string }>;
+    healthRecommendations: Record<string, string>;
+  } | null;
 }
 
 export interface ClinicalAssessment {
