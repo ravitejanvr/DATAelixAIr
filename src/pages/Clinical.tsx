@@ -16,7 +16,7 @@ import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   Activity, AlertTriangle, Beaker, BookOpen, ClipboardList,
   LogOut, Pill, Search, Shield, Stethoscope, User, FileText,
-  CheckCircle2, XCircle, AlertCircle, Loader2, Share2
+  CheckCircle2, XCircle, AlertCircle, Loader2, Share2, Wind
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import VoiceRecorder from "@/components/VoiceRecorder";
@@ -62,6 +62,35 @@ export default function Clinical() {
   const [shareOpen, setShareOpen] = useState(false);
   const [savedConsultationId, setSavedConsultationId] = useState<string | null>(null);
   const [savedPatientId, setSavedPatientId] = useState<string | null>(null);
+  const [aqiData, setAqiData] = useState<any>(null);
+  const [aqiLoading, setAqiLoading] = useState(false);
+  const [patientLocation, setPatientLocation] = useState("");
+
+  // Auto-fetch AQI on mount using browser geolocation
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setAqiLoading(true);
+          try {
+            const { data, error } = await supabase.functions.invoke("air-quality", {
+              body: { lat: latitude, lon: longitude },
+            });
+            if (!error && data?.aqi !== null) {
+              setAqiData(data);
+              setPatientLocation(`${latitude.toFixed(2)}, ${longitude.toFixed(2)}`);
+            }
+          } catch (err) {
+            console.log("AQI fetch failed:", err);
+          } finally {
+            setAqiLoading(false);
+          }
+        },
+        () => console.log("Geolocation unavailable for AQI")
+      );
+    }
+  }, []);
 
   const handleAnalyze = async () => {
     setLoading(true);
@@ -75,6 +104,7 @@ export default function Clinical() {
         symptoms: symptoms.split(",").map(s => s.trim()).filter(Boolean),
         ethnicity,
         medications: medications.split(",").map(s => s.trim()).filter(Boolean),
+        aqi: aqiData || undefined,
       };
 
       const drugs = medications.split(",").map(s => s.trim()).filter(Boolean);
@@ -234,6 +264,41 @@ export default function Clinical() {
                   <Label className="text-xs">Current Medications</Label>
                   <Input value={medications} onChange={e => setMedications(e.target.value)} placeholder="Metformin, Atorvastatin..." />
                 </div>
+                {/* AQI Environmental Factor */}
+                <div className="rounded-lg border border-border p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs flex items-center gap-1">
+                      <Wind className="h-3 w-3" /> Air Quality Index (AQI)
+                    </Label>
+                    {aqiLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                  </div>
+                  {aqiData ? (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${
+                          aqiData.aqi <= 50 ? "border-green-300 text-green-700 bg-green-50" :
+                          aqiData.aqi <= 100 ? "border-amber-300 text-amber-700 bg-amber-50" :
+                          "border-red-300 text-red-700 bg-red-50"
+                        }`}
+                      >
+                        AQI: {aqiData.aqi} — {aqiData.category}
+                      </Badge>
+                      {aqiData.dominantPollutant && (
+                        <span className="text-[10px] text-muted-foreground">
+                          Dominant: {aqiData.dominantPollutant}
+                        </span>
+                      )}
+                      {patientLocation && (
+                        <span className="text-[10px] text-muted-foreground">📍 {patientLocation}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">
+                      {aqiLoading ? "Fetching air quality data..." : "Allow location access for AQI data, or AQI API unavailable"}
+                    </p>
+                  )}
+                </div>
                 <div>
                   <Label className="text-xs">Clinical Query</Label>
                   <Textarea value={clinicalQuery} onChange={e => setClinicalQuery(e.target.value)} placeholder="What do you want to assess?" rows={2} />
@@ -268,6 +333,7 @@ export default function Clinical() {
                     <Badge variant="outline"><Pill className="h-3 w-3 mr-1" /> Drug Interactions</Badge>
                     <Badge variant="outline"><FileText className="h-3 w-3 mr-1" /> SOAP Notes</Badge>
                     <Badge variant="outline"><Shield className="h-3 w-3 mr-1" /> Risk Assessment</Badge>
+                    <Badge variant="outline"><Wind className="h-3 w-3 mr-1" /> AQI Factor</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -278,10 +344,11 @@ export default function Clinical() {
                 <CardContent className="flex flex-col items-center justify-center py-16">
                   <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                   <h3 className="text-lg font-semibold">Analyzing Patient Data...</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Querying PubMed + Europe PMC + RxNorm</p>
-                  <div className="flex gap-3 mt-4 text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground mt-1">Querying PubMed + Europe PMC + RxNorm + AQI</p>
+                  <div className="flex gap-3 mt-4 text-xs text-muted-foreground flex-wrap justify-center">
                     <span>📚 Searching literature...</span>
                     <span>💊 Checking interactions...</span>
+                    <span>🌬️ Air quality data...</span>
                     <span>🤖 AI reasoning...</span>
                   </div>
                 </CardContent>
