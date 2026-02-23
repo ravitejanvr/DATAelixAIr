@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +20,8 @@ interface ReportShareDialogProps {
   onOpenChange: (open: boolean) => void;
   result: ClinicalAgentResponse;
   patientName: string;
+  /** If provided, auto-translate to this language on open and enable bilingual mode */
+  autoTranslateLanguage?: "hindi" | "telugu";
 }
 
 type ReportLanguage = "english" | "hindi" | "telugu";
@@ -29,6 +31,7 @@ export default function ReportShareDialog({
   onOpenChange,
   result,
   patientName,
+  autoTranslateLanguage,
 }: ReportShareDialogProps) {
   const { toast } = useToast();
   const [language, setLanguage] = useState<ReportLanguage>("english");
@@ -37,6 +40,7 @@ export default function ReportShareDialog({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [bilingualMode, setBilingualMode] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
+  const [autoTriggered, setAutoTriggered] = useState(false);
 
   const a = result.assessment;
 
@@ -70,10 +74,11 @@ export default function ReportShareDialog({
     }
 
     if (a.drug_recommendations?.length) {
-      lines.push(`\nDRUG RECOMMENDATIONS`);
+      lines.push(`\nPRESCRIPTION / DRUG RECOMMENDATIONS`);
       a.drug_recommendations.forEach((d) => {
         lines.push(`• ${d.drug} — ${d.dosage}, ${d.frequency}`);
         lines.push(`  Rationale: ${d.rationale}`);
+        if (d.interactions) lines.push(`  ⚠️ Interactions: ${d.interactions}`);
       });
     }
 
@@ -120,6 +125,18 @@ export default function ReportShareDialog({
     }
   };
 
+  // Auto-translate when dialog opens with autoTranslateLanguage
+  useEffect(() => {
+    if (open && autoTranslateLanguage && !autoTriggered) {
+      setAutoTriggered(true);
+      setBilingualMode(true);
+      handleTranslate(autoTranslateLanguage);
+    }
+    if (!open) {
+      setAutoTriggered(false);
+    }
+  }, [open, autoTranslateLanguage]);
+
   const getDisplayContent = () => {
     if (bilingualMode && translatedContent) {
       const english = buildEnglishReport();
@@ -134,10 +151,8 @@ export default function ReportShareDialog({
     setIsGeneratingPdf(true);
 
     try {
-      // If bilingual and no translation yet, translate first
       if (bilingualMode && !translatedContent && language === "english") {
-        // Default to Hindi for bilingual
-        await handleTranslate("hindi");
+        await handleTranslate(autoTranslateLanguage || "hindi");
       }
 
       const canvas = await html2canvas(reportRef.current, {
@@ -181,10 +196,10 @@ export default function ReportShareDialog({
       }
 
       const langLabel = bilingualMode
-        ? `EN_${language === "english" ? "HI" : language === "hindi" ? "HI" : "TE"}`
+        ? `EN_${language === "english" ? (autoTranslateLanguage === "telugu" ? "TE" : "HI") : language === "hindi" ? "HI" : "TE"}`
         : language === "hindi" ? "HI" : language === "telugu" ? "TE" : "EN";
       pdf.save(`consultation_${patientName.replace(/\s+/g, "_")}_${langLabel}.pdf`);
-      toast({ title: "PDF downloaded", description: bilingualMode ? "Bilingual report saved" : `Report saved in ${language}` });
+      toast({ title: "PDF downloaded", description: bilingualMode ? "Bilingual report with prescription saved" : `Report saved in ${language}` });
     } catch (err: any) {
       toast({ title: "PDF generation failed", description: err.message, variant: "destructive" });
     } finally {
@@ -212,10 +227,12 @@ export default function ReportShareDialog({
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Share2 className="h-5 w-5 text-primary" /> Share Consultation Report
+            <Share2 className="h-5 w-5 text-primary" /> Consultation Report & Prescription
           </DialogTitle>
           <DialogDescription>
-            Download as PDF or share via WhatsApp. Enable bilingual mode for combined English + local language.
+            {autoTranslateLanguage
+              ? `Auto-generated bilingual report (English + ${langLabel[autoTranslateLanguage]}). Download or share.`
+              : "Download as PDF or share via WhatsApp. Enable bilingual mode for combined English + local language."}
           </DialogDescription>
         </DialogHeader>
 
