@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Download, Share2, MessageCircle, Languages } from "lucide-react";
+import { Loader2, Download, Share2, MessageCircle, Languages, FileText } from "lucide-react";
 import type { ClinicalAgentResponse } from "@/lib/clinical-api";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -35,6 +35,7 @@ export default function ReportShareDialog({
   const [translatedContent, setTranslatedContent] = useState("");
   const [isTranslating, setIsTranslating] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [bilingualMode, setBilingualMode] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
   const a = result.assessment;
@@ -120,15 +121,25 @@ export default function ReportShareDialog({
   };
 
   const getDisplayContent = () => {
+    if (bilingualMode && translatedContent) {
+      const english = buildEnglishReport();
+      return `${english}\n\n${"═".repeat(50)}\n\n${translatedContent}`;
+    }
     if (language !== "english" && translatedContent) return translatedContent;
     return buildEnglishReport();
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadBilingualPdf = async () => {
     if (!reportRef.current) return;
     setIsGeneratingPdf(true);
 
     try {
+      // If bilingual and no translation yet, translate first
+      if (bilingualMode && !translatedContent && language === "english") {
+        // Default to Hindi for bilingual
+        await handleTranslate("hindi");
+      }
+
       const canvas = await html2canvas(reportRef.current, {
         scale: 2,
         useCORS: true,
@@ -169,9 +180,11 @@ export default function ReportShareDialog({
         pageNum++;
       }
 
-      const langLabel = language === "hindi" ? "HI" : language === "telugu" ? "TE" : "EN";
+      const langLabel = bilingualMode
+        ? `EN_${language === "english" ? "HI" : language === "hindi" ? "HI" : "TE"}`
+        : language === "hindi" ? "HI" : language === "telugu" ? "TE" : "EN";
       pdf.save(`consultation_${patientName.replace(/\s+/g, "_")}_${langLabel}.pdf`);
-      toast({ title: "PDF downloaded", description: `Report saved in ${language}` });
+      toast({ title: "PDF downloaded", description: bilingualMode ? "Bilingual report saved" : `Report saved in ${language}` });
     } catch (err: any) {
       toast({ title: "PDF generation failed", description: err.message, variant: "destructive" });
     } finally {
@@ -181,7 +194,6 @@ export default function ReportShareDialog({
 
   const handleWhatsAppShare = () => {
     const content = getDisplayContent();
-    // Truncate for WhatsApp URL limit (~2000 chars)
     const truncated = content.length > 1500
       ? content.slice(0, 1500) + "\n\n... [Report truncated. Full report available as PDF]"
       : content;
@@ -203,12 +215,12 @@ export default function ReportShareDialog({
             <Share2 className="h-5 w-5 text-primary" /> Share Consultation Report
           </DialogTitle>
           <DialogDescription>
-            Download as PDF or share via WhatsApp in English, Hindi, or Telugu
+            Download as PDF or share via WhatsApp. Enable bilingual mode for combined English + local language.
           </DialogDescription>
         </DialogHeader>
 
         {/* Language selector */}
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <Languages className="h-4 w-4 text-muted-foreground" />
           {(["english", "hindi", "telugu"] as ReportLanguage[]).map((lang) => (
             <Button
@@ -223,6 +235,17 @@ export default function ReportShareDialog({
             </Button>
           ))}
           {isTranslating && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+          <div className="ml-auto">
+            <Button
+              size="sm"
+              variant={bilingualMode ? "default" : "outline"}
+              onClick={() => setBilingualMode(!bilingualMode)}
+              className="text-xs"
+            >
+              <FileText className="h-3 w-3 mr-1" />
+              {bilingualMode ? "Bilingual ON" : "Bilingual"}
+            </Button>
+          </div>
         </div>
 
         {/* Report preview */}
@@ -244,11 +267,11 @@ export default function ReportShareDialog({
 
         {/* Actions */}
         <div className="flex gap-2 pt-2">
-          <Button onClick={handleDownloadPdf} disabled={isGeneratingPdf || isTranslating} className="flex-1">
+          <Button onClick={handleDownloadBilingualPdf} disabled={isGeneratingPdf || isTranslating} className="flex-1">
             {isGeneratingPdf ? (
               <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Generating PDF...</>
             ) : (
-              <><Download className="h-4 w-4 mr-1" /> Download PDF</>
+              <><Download className="h-4 w-4 mr-1" /> {bilingualMode ? "Download Bilingual PDF" : "Download PDF"}</>
             )}
           </Button>
           <Button onClick={handleWhatsAppShare} disabled={isTranslating} variant="outline" className="flex-1 text-green-700 border-green-300 hover:bg-green-50 hover:border-green-400">

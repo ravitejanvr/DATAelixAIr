@@ -9,11 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
+import { Stethoscope, User, ShieldCheck } from "lucide-react";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState<"doctor" | "patient">("doctor");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -21,12 +23,23 @@ export default function Auth() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
       toast({ title: "Login failed", description: error.message, variant: "destructive" });
     } else {
-      navigate("/dashboard");
+      // Check user role to redirect appropriately
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.user.id);
+      
+      const userRole = roles?.[0]?.role;
+      if (userRole === "patient") {
+        navigate("/patient-portal");
+      } else {
+        navigate("/dashboard");
+      }
     }
   };
 
@@ -41,15 +54,15 @@ export default function Auth() {
       email,
       password,
       options: {
-        data: { full_name: fullName },
-        emailRedirectTo: window.location.origin + "/clinical",
+        data: { full_name: fullName, role },
+        emailRedirectTo: window.location.origin + (role === "patient" ? "/patient-portal" : "/dashboard"),
       },
     });
     setLoading(false);
     if (error) {
       toast({ title: "Signup failed", description: error.message, variant: "destructive" });
     } else if (data.session) {
-      navigate("/dashboard");
+      navigate(role === "patient" ? "/patient-portal" : "/dashboard");
     } else {
       toast({ title: "Check your email", description: "We sent a verification link to confirm your account." });
     }
@@ -78,7 +91,7 @@ export default function Auth() {
                 <form onSubmit={handleLogin} className="space-y-4 mt-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email">Email</Label>
-                    <Input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="doctor@clinic.com" />
+                    <Input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="you@example.com" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Password</Label>
@@ -91,13 +104,43 @@ export default function Auth() {
               </TabsContent>
               <TabsContent value="signup">
                 <form onSubmit={handleSignup} className="space-y-4 mt-4">
+                  {/* Role selection */}
+                  <div>
+                    <Label className="text-sm font-semibold mb-2 block">I am a…</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setRole("doctor")}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                          role === "doctor"
+                            ? "border-primary bg-primary/5 text-foreground"
+                            : "border-border hover:border-primary/40 text-muted-foreground"
+                        }`}
+                      >
+                        <Stethoscope className={`h-5 w-5 ${role === "doctor" ? "text-primary" : ""}`} />
+                        <span className="text-xs font-medium">Healthcare Professional</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRole("patient")}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                          role === "patient"
+                            ? "border-primary bg-primary/5 text-foreground"
+                            : "border-border hover:border-primary/40 text-muted-foreground"
+                        }`}
+                      >
+                        <User className={`h-5 w-5 ${role === "patient" ? "text-primary" : ""}`} />
+                        <span className="text-xs font-medium">Patient</span>
+                      </button>
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Full Name</Label>
-                    <Input id="signup-name" value={fullName} onChange={e => setFullName(e.target.value)} required placeholder="Dr. Ravi Kumar" />
+                    <Input id="signup-name" value={fullName} onChange={e => setFullName(e.target.value)} required placeholder={role === "doctor" ? "Dr. Ravi Kumar" : "Your full name"} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
-                    <Input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="doctor@clinic.com" />
+                    <Input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="you@example.com" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
@@ -109,6 +152,13 @@ export default function Auth() {
                 </form>
               </TabsContent>
             </Tabs>
+
+            <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-primary/5 border border-primary/10">
+              <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+              <p className="text-[10px] text-muted-foreground">
+                HIPAA, UK GDPR & India DPDP compliant. Your data is encrypted at rest and in transit.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

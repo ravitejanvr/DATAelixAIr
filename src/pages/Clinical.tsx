@@ -21,6 +21,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import ReportShareDialog from "@/components/ReportShareDialog";
+import OnboardingWalkthrough from "@/components/OnboardingWalkthrough";
 
 function SeverityBadge({ severity }: { severity: string }) {
   const config: Record<string, { className: string; icon: React.ReactNode }> = {
@@ -542,6 +543,7 @@ export default function Clinical() {
           </div>
         </div>
       </main>
+      <OnboardingWalkthrough />
     </>
   );
 }
