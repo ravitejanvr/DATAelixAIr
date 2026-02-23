@@ -93,7 +93,7 @@ const Index = () => (
   <div>
     <SEO
       title="DATAelixAIr — AI Built for Modern Healthcare"
-      description="DATAelixAIr delivers AI solutions tailored to hospital workflows — clinical automation, predictive analytics, and interoperability for better patient outcomes."
+      description="Democratizing accurate medical information while maintaining safety and compliance."
     />
     {/* JSON-LD Organization Schema */}
     <script
@@ -104,7 +104,7 @@ const Index = () => (
           "@type": "Organization",
           name: "DATAelixAIr",
           url: "https://dataelixair.lovable.app",
-          description: "AI-powered healthcare data solutions for hospitals and clinics worldwide.",
+          description: "Democratizing accurate medical information while maintaining safety and compliance.",
           sameAs: [
             "https://www.linkedin.com/company/107182001/admin/dashboard/",
             "https://x.com/dataelixair",
