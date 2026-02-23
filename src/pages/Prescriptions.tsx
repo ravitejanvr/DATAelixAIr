@@ -256,7 +256,7 @@ export default function Prescriptions() {
               <h1 className="text-sm font-bold text-foreground">DATAelixAIr</h1>
               <p className="text-xs text-muted-foreground">Prescription Management</p>
             </div>
-            <Badge variant="outline" className="text-[10px] font-mono ml-2">PhD Prototype</Badge>
+            <Badge variant="outline" className="text-[10px] font-mono ml-2">Prototype</Badge>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>

@@ -106,15 +106,15 @@ export default function ClinicLocator() {
     }
   };
 
-  // Build OpenStreetMap embed URL
+  // Build Google Maps embed URL
   const getMapUrl = () => {
     if (selectedClinic) {
-      return `https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(selectedClinic.lon) - 0.01},${parseFloat(selectedClinic.lat) - 0.01},${parseFloat(selectedClinic.lon) + 0.01},${parseFloat(selectedClinic.lat) + 0.01}&layer=mapnik&marker=${selectedClinic.lat},${selectedClinic.lon}`;
+      return `https://maps.google.com/maps?q=${selectedClinic.lat},${selectedClinic.lon}&z=15&output=embed`;
     }
     if (userLocation) {
-      return `https://www.openstreetmap.org/export/embed.html?bbox=${userLocation.lon - 0.05},${userLocation.lat - 0.05},${userLocation.lon + 0.05},${userLocation.lat + 0.05}&layer=mapnik&marker=${userLocation.lat},${userLocation.lon}`;
+      return `https://maps.google.com/maps?q=${userLocation.lat},${userLocation.lon}&z=13&output=embed`;
     }
-    return `https://www.openstreetmap.org/export/embed.html?bbox=68.0,6.5,97.5,37.0&layer=mapnik`;
+    return `https://maps.google.com/maps?q=20.5937,78.9629&z=5&output=embed`;
   };
 
   return (
@@ -131,7 +131,7 @@ export default function ClinicLocator() {
               Find Hospitals & Clinics <span className="text-primary">Near You</span>
             </h1>
             <p className="text-muted-foreground max-w-lg mx-auto">
-              Search for healthcare facilities by location. Powered by OpenStreetMap — free and open source.
+              Search for healthcare facilities by location. Powered by Google Maps.
             </p>
           </div>
 
