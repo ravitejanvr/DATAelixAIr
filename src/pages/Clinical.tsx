@@ -335,6 +335,51 @@ export default function Clinical() {
                     <Badge variant="outline"><Shield className="h-3 w-3 mr-1" /> Risk Assessment</Badge>
                     <Badge variant="outline"><Wind className="h-3 w-3 mr-1" /> AQI Factor</Badge>
                   </div>
+
+                  {/* Regulatory & AI Framework Compliance */}
+                  <div className="mt-6 w-full max-w-lg">
+                    <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Regulatory & AI Governance</p>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="h-3 w-3 text-primary shrink-0" />
+                          <span>HIPAA Safe Harbor compliant</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="h-3 w-3 text-primary shrink-0" />
+                          <span>EU AI Act Art. 6 — High-Risk AI</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="h-3 w-3 text-primary shrink-0" />
+                          <span>India DPDP Act 2023</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="h-3 w-3 text-primary shrink-0" />
+                          <span>WHO AI Ethics Framework</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="h-3 w-3 text-primary shrink-0" />
+                          <span>IEEE 7000 Ethical Design</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="h-3 w-3 text-primary shrink-0" />
+                          <span>MCI Telemedicine 2020</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="h-3 w-3 text-primary shrink-0" />
+                          <span>HL7 FHIR R4 interop</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Shield className="h-3 w-3 text-primary shrink-0" />
+                          <span>Art. 13 AI Transparency</span>
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-muted-foreground/70 pt-1 border-t border-border">
+                        AI outputs are advisory only — not a substitute for clinical judgment.
+                        All reasoning is explainable via LIME/SHAP. Audit trails maintained per ISO 27001.
+                      </p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}

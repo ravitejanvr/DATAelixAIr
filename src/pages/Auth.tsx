@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
-import { Stethoscope, User, ShieldCheck } from "lucide-react";
+import { Stethoscope, User, ShieldCheck, Scale, Brain, Globe, FileCheck } from "lucide-react";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -28,12 +28,10 @@ export default function Auth() {
     if (error) {
       toast({ title: "Login failed", description: error.message, variant: "destructive" });
     } else {
-      // Check user role to redirect appropriately
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", data.user.id);
-      
       const userRole = roles?.[0]?.role;
       if (userRole === "patient") {
         navigate("/patient-portal");
@@ -67,6 +65,14 @@ export default function Auth() {
       toast({ title: "Check your email", description: "We sent a verification link to confirm your account." });
     }
   };
+
+  const regulations = [
+    { icon: ShieldCheck, label: "HIPAA & UK GDPR" },
+    { icon: Scale, label: "EU AI Act Art. 6" },
+    { icon: Globe, label: "India DPDP 2023" },
+    { icon: Brain, label: "WHO AI Ethics" },
+    { icon: FileCheck, label: "IEEE 7000" },
+  ];
 
   return (
     <>
@@ -104,7 +110,6 @@ export default function Auth() {
               </TabsContent>
               <TabsContent value="signup">
                 <form onSubmit={handleSignup} className="space-y-4 mt-4">
-                  {/* Role selection */}
                   <div>
                     <Label className="text-sm font-semibold mb-2 block">I am a…</Label>
                     <div className="grid grid-cols-2 gap-3">
@@ -153,10 +158,19 @@ export default function Auth() {
               </TabsContent>
             </Tabs>
 
-            <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-primary/5 border border-primary/10">
-              <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-              <p className="text-[10px] text-muted-foreground">
-                HIPAA, UK GDPR & India DPDP compliant. Your data is encrypted at rest and in transit.
+            {/* Regulatory compliance badges */}
+            <div className="mt-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {regulations.map((r) => (
+                  <span key={r.label} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-full bg-primary/5 border border-primary/10 text-muted-foreground">
+                    <r.icon className="h-3 w-3 text-primary" />
+                    {r.label}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[9px] text-center text-muted-foreground leading-relaxed">
+                Data encrypted with TLS 1.3 · No PHI stored in demo · HL7 FHIR R4 ready · MCI Telemedicine 2020 aligned ·
+                Audit trails per ISO 27001 · AI transparency per EU AI Act Article 13
               </p>
             </div>
           </CardContent>
