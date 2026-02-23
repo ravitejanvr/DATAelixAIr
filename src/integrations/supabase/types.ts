@@ -99,52 +99,85 @@ export type Database = {
           aadhaar_hash: string | null
           abha_id: string | null
           age: number | null
+          alcohol_use: string | null
           allergies: string[] | null
+          blood_group: string | null
+          bmi: number | null
           created_at: string
           current_medications: string[] | null
+          dietary_preference: string | null
           doctor_id: string
           email: string | null
+          exercise_frequency: string | null
+          family_history: Json | null
           gender: string | null
+          height_cm: number | null
           id: string
           language_preference: string | null
+          lifestyle_factors: Json | null
           medical_history: Json | null
           name: string
+          occupation: string | null
           phone: string | null
+          smoking_status: string | null
           updated_at: string
+          weight_kg: number | null
         }
         Insert: {
           aadhaar_hash?: string | null
           abha_id?: string | null
           age?: number | null
+          alcohol_use?: string | null
           allergies?: string[] | null
+          blood_group?: string | null
+          bmi?: number | null
           created_at?: string
           current_medications?: string[] | null
+          dietary_preference?: string | null
           doctor_id: string
           email?: string | null
+          exercise_frequency?: string | null
+          family_history?: Json | null
           gender?: string | null
+          height_cm?: number | null
           id?: string
           language_preference?: string | null
+          lifestyle_factors?: Json | null
           medical_history?: Json | null
           name: string
+          occupation?: string | null
           phone?: string | null
+          smoking_status?: string | null
           updated_at?: string
+          weight_kg?: number | null
         }
         Update: {
           aadhaar_hash?: string | null
           abha_id?: string | null
           age?: number | null
+          alcohol_use?: string | null
           allergies?: string[] | null
+          blood_group?: string | null
+          bmi?: number | null
           created_at?: string
           current_medications?: string[] | null
+          dietary_preference?: string | null
           doctor_id?: string
           email?: string | null
+          exercise_frequency?: string | null
+          family_history?: Json | null
           gender?: string | null
+          height_cm?: number | null
           id?: string
           language_preference?: string | null
+          lifestyle_factors?: Json | null
           medical_history?: Json | null
           name?: string
+          occupation?: string | null
           phone?: string | null
+          smoking_status?: string | null
           updated_at?: string
+          weight_kg?: number | null
         }
         Relationships: []
       }
