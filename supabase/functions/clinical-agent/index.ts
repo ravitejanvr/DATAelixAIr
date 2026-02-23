@@ -55,10 +55,24 @@ async function searchEuropePMC(query: string, max = 3): Promise<any[]> {
   }
 }
 
+async function searchOpenFDA(drugName: string): Promise<string> {
+  try {
+    const resp = await fetch(`https://api.fda.gov/drug/label.json?search=openfda.brand_name:"${encodeURIComponent(drugName)}"&limit=1`);
+    if (!resp.ok) return "";
+    const data = await resp.json();
+    const result = data?.results?.[0];
+    if (!result) return "";
+    const warnings = result.warnings?.[0]?.substring(0, 500) || "";
+    const contraindications = result.contraindications?.[0]?.substring(0, 500) || "";
+    return `[OpenFDA] ${drugName}: ${warnings ? "Warnings: " + warnings : ""} ${contraindications ? "Contraindications: " + contraindications : ""}`.trim();
+  } catch {
+    return "";
+  }
+}
+
 async function checkDrugInteractions(drugs: string[]): Promise<string> {
   if (drugs.length < 2) return "No interaction check needed for single drug.";
   
-  // Use RxNorm to get RxCUI for each drug, then check interactions
   const rxcuis: string[] = [];
   for (const drug of drugs.slice(0, 5)) {
     try {
@@ -194,6 +208,12 @@ serve(async (req) => {
       ...searches,
     ]);
 
+    // Also fetch OpenFDA warnings for each drug
+    const fdaResults = await Promise.all(
+      drugs.slice(0, 3).map(d => searchOpenFDA(d))
+    );
+    const fdaContext = fdaResults.filter(Boolean).join("\n");
+
     // Flatten and deduplicate by PMID
     const seen = new Set<string>();
     const allArticles = (articleArrays as any[][]).flat().filter(a => {
@@ -217,6 +237,9 @@ ${evidenceContext || "No PubMed articles found for this query."}
 
 DRUG INTERACTION CHECK:
 ${drugInteractions || "No drugs specified for interaction check."}
+
+OPENFDA DRUG WARNINGS:
+${fdaContext || "No FDA data available."}
 
 DRUGS TO ASSESS: ${drugs.join(", ") || "None specified"}
 
