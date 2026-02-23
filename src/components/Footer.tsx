@@ -38,7 +38,7 @@ const Footer = () => {
             </button>
           </div>
           <div className="flex gap-4">
-            <a href="https://www.linkedin.com/company/dataelixair" target="_blank" rel="noopener noreferrer" className="text-dark-muted hover:text-primary transition-colors" aria-label="LinkedIn">
+            <a href="https://www.linkedin.com/company/107182001/admin/dashboard/" target="_blank" rel="noopener noreferrer" className="text-dark-muted hover:text-primary transition-colors" aria-label="LinkedIn">
               <Linkedin size={18} />
             </a>
             <a href="https://x.com/dataelixair" target="_blank" rel="noopener noreferrer" className="text-dark-muted hover:text-primary transition-colors" aria-label="X / Twitter">
