@@ -5,13 +5,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   ArrowLeft, User, Pill, AlertTriangle, Stethoscope, Activity,
   Clock, LogOut, Loader2, Calendar, FileText, BookOpen,
-  ExternalLink, Shield, Beaker, ChevronDown, ChevronUp
+  ExternalLink, Shield, Beaker, ChevronDown, ChevronUp, Edit, Save, X
 } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -55,6 +58,16 @@ export default function ConsultationDetail() {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     soap: true, risk: true, drugs: true, interactions: true, citations: true, tests: true, transcript: false,
   });
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    chief_complaint: "",
+    soap_subjective: "",
+    soap_objective: "",
+    soap_assessment: "",
+    soap_plan: "",
+    ai_summary: "",
+  });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (id) fetchConsultation();
@@ -79,6 +92,59 @@ export default function ConsultationDetail() {
 
   const toggleSection = (key: string) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const startEditing = () => {
+    if (!consultation) return;
+    setEditData({
+      chief_complaint: consultation.chief_complaint || "",
+      soap_subjective: consultation.soap_subjective || "",
+      soap_objective: consultation.soap_objective || "",
+      soap_assessment: consultation.soap_assessment || "",
+      soap_plan: consultation.soap_plan || "",
+      ai_summary: consultation.ai_summary || "",
+    });
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!consultation) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("consultations")
+      .update({
+        chief_complaint: editData.chief_complaint,
+        soap_subjective: editData.soap_subjective,
+        soap_objective: editData.soap_objective,
+        soap_assessment: editData.soap_assessment,
+        soap_plan: editData.soap_plan,
+        ai_summary: editData.ai_summary,
+      })
+      .eq("id", consultation.id);
+
+    setSaving(false);
+    if (error) {
+      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Draft updated", description: "Consultation changes saved." });
+      setIsEditing(false);
+      fetchConsultation();
+    }
+  };
+
+  const handleFinalise = async () => {
+    if (!consultation) return;
+    const { error } = await supabase
+      .from("consultations")
+      .update({ status: "completed" })
+      .eq("id", consultation.id);
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Consultation finalised", description: "Status set to completed." });
+      fetchConsultation();
+    }
   };
 
   if (loading) {
@@ -212,9 +278,67 @@ export default function ConsultationDetail() {
               <Button size="sm" variant="outline" onClick={() => navigate(`/patients/${consultation.patient_id}`)}>
                 <User className="h-4 w-4 mr-1" /> Patient Record
               </Button>
+              {consultation.status === "draft" && !isEditing && (
+                <Button size="sm" variant="outline" onClick={startEditing}>
+                  <Edit className="h-4 w-4 mr-1" /> Edit Draft
+                </Button>
+              )}
+              {consultation.status === "draft" && !isEditing && (
+                <Button size="sm" variant="default" onClick={handleFinalise}>
+                  Finalise Consultation
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
+
+        {/* Draft Editing Panel */}
+        {isEditing && (
+          <Card className="mb-6 border-primary/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Edit className="h-5 w-5 text-primary" /> Edit Draft Consultation
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-xs">Chief Complaint</Label>
+                <Textarea value={editData.chief_complaint} onChange={e => setEditData(d => ({ ...d, chief_complaint: e.target.value }))} rows={2} />
+              </div>
+              <div>
+                <Label className="text-xs">AI Summary</Label>
+                <Textarea value={editData.ai_summary} onChange={e => setEditData(d => ({ ...d, ai_summary: e.target.value }))} rows={3} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">SOAP — Subjective</Label>
+                  <Textarea value={editData.soap_subjective} onChange={e => setEditData(d => ({ ...d, soap_subjective: e.target.value }))} rows={3} />
+                </div>
+                <div>
+                  <Label className="text-xs">SOAP — Objective</Label>
+                  <Textarea value={editData.soap_objective} onChange={e => setEditData(d => ({ ...d, soap_objective: e.target.value }))} rows={3} />
+                </div>
+                <div>
+                  <Label className="text-xs">SOAP — Assessment</Label>
+                  <Textarea value={editData.soap_assessment} onChange={e => setEditData(d => ({ ...d, soap_assessment: e.target.value }))} rows={3} />
+                </div>
+                <div>
+                  <Label className="text-xs">SOAP — Plan</Label>
+                  <Textarea value={editData.soap_plan} onChange={e => setEditData(d => ({ ...d, soap_plan: e.target.value }))} rows={3} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleSaveEdit} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+                  Save Changes
+                </Button>
+                <Button variant="outline" onClick={() => setIsEditing(false)}>
+                  <X className="h-4 w-4 mr-1" /> Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* SOAP Notes */}
         {(consultation.soap_subjective || consultation.soap_objective || consultation.soap_assessment || consultation.soap_plan) && (
