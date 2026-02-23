@@ -309,7 +309,7 @@ export default function ExplainableAI() {
             Experience Transparent Clinical AI
           </h2>
           <p className="text-muted-foreground mb-6">
-            Try the CDSS platform and see explainable recommendations in action.
+            Try the CDSS and see explainable recommendations in action.
           </p>
           <div className="flex gap-3 justify-center">
             <Button asChild>
