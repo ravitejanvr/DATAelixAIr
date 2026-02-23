@@ -118,6 +118,7 @@ export type Database = {
           medical_history: Json | null
           name: string
           occupation: string | null
+          patient_user_id: string | null
           phone: string | null
           smoking_status: string | null
           updated_at: string
@@ -146,6 +147,7 @@ export type Database = {
           medical_history?: Json | null
           name: string
           occupation?: string | null
+          patient_user_id?: string | null
           phone?: string | null
           smoking_status?: string | null
           updated_at?: string
@@ -174,6 +176,7 @@ export type Database = {
           medical_history?: Json | null
           name?: string
           occupation?: string | null
+          patient_user_id?: string | null
           phone?: string | null
           smoking_status?: string | null
           updated_at?: string
@@ -280,18 +283,43 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_doctor_for_patient: {
         Args: { p_patient_id: string }
         Returns: boolean
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "doctor" | "patient"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -418,6 +446,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["doctor", "patient"],
+    },
   },
 } as const
