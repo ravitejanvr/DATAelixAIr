@@ -55,6 +55,36 @@ async function searchEuropePMC(query: string, max = 3): Promise<any[]> {
   }
 }
 
+async function searchICD11(term: string): Promise<string[]> {
+  try {
+    const resp = await fetch(`https://id.who.int/icd/release/11/2024-01/mms/search?q=${encodeURIComponent(term)}&subtreeFilterUsesFoundationDescendants=false&includeKeywordResult=false&flatResults=true&useFlexisearch=true&highlightingEnabled=false`, {
+      headers: { "API-Version": "v2", "Accept-Language": "en", "Accept": "application/json" },
+    });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return (data?.destinationEntities || []).slice(0, 3).map((e: any) => {
+      const code = e.theCode || "";
+      const title = e.title || "";
+      return `${code}: ${title}`;
+    });
+  } catch {
+    return [];
+  }
+}
+
+async function searchDailyMed(drugName: string): Promise<string> {
+  try {
+    const resp = await fetch(`https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json?drug_name=${encodeURIComponent(drugName)}&pagesize=1`);
+    if (!resp.ok) return "";
+    const data = await resp.json();
+    const spl = data?.data?.[0];
+    if (!spl) return "";
+    return `[DailyMed] ${drugName}: SPL SetID ${spl.setid}, Title: ${spl.title || "N/A"}`;
+  } catch {
+    return "";
+  }
+}
+
 async function searchOpenFDA(drugName: string): Promise<string> {
   try {
     const resp = await fetch(`https://api.fda.gov/drug/label.json?search=openfda.brand_name:"${encodeURIComponent(drugName)}"&limit=1`);
@@ -208,11 +238,15 @@ serve(async (req) => {
       ...searches,
     ]);
 
-    // Also fetch OpenFDA warnings for each drug
-    const fdaResults = await Promise.all(
-      drugs.slice(0, 3).map(d => searchOpenFDA(d))
-    );
+    // Fetch OpenFDA warnings, DailyMed info, and ICD-11 codes in parallel
+    const [fdaResults, dailyMedResults, icdResults] = await Promise.all([
+      Promise.all(drugs.slice(0, 3).map(d => searchOpenFDA(d))),
+      Promise.all(drugs.slice(0, 3).map(d => searchDailyMed(d))),
+      Promise.all(primaryTerms.slice(0, 3).map(t => searchICD11(t))),
+    ]);
     const fdaContext = fdaResults.filter(Boolean).join("\n");
+    const dailyMedContext = dailyMedResults.filter(Boolean).join("\n");
+    const icdContext = icdResults.flat().join("\n");
 
     // Flatten and deduplicate by PMID
     const seen = new Set<string>();
@@ -240,6 +274,12 @@ ${drugInteractions || "No drugs specified for interaction check."}
 
 OPENFDA DRUG WARNINGS:
 ${fdaContext || "No FDA data available."}
+
+DAILYMED DRUG INFO:
+${dailyMedContext || "No DailyMed data available."}
+
+WHO ICD-11 CODES:
+${icdContext || "No ICD-11 codes resolved."}
 
 DRUGS TO ASSESS: ${drugs.join(", ") || "None specified"}
 

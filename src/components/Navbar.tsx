@@ -11,6 +11,7 @@ const navLinks = [
   { label: "Solutions", path: "/solutions" },
   { label: "Explainable AI", path: "/explainable-ai" },
   { label: "Find Clinic", path: "/clinic-locator" },
+  { label: "Blog", path: "/blog" },
   { label: "Partner", path: "/pricing" },
   { label: "Contact", path: "/contact" },
 ];
