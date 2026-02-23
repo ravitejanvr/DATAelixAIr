@@ -142,7 +142,7 @@ export default function Clinical() {
 
   return (
     <>
-      <SEO title="Clinical Agent — DATAelixAIr" description="AI-powered clinical decision support with PubMed RAG" />
+      <SEO title="CDSS Analysis — DATAelixAIr" description="AI-powered Clinical Decision Support System with PubMed RAG evidence" />
 
       {/* Top bar */}
       <header className="fixed top-0 left-0 right-0 z-50 glass-nav border-b border-border px-4 py-2">
@@ -150,8 +150,8 @@ export default function Clinical() {
           <div className="flex items-center gap-3">
             <img src={brainLogo} alt="DATAelixAIr" className="h-8" />
             <div>
-              <h1 className="text-sm font-bold text-foreground">DATAelixAIr Clinical Agent</h1>
-              <p className="text-xs text-muted-foreground">RAG-Powered Decision Support</p>
+              <h1 className="text-sm font-bold text-foreground">DATAelixAIr CDSS</h1>
+              <p className="text-xs text-muted-foreground">Clinical Decision Support System</p>
             </div>
             <Badge variant="outline" className="text-[10px] font-mono ml-2">PhD Prototype</Badge>
           </div>
@@ -160,7 +160,7 @@ export default function Clinical() {
               <Activity className="h-4 w-4 mr-1" /> Dashboard
             </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/patients")}>
-              <User className="h-4 w-4 mr-1" /> Patients
+              <User className="h-4 w-4 mr-1" /> Patient Records
             </Button>
             <span className="text-xs text-muted-foreground hidden sm:inline">{user?.email}</span>
             <Button variant="ghost" size="sm" onClick={() => { signOut(); navigate("/auth"); }}>
@@ -239,9 +239,9 @@ export default function Clinical() {
                 </div>
                 <Button onClick={handleAnalyze} disabled={loading} className="w-full" size="lg">
                   {loading ? (
-                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Analyzing with PubMed RAG...</>
+                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Running CDSS Analysis...</>
                   ) : (
-                    <><Stethoscope className="h-4 w-4 mr-2" /> Run Clinical Analysis</>
+                    <><Stethoscope className="h-4 w-4 mr-2" /> Run CDSS Analysis</>
                   )}
                 </Button>
               </CardContent>
@@ -254,10 +254,13 @@ export default function Clinical() {
               <Card className="border-dashed">
                 <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                   <Activity className="h-16 w-16 text-muted-foreground/30 mb-4" />
-                  <h3 className="text-lg font-semibold text-muted-foreground">Ready for Clinical Analysis</h3>
+                  <h3 className="text-lg font-semibold text-muted-foreground">Ready for CDSS Analysis</h3>
                   <p className="text-sm text-muted-foreground/70 max-w-md mt-2">
-                    Enter patient data and click "Run Clinical Analysis" to get PubMed-cited risk assessment,
-                    drug recommendations, and SOAP notes.
+                    Enter patient data and click "Run CDSS Analysis" to get evidence-based risk assessment,
+                    drug recommendations, and structured SOAP notes.
+                  </p>
+                  <p className="text-xs text-primary/70 mt-3 font-medium">
+                    → Your next step: Fill in patient details on the left, then click the analysis button.
                   </p>
                   <div className="flex gap-2 mt-4 flex-wrap justify-center">
                     <Badge variant="outline"><Search className="h-3 w-3 mr-1" /> PubMed RAG</Badge>
