@@ -105,7 +105,10 @@ const Index = () => (
           name: "DATAelixAIr",
           url: "https://dataelixair.lovable.app",
           description: "AI-powered healthcare data solutions for hospitals and clinics worldwide.",
-          sameAs: [],
+          sameAs: [
+            "https://www.linkedin.com/company/dataelixair",
+            "https://x.com/dataelixair",
+          ],
         }),
       }}
     />
