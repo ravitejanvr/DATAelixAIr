@@ -49,6 +49,12 @@ export default function Patients() {
   const [newEmail, setNewEmail] = useState("");
   const [newMedications, setNewMedications] = useState("");
   const [newAllergies, setNewAllergies] = useState("");
+  const [newHeight, setNewHeight] = useState("");
+  const [newWeight, setNewWeight] = useState("");
+  const [newBloodGroup, setNewBloodGroup] = useState("");
+  const [newSmoking, setNewSmoking] = useState("unknown");
+  const [newAlcohol, setNewAlcohol] = useState("unknown");
+  const [newExercise, setNewExercise] = useState("unknown");
 
   useEffect(() => {
     fetchPatients();
@@ -83,7 +89,13 @@ export default function Patients() {
       email: newEmail || null,
       current_medications: newMedications ? newMedications.split(",").map(s => s.trim()) : [],
       allergies: newAllergies ? newAllergies.split(",").map(s => s.trim()) : [],
-    });
+      height_cm: newHeight ? parseFloat(newHeight) : null,
+      weight_kg: newWeight ? parseFloat(newWeight) : null,
+      blood_group: newBloodGroup || "",
+      smoking_status: newSmoking,
+      alcohol_use: newAlcohol,
+      exercise_frequency: newExercise,
+    } as any);
 
     setSaving(false);
     if (error) {
@@ -99,6 +111,8 @@ export default function Patients() {
   const resetForm = () => {
     setNewName(""); setNewAge(""); setNewGender("male");
     setNewPhone(""); setNewEmail(""); setNewMedications(""); setNewAllergies("");
+    setNewHeight(""); setNewWeight(""); setNewBloodGroup("");
+    setNewSmoking("unknown"); setNewAlcohol("unknown"); setNewExercise("unknown");
   };
 
   const filtered = patients.filter(p =>
@@ -190,6 +204,55 @@ export default function Patients() {
                   <div className="col-span-2">
                     <Label>Allergies (comma-separated)</Label>
                     <Input value={newAllergies} onChange={e => setNewAllergies(e.target.value)} placeholder="Penicillin, Sulfa" />
+                  </div>
+                  <div>
+                    <Label>Height (cm)</Label>
+                    <Input type="number" value={newHeight} onChange={e => setNewHeight(e.target.value)} placeholder="170" />
+                  </div>
+                  <div>
+                    <Label>Weight (kg)</Label>
+                    <Input type="number" value={newWeight} onChange={e => setNewWeight(e.target.value)} placeholder="70" />
+                  </div>
+                  <div>
+                    <Label>Blood Group</Label>
+                    <Input value={newBloodGroup} onChange={e => setNewBloodGroup(e.target.value)} placeholder="O+" />
+                  </div>
+                  <div>
+                    <Label>Smoking Status</Label>
+                    <Select value={newSmoking} onValueChange={setNewSmoking}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unknown">Unknown</SelectItem>
+                        <SelectItem value="never">Never</SelectItem>
+                        <SelectItem value="former">Former</SelectItem>
+                        <SelectItem value="current">Current</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Alcohol Use</Label>
+                    <Select value={newAlcohol} onValueChange={setNewAlcohol}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unknown">Unknown</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="occasional">Occasional</SelectItem>
+                        <SelectItem value="regular">Regular</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Exercise</Label>
+                    <Select value={newExercise} onValueChange={setNewExercise}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unknown">Unknown</SelectItem>
+                        <SelectItem value="sedentary">Sedentary</SelectItem>
+                        <SelectItem value="light">Light</SelectItem>
+                        <SelectItem value="moderate">Moderate</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={saving}>

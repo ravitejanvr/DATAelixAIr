@@ -28,6 +28,15 @@ interface Patient {
   medical_history: Json | null;
   language_preference: string | null;
   created_at: string;
+  height_cm: number | null;
+  weight_kg: number | null;
+  bmi: number | null;
+  blood_group: string | null;
+  smoking_status: string | null;
+  alcohol_use: string | null;
+  exercise_frequency: string | null;
+  dietary_preference: string | null;
+  occupation: string | null;
 }
 
 interface Consultation {
@@ -103,13 +112,13 @@ export default function PatientDetail() {
         <div className="flex items-center gap-3">
           <img src={brainLogo} alt="Logo" className="h-8" />
           <div>
-            <h1 className="text-sm font-bold text-foreground">DATAelixAIr Clinical Agent</h1>
-            <p className="text-xs text-muted-foreground">RAG-Powered Decision Support</p>
+            <h1 className="text-sm font-bold text-foreground">DATAelixAIr CDSS</h1>
+            <p className="text-xs text-muted-foreground">Clinical Decision Support System</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate("/clinical")}>
-            <Stethoscope className="h-4 w-4 mr-1" /> Clinical Agent
+            <Stethoscope className="h-4 w-4 mr-1" /> CDSS Analysis
           </Button>
           <span className="text-xs text-muted-foreground">{user?.email}</span>
           <Button variant="ghost" size="icon" onClick={async () => { await signOut(); navigate("/auth"); }}>
@@ -194,6 +203,38 @@ export default function PatientDetail() {
                 </div>
               )}
 
+              {/* Vitals & Lifestyle */}
+              {(patient.height_cm || patient.weight_kg || patient.blood_group) && (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Vitals</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {patient.height_cm && <span>Height: {patient.height_cm} cm</span>}
+                    {patient.weight_kg && <span>Weight: {patient.weight_kg} kg</span>}
+                    {patient.bmi && <span>BMI: {patient.bmi}</span>}
+                    {patient.blood_group && <span>Blood: {patient.blood_group}</span>}
+                  </div>
+                </div>
+              )}
+
+              {(patient.smoking_status !== "unknown" || patient.alcohol_use !== "unknown" || patient.exercise_frequency !== "unknown") && (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Lifestyle</h4>
+                  <div className="grid grid-cols-1 gap-1 text-sm">
+                    {patient.smoking_status && patient.smoking_status !== "unknown" && (
+                      <span>Smoking: <Badge variant="outline" className="text-[10px] ml-1">{patient.smoking_status}</Badge></span>
+                    )}
+                    {patient.alcohol_use && patient.alcohol_use !== "unknown" && (
+                      <span>Alcohol: <Badge variant="outline" className="text-[10px] ml-1">{patient.alcohol_use}</Badge></span>
+                    )}
+                    {patient.exercise_frequency && patient.exercise_frequency !== "unknown" && (
+                      <span>Exercise: <Badge variant="outline" className="text-[10px] ml-1">{patient.exercise_frequency}</Badge></span>
+                    )}
+                    {patient.dietary_preference && <span>Diet: {patient.dietary_preference}</span>}
+                    {patient.occupation && <span>Occupation: {patient.occupation}</span>}
+                  </div>
+                </div>
+              )}
+
               {/* Registered */}
               <div className="pt-2 border-t border-border">
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -204,7 +245,7 @@ export default function PatientDetail() {
 
               {/* Run analysis button */}
               <Button className="w-full mt-2" onClick={() => navigate("/clinical", { state: { patient } })}>
-                <Stethoscope className="h-4 w-4 mr-1" /> Run Clinical Analysis
+                <Stethoscope className="h-4 w-4 mr-1" /> Run CDSS Analysis
               </Button>
             </CardContent>
           </Card>
