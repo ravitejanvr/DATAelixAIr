@@ -4,14 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import SEO from "@/components/SEO";
-import { MapPin, Search, Loader2, Navigation, Phone, Clock, ExternalLink } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { MapPin, Search, Loader2, Navigation, ExternalLink, Star, Clock } from "lucide-react";
 
 interface ClinicResult {
-  place_id: number;
-  display_name: string;
-  lat: string;
-  lon: string;
-  type: string;
+  place_id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lon: number;
+  rating: number | null;
+  user_ratings_total: number;
+  open_now: boolean | null;
+  types: string[];
+  business_status: string;
+  photo_reference: string | null;
 }
 
 export default function ClinicLocator() {
@@ -23,18 +30,14 @@ export default function ClinicLocator() {
   const mapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Try to get user's location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-          // Auto-search nearby clinics
-          searchNearby(pos.coords.latitude, pos.coords.longitude);
+          const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          setUserLocation(loc);
+          searchNearby(loc.lat, loc.lon);
         },
-        () => {
-          // Default to a central location if geolocation denied
-          console.log("Geolocation not available, using default");
-        }
+        () => console.log("Geolocation not available, using default")
       );
     }
   }, []);
@@ -42,18 +45,13 @@ export default function ClinicLocator() {
   const searchNearby = async (lat: number, lon: number) => {
     setLoading(true);
     try {
-      const resp = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=hospital+clinic+near&viewbox=${lon - 0.1},${lat + 0.1},${lon + 0.1},${lat - 0.1}&bounded=1&limit=20&addressdetails=1`
-      );
-      const data = await resp.json();
-      setResults(data.filter((r: any) =>
-        r.type === "hospital" || r.type === "clinic" || r.type === "doctors" ||
-        r.display_name.toLowerCase().includes("hospital") ||
-        r.display_name.toLowerCase().includes("clinic") ||
-        r.display_name.toLowerCase().includes("medical")
-      ).slice(0, 15));
+      const { data, error } = await supabase.functions.invoke("places-search", {
+        body: { lat, lon, type: "nearby" },
+      });
+      if (error) throw error;
+      setResults(data.clinics || []);
     } catch (err) {
-      console.error("Search failed:", err);
+      console.error("Nearby search failed:", err);
     } finally {
       setLoading(false);
     }
@@ -64,12 +62,11 @@ export default function ClinicLocator() {
     if (!query.trim()) return;
     setLoading(true);
     try {
-      const searchTerm = `${query} hospital clinic medical`;
-      const resp = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchTerm)}&limit=20&addressdetails=1`
-      );
-      const data = await resp.json();
-      setResults(data.slice(0, 15));
+      const { data, error } = await supabase.functions.invoke("places-search", {
+        body: { query },
+      });
+      if (error) throw error;
+      setResults(data.clinics || []);
     } catch (err) {
       console.error("Search failed:", err);
     } finally {
@@ -77,14 +74,14 @@ export default function ClinicLocator() {
     }
   };
 
-  const getDistance = (lat: string, lon: string): string | null => {
+  const getDistance = (lat: number, lon: number): string | null => {
     if (!userLocation) return null;
     const R = 6371;
-    const dLat = ((parseFloat(lat) - userLocation.lat) * Math.PI) / 180;
-    const dLon = ((parseFloat(lon) - userLocation.lon) * Math.PI) / 180;
+    const dLat = ((lat - userLocation.lat) * Math.PI) / 180;
+    const dLon = ((lon - userLocation.lon) * Math.PI) / 180;
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((userLocation.lat * Math.PI) / 180) * Math.cos((parseFloat(lat) * Math.PI) / 180) *
+      Math.cos((userLocation.lat * Math.PI) / 180) * Math.cos((lat * Math.PI) / 180) *
       Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const d = R * c;
@@ -92,7 +89,7 @@ export default function ClinicLocator() {
   };
 
   const openInMaps = (clinic: ClinicResult) => {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${clinic.lat},${clinic.lon}`, "_blank");
+    window.open(`https://www.google.com/maps/place/?q=place_id:${clinic.place_id}`, "_blank");
   };
 
   const getDirections = (clinic: ClinicResult) => {
@@ -106,7 +103,6 @@ export default function ClinicLocator() {
     }
   };
 
-  // Build Google Maps embed URL
   const getMapUrl = () => {
     if (selectedClinic) {
       return `https://maps.google.com/maps?q=${selectedClinic.lat},${selectedClinic.lon}&z=15&output=embed`;
@@ -117,9 +113,19 @@ export default function ClinicLocator() {
     return `https://maps.google.com/maps?q=20.5937,78.9629&z=5&output=embed`;
   };
 
+  const renderStars = (rating: number | null) => {
+    if (!rating) return null;
+    return (
+      <div className="flex items-center gap-1">
+        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+        <span className="text-xs font-medium">{rating.toFixed(1)}</span>
+      </div>
+    );
+  };
+
   return (
     <>
-      <SEO title="Find a Clinic — DATAelixAIr" description="Locate hospitals and clinics near you with our free clinic locator" />
+      <SEO title="Find a Clinic — DATAelixAIr" description="Locate hospitals and clinics near you with ratings and reviews" />
 
       <section className="py-16 px-4">
         <div className="max-w-6xl mx-auto">
@@ -131,11 +137,10 @@ export default function ClinicLocator() {
               Find Hospitals & Clinics <span className="text-primary">Near You</span>
             </h1>
             <p className="text-muted-foreground max-w-lg mx-auto">
-              Search for healthcare facilities by location. Powered by Google Maps.
+              Search for healthcare facilities with ratings, reviews, and real-time availability. Powered by Google Maps.
             </p>
           </div>
 
-          {/* Search */}
           <form onSubmit={handleSearch} className="flex gap-2 max-w-xl mx-auto mb-8">
             <Input
               value={query}
@@ -150,7 +155,6 @@ export default function ClinicLocator() {
           </form>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Map */}
             <Card className="overflow-hidden">
               <div ref={mapRef} className="w-full h-[400px] lg:h-[500px]">
                 <iframe
@@ -158,11 +162,11 @@ export default function ClinicLocator() {
                   className="w-full h-full border-0"
                   title="Clinic Map"
                   loading="lazy"
+                  allowFullScreen
                 />
               </div>
             </Card>
 
-            {/* Results */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -200,13 +204,30 @@ export default function ClinicLocator() {
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {clinic.display_name.split(",")[0]}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">
-                            {clinic.display_name.split(",").slice(1, 4).join(",")}
-                          </p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground truncate">{clinic.name}</p>
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">{clinic.address}</p>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            {renderStars(clinic.rating)}
+                            {clinic.user_ratings_total > 0 && (
+                              <span className="text-[10px] text-muted-foreground">
+                                ({clinic.user_ratings_total.toLocaleString()} reviews)
+                              </span>
+                            )}
+                            {clinic.open_now !== null && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${
+                                  clinic.open_now
+                                    ? "border-green-300 text-green-700 bg-green-50"
+                                    : "border-red-300 text-red-700 bg-red-50"
+                                }`}
+                              >
+                                <Clock className="h-2.5 w-2.5 mr-0.5" />
+                                {clinic.open_now ? "Open" : "Closed"}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         {dist && (
                           <Badge variant="secondary" className="text-[10px] shrink-0">{dist}</Badge>
