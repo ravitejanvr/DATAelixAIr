@@ -328,7 +328,7 @@ export default function Dashboard() {
                         className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/30 cursor-pointer transition-colors"
                         onClick={() => navigate(`/patients/${p.id}`)}
                       >
-                        <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
+                         <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
                           {p.name?.[0]?.toUpperCase() || "?"}
                         </div>
                         <div className="min-w-0 flex-1">
@@ -336,8 +336,26 @@ export default function Dashboard() {
                           <p className="text-[10px] text-muted-foreground">
                             {p.age ? `${p.age}y` : ""} {p.gender ? `• ${p.gender}` : ""}
                             {p.blood_group ? ` • ${p.blood_group}` : ""}
-                            {p.weight_kg ? ` • ${p.weight_kg}kg` : ""}
                           </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {p.height_cm ? `${p.height_cm}cm` : ""}{p.weight_kg ? ` • ${p.weight_kg}kg` : ""}{p.bmi ? ` • BMI ${p.bmi}` : ""}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {p.smoking_status && p.smoking_status !== "unknown" ? `🚬 ${p.smoking_status}` : ""}
+                            {p.alcohol_use && p.alcohol_use !== "unknown" ? ` 🍷 ${p.alcohol_use}` : ""}
+                            {p.exercise_frequency && p.exercise_frequency !== "unknown" ? ` 🏃 ${p.exercise_frequency}` : ""}
+                            {p.dietary_preference ? ` 🥗 ${p.dietary_preference}` : ""}
+                          </p>
+                          {p.current_medications && p.current_medications.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              💊 {p.current_medications.join(", ")}
+                            </p>
+                          )}
+                          {p.allergies && p.allergies.length > 0 && (
+                            <p className="text-[10px] text-red-500 truncate">
+                              ⚠️ {p.allergies.join(", ")}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ))}
