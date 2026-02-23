@@ -26,6 +26,8 @@ import Dashboard from "./pages/Dashboard";
 import Prescriptions from "./pages/Prescriptions";
 import ConsultationDetail from "./pages/ConsultationDetail";
 import PatientPortal from "./pages/PatientPortal";
+import ExplainableAI from "./pages/ExplainableAI";
+import ClinicLocator from "./pages/ClinicLocator";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +70,8 @@ const App = () => (
               <Route path="/terms" element={<Layout><Terms /></Layout>} />
               <Route path="/affiliate" element={<Navigate to="/" replace />} />
               <Route path="/contact" element={<Layout><Contact /></Layout>} />
+              <Route path="/explainable-ai" element={<Layout><ExplainableAI /></Layout>} />
+              <Route path="/clinic-locator" element={<Layout><ClinicLocator /></Layout>} />
               <Route path="*" element={<Layout><NotFound /></Layout>} />
             </Routes>
           </BrowserRouter>
