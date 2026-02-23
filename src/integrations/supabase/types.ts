@@ -255,6 +255,7 @@ export type Database = {
           id: string
           license_number: string | null
           phone: string | null
+          role_subtype: string | null
           specialization: string | null
           updated_at: string
           user_id: string
@@ -266,6 +267,7 @@ export type Database = {
           id?: string
           license_number?: string | null
           phone?: string | null
+          role_subtype?: string | null
           specialization?: string | null
           updated_at?: string
           user_id: string
@@ -277,6 +279,7 @@ export type Database = {
           id?: string
           license_number?: string | null
           phone?: string | null
+          role_subtype?: string | null
           specialization?: string | null
           updated_at?: string
           user_id?: string
@@ -319,7 +322,16 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "doctor" | "patient" | "admin"
+      app_role:
+        | "doctor"
+        | "patient"
+        | "admin"
+        | "nurse"
+        | "allied_health"
+        | "pharmacist"
+        | "lab"
+        | "care_coordinator"
+        | "front_desk"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -447,7 +459,17 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["doctor", "patient", "admin"],
+      app_role: [
+        "doctor",
+        "patient",
+        "admin",
+        "nurse",
+        "allied_health",
+        "pharmacist",
+        "lab",
+        "care_coordinator",
+        "front_desk",
+      ],
     },
   },
 } as const
