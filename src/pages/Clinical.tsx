@@ -193,6 +193,9 @@ export default function Clinical() {
             <Button variant="ghost" size="sm" onClick={() => navigate("/patients")}>
               <User className="h-4 w-4 mr-1" /> Patient Records
             </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/")}>
+              ← Website
+            </Button>
             <span className="text-xs text-muted-foreground hidden sm:inline">{user?.email}</span>
             <Button variant="ghost" size="sm" onClick={() => { signOut(); navigate("/auth"); }}>
               <LogOut className="h-4 w-4" />

@@ -9,13 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
-import { Stethoscope, User, ShieldCheck, Scale, Brain, Globe, FileCheck } from "lucide-react";
+import { Stethoscope, User, ShieldCheck, Scale, Brain, Globe, FileCheck, Settings } from "lucide-react";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<"doctor" | "patient">("doctor");
+  const [role, setRole] = useState<"doctor" | "patient" | "admin">("doctor");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -82,9 +82,8 @@ export default function Auth() {
           <CardHeader className="text-center space-y-2">
             <img src={brainLogo} alt="DATAelixAIr" className="h-12 mx-auto" />
             <CardTitle className="text-2xl font-bold">Clinical Decision Support System</CardTitle>
-            <CardDescription>AI-Powered CDSS with PubMed Evidence</CardDescription>
             <span className="inline-block px-3 py-1 text-xs font-mono rounded-full bg-primary/10 text-primary">
-              PhD Research Prototype
+              Prototype
             </span>
           </CardHeader>
           <CardContent>
@@ -112,7 +111,7 @@ export default function Auth() {
                 <form onSubmit={handleSignup} className="space-y-4 mt-4">
                   <div>
                     <Label className="text-sm font-semibold mb-2 block">I am a…</Label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <button
                         type="button"
                         onClick={() => setRole("doctor")}
@@ -136,6 +135,18 @@ export default function Auth() {
                       >
                         <User className={`h-5 w-5 ${role === "patient" ? "text-primary" : ""}`} />
                         <span className="text-xs font-medium">Patient</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRole("admin")}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                          role === "admin"
+                            ? "border-primary bg-primary/5 text-foreground"
+                            : "border-border hover:border-primary/40 text-muted-foreground"
+                        }`}
+                      >
+                        <Settings className={`h-5 w-5 ${role === "admin" ? "text-primary" : ""}`} />
+                        <span className="text-xs font-medium">Admin</span>
                       </button>
                     </div>
                   </div>
