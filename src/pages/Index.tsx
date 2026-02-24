@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowRight, Heart, Users, Handshake, Lightbulb, Sparkles, Bot, BarChart3, Link2, ShieldCheck, DollarSign, HeartPulse, Search, Building2, Hospital, BrainCircuit, FileCheck, AlertTriangle, ClipboardCheck, Globe, BookOpen } from "lucide-react";
+import { ArrowRight, Heart, Users, Handshake, Lightbulb, Sparkles, Bot, BarChart3, Link2, ShieldCheck, DollarSign, HeartPulse, Search, Building2, Hospital, BrainCircuit, FileCheck, AlertTriangle, ClipboardCheck, Globe, BookOpen, Mic, FileText, Stethoscope } from "lucide-react";
 import HeroDashboard from "@/components/HeroDashboard";
 import TrustSection from "@/components/TrustSection";
 import SEO from "@/components/SEO";
@@ -92,8 +92,8 @@ const governanceFramework = [
 const Index = () => (
   <div>
     <SEO
-      title="DATAelixAIr — AI Built for Modern Healthcare"
-      description="Democratizing accurate medical information while maintaining safety and compliance."
+      title="DATAelixAIr — Intelligent AI Scribe for Clinical Practice"
+      description="Convert consultation audio into structured clinical notes, prescription drafts, and patient summaries. Designed for Indian private clinics."
     />
     {/* JSON-LD Organization Schema */}
     <script
@@ -104,7 +104,7 @@ const Index = () => (
           "@type": "Organization",
           name: "DATAelixAIr",
           url: "https://dataelixair.lovable.app",
-          description: "Democratizing accurate medical information while maintaining safety and compliance.",
+          description: "Intelligent AI scribe assistant for clinical practice. Convert consultation audio into structured clinical notes.",
           sameAs: [
             "https://www.linkedin.com/company/107182001/admin/dashboard/",
             "https://x.com/dataelixair",
@@ -112,74 +112,86 @@ const Index = () => (
         }),
       }}
     />
-    {/* Hero — centered */}
+
+    {/* Hero — clean, centered, product-focused */}
     <section className="min-h-screen relative overflow-hidden flex items-center">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_30%,hsl(var(--teal)/0.08),transparent_70%)]" />
-      <div className="absolute inset-0 hero-grid-bg" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_40%,hsl(var(--teal)/0.06),transparent_70%)]" />
 
-      <Sparkles className="absolute top-[18%] left-[12%] text-primary/20 w-5 h-5 animate-pulse" />
-      <Sparkles className="absolute top-[30%] right-[15%] text-primary/15 w-4 h-4 animate-pulse" style={{ animationDelay: "1s" }} />
-      <Sparkles className="absolute bottom-[25%] left-[20%] text-primary/10 w-3 h-3 animate-pulse" style={{ animationDelay: "2s" }} />
-
-      <div className="container mx-auto px-4 pt-32 pb-24 relative z-10">
+      <div className="container mx-auto px-4 pt-32 pb-20 relative z-10">
         <motion.div initial="hidden" animate="visible" className="text-center max-w-3xl mx-auto">
-          <motion.div variants={fadeUp} custom={0} className="mb-8" />
+          <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 mb-8 px-4 py-1.5 rounded-full border border-border bg-card text-xs font-medium text-muted-foreground">
+            <Mic className="w-3.5 h-3.5 text-primary" />
+            AI-Powered Clinical Documentation
+          </motion.div>
 
-          <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.8rem,5.5vw,4.5rem)] font-extrabold leading-[1.05] tracking-tight text-foreground">
-            Intelligent AI,{" "}
-            <em className="not-italic text-primary italic font-display">personalised</em>
-            <br />for your practice.
+          <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.4rem,5vw,4rem)] font-extrabold leading-[1.08] tracking-tight text-foreground">
+            Intelligent AI scribe assistant,{" "}
+            <em className="not-italic text-primary">personalised</em> for your clinical practice.
           </motion.h1>
 
-          <motion.p variants={fadeUp} custom={2} className="mt-7 text-[clamp(1.05rem,1.5vw,1.2rem)] font-light leading-relaxed text-muted-foreground max-w-xl mx-auto">
-            Every hospital is different. Our AI adapts to your workflows, regulations, and patient needs — so you can focus on what matters most: care.
+          <motion.p variants={fadeUp} custom={2} className="mt-7 text-[clamp(1rem,1.4vw,1.15rem)] font-light leading-relaxed text-muted-foreground max-w-2xl mx-auto">
+            Convert consultation audio recordings into structured clinical notes, prescription drafts, and patient summaries — allowing clinicians to focus more on patient care and less on documentation.
+          </motion.p>
+
+          <motion.p variants={fadeUp} custom={2.5} className="mt-4 text-sm text-muted-foreground/80 max-w-xl mx-auto">
+            Designed for private clinics and healthcare providers seeking practical workflow automation during real consultations.
           </motion.p>
 
           <motion.div variants={fadeUp} custom={3} className="mt-10 flex flex-wrap justify-center gap-4">
             <Button variant="default" size="lg" asChild>
-              <Link to="/contact">Partner With Us →</Link>
+              <Link to="/contact">Request Pilot Access →</Link>
             </Button>
             <Button variant="outline" size="lg" asChild>
-              <Link to="/services">Explore Services</Link>
+              <Link to="/services">Explore Clinical AI Services</Link>
             </Button>
           </motion.div>
         </motion.div>
 
+        {/* Minimal visual — workflow illustration */}
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7, duration: 0.9 }}
-          className="hidden lg:block mt-20 max-w-2xl mx-auto"
+          transition={{ delay: 0.8, duration: 0.9 }}
+          className="mt-20 max-w-2xl mx-auto"
         >
           <HeroDashboard />
         </motion.div>
       </div>
     </section>
 
-    {/* Mission Strip */}
+    {/* Trust & Value Pillars */}
     <section className="border-y border-border">
-      <div className="container mx-auto px-4 py-10">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+      <div className="container mx-auto px-4 py-12">
+        <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
           {[
-            { icon: Heart, label: "Patient Satisfaction First", desc: "Every solution we build puts patient experience at the centre" },
-            { icon: Lightbulb, label: "Tailored Solutions", desc: "Custom AI designed for your unique workflows and challenges" },
-            { icon: Handshake, label: "Open to Collaboration", desc: "Seeking pilot partners, investors, and advisors worldwide" },
-            { icon: Users, label: "Built for Healthcare", desc: "Purpose-built by healthcare & AI specialists together" },
+            { icon: ShieldCheck, label: "Clinical Safety & Explainability", desc: "AI outputs are reviewable, transparent, and clinician-controlled." },
+            { icon: FileText, label: "Consultation Workflow Productivity", desc: "Automate clinical documentation during patient encounters." },
+            { icon: Stethoscope, label: "Tailored for Indian Clinical Practice", desc: "Built for small and medium private healthcare providers." },
           ].map((s, i) => (
             <motion.div
               key={s.label}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
+              transition={{ delay: i * 0.12 }}
               className="text-center"
             >
-              <s.icon className="mx-auto text-primary mb-2" size={28} />
-              <div className="font-display text-sm font-bold text-foreground">{s.label}</div>
-              <div className="text-xs text-muted-foreground mt-1">{s.desc}</div>
+              <div className="w-12 h-12 rounded-2xl teal-muted-bg border teal-muted-border flex items-center justify-center mx-auto mb-4">
+                <s.icon className="text-primary" size={22} />
+              </div>
+              <div className="font-display text-sm font-bold text-foreground mb-1.5">{s.label}</div>
+              <div className="text-sm text-muted-foreground font-light leading-relaxed">{s.desc}</div>
             </motion.div>
           ))}
         </div>
+        <motion.p
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          className="text-center text-sm text-muted-foreground/70 mt-8 max-w-lg mx-auto"
+        >
+          Designed to help clinicians save consultation time while maintaining clinical quality and safety.
+        </motion.p>
       </div>
     </section>
 
