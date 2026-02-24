@@ -1,9 +1,10 @@
-import { Lock, ShieldCheck, Globe } from "lucide-react";
+import { Lock, ShieldCheck, Globe, FileCheck } from "lucide-react";
 
 const items = [
   { icon: Lock, label: "TLS 1.3 Secured" },
-  { icon: Globe, label: "DPDP / GDPR Aligned" },
-  { icon: ShieldCheck, label: "Clinician-Controlled AI" },
+  { icon: ShieldCheck, label: "No PHI Stored" },
+  { icon: Globe, label: "DPDP / GDPR Ready" },
+  { icon: FileCheck, label: "Enterprise DPA Available" },
 ];
 
 const TrustBar = () => (
