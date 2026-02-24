@@ -241,7 +241,7 @@ export default function Clinical() {
 
   return (
     <>
-      <SEO title="CDSS Analysis — DATAelixAIr" description="AI-powered Clinical Decision Support System with PubMed RAG evidence" />
+      <SEO title="Research & Pilot Clinical Workspace — DATAelixAIr" description="Early-stage clinical AI workspace for pilot validation" noindex />
 
       {/* Top bar */}
       <header className="fixed top-0 left-0 right-0 z-50 glass-nav border-b border-border px-4 py-2">
@@ -249,10 +249,10 @@ export default function Clinical() {
           <div className="flex items-center gap-3">
             <img src={brainLogo} alt="DATAelixAIr" className="h-8" />
             <div>
-              <h1 className="text-sm font-bold text-foreground">DATAelixAIr CDSS</h1>
-              <p className="text-xs text-muted-foreground">Clinical Decision Support System</p>
+              <h1 className="text-sm font-bold text-foreground">DATAelixAIr</h1>
+              <p className="text-xs text-muted-foreground">Research & Pilot Clinical Workspace</p>
             </div>
-            <Badge variant="outline" className="text-[10px] font-mono ml-2">Prototype</Badge>
+            <Badge variant="outline" className="text-[10px] font-mono ml-2 border-amber-300 text-amber-700 bg-amber-50">Prototype</Badge>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
@@ -273,7 +273,16 @@ export default function Clinical() {
       </header>
 
       <main className="pt-16 pb-8 px-4 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
+        {/* Prototype disclaimers */}
+        <div className="mt-4 mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-medium text-amber-800">Prototype clinical AI features require clinician review before medical use.</p>
+            <p className="text-[10px] text-amber-700 mt-0.5">Do not upload real patient identifiable data in prototype mode.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* LEFT: Patient Input */}
           <div className="lg:col-span-1 space-y-4">
@@ -376,9 +385,9 @@ export default function Clinical() {
                 </div>
                 <Button onClick={handleAnalyze} disabled={loading || isFinalized} className="w-full" size="lg">
                   {loading ? (
-                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Running CDSS Analysis...</>
+                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Running Clinical Analysis...</>
                   ) : (
-                    <><Stethoscope className="h-4 w-4 mr-2" /> {result ? "Re-run Analysis" : "Run CDSS Analysis"}</>
+                    <><Stethoscope className="h-4 w-4 mr-2" /> {result ? "Re-run Analysis" : "Run Clinical Analysis"}</>
                   )}
                 </Button>
               </CardContent>
@@ -391,9 +400,9 @@ export default function Clinical() {
               <Card className="border-dashed">
                 <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                   <Activity className="h-16 w-16 text-muted-foreground/30 mb-4" />
-                  <h3 className="text-lg font-semibold text-muted-foreground">Ready for CDSS Analysis</h3>
+                  <h3 className="text-lg font-semibold text-muted-foreground">Ready for Clinical Analysis</h3>
                   <p className="text-sm text-muted-foreground/70 max-w-md mt-2">
-                    Enter patient data and click "Run CDSS Analysis" to get evidence-based risk assessment,
+                    Enter patient data and click "Run Clinical Analysis" to get evidence-based risk assessment,
                     drug recommendations, and structured SOAP notes.
                   </p>
                   <p className="text-xs text-primary/70 mt-3 font-medium">
@@ -407,47 +416,11 @@ export default function Clinical() {
                     <Badge variant="outline"><Wind className="h-3 w-3 mr-1" /> AQI Factor</Badge>
                   </div>
 
-                  {/* Regulatory & AI Framework Compliance */}
                   <div className="mt-6 w-full max-w-lg">
-                    <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Regulatory & AI Governance</p>
-                      <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <Shield className="h-3 w-3 text-primary shrink-0" />
-                          <span>HIPAA Safe Harbor compliant</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Shield className="h-3 w-3 text-primary shrink-0" />
-                          <span>EU AI Act Art. 6 — High-Risk AI</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Shield className="h-3 w-3 text-primary shrink-0" />
-                          <span>India DPDP Act 2023</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Shield className="h-3 w-3 text-primary shrink-0" />
-                          <span>WHO AI Ethics Framework</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Shield className="h-3 w-3 text-primary shrink-0" />
-                          <span>IEEE 7000 Ethical Design</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Shield className="h-3 w-3 text-primary shrink-0" />
-                          <span>MCI Telemedicine 2020</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Shield className="h-3 w-3 text-primary shrink-0" />
-                          <span>HL7 FHIR R4 interop</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Shield className="h-3 w-3 text-primary shrink-0" />
-                          <span>Art. 13 AI Transparency</span>
-                        </div>
-                      </div>
-                      <p className="text-[9px] text-muted-foreground/70 pt-1 border-t border-border">
+                    <div className="rounded-lg border border-border bg-muted/30 p-3">
+                      <p className="text-[10px] text-muted-foreground">
                         AI outputs are advisory only — not a substitute for clinical judgment.
-                        All reasoning is explainable via LIME/SHAP. Audit trails maintained per ISO 27001.
+                        All results require clinician review and approval before use.
                       </p>
                     </div>
                   </div>
