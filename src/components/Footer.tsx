@@ -22,8 +22,9 @@ const Footer = () => {
           </Link>
           <div className="flex gap-7 flex-wrap justify-center">
             {[
-              { label: "About", to: "/#about" },
-              { label: "Services", to: "/services" },
+              { label: "Home", to: "/" },
+              { label: "Product", to: "/#product" },
+              { label: "Vision", to: "/vision" },
               { label: "Blog", to: "/blog" },
               { label: "Contact", to: "/contact" },
               { label: "Privacy Policy", to: "/privacy" },
@@ -49,7 +50,6 @@ const Footer = () => {
           </div>
         </div>
 
-        {/* Healthcare disclaimer */}
         <div className="border-t border-border/10 pt-5 text-center space-y-2">
           <p className="text-[0.65rem] text-dark-muted/60 leading-relaxed">
             Not for emergency use. For registered healthcare professionals only.
