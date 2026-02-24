@@ -8,11 +8,9 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Layout from "./components/Layout";
 import ScrollToTop from "./components/ScrollToTop";
 import Index from "./pages/Index";
-import Services from "./pages/Services";
-import ServiceDetail from "./pages/ServiceDetail";
-import Solutions from "./pages/Solutions";
-import SolutionDetail from "./pages/SolutionDetail";
-import Pricing from "./pages/Pricing";
+import Product from "./pages/Product";
+import Security from "./pages/Security";
+import Vision from "./pages/Vision";
 import Blog from "./pages/Blog";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
@@ -26,8 +24,6 @@ import Dashboard from "./pages/Dashboard";
 import Prescriptions from "./pages/Prescriptions";
 import ConsultationDetail from "./pages/ConsultationDetail";
 import PatientPortal from "./pages/PatientPortal";
-import ExplainableAI from "./pages/ExplainableAI";
-import ClinicLocator from "./pages/ClinicLocator";
 
 const queryClient = new QueryClient();
 
@@ -60,18 +56,24 @@ const App = () => (
 
               {/* Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
-              <Route path="/services" element={<Layout><Services /></Layout>} />
-              <Route path="/services/:slug" element={<Layout><ServiceDetail /></Layout>} />
-              <Route path="/solutions" element={<Layout><Solutions /></Layout>} />
-              <Route path="/solutions/:slug" element={<Layout><SolutionDetail /></Layout>} />
-              <Route path="/pricing" element={<Layout><Pricing /></Layout>} />
+              <Route path="/product" element={<Layout><Product /></Layout>} />
+              <Route path="/security" element={<Layout><Security /></Layout>} />
+              <Route path="/vision" element={<Layout><Vision /></Layout>} />
               <Route path="/blog" element={<Layout><Blog /></Layout>} />
               <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
               <Route path="/terms" element={<Layout><Terms /></Layout>} />
-              <Route path="/affiliate" element={<Navigate to="/" replace />} />
               <Route path="/contact" element={<Layout><Contact /></Layout>} />
-              <Route path="/explainable-ai" element={<Layout><ExplainableAI /></Layout>} />
-              <Route path="/clinic-locator" element={<Layout><ClinicLocator /></Layout>} />
+
+              {/* Redirects for removed pages */}
+              <Route path="/services" element={<Navigate to="/product" replace />} />
+              <Route path="/services/*" element={<Navigate to="/product" replace />} />
+              <Route path="/solutions" element={<Navigate to="/vision" replace />} />
+              <Route path="/solutions/*" element={<Navigate to="/vision" replace />} />
+              <Route path="/explainable-ai" element={<Navigate to="/vision" replace />} />
+              <Route path="/clinic-locator" element={<Navigate to="/" replace />} />
+              <Route path="/pricing" element={<Navigate to="/contact" replace />} />
+              <Route path="/affiliate" element={<Navigate to="/" replace />} />
+
               <Route path="*" element={<Layout><NotFound /></Layout>} />
             </Routes>
           </BrowserRouter>
