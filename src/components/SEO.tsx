@@ -5,12 +5,11 @@ interface SEOProps {
   title: string;
   description: string;
   canonical?: string;
-  noindex?: boolean;
 }
 
 const BASE_URL = "https://dataelixair.lovable.app";
 
-const SEO = ({ title, description, canonical, noindex }: SEOProps) => {
+const SEO = ({ title, description, canonical }: SEOProps) => {
   const location = useLocation();
   const url = canonical || `${BASE_URL}${location.pathname}`;
 
@@ -28,12 +27,6 @@ const SEO = ({ title, description, canonical, noindex }: SEOProps) => {
     };
 
     setMeta("description", description);
-    if (noindex) {
-      setMeta("robots", "noindex, nofollow");
-    } else {
-      const existing = document.querySelector('meta[name="robots"]');
-      if (existing) existing.remove();
-    }
     setMeta("og:title", title, "property");
     setMeta("og:description", description, "property");
     setMeta("og:url", url, "property");

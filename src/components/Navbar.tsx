@@ -6,11 +6,14 @@ import brainLogo from "@/assets/brain-logo-nobg.png";
 import { AnimatePresence, motion } from "framer-motion";
 
 const navLinks = [
-  { label: "Home", path: "/" },
-  { label: "Product", path: "/product" },
-  { label: "Security", path: "/security" },
-  { label: "Vision", path: "/vision" },
+  { label: "About", path: "/#about" },
+  { label: "Services", path: "/services" },
+  { label: "Solutions", path: "/solutions" },
+  { label: "Explainable AI", path: "/explainable-ai" },
+  { label: "Find Clinic", path: "/clinic-locator" },
   { label: "Blog", path: "/blog" },
+  { label: "Partner", path: "/pricing" },
+  { label: "Contact", path: "/contact" },
 ];
 
 const Navbar = () => {
@@ -56,8 +59,11 @@ const Navbar = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <Button variant="default" size="sm" asChild>
-            <Link to="/contact">Request Pilot</Link>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/dashboard">CDSS</Link>
+          </Button>
+          <Button variant="dark" size="sm" asChild>
+            <Link to="/contact">Partner With Us</Link>
           </Button>
         </div>
 
@@ -86,8 +92,11 @@ const Navbar = () => {
                   {link.label}
                 </Link>
               ))}
-              <Button variant="default" className="mt-4" asChild>
-                <Link to="/contact" onClick={() => setOpen(false)}>Request Pilot →</Link>
+              <Button variant="outline" className="mt-4" asChild>
+                <Link to="/dashboard" onClick={() => setOpen(false)}>CDSS</Link>
+              </Button>
+              <Button variant="default" className="mt-2" asChild>
+                <Link to="/contact" onClick={() => setOpen(false)}>Partner With Us →</Link>
               </Button>
             </div>
           </motion.div>
