@@ -432,7 +432,17 @@ export default function Onboard() {
             </div>
           </motion.div>
 
-          <p className="text-[10px] text-center text-muted-foreground/50 mt-6">
+          <p className="text-sm text-center text-muted-foreground mt-6">
+            Already have an account?{" "}
+            <button
+              onClick={() => navigate("/auth")}
+              className="text-primary hover:underline font-medium"
+            >
+              Log in
+            </button>
+          </p>
+
+          <p className="text-[10px] text-center text-muted-foreground/50 mt-3">
             Data encrypted with TLS 1.3 · DPDP / GDPR aligned · Human-in-the-loop AI
           </p>
         </div>
