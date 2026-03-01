@@ -24,9 +24,14 @@ serve(async (req) => {
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const systemPrompt = `You are a medical translator. Translate the following clinical text from ${sourceLang} to ${targetLang}. 
+    const sourceInstruction = sourceLang === "auto-detect"
+      ? "Auto-detect the source language of the text"
+      : `The source language is ${sourceLang}`;
+
+    const systemPrompt = `You are a medical translator. ${sourceInstruction}. Translate the following clinical text to ${targetLang}. 
 Preserve all medical terminology, drug names, dosages, and numbers exactly as they are. 
 Keep proper nouns (patient names, places) unchanged.
+If the text is already in ${targetLang}, return it as-is.
 Return ONLY the translated text, no explanations.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
