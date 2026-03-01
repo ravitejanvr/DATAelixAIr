@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, Loader2, Sparkles, Square, Languages, Volume2 } from "lucide-react";
+import { Mic, Loader2, Sparkles, Square, Languages, Volume2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,18 +21,11 @@ interface VoiceRecorderProps {
   onExtracted: (data: ExtractedPatientData) => void;
 }
 
-const LANGUAGES = [
-  { code: "en-IN", label: "English", flag: "🇬🇧" },
-  { code: "hi-IN", label: "हिन्दी", flag: "🇮🇳" },
-  { code: "te-IN", label: "తెలుగు", flag: "🇮🇳" },
-];
-
 export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [isExtracting, setIsExtracting] = useState(false);
   const [interimText, setInterimText] = useState("");
-  const [selectedLang, setSelectedLang] = useState("en-IN");
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedText, setTranslatedText] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -54,7 +47,8 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = selectedLang;
+    // Don't set lang — let browser auto-detect any language
+    // This allows mixed English/Hindi/Telugu conversations naturally
 
     recognition.onresult = (event: any) => {
       let interim = "";
@@ -88,7 +82,7 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
     recognition.start();
     setIsRecording(true);
     setTranslatedText("");
-  }, [SpeechRecognition, toast, selectedLang]);
+  }, [SpeechRecognition, toast]);
 
   const stopRecording = useCallback(() => {
     if (recognitionRef.current) {
@@ -101,8 +95,8 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
   }, []);
 
   const extractPatientData = async () => {
-    const textToExtract = translatedText || transcript;
-    if (!textToExtract.trim()) {
+    const textToUse = translatedText || transcript;
+    if (!textToUse.trim()) {
       toast({ title: "No transcript", description: "Record some speech first.", variant: "destructive" });
       return;
     }
@@ -110,11 +104,9 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
     setIsExtracting(true);
     try {
       const { data, error } = await supabase.functions.invoke("extract-patient-data", {
-        body: { transcript: textToExtract.trim() },
+        body: { transcript: textToUse.trim() },
       });
-
       if (error) throw new Error(error.message);
-
       onExtracted(data);
       toast({ title: "Data extracted", description: "Patient fields auto-filled from your voice recording." });
     } catch (err: any) {
@@ -131,7 +123,7 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
       const { data, error } = await supabase.functions.invoke("translate-clinical", {
         body: {
           text: transcript.trim(),
-          sourceLang: selectedLang === "hi-IN" ? "Hindi" : "Telugu",
+          sourceLang: "auto-detect",
           targetLang: "English",
         },
       });
@@ -145,10 +137,9 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
     }
   };
 
-  const handleSpeak = (text: string, lang: string) => {
+  const handleSpeak = (text: string) => {
     if (!text.trim() || isSpeaking) return;
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
     utterance.rate = 0.9;
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
@@ -157,9 +148,6 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
     speechSynthesis.speak(utterance);
   };
 
-  const langLabel = LANGUAGES.find(l => l.code === selectedLang)?.label || "English";
-  const isNonEnglish = selectedLang !== "en-IN";
-
   return (
     <Card className="border-primary/20 bg-primary/[0.02]">
       <CardHeader className="pb-2">
@@ -167,37 +155,14 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
           <Mic className="h-4 w-4 text-primary" /> Voice Consultation
         </CardTitle>
         <CardDescription className="text-xs">
-          Dictate in English, Hindi or Telugu — AI extracts and auto-fills the form
+          Speak in any language (English, Hindi, Telugu) — AI auto-detects, translates & extracts
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Language selector */}
-        <div className="flex gap-1.5">
-          {LANGUAGES.map((lang) => (
-            <button
-              key={lang.code}
-              onClick={() => {
-                if (!isRecording) {
-                  setSelectedLang(lang.code);
-                  setTranslatedText("");
-                }
-              }}
-              disabled={isRecording}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors border ${
-                selectedLang === lang.code
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-foreground border-border hover:bg-muted"
-              } ${isRecording ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-            >
-              <span>{lang.flag}</span> {lang.label}
-            </button>
-          ))}
-        </div>
-
         <div className="flex gap-2">
           {!isRecording ? (
             <Button onClick={startRecording} size="sm" className="flex-1">
-              <Mic className="h-4 w-4 mr-1" /> Start Recording ({langLabel})
+              <Mic className="h-4 w-4 mr-1" /> Start Recording
             </Button>
           ) : (
             <Button onClick={stopRecording} variant="destructive" size="sm" className="flex-1">
@@ -208,8 +173,8 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
 
         {isRecording && (
           <div className="flex items-center gap-2 text-xs text-primary animate-pulse">
-            <span className="h-2 w-2 rounded-full bg-red-500" />
-            Recording in {langLabel}... Speak clearly
+            <span className="h-2 w-2 rounded-full bg-destructive" />
+            Recording... Speak in any language
           </div>
         )}
 
@@ -224,40 +189,38 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleSpeak(transcript, selectedLang)}
+                  onClick={() => handleSpeak(transcript)}
                   disabled={isSpeaking}
                   className="text-xs"
                 >
                   <Volume2 className="h-3 w-3 mr-1" /> Play
                 </Button>
-                {isNonEnglish && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleTranslateToEnglish}
-                    disabled={isTranslating}
-                    className="text-xs"
-                  >
-                    {isTranslating ? (
-                      <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Translating...</>
-                    ) : (
-                      <><Languages className="h-3 w-3 mr-1" /> Translate to English</>
-                    )}
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTranslateToEnglish}
+                  disabled={isTranslating}
+                  className="text-xs"
+                >
+                  {isTranslating ? (
+                    <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Translating...</>
+                  ) : (
+                    <><Languages className="h-3 w-3 mr-1" /> Translate to English</>
+                  )}
+                </Button>
               </div>
             )}
           </div>
         )}
 
         {translatedText && (
-          <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 p-3 max-h-32 overflow-y-auto text-sm space-y-1">
-            <span className="text-[10px] font-medium text-green-700 dark:text-green-400 uppercase">English Translation</span>
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 max-h-32 overflow-y-auto text-sm space-y-1">
+            <span className="text-[10px] font-medium text-primary uppercase">English Translation</span>
             <p className="text-foreground">{translatedText}</p>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => handleSpeak(translatedText, "en-IN")}
+              onClick={() => handleSpeak(translatedText)}
               disabled={isSpeaking}
               className="text-xs h-6 px-2"
             >
@@ -277,7 +240,7 @@ export default function VoiceRecorder({ onExtracted }: VoiceRecorderProps) {
             {isExtracting ? (
               <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Extracting patient data...</>
             ) : (
-              <><Sparkles className="h-4 w-4 mr-1" /> Extract & Auto-fill Form{isNonEnglish && !translatedText ? " (translate first)" : ""}</>
+              <><Sparkles className="h-4 w-4 mr-1" /> Extract & Auto-fill Form</>
             )}
           </Button>
         )}
