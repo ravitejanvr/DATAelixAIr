@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          actor_id: string
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          target_id: string | null
+          target_type: string | null
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Relationships: []
+      }
       consultations: {
         Row: {
           ai_summary: string | null
@@ -208,6 +238,51 @@ export type Database = {
         }
         Relationships: []
       }
+      pilot_requests: {
+        Row: {
+          clinic_name: string
+          contact_email: string
+          contact_name: string
+          contact_phone: string | null
+          created_at: string
+          estimated_patient_volume: string
+          id: string
+          location: string
+          notes: string | null
+          speciality: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_name: string
+          contact_email: string
+          contact_name: string
+          contact_phone?: string | null
+          created_at?: string
+          estimated_patient_volume: string
+          id?: string
+          location: string
+          notes?: string | null
+          speciality: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_name?: string
+          contact_email?: string
+          contact_name?: string
+          contact_phone?: string | null
+          created_at?: string
+          estimated_patient_volume?: string
+          id?: string
+          location?: string
+          notes?: string | null
+          speciality?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       prescriptions: {
         Row: {
           consultation_id: string
@@ -307,6 +382,60 @@ export type Database = {
           specialization?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      regional_lexicon: {
+        Row: {
+          category: string
+          clinical_term: string
+          created_at: string
+          id: string
+          language: string
+          regional_phrase: string
+        }
+        Insert: {
+          category?: string
+          clinical_term: string
+          created_at?: string
+          id?: string
+          language?: string
+          regional_phrase: string
+        }
+        Update: {
+          category?: string
+          clinical_term?: string
+          created_at?: string
+          id?: string
+          language?: string
+          regional_phrase?: string
+        }
+        Relationships: []
+      }
+      usage_metrics: {
+        Row: {
+          created_at: string
+          id: string
+          metric_type: string
+          metric_value: Json
+          period_end: string
+          period_start: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metric_type: string
+          metric_value?: Json
+          period_end?: string
+          period_start?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metric_type?: string
+          metric_value?: Json
+          period_end?: string
+          period_start?: string
         }
         Relationships: []
       }
