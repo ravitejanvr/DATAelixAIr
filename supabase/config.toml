@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.translate-report]
 verify_jwt = false
+
+[functions.stabilize-transcript]
+verify_jwt = false
