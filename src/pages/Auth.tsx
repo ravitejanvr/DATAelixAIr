@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -41,9 +41,43 @@ export default function Auth() {
   const [signUpRole, setSignUpRole] = useState<AppRole>("doctor");
 
   const [loading, setLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<Record<string, string>>({});
 
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Debug: Log config and monitor auth state
+  useEffect(() => {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    console.log("Auth Debug — SUPABASE_URL:", url);
+    console.log("Auth Debug — ANON_KEY defined:", !!key, "length:", key?.length);
+    setDebugInfo(prev => ({
+      ...prev,
+      supabaseUrl: url ? "✅ Configured" : "❌ Missing",
+      anonKey: key ? `✅ ${key.slice(0, 20)}...` : "❌ Missing",
+    }));
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      console.log("Auth Debug — Current session:", data.session ? `Active (${data.session.user.email})` : "None", error || "");
+      setDebugInfo(prev => ({
+        ...prev,
+        session: data.session ? `Active: ${data.session.user.email}` : "No active session",
+        sessionError: error ? error.message : "None",
+      }));
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth Debug — State change:", event, session?.user?.email);
+      setDebugInfo(prev => ({
+        ...prev,
+        lastEvent: event,
+        session: session ? `Active: ${session.user.email}` : "No session",
+      }));
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const canSignIn = useMemo(() => {
     return emailRegex.test(signInEmail) && signInPassword.length >= 6 && !loading;
@@ -118,6 +152,7 @@ export default function Auth() {
       });
 
       if (error) {
+        console.error("SignIn Error:", error);
         toast({
           title: "Sign-in failed",
           description: error.message === "Invalid login credentials" ? "Invalid email or password." : error.message,
@@ -126,8 +161,10 @@ export default function Auth() {
         return;
       }
 
+      console.log("SignIn Success:", { userId: data.user.id, email: data.user.email, hasSession: !!data.session });
       await routeAfterAuth(data.user.id);
-    } catch {
+    } catch (err) {
+      console.error("SignIn Exception:", err);
       toast({
         title: "Connection error",
         description: "Unable to reach authentication service. Please try again.",
@@ -157,11 +194,33 @@ export default function Auth() {
       });
 
       if (error) {
+        console.error("SignUp Error:", error);
         toast({ title: "Registration failed", description: error.message, variant: "destructive" });
         return;
       }
 
+      console.log("SignUp Success:", {
+        userId: data.user?.id,
+        email: data.user?.email,
+        hasSession: !!data.session,
+        identities: data.user?.identities?.length,
+      });
+
+      // Detect fake duplicate signup (user exists but no identities returned)
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        console.warn("SignUp: User already exists (empty identities array)");
+        toast({
+          title: "Account already exists",
+          description: "This email is already registered. Please sign in instead.",
+          variant: "destructive",
+        });
+        setMode("signin");
+        setSignInEmail(signUpEmail.trim());
+        return;
+      }
+
       if (!data.user) {
+        console.warn("SignUp: No user returned");
         toast({
           title: "Registration pending",
           description: "Please verify your email, then sign in.",
@@ -171,8 +230,14 @@ export default function Auth() {
       }
 
       if (data.session) {
+        console.log("SignUp: Session active, ensuring profile & role");
+        const roleResult = await supabase.from("user_roles").select("id").eq("user_id", data.user.id).limit(1);
+        console.log("SignUp: Existing role check:", roleResult);
+        const profileResult = await supabase.from("profiles").select("id").eq("user_id", data.user.id).limit(1);
+        console.log("SignUp: Existing profile check:", profileResult);
+
         await ensureProfileAndRole(data.user.id);
-        toast({ title: "Account created", description: "You’re signed in successfully." });
+        toast({ title: "Account created", description: "You're signed in successfully." });
         await routeAfterAuth(data.user.id, signUpRole);
         return;
       }
@@ -183,7 +248,8 @@ export default function Auth() {
       });
       setMode("signin");
       setSignInEmail(signUpEmail.trim());
-    } catch {
+    } catch (err) {
+      console.error("SignUp Exception:", err);
       toast({
         title: "Connection error",
         description: "Unable to complete registration. Please try again.",
@@ -394,6 +460,16 @@ export default function Auth() {
           <p className="text-[10px] text-center text-muted-foreground/50 mt-3">
             Data encrypted with TLS 1.3 · DPDP / GDPR aligned · Human-in-the-loop AI
           </p>
+
+          {/* Temporary Debug Panel */}
+          <details className="mt-4 border border-border rounded-lg p-3 bg-muted/30">
+            <summary className="text-xs font-mono text-muted-foreground cursor-pointer">🔧 Debug Info</summary>
+            <div className="mt-2 space-y-1 text-[11px] font-mono text-muted-foreground">
+              {Object.entries(debugInfo).map(([key, val]) => (
+                <div key={key}><span className="text-foreground/60">{key}:</span> {val}</div>
+              ))}
+            </div>
+          </details>
         </motion.div>
       </div>
     </>

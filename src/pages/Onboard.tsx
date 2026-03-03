@@ -133,6 +133,7 @@ export default function Onboard() {
 
   const handleSubmit = async () => {
     setLoading(true);
+    console.log("Onboard: Attempting signUp for", email);
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -142,17 +143,43 @@ export default function Onboard() {
       },
     });
     setLoading(false);
+
     if (error) {
+      console.error("Onboard SignUp Error:", error);
       toast({ title: "Registration failed", description: error.message, variant: "destructive" });
-    } else if (data.session) {
+      return;
+    }
+
+    console.log("Onboard SignUp Success:", {
+      userId: data.user?.id,
+      email: data.user?.email,
+      hasSession: !!data.session,
+      identities: data.user?.identities?.length,
+    });
+
+    // Detect fake duplicate signup
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      console.warn("Onboard: User already exists (empty identities)");
+      toast({
+        title: "Account already exists",
+        description: "This email is already registered. Please log in instead.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (data.session) {
+      console.log("Onboard: Session active, updating profile");
       if (clinicName || specialisation) {
-        await supabase.from("profiles").update({
+        const updateResult = await supabase.from("profiles").update({
           ...(clinicName ? { clinic_name: clinicName } : {}),
           ...(specialisation ? { role_subtype: specialisation } : {}),
         }).eq("user_id", data.user!.id);
+        console.log("Onboard: Profile update result:", updateResult);
       }
       setSubmitted(true);
     } else {
+      console.log("Onboard: No session — email confirmation likely required");
       setSubmitted(true);
     }
   };
