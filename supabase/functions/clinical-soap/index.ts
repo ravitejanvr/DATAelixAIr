@@ -21,6 +21,10 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
+    const safetyContext = extractedData?.safety_results
+      ? `\n\nSAFETY CONTROLLER FINDINGS:\n${JSON.stringify(extractedData.safety_results, null, 2)}`
+      : "";
+
     const systemPrompt = `You are a concise clinical documentation assistant for small private clinics in Hyderabad, India.
 
 Given a consultation transcript and/or structured extracted clinical data, generate a brief clinical summary.
@@ -34,8 +38,19 @@ OUTPUT FORMAT (use these exact headings):
 Relevant clinical findings, vitals, observations. Only what was mentioned.
 
 **Provisional Diagnosis**
-Use conservative language: "Likely", "Consistent with", "Provisional diagnosis".
+Use conservative language: "Likely", "Consistent with", "Provisional diagnosis", "Consider evaluation for...".
 If diagnosis unclear: "Provisional diagnosis: To be clinically determined"
+If insufficient data: "Insufficient information to determine definitive diagnosis."
+NEVER use definitive diagnostic language unless there are clear, documented supporting findings.
+Always append: "Clinical correlation recommended" when uncertainty exists.
+
+**Safety Warnings**
+If safety controller findings are provided, summarise:
+- Drug normalization issues
+- Interaction warnings
+- Allergy conflicts
+- Dose concerns
+If no safety issues: "No safety concerns identified."
 
 **Treatment Plan**
 Medications, dosage adjustments, lifestyle changes. Only what was discussed.
@@ -47,7 +62,7 @@ Patient instructions, dietary guidance, activity modifications.
 When to return, what to monitor.
 
 RULES:
-- Keep the ENTIRE output under 12-15 lines total
+- Keep the ENTIRE output under 15-18 lines total
 - Use ONLY information from the transcript and extracted data
 - Do NOT invent findings not mentioned
 - Do NOT escalate conditions or use emergency language
@@ -55,13 +70,15 @@ RULES:
 - Do NOT suggest specialist referrals unless explicitly discussed
 - Use conservative, practical clinical language
 - If a section has no relevant data, write "Not discussed" for that section
-- The output must be plain text with the headings as shown above`;
+- The output must be plain text with the headings as shown above
+- When uncertainty is detected, ALWAYS use provisional/hedged language
+- NEVER generate hallucinated contraindications or side effects not supported by data`;
 
     const userMessage = `CONSULTATION TRANSCRIPT:
 ${transcript || "Not provided"}
 
 EXTRACTED CLINICAL DATA:
-${JSON.stringify(extractedData || {}, null, 2)}
+${JSON.stringify(extractedData || {}, null, 2)}${safetyContext}
 
 Generate the concise clinical summary following the format exactly.`;
 
@@ -102,7 +119,7 @@ Generate the concise clinical summary following the format exactly.`;
 
     // Parse sections from the generated text
     const sections: Record<string, string> = {};
-    const headings = ["Visit Summary", "Findings", "Provisional Diagnosis", "Treatment Plan", "Advice", "Follow-up"];
+    const headings = ["Visit Summary", "Findings", "Provisional Diagnosis", "Safety Warnings", "Treatment Plan", "Advice", "Follow-up"];
     
     for (let i = 0; i < headings.length; i++) {
       const heading = headings[i];
