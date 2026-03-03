@@ -7,13 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   Activity, LogOut, Loader2, Save, User, Mic,
-  CheckCircle2, ChevronRight, FileText, Clock, Edit3
+  CheckCircle2, ChevronRight, FileText, Clock, Edit3, Eye, EyeOff
 } from "lucide-react";
 import VoiceRecorder from "@/components/VoiceRecorder";
 
@@ -64,7 +66,11 @@ export default function Clinical() {
 
   const [step, setStep] = useState<PipelineStep>("record");
   const [rawTranscript, setRawTranscript] = useState("");
+  const [stabilizedTranscript, setStabilizedTranscript] = useState("");
   const [editedTranscript, setEditedTranscript] = useState("");
+  const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [showRawTranscript, setShowRawTranscript] = useState(false);
+  const [isStabilizing, setIsStabilizing] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedData>(EMPTY_EXTRACTED);
   const [soapSections, setSoapSections] = useState<SoapSections>(EMPTY_SOAP);
   const [soapFullText, setSoapFullText] = useState("");
@@ -73,7 +79,6 @@ export default function Clinical() {
   const [isSaving, setIsSaving] = useState(false);
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
 
-  // Previous sessions
   const [previousSessions, setPreviousSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
 
@@ -99,12 +104,40 @@ export default function Clinical() {
 
   const handleTranscriptUpdate = (transcript: string) => {
     setRawTranscript(transcript);
-    setEditedTranscript(transcript);
+  };
+
+  const goToReview = async () => {
+    if (!rawTranscript.trim()) {
+      toast({ title: "Empty transcript", description: "Record or type something first.", variant: "destructive" });
+      return;
+    }
+    setStep("review");
+    setIsStabilizing(true);
+    setReviewConfirmed(false);
+    try {
+      const { data, error } = await supabase.functions.invoke("stabilize-transcript", {
+        body: { transcript: rawTranscript.trim() },
+      });
+      if (error) throw new Error(error.message);
+      const stabilized = data.stabilized_transcript || rawTranscript;
+      setStabilizedTranscript(stabilized);
+      setEditedTranscript(stabilized);
+    } catch (err: any) {
+      toast({ title: "Stabilization notice", description: "Could not stabilize transcript. Showing raw version.", variant: "default" });
+      setStabilizedTranscript(rawTranscript);
+      setEditedTranscript(rawTranscript);
+    } finally {
+      setIsStabilizing(false);
+    }
   };
 
   const confirmTranscript = () => {
     if (!editedTranscript.trim()) {
-      toast({ title: "Empty transcript", description: "Record or type something first.", variant: "destructive" });
+      toast({ title: "Empty transcript", description: "Review the transcript first.", variant: "destructive" });
+      return;
+    }
+    if (!reviewConfirmed) {
+      toast({ title: "Confirmation required", description: "Please confirm you have reviewed the transcript.", variant: "destructive" });
       return;
     }
     setStep("extract");
@@ -163,12 +196,10 @@ export default function Clinical() {
     if (!user) return;
     setIsSaving(true);
     try {
-      // Build the edited SOAP from sections
       const editedSoapText = Object.entries(soapSections)
         .map(([heading, content]) => `**${heading}**\n${content}`)
         .join("\n\n");
 
-      // Create a quick patient record for linkage
       const { data: patientData, error: patientError } = await supabase.from("patients").insert({
         name: extractedData.chief_complaint ? `Session Patient` : "Quick Patient",
         doctor_id: user.id,
@@ -183,6 +214,9 @@ export default function Clinical() {
         doctor_id: user.id,
         chief_complaint: extractedData.chief_complaint,
         raw_transcript: rawTranscript,
+        stabilized_transcript: stabilizedTranscript,
+        doctor_final_transcript: editedTranscript,
+        review_confirmed: reviewConfirmed,
         edited_transcript: editedTranscript,
         extracted_data: extractedData as any,
         ai_summary: editedSoapText,
@@ -191,7 +225,7 @@ export default function Clinical() {
         soap_assessment: soapSections["Provisional Diagnosis"],
         soap_plan: `${soapSections["Treatment Plan"]}\n\n${soapSections["Advice"]}\n\n${soapSections["Follow-up"]}`,
         status: "completed",
-      }).select("id").single();
+      } as any).select("id").single();
 
       if (error) throw new Error(error.message);
 
@@ -209,7 +243,10 @@ export default function Clinical() {
   const startNewSession = () => {
     setStep("record");
     setRawTranscript("");
+    setStabilizedTranscript("");
     setEditedTranscript("");
+    setReviewConfirmed(false);
+    setShowRawTranscript(false);
     setExtractedData(EMPTY_EXTRACTED);
     setSoapSections(EMPTY_SOAP);
     setSoapFullText("");
@@ -224,7 +261,6 @@ export default function Clinical() {
     setSoapSections(prev => ({ ...prev, [section]: value }));
   };
 
-  // Step indicator
   const steps: { key: PipelineStep; label: string; num: number }[] = [
     { key: "record", label: "Record", num: 1 },
     { key: "review", label: "Review", num: 2 },
@@ -297,8 +333,8 @@ export default function Clinical() {
                     </CardHeader>
                     <CardContent>
                       <p className="text-sm text-foreground whitespace-pre-wrap">{rawTranscript}</p>
-                      <Button onClick={() => setStep("review")} className="mt-3 w-full" size="sm">
-                        Review Transcript <ChevronRight className="h-4 w-4 ml-1" />
+                      <Button onClick={goToReview} className="mt-3 w-full" size="sm">
+                        Stabilize & Review <ChevronRight className="h-4 w-4 ml-1" />
                       </Button>
                     </CardContent>
                   </Card>
@@ -310,7 +346,7 @@ export default function Clinical() {
                       <p className="text-sm text-muted-foreground">
                         Click "Start Recording" or type the transcript directly in the next step
                       </p>
-                      <Button variant="outline" size="sm" className="mt-3" onClick={() => setStep("review")}>
+                      <Button variant="outline" size="sm" className="mt-3" onClick={() => { setStep("review"); setEditedTranscript(""); setStabilizedTranscript(""); }}>
                         Type transcript manually
                       </Button>
                     </CardContent>
@@ -319,7 +355,7 @@ export default function Clinical() {
               </>
             )}
 
-            {/* STEP 2: Review & Edit Transcript */}
+            {/* STEP 2: Review & Edit Stabilized Transcript */}
             {step === "review" && (
               <Card>
                 <CardHeader>
@@ -327,25 +363,69 @@ export default function Clinical() {
                     <Edit3 className="h-5 w-5 text-primary" /> Review Transcript
                   </CardTitle>
                   <CardDescription>
-                    Review and edit the transcript. The AI will extract clinical data from this text.
+                    The transcript has been stabilized (repetitions removed, medical terms corrected). Review, edit, and confirm before extraction.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Textarea
-                    value={editedTranscript}
-                    onChange={e => setEditedTranscript(e.target.value)}
-                    placeholder="Paste or type the consultation transcript here..."
-                    rows={12}
-                    className="text-sm font-mono"
-                  />
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setStep("record")}>
-                      ← Back to Record
-                    </Button>
-                    <Button onClick={confirmTranscript} className="flex-1" size="sm">
-                      Confirm Transcript & Continue <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
+                  {isStabilizing ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+                      <span className="text-sm text-muted-foreground">Stabilizing transcript...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Textarea
+                        value={editedTranscript}
+                        onChange={e => { setEditedTranscript(e.target.value); setReviewConfirmed(false); }}
+                        placeholder="Paste or type the consultation transcript here..."
+                        rows={12}
+                        className="text-sm font-mono"
+                      />
+
+                      {/* Raw transcript toggle */}
+                      {rawTranscript && (
+                        <Collapsible open={showRawTranscript} onOpenChange={setShowRawTranscript}>
+                          <CollapsibleTrigger asChild>
+                            <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                              {showRawTranscript ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                              {showRawTranscript ? "Hide Raw Transcript" : "View Raw Transcript"}
+                            </button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="mt-2">
+                            <div className="rounded-md border border-border bg-muted/30 p-3">
+                              <p className="text-xs text-muted-foreground font-mono whitespace-pre-wrap">{rawTranscript}</p>
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
+
+                      {/* Review confirmation */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <Checkbox
+                          id="review-confirm"
+                          checked={reviewConfirmed}
+                          onCheckedChange={(checked) => setReviewConfirmed(checked === true)}
+                        />
+                        <label htmlFor="review-confirm" className="text-xs text-muted-foreground cursor-pointer select-none">
+                          I have reviewed and corrected the transcript.
+                        </label>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setStep("record")}>
+                          ← Back to Record
+                        </Button>
+                        <Button
+                          onClick={confirmTranscript}
+                          className="flex-1"
+                          size="sm"
+                          disabled={!reviewConfirmed}
+                        >
+                          Confirm & Extract <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             )}

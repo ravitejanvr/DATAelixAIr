@@ -21,6 +21,7 @@ export type Database = {
           billing_details: Json | null
           chief_complaint: string | null
           created_at: string
+          doctor_final_transcript: string | null
           doctor_id: string
           drug_interactions: Json | null
           drug_recommendations: Json | null
@@ -31,11 +32,13 @@ export type Database = {
           patient_id: string
           pubmed_citations: Json | null
           raw_transcript: string | null
+          review_confirmed: boolean | null
           risk_assessment: Json | null
           soap_assessment: string | null
           soap_objective: string | null
           soap_plan: string | null
           soap_subjective: string | null
+          stabilized_transcript: string | null
           status: string | null
           tests_ordered: string[] | null
           updated_at: string
@@ -46,6 +49,7 @@ export type Database = {
           billing_details?: Json | null
           chief_complaint?: string | null
           created_at?: string
+          doctor_final_transcript?: string | null
           doctor_id: string
           drug_interactions?: Json | null
           drug_recommendations?: Json | null
@@ -56,11 +60,13 @@ export type Database = {
           patient_id: string
           pubmed_citations?: Json | null
           raw_transcript?: string | null
+          review_confirmed?: boolean | null
           risk_assessment?: Json | null
           soap_assessment?: string | null
           soap_objective?: string | null
           soap_plan?: string | null
           soap_subjective?: string | null
+          stabilized_transcript?: string | null
           status?: string | null
           tests_ordered?: string[] | null
           updated_at?: string
@@ -71,6 +77,7 @@ export type Database = {
           billing_details?: Json | null
           chief_complaint?: string | null
           created_at?: string
+          doctor_final_transcript?: string | null
           doctor_id?: string
           drug_interactions?: Json | null
           drug_recommendations?: Json | null
@@ -81,11 +88,13 @@ export type Database = {
           patient_id?: string
           pubmed_citations?: Json | null
           raw_transcript?: string | null
+          review_confirmed?: boolean | null
           risk_assessment?: Json | null
           soap_assessment?: string | null
           soap_objective?: string | null
           soap_plan?: string | null
           soap_subjective?: string | null
+          stabilized_transcript?: string | null
           status?: string | null
           tests_ordered?: string[] | null
           updated_at?: string
