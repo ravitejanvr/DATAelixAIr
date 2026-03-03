@@ -5,3 +5,21 @@ verify_jwt = false
 
 [functions.clinical-agent]
 verify_jwt = false
+
+[functions.clinical-soap]
+verify_jwt = false
+
+[functions.extract-patient-data]
+verify_jwt = false
+
+[functions.translate-clinical]
+verify_jwt = false
+
+[functions.air-quality]
+verify_jwt = false
+
+[functions.places-search]
+verify_jwt = false
+
+[functions.translate-report]
+verify_jwt = false

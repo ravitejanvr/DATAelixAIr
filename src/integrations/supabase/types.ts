@@ -24,6 +24,8 @@ export type Database = {
           doctor_id: string
           drug_interactions: Json | null
           drug_recommendations: Json | null
+          edited_transcript: string | null
+          extracted_data: Json | null
           follow_up_date: string | null
           id: string
           patient_id: string
@@ -47,6 +49,8 @@ export type Database = {
           doctor_id: string
           drug_interactions?: Json | null
           drug_recommendations?: Json | null
+          edited_transcript?: string | null
+          extracted_data?: Json | null
           follow_up_date?: string | null
           id?: string
           patient_id: string
@@ -70,6 +74,8 @@ export type Database = {
           doctor_id?: string
           drug_interactions?: Json | null
           drug_recommendations?: Json | null
+          edited_transcript?: string | null
+          extracted_data?: Json | null
           follow_up_date?: string | null
           id?: string
           patient_id?: string
