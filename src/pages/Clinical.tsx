@@ -15,7 +15,8 @@ import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   Activity, LogOut, Loader2, Save, User, Mic,
-  CheckCircle2, ChevronRight, FileText, Clock, Edit3, Eye, EyeOff
+  CheckCircle2, ChevronRight, FileText, Clock, Edit3, Eye, EyeOff,
+  ShieldCheck, AlertTriangle, XCircle, CheckCircle, Info
 } from "lucide-react";
 import VoiceRecorder from "@/components/VoiceRecorder";
 
@@ -33,12 +34,52 @@ interface SoapSections {
   "Visit Summary": string;
   "Findings": string;
   "Provisional Diagnosis": string;
+  "Safety Warnings": string;
   "Treatment Plan": string;
   "Advice": string;
   "Follow-up": string;
 }
 
-type PipelineStep = "record" | "review" | "extract" | "soap" | "saved";
+interface NormalizedDrug {
+  original_name: string;
+  rxnorm_id: string | null;
+  canonical_name: string | null;
+  confidence_level: "high" | "moderate" | "low";
+  warning: string | null;
+}
+
+interface InteractionFlag {
+  interaction_warning: boolean;
+  severity: "mild" | "moderate" | "severe";
+  drug_a: string;
+  drug_b: string;
+  description: string;
+}
+
+interface AllergyFlag {
+  medication: string;
+  allergy: string;
+  severity: "high";
+  message: string;
+}
+
+interface DoseWarning {
+  medication: string;
+  issue: string;
+  message: string;
+}
+
+interface SafetyResults {
+  normalized_drugs: NormalizedDrug[];
+  interaction_flags: InteractionFlag[];
+  allergy_flags: AllergyFlag[];
+  dose_warnings: DoseWarning[];
+  confidence_level: "low" | "moderate" | "high";
+  requires_manual_review: boolean;
+  timestamp: string;
+}
+
+type PipelineStep = "record" | "review" | "extract" | "safety" | "soap" | "saved";
 
 const EMPTY_EXTRACTED: ExtractedData = {
   chief_complaint: "",
@@ -54,6 +95,7 @@ const EMPTY_SOAP: SoapSections = {
   "Visit Summary": "",
   "Findings": "",
   "Provisional Diagnosis": "",
+  "Safety Warnings": "",
   "Treatment Plan": "",
   "Advice": "",
   "Follow-up": "",
@@ -78,6 +120,8 @@ export default function Clinical() {
   const [isGeneratingSoap, setIsGeneratingSoap] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
+  const [safetyResults, setSafetyResults] = useState<SafetyResults | null>(null);
+  const [isRunningSafety, setIsRunningSafety] = useState(false);
 
   const [previousSessions, setPreviousSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -167,12 +211,62 @@ export default function Clinical() {
     }
   };
 
+  // --- SAFETY CONTROLLER ---
+  const runSafetyCheck = async () => {
+    setIsRunningSafety(true);
+    setStep("safety");
+    try {
+      const medications = extractedData.current_medications
+        ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean)
+        : [];
+      const allergies = extractedData.allergies
+        ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean)
+        : [];
+
+      if (medications.length === 0) {
+        // No medications — skip safety with clean result
+        setSafetyResults({
+          normalized_drugs: [],
+          interaction_flags: [],
+          allergy_flags: [],
+          dose_warnings: [],
+          confidence_level: "high",
+          requires_manual_review: false,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("clinical-safety", {
+        body: { medications, allergies },
+      });
+      if (error) throw new Error(error.message);
+      setSafetyResults(data as SafetyResults);
+    } catch (err: any) {
+      toast({ title: "Safety check notice", description: err.message || "Safety check could not complete. You may proceed.", variant: "default" });
+      setSafetyResults({
+        normalized_drugs: [],
+        interaction_flags: [],
+        allergy_flags: [],
+        dose_warnings: [],
+        confidence_level: "moderate",
+        requires_manual_review: true,
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setIsRunningSafety(false);
+    }
+  };
+
   const generateSoap = async () => {
     setIsGeneratingSoap(true);
     setStep("soap");
     try {
       const { data, error } = await supabase.functions.invoke("clinical-soap", {
-        body: { transcript: editedTranscript.trim(), extractedData },
+        body: {
+          transcript: editedTranscript.trim(),
+          extractedData: { ...extractedData, safety_results: safetyResults },
+        },
       });
       if (error) throw new Error(error.message);
       setSoapFullText(data.soap_text || "");
@@ -180,13 +274,14 @@ export default function Clinical() {
         "Visit Summary": data.sections?.["Visit Summary"] || "",
         "Findings": data.sections?.["Findings"] || "",
         "Provisional Diagnosis": data.sections?.["Provisional Diagnosis"] || "",
+        "Safety Warnings": data.sections?.["Safety Warnings"] || "No safety concerns identified.",
         "Treatment Plan": data.sections?.["Treatment Plan"] || "",
         "Advice": data.sections?.["Advice"] || "",
         "Follow-up": data.sections?.["Follow-up"] || "",
       });
     } catch (err: any) {
       toast({ title: "SOAP generation failed", description: err.message, variant: "destructive" });
-      setStep("extract");
+      setStep("safety");
     } finally {
       setIsGeneratingSoap(false);
     }
@@ -225,6 +320,13 @@ export default function Clinical() {
         soap_assessment: soapSections["Provisional Diagnosis"],
         soap_plan: `${soapSections["Treatment Plan"]}\n\n${soapSections["Advice"]}\n\n${soapSections["Follow-up"]}`,
         status: "completed",
+        safety_flags: safetyResults ? [
+          ...safetyResults.interaction_flags,
+          ...safetyResults.allergy_flags,
+          ...safetyResults.dose_warnings,
+        ] : [],
+        normalization_results: safetyResults?.normalized_drugs || [],
+        confidence_score: safetyResults?.confidence_level || "moderate",
       } as any).select("id").single();
 
       if (error) throw new Error(error.message);
@@ -251,6 +353,7 @@ export default function Clinical() {
     setSoapSections(EMPTY_SOAP);
     setSoapFullText("");
     setSavedSessionId(null);
+    setSafetyResults(null);
   };
 
   const updateExtractedField = (field: keyof ExtractedData, value: string) => {
@@ -265,11 +368,24 @@ export default function Clinical() {
     { key: "record", label: "Record", num: 1 },
     { key: "review", label: "Review", num: 2 },
     { key: "extract", label: "Extract", num: 3 },
-    { key: "soap", label: "SOAP", num: 4 },
-    { key: "saved", label: "Saved", num: 5 },
+    { key: "safety", label: "Safety", num: 4 },
+    { key: "soap", label: "SOAP", num: 5 },
+    { key: "saved", label: "Saved", num: 6 },
   ];
 
   const stepIndex = steps.findIndex(s => s.key === step);
+
+  const severityColor = (sev: string) => {
+    if (sev === "severe" || sev === "high") return "text-destructive bg-destructive/10 border-destructive/20";
+    if (sev === "moderate") return "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800";
+    return "text-muted-foreground bg-muted/50 border-border";
+  };
+
+  const confidenceBadge = (level: string) => {
+    if (level === "high") return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"><CheckCircle className="h-3 w-3 mr-1" />High Confidence</Badge>;
+    if (level === "moderate") return <Badge className="bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800"><AlertTriangle className="h-3 w-3 mr-1" />Moderate Confidence</Badge>;
+    return <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800"><XCircle className="h-3 w-3 mr-1" />Low Confidence — Review Required</Badge>;
+  };
 
   return (
     <>
@@ -438,7 +554,7 @@ export default function Clinical() {
                     <FileText className="h-5 w-5 text-primary" /> Structured Extraction
                   </CardTitle>
                   <CardDescription>
-                    AI-extracted clinical data. Review and edit each field before generating the summary.
+                    AI-extracted clinical data. Review and edit each field before safety validation.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -472,8 +588,8 @@ export default function Clinical() {
                         <Button variant="outline" size="sm" onClick={() => setStep("review")}>
                           ← Edit Transcript
                         </Button>
-                        <Button onClick={generateSoap} className="flex-1" size="sm">
-                          Generate Clinical Summary <ChevronRight className="h-4 w-4 ml-1" />
+                        <Button onClick={runSafetyCheck} className="flex-1" size="sm">
+                          <ShieldCheck className="h-4 w-4 mr-1" /> Run Safety Check <ChevronRight className="h-4 w-4 ml-1" />
                         </Button>
                       </div>
                     </>
@@ -482,7 +598,164 @@ export default function Clinical() {
               </Card>
             )}
 
-            {/* STEP 4: SOAP / Clinical Summary */}
+            {/* STEP 4: Safety Controller */}
+            {step === "safety" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-primary" /> Safety Check Summary
+                  </CardTitle>
+                  <CardDescription>
+                    Automated safety validation. Review flags before generating the clinical summary.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {isRunningSafety ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+                      <span className="text-sm text-muted-foreground">Running safety checks (RxNorm, interactions, allergies, dosage)...</span>
+                    </div>
+                  ) : safetyResults ? (
+                    <>
+                      {/* Overall confidence */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Overall Confidence</span>
+                        {confidenceBadge(safetyResults.confidence_level)}
+                      </div>
+
+                      {/* Drug Normalization */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                          <Info className="h-3.5 w-3.5 text-primary" /> Drug Normalization (RxNorm)
+                        </h4>
+                        {safetyResults.normalized_drugs.length === 0 ? (
+                          <p className="text-xs text-muted-foreground pl-5">No medications to normalize.</p>
+                        ) : (
+                          <div className="space-y-1.5 pl-5">
+                            {safetyResults.normalized_drugs.map((drug, i) => (
+                              <div key={i} className={`flex items-start gap-2 p-2 rounded-md border text-xs ${
+                                drug.rxnorm_id ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+                                  : "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20"
+                              }`}>
+                                {drug.rxnorm_id ? (
+                                  <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                                ) : (
+                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                                )}
+                                <div>
+                                  <span className="font-medium">{drug.original_name}</span>
+                                  {drug.canonical_name && drug.canonical_name !== drug.original_name && (
+                                    <span className="text-muted-foreground"> → {drug.canonical_name}</span>
+                                  )}
+                                  {drug.rxnorm_id && (
+                                    <span className="text-muted-foreground ml-1">(RxCUI: {drug.rxnorm_id})</span>
+                                  )}
+                                  {drug.warning && (
+                                    <p className="text-amber-700 dark:text-amber-400 mt-0.5">{drug.warning}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Interaction Flags */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> Interaction Risks
+                        </h4>
+                        {safetyResults.interaction_flags.length === 0 ? (
+                          <div className="flex items-center gap-1.5 pl-5">
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <p className="text-xs text-muted-foreground">No interactions detected.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5 pl-5">
+                            {safetyResults.interaction_flags.map((flag, i) => (
+                              <div key={i} className={`p-2 rounded-md border text-xs ${severityColor(flag.severity)}`}>
+                                <div className="flex items-center gap-1.5 font-medium">
+                                  {flag.severity === "severe" ? <XCircle className="h-3.5 w-3.5 shrink-0" /> : <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                                  {flag.drug_a} ↔ {flag.drug_b}
+                                  <Badge variant="outline" className="text-[9px] ml-auto">{flag.severity}</Badge>
+                                </div>
+                                <p className="mt-0.5 pl-5">{flag.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Allergy Flags */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                          <XCircle className="h-3.5 w-3.5 text-destructive" /> Allergy Conflicts
+                        </h4>
+                        {safetyResults.allergy_flags.length === 0 ? (
+                          <div className="flex items-center gap-1.5 pl-5">
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <p className="text-xs text-muted-foreground">No allergy conflicts detected.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5 pl-5">
+                            {safetyResults.allergy_flags.map((flag, i) => (
+                              <div key={i} className="p-2 rounded-md border border-destructive/30 bg-destructive/5 text-xs text-destructive dark:bg-destructive/10">
+                                <div className="flex items-center gap-1.5 font-semibold">
+                                  <XCircle className="h-3.5 w-3.5 shrink-0" />
+                                  {flag.message}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Dose Warnings */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                          <Info className="h-3.5 w-3.5 text-primary" /> Dose Sanity
+                        </h4>
+                        {safetyResults.dose_warnings.length === 0 ? (
+                          <div className="flex items-center gap-1.5 pl-5">
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <p className="text-xs text-muted-foreground">No dosage concerns.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5 pl-5">
+                            {safetyResults.dose_warnings.map((w, i) => (
+                              <div key={i} className="p-2 rounded-md border border-amber-200 bg-amber-50/50 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
+                                <div className="flex items-center gap-1.5">
+                                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                  {w.message}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {safetyResults.requires_manual_review && (
+                        <div className="p-3 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                          <span>Manual review recommended. Please verify flagged items before proceeding.</span>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 pt-2">
+                        <Button variant="outline" size="sm" onClick={() => setStep("extract")}>
+                          ← Edit Extraction
+                        </Button>
+                        <Button onClick={generateSoap} className="flex-1" size="sm">
+                          Generate Clinical Summary <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
+                    </>
+                  ) : null}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* STEP 5: SOAP / Clinical Summary */}
             {step === "soap" && (
               <Card>
                 <CardHeader>
@@ -503,18 +776,21 @@ export default function Clinical() {
                     <>
                       {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
                         <div key={section}>
-                          <Label className="text-xs font-semibold">{section}</Label>
+                          <Label className={`text-xs font-semibold ${section === "Safety Warnings" ? "text-amber-600 dark:text-amber-400" : ""}`}>
+                            {section === "Safety Warnings" && <ShieldCheck className="h-3 w-3 inline mr-1" />}
+                            {section}
+                          </Label>
                           <Textarea
                             value={soapSections[section]}
                             onChange={e => updateSoapSection(section, e.target.value)}
-                            rows={2}
-                            className="text-sm"
+                            rows={section === "Safety Warnings" ? 3 : 2}
+                            className={`text-sm ${section === "Safety Warnings" ? "border-amber-200 dark:border-amber-800" : ""}`}
                           />
                         </div>
                       ))}
                       <div className="flex gap-2 pt-2">
-                        <Button variant="outline" size="sm" onClick={() => setStep("extract")}>
-                          ← Edit Extraction
+                        <Button variant="outline" size="sm" onClick={() => setStep("safety")}>
+                          ← Safety Check
                         </Button>
                         <Button onClick={saveSession} disabled={isSaving} className="flex-1" size="sm">
                           {isSaving ? (
@@ -530,7 +806,7 @@ export default function Clinical() {
               </Card>
             )}
 
-            {/* STEP 5: Saved */}
+            {/* STEP 6: Saved */}
             {step === "saved" && (
               <Card className="border-primary/20">
                 <CardContent className="py-8 text-center space-y-4">
