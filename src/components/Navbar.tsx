@@ -6,7 +6,6 @@ import brainLogo from "@/assets/brain-logo-nobg.png";
 import { AnimatePresence, motion } from "framer-motion";
 
 const navLinks = [
-  { label: "Home", path: "/", hash: "" },
   { label: "Product", path: "/", hash: "#product" },
   { label: "Security", path: "/", hash: "#security" },
   { label: "Vision", path: "/vision", hash: "" },
