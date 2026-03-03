@@ -23,6 +23,8 @@ import Dashboard from "./pages/Dashboard";
 import Prescriptions from "./pages/Prescriptions";
 import ConsultationDetail from "./pages/ConsultationDetail";
 import PatientPortal from "./pages/PatientPortal";
+import PilotRequest from "./pages/PilotRequest";
+import AdminDashboard from "./pages/AdminDashboard";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +55,8 @@ const App = () => (
               <Route path="/prescriptions" element={<ProtectedRoute><Prescriptions /></ProtectedRoute>} />
               <Route path="/consultations/:id" element={<ProtectedRoute><ConsultationDetail /></ProtectedRoute>} />
               <Route path="/patient-portal" element={<ProtectedRoute><PatientPortal /></ProtectedRoute>} />
+              <Route path="/pilot-request" element={<ProtectedRoute><PilotRequest /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
 
               {/* Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
