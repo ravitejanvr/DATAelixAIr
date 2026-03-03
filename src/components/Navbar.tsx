@@ -31,7 +31,11 @@ const Navbar = () => {
         }, 300);
       }
     } else {
-      navigate(link.path);
+      if (location.pathname === link.path) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        navigate(link.path);
+      }
     }
   }, [location.pathname, navigate]);
 
