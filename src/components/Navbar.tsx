@@ -1,22 +1,39 @@
-import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import { AnimatePresence, motion } from "framer-motion";
 
 const navLinks = [
-  { label: "Home", path: "/" },
-  { label: "Product", path: "/#product" },
-  { label: "Security", path: "/#security" },
-  { label: "Vision", path: "/vision" },
-  { label: "Blog", path: "/blog" },
+  { label: "Home", path: "/", hash: "" },
+  { label: "Product", path: "/", hash: "#product" },
+  { label: "Security", path: "/", hash: "#security" },
+  { label: "Vision", path: "/vision", hash: "" },
+  { label: "Blog", path: "/blog", hash: "" },
 ];
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleNavClick = useCallback((link: typeof navLinks[0]) => {
+    setOpen(false);
+    if (link.hash) {
+      if (location.pathname === link.path) {
+        document.querySelector(link.hash)?.scrollIntoView({ behavior: "smooth" });
+      } else {
+        navigate(link.path);
+        setTimeout(() => {
+          document.querySelector(link.hash)?.scrollIntoView({ behavior: "smooth" });
+        }, 300);
+      }
+    } else {
+      navigate(link.path);
+    }
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -41,17 +58,17 @@ const Navbar = () => {
         {/* Desktop */}
         <div className="hidden md:flex items-center gap-9">
           {navLinks.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={`text-sm font-medium tracking-wide transition-colors ${
-                location.pathname === link.path
+            <button
+              key={link.label}
+              onClick={() => handleNavClick(link)}
+              className={`text-sm font-medium tracking-wide transition-colors bg-transparent border-none cursor-pointer ${
+                location.pathname === link.path && !link.hash
                   ? "text-primary"
                   : "text-muted-foreground hover:text-primary"
               }`}
             >
               {link.label}
-            </Link>
+            </button>
           ))}
         </div>
 
@@ -77,14 +94,13 @@ const Navbar = () => {
           >
             <div className="flex flex-col p-6 gap-2">
               {navLinks.map((link) => (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  onClick={() => setOpen(false)}
-                  className="font-display text-2xl font-bold py-3 border-b border-border text-foreground hover:text-primary transition-colors"
+                <button
+                  key={link.label}
+                  onClick={() => handleNavClick(link)}
+                  className="font-display text-2xl font-bold py-3 border-b border-border text-foreground hover:text-primary transition-colors bg-transparent w-full text-left cursor-pointer"
                 >
                   {link.label}
-                </Link>
+                </button>
               ))}
               <Button variant="default" className="mt-4" asChild>
                 <Link to="/onboard" onClick={() => setOpen(false)}>Request Pilot →</Link>
