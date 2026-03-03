@@ -20,6 +20,7 @@ export type Database = {
           billing_amount: number | null
           billing_details: Json | null
           chief_complaint: string | null
+          confidence_score: string | null
           created_at: string
           doctor_final_transcript: string | null
           doctor_id: string
@@ -29,11 +30,13 @@ export type Database = {
           extracted_data: Json | null
           follow_up_date: string | null
           id: string
+          normalization_results: Json | null
           patient_id: string
           pubmed_citations: Json | null
           raw_transcript: string | null
           review_confirmed: boolean | null
           risk_assessment: Json | null
+          safety_flags: Json | null
           soap_assessment: string | null
           soap_objective: string | null
           soap_plan: string | null
@@ -48,6 +51,7 @@ export type Database = {
           billing_amount?: number | null
           billing_details?: Json | null
           chief_complaint?: string | null
+          confidence_score?: string | null
           created_at?: string
           doctor_final_transcript?: string | null
           doctor_id: string
@@ -57,11 +61,13 @@ export type Database = {
           extracted_data?: Json | null
           follow_up_date?: string | null
           id?: string
+          normalization_results?: Json | null
           patient_id: string
           pubmed_citations?: Json | null
           raw_transcript?: string | null
           review_confirmed?: boolean | null
           risk_assessment?: Json | null
+          safety_flags?: Json | null
           soap_assessment?: string | null
           soap_objective?: string | null
           soap_plan?: string | null
@@ -76,6 +82,7 @@ export type Database = {
           billing_amount?: number | null
           billing_details?: Json | null
           chief_complaint?: string | null
+          confidence_score?: string | null
           created_at?: string
           doctor_final_transcript?: string | null
           doctor_id?: string
@@ -85,11 +92,13 @@ export type Database = {
           extracted_data?: Json | null
           follow_up_date?: string | null
           id?: string
+          normalization_results?: Json | null
           patient_id?: string
           pubmed_citations?: Json | null
           raw_transcript?: string | null
           review_confirmed?: boolean | null
           risk_assessment?: Json | null
+          safety_flags?: Json | null
           soap_assessment?: string | null
           soap_objective?: string | null
           soap_plan?: string | null
