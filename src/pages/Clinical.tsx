@@ -8,15 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/SEO";
+import EvidencePanel from "@/components/EvidencePanel";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   Activity, LogOut, Loader2, Save, User, Mic,
   CheckCircle2, ChevronRight, FileText, Clock, Edit3, Eye, EyeOff,
-  ShieldCheck, AlertTriangle, XCircle, CheckCircle, Info
+  ShieldCheck, AlertTriangle, XCircle, CheckCircle, Info, Languages
 } from "lucide-react";
 import VoiceRecorder from "@/components/VoiceRecorder";
 
@@ -122,6 +124,10 @@ export default function Clinical() {
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
   const [safetyResults, setSafetyResults] = useState<SafetyResults | null>(null);
   const [isRunningSafety, setIsRunningSafety] = useState(false);
+  const [patientExplanation, setPatientExplanation] = useState("");
+  const [explanationLang, setExplanationLang] = useState<"english" | "telugu">("telugu");
+  const [isGeneratingExplanation, setIsGeneratingExplanation] = useState(false);
+  const [showPatientExplanation, setShowPatientExplanation] = useState(false);
 
   const [previousSessions, setPreviousSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -354,6 +360,27 @@ export default function Clinical() {
     setSoapFullText("");
     setSavedSessionId(null);
     setSafetyResults(null);
+    setPatientExplanation("");
+    setShowPatientExplanation(false);
+  };
+
+  const generatePatientExplanation = async () => {
+    setIsGeneratingExplanation(true);
+    try {
+      const soapText = Object.entries(soapSections)
+        .map(([h, c]) => `${h}: ${c}`)
+        .join("\n");
+      const { data, error } = await supabase.functions.invoke("patient-explanation", {
+        body: { soap_summary: soapText, language: explanationLang },
+      });
+      if (error) throw new Error(error.message);
+      setPatientExplanation(data.explanation || "");
+      setShowPatientExplanation(true);
+    } catch (err: any) {
+      toast({ title: "Explanation generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsGeneratingExplanation(false);
+    }
   };
 
   const updateExtractedField = (field: keyof ExtractedData, value: string) => {
@@ -788,6 +815,52 @@ export default function Clinical() {
                           />
                         </div>
                       ))}
+
+                      {/* Phase 3: Evidence Panel */}
+                      <EvidencePanel
+                        medications={extractedData.current_medications ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : []}
+                        diagnosis={soapSections["Provisional Diagnosis"] || extractedData.chief_complaint}
+                        allergies={extractedData.allergies ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : []}
+                        confidenceLevel={safetyResults?.confidence_level || "moderate"}
+                      />
+
+                      {/* Phase 4: Patient Explanation Toggle */}
+                      <Card className="border-border">
+                        <CardContent className="py-3 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Languages className="h-4 w-4 text-primary" />
+                              <span className="text-xs font-medium">Patient-Friendly Explanation</span>
+                              <Badge variant="outline" className="text-[9px]">Optional</Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={explanationLang}
+                                onChange={e => setExplanationLang(e.target.value as "english" | "telugu")}
+                                className="text-[10px] border border-border rounded px-1.5 py-0.5 bg-background"
+                              >
+                                <option value="english">English</option>
+                                <option value="telugu">Telugu</option>
+                              </select>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs h-7"
+                                onClick={generatePatientExplanation}
+                                disabled={isGeneratingExplanation}
+                              >
+                                {isGeneratingExplanation ? <Loader2 className="h-3 w-3 animate-spin" /> : "Generate"}
+                              </Button>
+                            </div>
+                          </div>
+                          {showPatientExplanation && patientExplanation && (
+                            <div className="p-3 rounded-md border border-primary/20 bg-primary/5 text-xs whitespace-pre-wrap">
+                              {patientExplanation}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
                       <div className="flex gap-2 pt-2">
                         <Button variant="outline" size="sm" onClick={() => setStep("safety")}>
                           ← Safety Check

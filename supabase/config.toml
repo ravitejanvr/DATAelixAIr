@@ -26,3 +26,9 @@ verify_jwt = false
 
 [functions.stabilize-transcript]
 verify_jwt = false
+
+[functions.evidence-agents]
+verify_jwt = false
+
+[functions.patient-explanation]
+verify_jwt = false
