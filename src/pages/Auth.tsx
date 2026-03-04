@@ -16,14 +16,11 @@ type AuthMode = "signin" | "signup";
 
 const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "doctor", label: "Doctor" },
-  { value: "patient", label: "Patient" },
   { value: "nurse", label: "Nurse" },
-  { value: "allied_health", label: "Allied Health" },
+  { value: "receptionist", label: "Receptionist" },
   { value: "pharmacist", label: "Pharmacist" },
-  { value: "lab", label: "Lab" },
-  { value: "care_coordinator", label: "Care Coordinator" },
-  { value: "front_desk", label: "Front Desk" },
-  { value: "admin", label: "Admin" },
+  { value: "clinic_admin", label: "Clinic Admin" },
+  { value: "patient", label: "Patient" },
 ];
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -138,7 +135,15 @@ export default function Auth() {
 
   const routeAfterAuth = async (userId: string, fallbackRole?: AppRole) => {
     const role = fallbackRole ?? (await getUserRole(userId));
-    navigate(role === "patient" ? "/patient-portal" : "/dashboard");
+    switch (role) {
+      case "platform_admin": navigate("/platform-admin"); break;
+      case "clinic_admin": navigate("/dashboard"); break;
+      case "nurse": navigate("/vitals"); break;
+      case "patient": navigate("/patient-portal"); break;
+      case "receptionist": navigate("/dashboard"); break;
+      case "pharmacist": navigate("/prescriptions"); break;
+      default: navigate("/dashboard"); break;
+    }
   };
 
   const handleSignIn = async () => {
@@ -458,18 +463,8 @@ export default function Auth() {
           </div>
 
           <p className="text-[10px] text-center text-muted-foreground/50 mt-3">
-            Data encrypted with TLS 1.3 · DPDP / GDPR aligned · Human-in-the-loop AI
+            Built with healthcare-aligned security principles · Minimal necessary data · Clinic-controlled
           </p>
-
-          {/* Temporary Debug Panel */}
-          <details className="mt-4 border border-border rounded-lg p-3 bg-muted/30">
-            <summary className="text-xs font-mono text-muted-foreground cursor-pointer">🔧 Debug Info</summary>
-            <div className="mt-2 space-y-1 text-[11px] font-mono text-muted-foreground">
-              {Object.entries(debugInfo).map(([key, val]) => (
-                <div key={key}><span className="text-foreground/60">{key}:</span> {val}</div>
-              ))}
-            </div>
-          </details>
         </motion.div>
       </div>
     </>
