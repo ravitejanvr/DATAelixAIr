@@ -38,7 +38,6 @@ import PatientPortal from "./pages/PatientPortal";
 import Vitals from "./pages/Vitals";
 import Billing from "./pages/Billing";
 import VisitTracker from "./pages/VisitTracker";
-import VisitTracker from "./pages/VisitTracker";
 
 // Platform admin
 import PlatformAdmin from "./pages/PlatformAdmin";
