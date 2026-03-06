@@ -8,15 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/SEO";
 import EvidencePanel from "@/components/EvidencePanel";
-import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
-  Activity, LogOut, Loader2, Save, User, Mic,
+  Loader2, Save, Mic,
   CheckCircle2, ChevronRight, FileText, Clock, Edit3, Eye, EyeOff,
   ShieldCheck, AlertTriangle, XCircle, CheckCircle, Info, Languages
 } from "lucide-react";
@@ -84,27 +82,17 @@ interface SafetyResults {
 type PipelineStep = "record" | "review" | "extract" | "safety" | "soap" | "saved";
 
 const EMPTY_EXTRACTED: ExtractedData = {
-  chief_complaint: "",
-  duration: "",
-  associated_symptoms: "",
-  vitals: "",
-  chronic_conditions: "",
-  current_medications: "",
-  allergies: "",
+  chief_complaint: "", duration: "", associated_symptoms: "",
+  vitals: "", chronic_conditions: "", current_medications: "", allergies: "",
 };
 
 const EMPTY_SOAP: SoapSections = {
-  "Visit Summary": "",
-  "Findings": "",
-  "Provisional Diagnosis": "",
-  "Safety Warnings": "",
-  "Treatment Plan": "",
-  "Advice": "",
-  "Follow-up": "",
+  "Visit Summary": "", "Findings": "", "Provisional Diagnosis": "",
+  "Safety Warnings": "", "Treatment Plan": "", "Advice": "", "Follow-up": "",
 };
 
 export default function Clinical() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -128,13 +116,10 @@ export default function Clinical() {
   const [explanationLang, setExplanationLang] = useState<"english" | "telugu">("telugu");
   const [isGeneratingExplanation, setIsGeneratingExplanation] = useState(false);
   const [showPatientExplanation, setShowPatientExplanation] = useState(false);
-
   const [previousSessions, setPreviousSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
 
-  useEffect(() => {
-    if (user) loadPreviousSessions();
-  }, [user]);
+  useEffect(() => { if (user) loadPreviousSessions(); }, [user]);
 
   const loadPreviousSessions = async () => {
     if (!user) return;
@@ -147,14 +132,10 @@ export default function Clinical() {
         .order("created_at", { ascending: false })
         .limit(10);
       setPreviousSessions(data || []);
-    } catch {} finally {
-      setLoadingSessions(false);
-    }
+    } catch {} finally { setLoadingSessions(false); }
   };
 
-  const handleTranscriptUpdate = (transcript: string) => {
-    setRawTranscript(transcript);
-  };
+  const handleTranscriptUpdate = (transcript: string) => setRawTranscript(transcript);
 
   const goToReview = async () => {
     if (!rawTranscript.trim()) {
@@ -172,13 +153,11 @@ export default function Clinical() {
       const stabilized = data.stabilized_transcript || rawTranscript;
       setStabilizedTranscript(stabilized);
       setEditedTranscript(stabilized);
-    } catch (err: any) {
-      toast({ title: "Stabilization notice", description: "Could not stabilize transcript. Showing raw version.", variant: "default" });
+    } catch {
+      toast({ title: "Stabilization notice", description: "Could not stabilize transcript. Showing raw version." });
       setStabilizedTranscript(rawTranscript);
       setEditedTranscript(rawTranscript);
-    } finally {
-      setIsStabilizing(false);
-    }
+    } finally { setIsStabilizing(false); }
   };
 
   const confirmTranscript = () => {
@@ -202,66 +181,35 @@ export default function Clinical() {
       });
       if (error) throw new Error(error.message);
       setExtractedData({
-        chief_complaint: data.chief_complaint || "",
-        duration: data.duration || "",
-        associated_symptoms: data.associated_symptoms || "",
-        vitals: data.vitals || "",
-        chronic_conditions: data.chronic_conditions || "",
-        current_medications: data.current_medications || "",
+        chief_complaint: data.chief_complaint || "", duration: data.duration || "",
+        associated_symptoms: data.associated_symptoms || "", vitals: data.vitals || "",
+        chronic_conditions: data.chronic_conditions || "", current_medications: data.current_medications || "",
         allergies: data.allergies || "",
       });
     } catch (err: any) {
       toast({ title: "Extraction failed", description: err.message, variant: "destructive" });
-    } finally {
-      setIsExtracting(false);
-    }
+    } finally { setIsExtracting(false); }
   };
 
-  // --- SAFETY CONTROLLER ---
   const runSafetyCheck = async () => {
     setIsRunningSafety(true);
     setStep("safety");
     try {
       const medications = extractedData.current_medications
-        ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean)
-        : [];
+        ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : [];
       const allergies = extractedData.allergies
-        ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean)
-        : [];
-
+        ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : [];
       if (medications.length === 0) {
-        // No medications — skip safety with clean result
-        setSafetyResults({
-          normalized_drugs: [],
-          interaction_flags: [],
-          allergy_flags: [],
-          dose_warnings: [],
-          confidence_level: "high",
-          requires_manual_review: false,
-          timestamp: new Date().toISOString(),
-        });
+        setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString() });
         return;
       }
-
-      const { data, error } = await supabase.functions.invoke("clinical-safety", {
-        body: { medications, allergies },
-      });
+      const { data, error } = await supabase.functions.invoke("clinical-safety", { body: { medications, allergies } });
       if (error) throw new Error(error.message);
       setSafetyResults(data as SafetyResults);
     } catch (err: any) {
-      toast({ title: "Safety check notice", description: err.message || "Safety check could not complete. You may proceed.", variant: "default" });
-      setSafetyResults({
-        normalized_drugs: [],
-        interaction_flags: [],
-        allergy_flags: [],
-        dose_warnings: [],
-        confidence_level: "moderate",
-        requires_manual_review: true,
-        timestamp: new Date().toISOString(),
-      });
-    } finally {
-      setIsRunningSafety(false);
-    }
+      toast({ title: "Safety check notice", description: err.message || "Safety check could not complete." });
+      setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], confidence_level: "moderate", requires_manual_review: true, timestamp: new Date().toISOString() });
+    } finally { setIsRunningSafety(false); }
   };
 
   const generateSoap = async () => {
@@ -269,72 +217,49 @@ export default function Clinical() {
     setStep("soap");
     try {
       const { data, error } = await supabase.functions.invoke("clinical-soap", {
-        body: {
-          transcript: editedTranscript.trim(),
-          extractedData: { ...extractedData, safety_results: safetyResults },
-        },
+        body: { transcript: editedTranscript.trim(), extractedData: { ...extractedData, safety_results: safetyResults } },
       });
       if (error) throw new Error(error.message);
       setSoapFullText(data.soap_text || "");
       setSoapSections({
-        "Visit Summary": data.sections?.["Visit Summary"] || "",
-        "Findings": data.sections?.["Findings"] || "",
+        "Visit Summary": data.sections?.["Visit Summary"] || "", "Findings": data.sections?.["Findings"] || "",
         "Provisional Diagnosis": data.sections?.["Provisional Diagnosis"] || "",
         "Safety Warnings": data.sections?.["Safety Warnings"] || "No safety concerns identified.",
-        "Treatment Plan": data.sections?.["Treatment Plan"] || "",
-        "Advice": data.sections?.["Advice"] || "",
+        "Treatment Plan": data.sections?.["Treatment Plan"] || "", "Advice": data.sections?.["Advice"] || "",
         "Follow-up": data.sections?.["Follow-up"] || "",
       });
     } catch (err: any) {
-      toast({ title: "SOAP generation failed", description: err.message, variant: "destructive" });
+      toast({ title: "Summary generation failed", description: err.message, variant: "destructive" });
       setStep("safety");
-    } finally {
-      setIsGeneratingSoap(false);
-    }
+    } finally { setIsGeneratingSoap(false); }
   };
 
   const saveSession = async () => {
     if (!user) return;
     setIsSaving(true);
     try {
-      const editedSoapText = Object.entries(soapSections)
-        .map(([heading, content]) => `**${heading}**\n${content}`)
-        .join("\n\n");
-
+      const editedSoapText = Object.entries(soapSections).map(([h, c]) => `**${h}**\n${c}`).join("\n\n");
       const { data: patientData, error: patientError } = await supabase.from("patients").insert({
         name: extractedData.chief_complaint ? `Session Patient` : "Quick Patient",
         doctor_id: user.id,
         current_medications: extractedData.current_medications ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : [],
         allergies: extractedData.allergies ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : [],
       }).select("id").single();
-
       if (patientError) throw new Error(patientError.message);
 
       const { data: consultData, error } = await supabase.from("consultations").insert({
-        patient_id: patientData.id,
-        doctor_id: user.id,
-        chief_complaint: extractedData.chief_complaint,
-        raw_transcript: rawTranscript,
-        stabilized_transcript: stabilizedTranscript,
-        doctor_final_transcript: editedTranscript,
-        review_confirmed: reviewConfirmed,
-        edited_transcript: editedTranscript,
-        extracted_data: extractedData as any,
-        ai_summary: editedSoapText,
-        soap_subjective: soapSections["Visit Summary"],
-        soap_objective: soapSections["Findings"],
+        patient_id: patientData.id, doctor_id: user.id, chief_complaint: extractedData.chief_complaint,
+        raw_transcript: rawTranscript, stabilized_transcript: stabilizedTranscript,
+        doctor_final_transcript: editedTranscript, review_confirmed: reviewConfirmed,
+        edited_transcript: editedTranscript, extracted_data: extractedData as any, ai_summary: editedSoapText,
+        soap_subjective: soapSections["Visit Summary"], soap_objective: soapSections["Findings"],
         soap_assessment: soapSections["Provisional Diagnosis"],
         soap_plan: `${soapSections["Treatment Plan"]}\n\n${soapSections["Advice"]}\n\n${soapSections["Follow-up"]}`,
         status: "completed",
-        safety_flags: safetyResults ? [
-          ...safetyResults.interaction_flags,
-          ...safetyResults.allergy_flags,
-          ...safetyResults.dose_warnings,
-        ] : [],
+        safety_flags: safetyResults ? [...safetyResults.interaction_flags, ...safetyResults.allergy_flags, ...safetyResults.dose_warnings] : [],
         normalization_results: safetyResults?.normalized_drugs || [],
         confidence_score: safetyResults?.confidence_level || "moderate",
       } as any).select("id").single();
-
       if (error) throw new Error(error.message);
 
       setSavedSessionId(consultData.id);
@@ -343,33 +268,20 @@ export default function Clinical() {
       loadPreviousSessions();
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
+    } finally { setIsSaving(false); }
   };
 
   const startNewSession = () => {
-    setStep("record");
-    setRawTranscript("");
-    setStabilizedTranscript("");
-    setEditedTranscript("");
-    setReviewConfirmed(false);
-    setShowRawTranscript(false);
-    setExtractedData(EMPTY_EXTRACTED);
-    setSoapSections(EMPTY_SOAP);
-    setSoapFullText("");
-    setSavedSessionId(null);
-    setSafetyResults(null);
-    setPatientExplanation("");
-    setShowPatientExplanation(false);
+    setStep("record"); setRawTranscript(""); setStabilizedTranscript(""); setEditedTranscript("");
+    setReviewConfirmed(false); setShowRawTranscript(false); setExtractedData(EMPTY_EXTRACTED);
+    setSoapSections(EMPTY_SOAP); setSoapFullText(""); setSavedSessionId(null);
+    setSafetyResults(null); setPatientExplanation(""); setShowPatientExplanation(false);
   };
 
   const generatePatientExplanation = async () => {
     setIsGeneratingExplanation(true);
     try {
-      const soapText = Object.entries(soapSections)
-        .map(([h, c]) => `${h}: ${c}`)
-        .join("\n");
+      const soapText = Object.entries(soapSections).map(([h, c]) => `${h}: ${c}`).join("\n");
       const { data, error } = await supabase.functions.invoke("patient-explanation", {
         body: { soap_summary: soapText, language: explanationLang },
       });
@@ -378,26 +290,16 @@ export default function Clinical() {
       setShowPatientExplanation(true);
     } catch (err: any) {
       toast({ title: "Explanation generation failed", description: err.message, variant: "destructive" });
-    } finally {
-      setIsGeneratingExplanation(false);
-    }
+    } finally { setIsGeneratingExplanation(false); }
   };
 
-  const updateExtractedField = (field: keyof ExtractedData, value: string) => {
-    setExtractedData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const updateSoapSection = (section: keyof SoapSections, value: string) => {
-    setSoapSections(prev => ({ ...prev, [section]: value }));
-  };
+  const updateExtractedField = (field: keyof ExtractedData, value: string) => setExtractedData(prev => ({ ...prev, [field]: value }));
+  const updateSoapSection = (section: keyof SoapSections, value: string) => setSoapSections(prev => ({ ...prev, [section]: value }));
 
   const steps: { key: PipelineStep; label: string; num: number }[] = [
-    { key: "record", label: "Record", num: 1 },
-    { key: "review", label: "Review", num: 2 },
-    { key: "extract", label: "Extract", num: 3 },
-    { key: "safety", label: "Safety", num: 4 },
-    { key: "soap", label: "SOAP", num: 5 },
-    { key: "saved", label: "Saved", num: 6 },
+    { key: "record", label: "Record", num: 1 }, { key: "review", label: "Review", num: 2 },
+    { key: "extract", label: "Extract", num: 3 }, { key: "safety", label: "Safety", num: 4 },
+    { key: "soap", label: "Summary", num: 5 }, { key: "saved", label: "Saved", num: 6 },
   ];
 
   const stepIndex = steps.findIndex(s => s.key === step);
@@ -416,36 +318,11 @@ export default function Clinical() {
 
   return (
     <>
-      <SEO title="Clinical Session — DATAelixAIr" description="Multilingual AI clinical documentation" />
+      <SEO title="Write / Record — DATAelixAIr" description="AI clinical documentation workspace" />
 
-      <header className="fixed top-0 left-0 right-0 z-50 glass-nav border-b border-border px-4 py-2">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={brainLogo} alt="DATAelixAIr" className="h-8" />
-            <div>
-              <h1 className="text-sm font-bold text-foreground">Clinical Session</h1>
-              <p className="text-xs text-muted-foreground">AI Scribe</p>
-            </div>
-            <Badge variant="outline" className="text-[10px] font-mono ml-2">Prototype</Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
-              <Activity className="h-4 w-4 mr-1" /> Dashboard
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/patients")}>
-              <User className="h-4 w-4 mr-1" /> Patients
-            </Button>
-            <span className="text-xs text-muted-foreground hidden sm:inline">{user?.email}</span>
-            <Button variant="ghost" size="sm" onClick={() => { signOut(); navigate("/auth"); }}>
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="pt-16 pb-8 px-4 max-w-5xl mx-auto">
+      <div className="p-6 max-w-5xl mx-auto">
         {/* Step indicator */}
-        <div className="flex items-center gap-1 mt-4 mb-6 overflow-x-auto">
+        <div className="flex items-center gap-1 mb-6 overflow-x-auto">
           {steps.map((s, i) => (
             <div key={s.key} className="flex items-center">
               <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
@@ -462,7 +339,6 @@ export default function Clinical() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main pipeline area */}
           <div className="lg:col-span-2 space-y-4">
 
             {/* STEP 1: Record */}
@@ -471,9 +347,7 @@ export default function Clinical() {
                 <VoiceRecorder onTranscriptUpdate={handleTranscriptUpdate} />
                 {rawTranscript && (
                   <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Live Transcript</CardTitle>
-                    </CardHeader>
+                    <CardHeader className="pb-2"><CardTitle className="text-base">Live Transcript</CardTitle></CardHeader>
                     <CardContent>
                       <p className="text-sm text-foreground whitespace-pre-wrap">{rawTranscript}</p>
                       <Button onClick={goToReview} className="mt-3 w-full" size="sm">
@@ -486,9 +360,7 @@ export default function Clinical() {
                   <Card className="border-dashed">
                     <CardContent className="py-8 text-center">
                       <Mic className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                      <p className="text-sm text-muted-foreground">
-                        Click "Start Recording" or type the transcript directly in the next step
-                      </p>
+                      <p className="text-sm text-muted-foreground">Click "Start Recording" or type the transcript directly</p>
                       <Button variant="outline" size="sm" className="mt-3" onClick={() => { setStep("review"); setEditedTranscript(""); setStabilizedTranscript(""); }}>
                         Type transcript manually
                       </Button>
@@ -498,16 +370,12 @@ export default function Clinical() {
               </>
             )}
 
-            {/* STEP 2: Review & Edit Stabilized Transcript */}
+            {/* STEP 2: Review */}
             {step === "review" && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Edit3 className="h-5 w-5 text-primary" /> Review Transcript
-                  </CardTitle>
-                  <CardDescription>
-                    The transcript has been stabilized (repetitions removed, medical terms corrected). Review, edit, and confirm before extraction.
-                  </CardDescription>
+                  <CardTitle className="text-lg flex items-center gap-2"><Edit3 className="h-5 w-5 text-primary" /> Review Transcript</CardTitle>
+                  <CardDescription>Review, edit, and confirm before extraction.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {isStabilizing ? (
@@ -517,21 +385,13 @@ export default function Clinical() {
                     </div>
                   ) : (
                     <>
-                      <Textarea
-                        value={editedTranscript}
-                        onChange={e => { setEditedTranscript(e.target.value); setReviewConfirmed(false); }}
-                        placeholder="Paste or type the consultation transcript here..."
-                        rows={12}
-                        className="text-sm font-mono"
-                      />
-
-                      {/* Raw transcript toggle */}
+                      <Textarea value={editedTranscript} onChange={e => { setEditedTranscript(e.target.value); setReviewConfirmed(false); }} placeholder="Paste or type the consultation transcript here..." rows={12} className="text-sm font-mono" />
                       {rawTranscript && (
                         <Collapsible open={showRawTranscript} onOpenChange={setShowRawTranscript}>
                           <CollapsibleTrigger asChild>
                             <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
                               {showRawTranscript ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                              {showRawTranscript ? "Hide Raw Transcript" : "View Raw Transcript"}
+                              {showRawTranscript ? "Hide Raw" : "View Raw"}
                             </button>
                           </CollapsibleTrigger>
                           <CollapsibleContent className="mt-2">
@@ -541,29 +401,13 @@ export default function Clinical() {
                           </CollapsibleContent>
                         </Collapsible>
                       )}
-
-                      {/* Review confirmation */}
                       <div className="flex items-center gap-2 pt-1">
-                        <Checkbox
-                          id="review-confirm"
-                          checked={reviewConfirmed}
-                          onCheckedChange={(checked) => setReviewConfirmed(checked === true)}
-                        />
-                        <label htmlFor="review-confirm" className="text-xs text-muted-foreground cursor-pointer select-none">
-                          I have reviewed and corrected the transcript.
-                        </label>
+                        <Checkbox id="review-confirm" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} />
+                        <label htmlFor="review-confirm" className="text-xs text-muted-foreground cursor-pointer select-none">I have reviewed and corrected the transcript.</label>
                       </div>
-
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setStep("record")}>
-                          ← Back to Record
-                        </Button>
-                        <Button
-                          onClick={confirmTranscript}
-                          className="flex-1"
-                          size="sm"
-                          disabled={!reviewConfirmed}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => setStep("record")}>← Back</Button>
+                        <Button onClick={confirmTranscript} className="flex-1" size="sm" disabled={!reviewConfirmed}>
                           Confirm & Extract <ChevronRight className="h-4 w-4 ml-1" />
                         </Button>
                       </div>
@@ -573,23 +417,16 @@ export default function Clinical() {
               </Card>
             )}
 
-            {/* STEP 3: Structured Extraction */}
+            {/* STEP 3: Extract */}
             {step === "extract" && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" /> Structured Extraction
-                  </CardTitle>
-                  <CardDescription>
-                    AI-extracted clinical data. Review and edit each field before safety validation.
-                  </CardDescription>
+                  <CardTitle className="text-lg flex items-center gap-2"><FileText className="h-5 w-5 text-primary" /> Structured Extraction</CardTitle>
+                  <CardDescription>AI-extracted clinical data. Review each field.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {isExtracting ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
-                      <span className="text-sm text-muted-foreground">Extracting clinical data...</span>
-                    </div>
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary mr-2" /><span className="text-sm text-muted-foreground">Extracting clinical data...</span></div>
                   ) : (
                     <>
                       {([
@@ -603,18 +440,11 @@ export default function Clinical() {
                       ]).map(({ key, label }) => (
                         <div key={key}>
                           <Label className="text-xs font-medium">{label}</Label>
-                          <Input
-                            value={extractedData[key]}
-                            onChange={e => updateExtractedField(key, e.target.value)}
-                            placeholder={`${label} (leave blank if not mentioned)`}
-                            className="text-sm"
-                          />
+                          <Input value={extractedData[key]} onChange={e => updateExtractedField(key, e.target.value)} placeholder={`${label} (leave blank if not mentioned)`} className="text-sm" />
                         </div>
                       ))}
                       <div className="flex gap-2 pt-2">
-                        <Button variant="outline" size="sm" onClick={() => setStep("review")}>
-                          ← Edit Transcript
-                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setStep("review")}>← Edit Transcript</Button>
                         <Button onClick={runSafetyCheck} className="flex-1" size="sm">
                           <ShieldCheck className="h-4 w-4 mr-1" /> Run Safety Check <ChevronRight className="h-4 w-4 ml-1" />
                         </Button>
@@ -625,61 +455,38 @@ export default function Clinical() {
               </Card>
             )}
 
-            {/* STEP 4: Safety Controller */}
+            {/* STEP 4: Safety */}
             {step === "safety" && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <ShieldCheck className="h-5 w-5 text-primary" /> Safety Check Summary
-                  </CardTitle>
-                  <CardDescription>
-                    Automated safety validation. Review flags before generating the clinical summary.
-                  </CardDescription>
+                  <CardTitle className="text-lg flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /> Safety Check</CardTitle>
+                  <CardDescription>Automated safety validation. Review flags before generating summary.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {isRunningSafety ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
-                      <span className="text-sm text-muted-foreground">Running safety checks (RxNorm, interactions, allergies, dosage)...</span>
-                    </div>
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary mr-2" /><span className="text-sm text-muted-foreground">Running safety checks...</span></div>
                   ) : safetyResults ? (
                     <>
-                      {/* Overall confidence */}
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-medium text-muted-foreground">Overall Confidence</span>
                         {confidenceBadge(safetyResults.confidence_level)}
                       </div>
 
-                      {/* Drug Normalization */}
+                      {/* Normalization */}
                       <div className="space-y-2">
-                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
-                          <Info className="h-3.5 w-3.5 text-primary" /> Drug Normalization (RxNorm)
-                        </h4>
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5"><Info className="h-3.5 w-3.5 text-primary" /> Drug Normalization</h4>
                         {safetyResults.normalized_drugs.length === 0 ? (
                           <p className="text-xs text-muted-foreground pl-5">No medications to normalize.</p>
                         ) : (
                           <div className="space-y-1.5 pl-5">
                             {safetyResults.normalized_drugs.map((drug, i) => (
-                              <div key={i} className={`flex items-start gap-2 p-2 rounded-md border text-xs ${
-                                drug.rxnorm_id ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
-                                  : "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20"
-                              }`}>
-                                {drug.rxnorm_id ? (
-                                  <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-                                ) : (
-                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                                )}
+                              <div key={i} className={`flex items-start gap-2 p-2 rounded-md border text-xs ${drug.rxnorm_id ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20" : "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20"}`}>
+                                {drug.rxnorm_id ? <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" /> : <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />}
                                 <div>
                                   <span className="font-medium">{drug.original_name}</span>
-                                  {drug.canonical_name && drug.canonical_name !== drug.original_name && (
-                                    <span className="text-muted-foreground"> → {drug.canonical_name}</span>
-                                  )}
-                                  {drug.rxnorm_id && (
-                                    <span className="text-muted-foreground ml-1">(RxCUI: {drug.rxnorm_id})</span>
-                                  )}
-                                  {drug.warning && (
-                                    <p className="text-amber-700 dark:text-amber-400 mt-0.5">{drug.warning}</p>
-                                  )}
+                                  {drug.canonical_name && drug.canonical_name !== drug.original_name && <span className="text-muted-foreground"> → {drug.canonical_name}</span>}
+                                  {drug.rxnorm_id && <span className="text-muted-foreground ml-1">(RxCUI: {drug.rxnorm_id})</span>}
+                                  {drug.warning && <p className="text-amber-700 dark:text-amber-400 mt-0.5">{drug.warning}</p>}
                                 </div>
                               </div>
                             ))}
@@ -687,16 +494,11 @@ export default function Clinical() {
                         )}
                       </div>
 
-                      {/* Interaction Flags */}
+                      {/* Interactions */}
                       <div className="space-y-2">
-                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
-                          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> Interaction Risks
-                        </h4>
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> Interaction Risks</h4>
                         {safetyResults.interaction_flags.length === 0 ? (
-                          <div className="flex items-center gap-1.5 pl-5">
-                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <p className="text-xs text-muted-foreground">No interactions detected.</p>
-                          </div>
+                          <div className="flex items-center gap-1.5 pl-5"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /><p className="text-xs text-muted-foreground">No interactions detected.</p></div>
                         ) : (
                           <div className="space-y-1.5 pl-5">
                             {safetyResults.interaction_flags.map((flag, i) => (
@@ -713,48 +515,32 @@ export default function Clinical() {
                         )}
                       </div>
 
-                      {/* Allergy Flags */}
+                      {/* Allergies */}
                       <div className="space-y-2">
-                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
-                          <XCircle className="h-3.5 w-3.5 text-destructive" /> Allergy Conflicts
-                        </h4>
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5"><XCircle className="h-3.5 w-3.5 text-destructive" /> Allergy Conflicts</h4>
                         {safetyResults.allergy_flags.length === 0 ? (
-                          <div className="flex items-center gap-1.5 pl-5">
-                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <p className="text-xs text-muted-foreground">No allergy conflicts detected.</p>
-                          </div>
+                          <div className="flex items-center gap-1.5 pl-5"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /><p className="text-xs text-muted-foreground">No allergy conflicts.</p></div>
                         ) : (
                           <div className="space-y-1.5 pl-5">
                             {safetyResults.allergy_flags.map((flag, i) => (
                               <div key={i} className="p-2 rounded-md border border-destructive/30 bg-destructive/5 text-xs text-destructive dark:bg-destructive/10">
-                                <div className="flex items-center gap-1.5 font-semibold">
-                                  <XCircle className="h-3.5 w-3.5 shrink-0" />
-                                  {flag.message}
-                                </div>
+                                <div className="flex items-center gap-1.5 font-semibold"><XCircle className="h-3.5 w-3.5 shrink-0" />{flag.message}</div>
                               </div>
                             ))}
                           </div>
                         )}
                       </div>
 
-                      {/* Dose Warnings */}
+                      {/* Dose */}
                       <div className="space-y-2">
-                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
-                          <Info className="h-3.5 w-3.5 text-primary" /> Dose Sanity
-                        </h4>
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5"><Info className="h-3.5 w-3.5 text-primary" /> Dose Sanity</h4>
                         {safetyResults.dose_warnings.length === 0 ? (
-                          <div className="flex items-center gap-1.5 pl-5">
-                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <p className="text-xs text-muted-foreground">No dosage concerns.</p>
-                          </div>
+                          <div className="flex items-center gap-1.5 pl-5"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /><p className="text-xs text-muted-foreground">No dosage concerns.</p></div>
                         ) : (
                           <div className="space-y-1.5 pl-5">
                             {safetyResults.dose_warnings.map((w, i) => (
                               <div key={i} className="p-2 rounded-md border border-amber-200 bg-amber-50/50 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
-                                <div className="flex items-center gap-1.5">
-                                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                  {w.message}
-                                </div>
+                                <div className="flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5 shrink-0" />{w.message}</div>
                               </div>
                             ))}
                           </div>
@@ -769,12 +555,8 @@ export default function Clinical() {
                       )}
 
                       <div className="flex gap-2 pt-2">
-                        <Button variant="outline" size="sm" onClick={() => setStep("extract")}>
-                          ← Edit Extraction
-                        </Button>
-                        <Button onClick={generateSoap} className="flex-1" size="sm">
-                          Generate Clinical Summary <ChevronRight className="h-4 w-4 ml-1" />
-                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setStep("extract")}>← Edit Extraction</Button>
+                        <Button onClick={generateSoap} className="flex-1" size="sm">Generate Clinical Summary <ChevronRight className="h-4 w-4 ml-1" /></Button>
                       </div>
                     </>
                   ) : null}
@@ -782,41 +564,27 @@ export default function Clinical() {
               </Card>
             )}
 
-            {/* STEP 5: SOAP / Clinical Summary */}
+            {/* STEP 5: Summary */}
             {step === "soap" && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" /> Clinical Summary
-                  </CardTitle>
-                  <CardDescription>
-                    Review and edit the AI-generated clinical summary before saving.
-                  </CardDescription>
+                  <CardTitle className="text-lg flex items-center gap-2"><FileText className="h-5 w-5 text-primary" /> Clinical Summary</CardTitle>
+                  <CardDescription>Review and edit before saving.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {isGeneratingSoap ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
-                      <span className="text-sm text-muted-foreground">Generating clinical summary...</span>
-                    </div>
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary mr-2" /><span className="text-sm text-muted-foreground">Generating clinical summary...</span></div>
                   ) : (
                     <>
                       {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
                         <div key={section}>
                           <Label className={`text-xs font-semibold ${section === "Safety Warnings" ? "text-amber-600 dark:text-amber-400" : ""}`}>
-                            {section === "Safety Warnings" && <ShieldCheck className="h-3 w-3 inline mr-1" />}
-                            {section}
+                            {section === "Safety Warnings" && <ShieldCheck className="h-3 w-3 inline mr-1" />}{section}
                           </Label>
-                          <Textarea
-                            value={soapSections[section]}
-                            onChange={e => updateSoapSection(section, e.target.value)}
-                            rows={section === "Safety Warnings" ? 3 : 2}
-                            className={`text-sm ${section === "Safety Warnings" ? "border-amber-200 dark:border-amber-800" : ""}`}
-                          />
+                          <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={section === "Safety Warnings" ? 3 : 2} className={`text-sm ${section === "Safety Warnings" ? "border-amber-200 dark:border-amber-800" : ""}`} />
                         </div>
                       ))}
 
-                      {/* Phase 3: Evidence Panel */}
                       <EvidencePanel
                         medications={extractedData.current_medications ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : []}
                         diagnosis={soapSections["Provisional Diagnosis"] || extractedData.chief_complaint}
@@ -824,7 +592,6 @@ export default function Clinical() {
                         confidenceLevel={safetyResults?.confidence_level || "moderate"}
                       />
 
-                      {/* Phase 4: Patient Explanation Toggle */}
                       <Card className="border-border">
                         <CardContent className="py-3 space-y-3">
                           <div className="flex items-center justify-between">
@@ -834,43 +601,25 @@ export default function Clinical() {
                               <Badge variant="outline" className="text-[9px]">Optional</Badge>
                             </div>
                             <div className="flex items-center gap-2">
-                              <select
-                                value={explanationLang}
-                                onChange={e => setExplanationLang(e.target.value as "english" | "telugu")}
-                                className="text-[10px] border border-border rounded px-1.5 py-0.5 bg-background"
-                              >
+                              <select value={explanationLang} onChange={e => setExplanationLang(e.target.value as "english" | "telugu")} className="text-[10px] border border-border rounded px-1.5 py-0.5 bg-background">
                                 <option value="english">English</option>
                                 <option value="telugu">Telugu</option>
                               </select>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-xs h-7"
-                                onClick={generatePatientExplanation}
-                                disabled={isGeneratingExplanation}
-                              >
+                              <Button size="sm" variant="outline" className="text-xs h-7" onClick={generatePatientExplanation} disabled={isGeneratingExplanation}>
                                 {isGeneratingExplanation ? <Loader2 className="h-3 w-3 animate-spin" /> : "Generate"}
                               </Button>
                             </div>
                           </div>
                           {showPatientExplanation && patientExplanation && (
-                            <div className="p-3 rounded-md border border-primary/20 bg-primary/5 text-xs whitespace-pre-wrap">
-                              {patientExplanation}
-                            </div>
+                            <div className="p-3 rounded-md border border-primary/20 bg-primary/5 text-xs whitespace-pre-wrap">{patientExplanation}</div>
                           )}
                         </CardContent>
                       </Card>
 
                       <div className="flex gap-2 pt-2">
-                        <Button variant="outline" size="sm" onClick={() => setStep("safety")}>
-                          ← Safety Check
-                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setStep("safety")}>← Safety Check</Button>
                         <Button onClick={saveSession} disabled={isSaving} className="flex-1" size="sm">
-                          {isSaving ? (
-                            <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Saving...</>
-                          ) : (
-                            <><Save className="h-4 w-4 mr-1" /> Save Session</>
-                          )}
+                          {isSaving ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Saving...</> : <><Save className="h-4 w-4 mr-1" /> Save Session</>}
                         </Button>
                       </div>
                     </>
@@ -885,17 +634,11 @@ export default function Clinical() {
                 <CardContent className="py-8 text-center space-y-4">
                   <CheckCircle2 className="h-12 w-12 text-primary mx-auto" />
                   <h3 className="text-lg font-semibold">Session Saved</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Clinical session has been saved successfully.
-                  </p>
+                  <p className="text-sm text-muted-foreground">Clinical session saved successfully.</p>
                   <div className="flex gap-2 justify-center">
-                    <Button onClick={startNewSession} size="sm">
-                      <Mic className="h-4 w-4 mr-1" /> New Session
-                    </Button>
+                    <Button onClick={startNewSession} size="sm"><Mic className="h-4 w-4 mr-1" /> New Session</Button>
                     {savedSessionId && (
-                      <Button variant="outline" size="sm" onClick={() => navigate(`/consultation/${savedSessionId}`)}>
-                        View Details
-                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => navigate(`/consultations/${savedSessionId}`)}>View Details</Button>
                     )}
                   </div>
                 </CardContent>
@@ -903,45 +646,27 @@ export default function Clinical() {
             )}
           </div>
 
-          {/* RIGHT SIDEBAR: Previous Sessions */}
+          {/* RIGHT SIDEBAR */}
           <div className="space-y-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-primary" /> Previous Sessions
-                </CardTitle>
+                <CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Previous Sessions</CardTitle>
               </CardHeader>
               <CardContent>
                 {loadingSessions ? (
-                  <div className="flex justify-center py-4">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  </div>
+                  <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
                 ) : previousSessions.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-4 text-center">No previous sessions</p>
                 ) : (
                   <div className="space-y-2 max-h-[60vh] overflow-y-auto">
                     {previousSessions.map(session => (
-                      <button
-                        key={session.id}
-                        onClick={() => navigate(`/consultation/${session.id}`)}
-                        className="w-full text-left p-2.5 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                      >
+                      <button key={session.id} onClick={() => navigate(`/consultations/${session.id}`)} className="w-full text-left p-2.5 rounded-lg border border-border hover:bg-muted/50 transition-colors">
                         <div className="flex items-center justify-between mb-1">
-                          <Badge variant="outline" className="text-[10px]">
-                            {session.status || "draft"}
-                          </Badge>
-                          <span className="text-[10px] text-muted-foreground">
-                            {new Date(session.created_at).toLocaleDateString()}
-                          </span>
+                          <Badge variant="outline" className="text-[10px]">{session.status || "draft"}</Badge>
+                          <span className="text-[10px] text-muted-foreground">{new Date(session.created_at).toLocaleDateString()}</span>
                         </div>
-                        <p className="text-xs font-medium text-foreground line-clamp-1">
-                          {session.chief_complaint || "No complaint recorded"}
-                        </p>
-                        {session.ai_summary && (
-                          <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">
-                            {session.ai_summary.substring(0, 80)}...
-                          </p>
-                        )}
+                        <p className="text-xs font-medium text-foreground line-clamp-1">{session.chief_complaint || "No complaint recorded"}</p>
+                        {session.ai_summary && <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">{session.ai_summary.substring(0, 80)}...</p>}
                       </button>
                     ))}
                   </div>
@@ -950,7 +675,7 @@ export default function Clinical() {
             </Card>
           </div>
         </div>
-      </main>
+      </div>
     </>
   );
 }

@@ -2,17 +2,17 @@ import { ReactNode, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   LayoutDashboard, Stethoscope, Users, Pill, Activity,
-  Receipt, LogOut, Menu, X, Globe
+  Receipt, LogOut, Menu, X, Globe, ClipboardList
 } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Write / Record", path: "/clinical", icon: Stethoscope },
   { label: "Patients", path: "/patients", icon: Users },
+  { label: "Visit Tracker", path: "/visit-tracker", icon: ClipboardList },
   { label: "Prescriptions", path: "/prescriptions", icon: Pill },
   { label: "Vitals", path: "/vitals", icon: Activity },
   { label: "Billing", path: "/billing", icon: Receipt },
@@ -54,15 +54,10 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="p-3 border-t border-border space-y-2">
-          <button
-            onClick={() => navigate("/")}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-          >
+          <button onClick={() => navigate("/")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/50 transition-colors">
             <Globe className="h-4 w-4" /> ← Website
           </button>
-          <div className="px-3 py-1">
-            <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
-          </div>
+          <div className="px-3 py-1"><p className="text-[10px] text-muted-foreground truncate">{user?.email}</p></div>
           <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" onClick={() => { signOut(); navigate("/auth"); }}>
             <LogOut className="h-4 w-4 mr-2" /> Sign out
           </Button>
@@ -90,9 +85,7 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
                   key={item.path}
                   onClick={() => { navigate(item.path); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm ${
-                    location.pathname === item.path
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-muted-foreground hover:bg-muted/50"
+                    location.pathname === item.path ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"
                   }`}
                 >
                   <item.icon className="h-4 w-4" />
@@ -101,10 +94,7 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
               ))}
             </nav>
             <div className="mt-6 pt-4 border-t border-border space-y-2">
-              <button
-                onClick={() => { navigate("/"); setSidebarOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/50"
-              >
+              <button onClick={() => { navigate("/"); setSidebarOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/50">
                 <Globe className="h-4 w-4" /> ← Website
               </button>
               <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => { signOut(); navigate("/auth"); }}>
