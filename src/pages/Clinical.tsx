@@ -132,7 +132,7 @@ export default function Clinical() {
   };
 
   const runExtraction = async () => {
-    setIsExtracting(true);
+    const timer = startPipelineTimer("extraction");
     try {
       const { data, error } = await supabase.functions.invoke("extract-patient-data", {
         body: { transcript: editedTranscript.trim() },
@@ -145,9 +145,11 @@ export default function Clinical() {
         allergies: data.allergies || "",
       };
       setExtractedData(extracted);
-      setAiExtractedBaseline({ ...extracted }); // Learning layer: baseline for diff
+      setAiExtractedBaseline({ ...extracted });
+      timer.stop(true);
     } catch (err: any) {
       toast({ title: "Extraction failed", description: err.message, variant: "destructive" });
+      timer.stop(false, { error: err.message });
     } finally { setIsExtracting(false); }
   };
 
