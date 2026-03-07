@@ -9,6 +9,7 @@ const corsHeaders = {
 const PUBMED_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
 const EUROPE_PMC_BASE = "https://www.ebi.ac.uk/europepmc/webservices/rest";
 const OPENFDA_BASE = "https://api.fda.gov/drug";
+const DAILYMED_BASE = "https://dailymed.nlm.nih.gov/dailymed/services/v2";
 const MAX_TOTAL_CITATIONS = 6;
 
 interface Citation {
@@ -18,11 +19,13 @@ interface Citation {
   title?: string;
   year?: string;
   url?: string;
+  confidence?: "high" | "moderate" | "low";
 }
 
 interface MedicationEvidence {
   drug: string;
   summary: string;
+  ai_generated: boolean;
   citations: Citation[];
 }
 
@@ -36,17 +39,31 @@ interface DrugSafetyNote {
   drug: string;
   black_box_warning: string | null;
   high_risk_flags: string[];
+  dailymed_warnings: string[];
   citations: Citation[];
 }
 
+// --- Citation confidence scoring ---
+function scoreCitation(citation: Citation): "high" | "moderate" | "low" {
+  const year = parseInt(citation.year || "0");
+  const currentYear = new Date().getFullYear();
+  const hasPmid = !!citation.pmid;
+  const hasDoi = !!citation.doi;
+  const hasTitle = !!citation.title && citation.title.length > 10;
+
+  if (hasPmid && hasDoi && hasTitle && year >= currentYear - 5) return "high";
+  if ((hasPmid || hasDoi) && hasTitle && year >= currentYear - 10) return "moderate";
+  return "low";
+}
+
 // --- PubMed search (2 results per drug) ---
-async function searchPubMedForDrug(drugName: string, diagnosis: string): Promise<{ articles: any[]; citations: Citation[] }> {
+async function searchPubMedForDrug(drugName: string, diagnosis: string): Promise<{ citations: Citation[] }> {
   const query = `${drugName} ${diagnosis} treatment`;
   try {
     const searchRes = await fetch(`${PUBMED_BASE}/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=2&retmode=json&sort=relevance`);
     const searchData = await searchRes.json();
     const ids = searchData?.esearchresult?.idlist || [];
-    if (ids.length === 0) return { articles: [], citations: [] };
+    if (ids.length === 0) return { citations: [] };
 
     const fetchRes = await fetch(`${PUBMED_BASE}/efetch.fcgi?db=pubmed&id=${ids.join(",")}&retmode=xml`);
     const xml = await fetchRes.text();
@@ -58,19 +75,17 @@ async function searchPubMedForDrug(drugName: string, diagnosis: string): Promise
       const title = block.match(/<ArticleTitle>([\s\S]*?)<\/ArticleTitle>/)?.[1]?.replace(/<[^>]+>/g, "") || "";
       const year = block.match(/<Year>(\d{4})<\/Year>/)?.[1] || "";
       const doi = block.match(/<ArticleId IdType="doi">([\s\S]*?)<\/ArticleId>/)?.[1] || "";
-      citations.push({
-        source: "PubMed",
-        pmid,
-        doi,
-        title: title.substring(0, 200),
-        year,
+      const c: Citation = {
+        source: "PubMed", pmid, doi, title: title.substring(0, 200), year,
         url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
-      });
+      };
+      c.confidence = scoreCitation(c);
+      citations.push(c);
     }
-    return { articles: blocks, citations };
+    return { citations };
   } catch (e) {
     console.error(`PubMed search failed for ${drugName}:`, e);
-    return { articles: [], citations: [] };
+    return { citations: [] };
   }
 }
 
@@ -81,17 +96,16 @@ async function searchEuropePMCForDrug(drugName: string, diagnosis: string): Prom
     const res = await fetch(`${EUROPE_PMC_BASE}/search?query=${encodeURIComponent(query)}&resultType=lite&pageSize=2&format=json`);
     const data = await res.json();
     const results = data?.resultList?.result || [];
-    return results.slice(0, 2).map((r: any) => ({
-      source: "Europe PMC",
-      pmid: r.pmid || "",
-      doi: r.doi || "",
-      title: (r.title || "").substring(0, 200),
-      year: r.pubYear || "",
-      url: r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : `https://europepmc.org/article/${r.source}/${r.id}`,
-    }));
-  } catch {
-    return [];
-  }
+    return results.slice(0, 2).map((r: any) => {
+      const c: Citation = {
+        source: "Europe PMC", pmid: r.pmid || "", doi: r.doi || "",
+        title: (r.title || "").substring(0, 200), year: r.pubYear || "",
+        url: r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : `https://europepmc.org/article/${r.source}/${r.id}`,
+      };
+      c.confidence = scoreCitation(c);
+      return c;
+    });
+  } catch { return []; }
 }
 
 // --- OpenFDA black box warnings ---
@@ -108,8 +122,95 @@ async function getOpenFDAWarnings(drugName: string): Promise<{ blackBox: string 
     if (result.warnings?.[0]) warnings.push(result.warnings[0].substring(0, 200));
     if (result.contraindications?.[0]) warnings.push(result.contraindications[0].substring(0, 200));
     return { blackBox, warnings };
-  } catch {
-    return { blackBox: null, warnings: [] };
+  } catch { return { blackBox: null, warnings: [] }; }
+}
+
+// --- DailyMed drug label warnings ---
+async function getDailyMedWarnings(drugName: string): Promise<string[]> {
+  try {
+    const searchRes = await fetch(`${DAILYMED_BASE}/spls.json?drug_name=${encodeURIComponent(drugName)}&pagesize=1`);
+    if (!searchRes.ok) return [];
+    const searchData = await searchRes.json();
+    const setId = searchData?.data?.[0]?.setid;
+    if (!setId) return [];
+
+    const labelRes = await fetch(`${DAILYMED_BASE}/spls/${setId}.json`);
+    if (!labelRes.ok) return [];
+    const labelData = await labelRes.json();
+
+    const warnings: string[] = [];
+    // Extract key sections
+    const sections = labelData?.data?.sections || [];
+    for (const section of sections) {
+      const name = (section.name || "").toLowerCase();
+      if (name.includes("warning") || name.includes("precaution") || name.includes("contraindication")) {
+        const text = (section.text || "").replace(/<[^>]+>/g, "").trim();
+        if (text.length > 10) {
+          warnings.push(text.substring(0, 250));
+        }
+      }
+      if (warnings.length >= 3) break;
+    }
+    return warnings;
+  } catch (e) {
+    console.error(`DailyMed lookup failed for ${drugName}:`, e);
+    return [];
+  }
+}
+
+// --- AI evidence summarization ---
+async function summarizeEvidence(drug: string, diagnosis: string, citations: Citation[]): Promise<string> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey || citations.length === 0) {
+    return citations.length > 0
+      ? `${citations.length} publication(s) found for ${drug} in the context of ${diagnosis}.`
+      : "No high-quality evidence retrieved from indexed sources.";
+  }
+
+  try {
+    const citationContext = citations.map(c =>
+      `- "${c.title}" (${c.source}, ${c.year || "n.d."})`
+    ).join("\n");
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        temperature: 0.1,
+        max_tokens: 150,
+        messages: [
+          {
+            role: "system",
+            content: `You are a medical evidence summarizer. Given publication titles for a drug-diagnosis pair, write a 1-2 sentence clinical summary of the available evidence.
+Rules:
+- Be factual and concise
+- Never recommend or advise — only summarize what the evidence shows
+- Never fabricate findings — only describe what the citations suggest
+- If evidence is limited, say so explicitly
+- Include the evidence strength qualifier (e.g., "limited evidence suggests", "multiple studies indicate")`
+          },
+          {
+            role: "user",
+            content: `Drug: ${drug}\nDiagnosis: ${diagnosis}\nCitations:\n${citationContext}`
+          }
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      if (res.status === 429 || res.status === 402) {
+        return `${citations.length} publication(s) found for ${drug} in the context of ${diagnosis}.`;
+      }
+      throw new Error(`AI gateway error: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const summary = data.choices?.[0]?.message?.content?.trim();
+    return summary || `${citations.length} publication(s) found for ${drug} in the context of ${diagnosis}.`;
+  } catch (e) {
+    console.error("Evidence summarization failed:", e);
+    return `${citations.length} publication(s) found for ${drug} in the context of ${diagnosis}.`;
   }
 }
 
@@ -123,17 +224,17 @@ async function matchGuidelines(diagnosis: string, medications: string[]): Promis
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-flash-lite",
         temperature: 0.1,
         messages: [
           {
             role: "system",
             content: `You are a clinical guideline reference assistant. Given a diagnosis, return relevant guideline references.
 Rules:
-- Only reference well-known guidelines: WHO, NICE, AHA, ESC, ICMR, API (Association of Physicians of India)
+- Only reference well-known guidelines: WHO, NICE, AHA, ESC, ICMR, API (Association of Physicians of India), RSSDI
 - Max 3 guidelines
 - Max 3 bullet points per guideline
-- Never interpret or recommend — only cite
+- Never interpret or recommend — only cite what the guideline states
 - Never say "You should prescribe..." — only "According to guideline X..."
 - If no relevant guideline found, return empty array
 Return ONLY valid JSON array: [{"guideline":"name","source":"WHO/NICE/etc","summary_points":["point1","point2"]}]`
@@ -146,14 +247,15 @@ Return ONLY valid JSON array: [{"guideline":"name","source":"WHO/NICE/etc","summ
       }),
     });
 
-    if (!res.ok) return [];
+    if (!res.ok) {
+      if (res.status === 429 || res.status === 402) return [];
+      return [];
+    }
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content || "[]";
     const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     return JSON.parse(cleaned);
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 serve(async (req) => {
@@ -170,8 +272,9 @@ serve(async (req) => {
 
     const diagnosisText = diagnosis || "unspecified condition";
     let totalCitations = 0;
+    const sourcesQueried = new Set<string>();
 
-    // 1. Medication Evidence Agent
+    // 1. Medication Evidence Agent — parallel PubMed + Europe PMC per drug
     const medication_evidence: MedicationEvidence[] = [];
     for (const drug of medications.slice(0, 5)) {
       if (totalCitations >= MAX_TOTAL_CITATIONS) break;
@@ -182,6 +285,9 @@ serve(async (req) => {
         searchPubMedForDrug(drug, diagnosisText),
         searchEuropePMCForDrug(drug, diagnosisText),
       ]);
+
+      sourcesQueried.add("PubMed");
+      sourcesQueried.add("Europe PMC");
 
       // Deduplicate and limit
       const allCitations = [...pubmedResult.citations, ...epmcCitations];
@@ -196,11 +302,14 @@ serve(async (req) => {
       }
 
       totalCitations += uniqueCitations.length;
+
+      // AI-generated summary
+      const summary = await summarizeEvidence(drug, diagnosisText, uniqueCitations);
+
       medication_evidence.push({
         drug,
-        summary: uniqueCitations.length > 0
-          ? `Evidence found for ${drug} in the context of ${diagnosisText}.`
-          : "No high-quality evidence retrieved.",
+        summary,
+        ai_generated: uniqueCitations.length > 0,
         citations: uniqueCitations,
       });
     }
@@ -208,10 +317,17 @@ serve(async (req) => {
     // 2. Guideline Agent
     const guidelines = await matchGuidelines(diagnosisText, medications);
 
-    // 3. Drug Safety Agent
+    // 3. Drug Safety Agent — parallel OpenFDA + DailyMed per drug
     const drug_safety: DrugSafetyNote[] = [];
     for (const drug of medications.slice(0, 5)) {
-      const { blackBox, warnings } = await getOpenFDAWarnings(drug);
+      const [{ blackBox, warnings: fdaWarnings }, dailymedWarnings] = await Promise.all([
+        getOpenFDAWarnings(drug),
+        getDailyMedWarnings(drug),
+      ]);
+
+      sourcesQueried.add("OpenFDA");
+      if (dailymedWarnings.length > 0) sourcesQueried.add("DailyMed");
+
       const highRiskFlags: string[] = [];
       if (patient_age && patient_age > 65) highRiskFlags.push("Geriatric patient — verify dosage adjustment");
       if (patient_age && patient_age < 12) highRiskFlags.push("Pediatric patient — verify weight-based dosing");
@@ -220,16 +336,32 @@ serve(async (req) => {
       drug_safety.push({
         drug,
         black_box_warning: blackBox,
-        high_risk_flags: [...highRiskFlags, ...warnings.map(w => w.substring(0, 150))],
-        citations: blackBox ? [{ source: "OpenFDA", url: `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(drug)}"` }] : [],
+        high_risk_flags: [...highRiskFlags, ...fdaWarnings.map(w => w.substring(0, 150))],
+        dailymed_warnings: dailymedWarnings,
+        citations: blackBox
+          ? [{ source: "OpenFDA", url: `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(drug)}"`, confidence: "high" as const }]
+          : [],
       });
     }
+
+    // 4. Compute overall retrieval confidence
+    const hasHighConfCitations = medication_evidence.some(me =>
+      me.citations.some(c => c.confidence === "high")
+    );
+    const hasCitations = totalCitations > 0;
+    const hasGuidelines = guidelines.length > 0;
+
+    let retrieval_confidence: "high" | "moderate" | "low" = "low";
+    if (hasHighConfCitations && hasGuidelines) retrieval_confidence = "high";
+    else if (hasCitations || hasGuidelines) retrieval_confidence = "moderate";
 
     return new Response(JSON.stringify({
       medication_evidence,
       guidelines,
       drug_safety,
       total_citations: totalCitations,
+      retrieval_confidence,
+      sources_queried: Array.from(sourcesQueried),
       timestamp: new Date().toISOString(),
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
