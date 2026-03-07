@@ -319,6 +319,38 @@ export default function Clinical() {
                   ) : (
                     <>
                       <Textarea value={editedTranscript} onChange={e => { setEditedTranscript(e.target.value); setReviewConfirmed(false); }} placeholder="Paste or type the consultation transcript here..." rows={12} className="text-sm font-mono" />
+                      
+                      {/* Normalization & Language Detection Results */}
+                      {(normalizationResults.length > 0 || detectedLanguages.length > 1) && (
+                        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 space-y-2">
+                          {detectedLanguages.length > 1 && (
+                            <div className="flex items-center gap-2">
+                              <Languages className="h-3.5 w-3.5 text-primary" />
+                              <span className="text-xs text-muted-foreground">Languages detected:</span>
+                              {detectedLanguages.map(lang => (
+                                <Badge key={lang} variant="outline" className="text-[10px] capitalize">{lang}</Badge>
+                              ))}
+                            </div>
+                          )}
+                          {normalizationResults.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                                <Info className="h-3 w-3" /> Clinical vocabulary mapped ({normalizationResults.length} terms)
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {normalizationResults.map((m, i) => (
+                                  <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-border bg-background">
+                                    <span className="text-muted-foreground">{m.original}</span>
+                                    <span className="text-muted-foreground">→</span>
+                                    <span className="font-medium text-foreground">{m.clinical}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {rawTranscript && (
                         <Collapsible open={showRawTranscript} onOpenChange={setShowRawTranscript}>
                           <CollapsibleTrigger asChild>
