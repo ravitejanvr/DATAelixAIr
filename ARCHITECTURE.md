@@ -177,6 +177,85 @@ Role Resolution (Layer 9: Governance/RBAC)
     └── patient        → Patient Portal (Layer 1: UI/Patient)
 ```
 
+## Database Schema: Visit-Based Timeline Model
+
+All clinical data attaches to a **visit** (patient_visits) rather than documents.
+
+```
+                        ┌──────────┐
+                        │  clinics │
+                        └────┬─────┘
+                             │ clinic_id (on every table)
+          ┌──────────────────┼──────────────────────┐
+          │                  │                       │
+    ┌─────┴─────┐    ┌──────┴───────┐       ┌───────┴───────┐
+    │ profiles   │    │  patients    │       │ pilot_requests│
+    │ (users)    │    │              │       └───────────────┘
+    └────────────┘    └──────┬───────┘
+                             │ patient_id
+                     ┌───────┴───────┐
+                     │ patient_visits│  ← CENTRAL ENTITY
+                     │   (visits)    │
+                     └───────┬───────┘
+                             │ visit_id
+          ┌──────────┬───────┼───────┬──────────┐
+          │          │       │       │          │
+    ┌─────┴────┐ ┌───┴───┐ ┌┴─────┐ ┌┴────────┐┌┴──────────┐
+    │consult-  │ │vitals │ │Rx    │ │invoices ││lab_orders │
+    │ations    │ │       │ │      │ │         ││           │
+    │(clinical │ └───────┘ └──────┘ └─────────┘└─────┬─────┘
+    │ notes)   │                                     │
+    └──────────┘                               ┌─────┴─────┐
+                                               │lab_results│
+                                               └───────────┘
+```
+
+### Core Entities
+
+| Entity | Table | Key Relationships |
+|--------|-------|-------------------|
+| Clinic | `clinics` | Top-level tenant; all tables reference `clinic_id` |
+| User | `profiles` + `user_roles` | `user_id` → auth.users; `clinic_id` → clinics |
+| Patient | `patients` | `doctor_id`, `clinic_id`, `patient_user_id` |
+| Visit | `patient_visits` | `patient_id`, `clinic_id`; central timeline entity |
+| Clinical Notes | `consultations` | `visit_id`, `patient_id`, `doctor_id`, `clinic_id` |
+| Vitals | `vitals` | `visit_id`, `patient_id`, `clinic_id`, `recorded_by` |
+| Prescriptions | `prescriptions` | `visit_id`, `consultation_id`, `patient_id`, `clinic_id` |
+| Lab Orders | `lab_orders` | `visit_id`, `patient_id`, `clinic_id`, `doctor_id` |
+| Lab Results | `lab_results` | `lab_order_id`, `visit_id`, `patient_id`, `clinic_id` |
+| Invoices | `invoices` | `visit_id`, `patient_id`, `clinic_id`, `consultation_id` |
+| Audit Logs | `audit_logs` | `actor_id`, `event_type`, `target_type`, `target_id` |
+
+### Performance Indexes
+
+All foreign key columns and frequently queried columns are indexed:
+- `patient_visits`: clinic_id, patient_id, status, check_in_time DESC
+- `consultations`: visit_id, patient_id, doctor_id, clinic_id, status, created_at DESC
+- `prescriptions`: visit_id, patient_id, consultation_id, clinic_id
+- `vitals`: visit_id, patient_id, clinic_id, created_at DESC
+- `lab_orders`: visit_id, patient_id, clinic_id, doctor_id, status
+- `lab_results`: lab_order_id, visit_id, patient_id
+- `patients`: clinic_id, doctor_id, phone, patient_user_id
+- `audit_logs`: actor_id, event_type, created_at DESC
+
+### Visit-Based Query Pattern
+
+```sql
+-- Get complete clinical timeline for a patient visit
+SELECT v.*, 
+  c.soap_subjective, c.soap_objective, c.soap_assessment, c.soap_plan,
+  vt.bp_systolic, vt.bp_diastolic, vt.pulse,
+  p.drug_name, p.dosage,
+  lo.test_name, lo.status as lab_status
+FROM patient_visits v
+LEFT JOIN consultations c ON c.visit_id = v.id
+LEFT JOIN vitals vt ON vt.visit_id = v.id
+LEFT JOIN prescriptions p ON p.visit_id = v.id
+LEFT JOIN lab_orders lo ON lo.visit_id = v.id
+WHERE v.patient_id = $1 AND v.clinic_id = $2
+ORDER BY v.check_in_time DESC;
+```
+
 ## Multi-Clinic SaaS Isolation
 
 Every clinical table includes a mandatory `clinic_id` column.
@@ -189,11 +268,13 @@ Clinic B ──┤   ├── Auth (shared)
             │   ├── Supabase (shared)
 Clinic C ──┘   └── RLS Isolation (per clinic_id)
                     ├── patients
+                    ├── patient_visits
                     ├── consultations
                     ├── prescriptions
                     ├── vitals
-                    ├── invoices
-                    └── patient_visits
+                    ├── lab_orders
+                    ├── lab_results
+                    └── invoices
 ```
 
 ## Design Principles
