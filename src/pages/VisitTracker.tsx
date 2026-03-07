@@ -13,7 +13,6 @@ import { VISIT_STATUSES, VISIT_STATUS_CONFIG } from "@/layers/workflow/api";
 const STATUSES = VISIT_STATUSES;
 const statusConfig = VISIT_STATUS_CONFIG;
 
-const statusConfig = VISIT_STATUS_CONFIG;
 
 export default function VisitTracker() {
   const { user } = useAuth();
