@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   LayoutDashboard, Building2, Users, BarChart3, ShieldAlert,
-  FileText, LogOut
+  FileText, LogOut, Shield
 } from "lucide-react";
 
 const navItems = [
