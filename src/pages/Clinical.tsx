@@ -23,6 +23,7 @@ import type { ExtractedData, SoapSections, PipelineStep } from "@/layers/ai-agen
 import { EMPTY_EXTRACTED, EMPTY_SOAP, PIPELINE_STEPS } from "@/layers/ai-agents/api";
 import type { SafetyResults } from "@/layers/safety/api";
 import { severityColor } from "@/layers/safety/api";
+import type { NormalizationMatch } from "@/layers/multilingual/api";
 
 export default function Clinical() {
   const { user } = useAuth();
