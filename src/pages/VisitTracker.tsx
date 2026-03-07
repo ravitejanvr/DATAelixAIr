@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
+import { Users, Clock, RefreshCw } from "lucide-react";
 import { VISIT_STATUSES, VISIT_STATUS_CONFIG } from "@/layers/workflow/api";
+
+const STATUSES = VISIT_STATUSES;
+const statusConfig = VISIT_STATUS_CONFIG;
 
 const statusConfig = VISIT_STATUS_CONFIG;
 
