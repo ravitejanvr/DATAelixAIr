@@ -109,7 +109,7 @@ function AuthRedirect() {
   return <Navigate to={targetRoute} replace />;
 }
 
-const clinicalRoles = ["doctor", "nurse", "clinic_admin", "receptionist", "pharmacist", "allied_health", "lab", "care_coordinator", "front_desk"];
+const clinicalRoles: string[] = [...CLINICAL_ROLES];
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
