@@ -59,12 +59,8 @@ export interface StabilizerAgentOutput {
   match_count: number;
 }
 
-export interface NormalizationMatch {
-  original: string;
-  clinical: string;
-  category: string;
-  language: string;
-}
+// Re-export NormalizationMatch from multilingual layer (single source of truth)
+export type { NormalizationMatch } from "@/layers/multilingual/api";
 
 // ── Agent 3: Patient Context Agent ───────────────────────────
 // Runtime: Client-side Supabase query (no AI)
