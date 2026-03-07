@@ -60,6 +60,9 @@ export default function Clinical() {
   const [detectedLanguages, setDetectedLanguages] = useState<string[]>([]);
   const [previousSessions, setPreviousSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  // Learning layer: store AI baselines for diff comparison
+  const [aiExtractedBaseline, setAiExtractedBaseline] = useState<ExtractedData>(EMPTY_EXTRACTED);
+  const [aiSoapBaseline, setAiSoapBaseline] = useState<SoapSections>(EMPTY_SOAP);
 
   useEffect(() => { if (user) loadPreviousSessions(); }, [user]);
 
