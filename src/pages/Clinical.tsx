@@ -19,77 +19,10 @@ import {
   ShieldCheck, AlertTriangle, XCircle, CheckCircle, Info, Languages
 } from "lucide-react";
 import VoiceRecorder from "@/components/VoiceRecorder";
-
-interface ExtractedData {
-  chief_complaint: string;
-  duration: string;
-  associated_symptoms: string;
-  vitals: string;
-  chronic_conditions: string;
-  current_medications: string;
-  allergies: string;
-}
-
-interface SoapSections {
-  "Visit Summary": string;
-  "Findings": string;
-  "Provisional Diagnosis": string;
-  "Safety Warnings": string;
-  "Treatment Plan": string;
-  "Advice": string;
-  "Follow-up": string;
-}
-
-interface NormalizedDrug {
-  original_name: string;
-  rxnorm_id: string | null;
-  canonical_name: string | null;
-  confidence_level: "high" | "moderate" | "low";
-  warning: string | null;
-}
-
-interface InteractionFlag {
-  interaction_warning: boolean;
-  severity: "mild" | "moderate" | "severe";
-  drug_a: string;
-  drug_b: string;
-  description: string;
-}
-
-interface AllergyFlag {
-  medication: string;
-  allergy: string;
-  severity: "high";
-  message: string;
-}
-
-interface DoseWarning {
-  medication: string;
-  issue: string;
-  message: string;
-}
-
-interface SafetyResults {
-  normalized_drugs: NormalizedDrug[];
-  interaction_flags: InteractionFlag[];
-  allergy_flags: AllergyFlag[];
-  dose_warnings: DoseWarning[];
-  confidence_level: "low" | "moderate" | "high";
-  requires_manual_review: boolean;
-  timestamp: string;
-}
-
-type PipelineStep = "record" | "review" | "extract" | "safety" | "soap" | "saved";
-
-const EMPTY_EXTRACTED: ExtractedData = {
-  chief_complaint: "", duration: "", associated_symptoms: "",
-  vitals: "", chronic_conditions: "", current_medications: "", allergies: "",
-};
-
-const EMPTY_SOAP: SoapSections = {
-  "Visit Summary": "", "Findings": "", "Provisional Diagnosis": "",
-  "Safety Warnings": "", "Treatment Plan": "", "Advice": "", "Follow-up": "",
-};
+import type { ExtractedData, SoapSections, PipelineStep } from "@/layers/ai-agents/api";
+import { EMPTY_EXTRACTED, EMPTY_SOAP, PIPELINE_STEPS } from "@/layers/ai-agents/api";
+import type { SafetyResults } from "@/layers/safety/api";
+import { severityColor } from "@/layers/safety/api";
 
 export default function Clinical() {
   const { user } = useAuth();
