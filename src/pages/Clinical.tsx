@@ -89,10 +89,15 @@ export default function Clinical() {
       const stabilized = data.stabilized_transcript || rawTranscript;
       setStabilizedTranscript(stabilized);
       setEditedTranscript(stabilized);
+      // Capture normalization results from the enhanced pipeline
+      setNormalizationResults(data.normalization_results || []);
+      setDetectedLanguages(data.detected_languages || []);
     } catch {
       toast({ title: "Stabilization notice", description: "Could not stabilize transcript. Showing raw version." });
       setStabilizedTranscript(rawTranscript);
       setEditedTranscript(rawTranscript);
+      setNormalizationResults([]);
+      setDetectedLanguages([]);
     } finally { setIsStabilizing(false); }
   };
 
