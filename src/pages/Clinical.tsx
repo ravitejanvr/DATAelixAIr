@@ -209,6 +209,7 @@ export default function Clinical() {
   const generateSoap = async () => {
     setIsGeneratingSoap(true);
     setStep("soap");
+    const timer = startPipelineTimer("documentation");
     try {
       const { data, error } = await supabase.functions.invoke("clinical-soap", {
         body: { transcript: editedTranscript.trim(), extractedData: { ...extractedData, safety_results: safetyResults } },
@@ -223,10 +224,12 @@ export default function Clinical() {
         "Follow-up": data.sections?.["Follow-up"] || "",
       };
       setSoapSections(sections);
-      setAiSoapBaseline({ ...sections }); // Learning layer: baseline for diff
+      setAiSoapBaseline({ ...sections });
+      timer.stop(true);
     } catch (err: any) {
       toast({ title: "Summary generation failed", description: err.message, variant: "destructive" });
       setStep("safety");
+      timer.stop(false, { error: err.message });
     } finally { setIsGeneratingSoap(false); }
   };
 
