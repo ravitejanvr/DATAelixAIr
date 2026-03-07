@@ -55,6 +55,7 @@ export type Database = {
           intake_enabled: boolean | null
           lab_enabled: boolean | null
           pharmacy_enabled: boolean | null
+          triage_enabled: boolean | null
           updated_at: string
           vitals_required: boolean | null
           workflow_order: Json | null
@@ -69,6 +70,7 @@ export type Database = {
           intake_enabled?: boolean | null
           lab_enabled?: boolean | null
           pharmacy_enabled?: boolean | null
+          triage_enabled?: boolean | null
           updated_at?: string
           vitals_required?: boolean | null
           workflow_order?: Json | null
@@ -83,6 +85,7 @@ export type Database = {
           intake_enabled?: boolean | null
           lab_enabled?: boolean | null
           pharmacy_enabled?: boolean | null
+          triage_enabled?: boolean | null
           updated_at?: string
           vitals_required?: boolean | null
           workflow_order?: Json | null
@@ -919,6 +922,79 @@ export type Database = {
         }
         Relationships: []
       }
+      triage: {
+        Row: {
+          allergies_noted: string | null
+          chief_complaint: string
+          clinic_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          pain_score: number | null
+          patient_id: string
+          pregnancy_status: string | null
+          priority: string | null
+          recorded_by: string
+          symptom_duration: string | null
+          updated_at: string
+          visit_id: string
+        }
+        Insert: {
+          allergies_noted?: string | null
+          chief_complaint?: string
+          clinic_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          pain_score?: number | null
+          patient_id: string
+          pregnancy_status?: string | null
+          priority?: string | null
+          recorded_by: string
+          symptom_duration?: string | null
+          updated_at?: string
+          visit_id: string
+        }
+        Update: {
+          allergies_noted?: string | null
+          chief_complaint?: string
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          pain_score?: number | null
+          patient_id?: string
+          pregnancy_status?: string | null
+          priority?: string | null
+          recorded_by?: string
+          symptom_duration?: string | null
+          updated_at?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "triage_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "triage_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "triage_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       usage_metrics: {
         Row: {
           created_at: string
@@ -971,11 +1047,13 @@ export type Database = {
           bp_systolic: number | null
           clinic_id: string
           created_at: string
+          height_cm: number | null
           id: string
           notes: string | null
           patient_id: string
           pulse: number | null
           recorded_by: string
+          respiratory_rate: number | null
           spo2: number | null
           temperature: number | null
           visit_id: string | null
@@ -987,11 +1065,13 @@ export type Database = {
           bp_systolic?: number | null
           clinic_id: string
           created_at?: string
+          height_cm?: number | null
           id?: string
           notes?: string | null
           patient_id: string
           pulse?: number | null
           recorded_by: string
+          respiratory_rate?: number | null
           spo2?: number | null
           temperature?: number | null
           visit_id?: string | null
@@ -1003,11 +1083,13 @@ export type Database = {
           bp_systolic?: number | null
           clinic_id?: string
           created_at?: string
+          height_cm?: number | null
           id?: string
           notes?: string | null
           patient_id?: string
           pulse?: number | null
           recorded_by?: string
+          respiratory_rate?: number | null
           spo2?: number | null
           temperature?: number | null
           visit_id?: string | null
