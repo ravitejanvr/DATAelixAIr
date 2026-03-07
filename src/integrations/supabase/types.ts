@@ -165,6 +165,7 @@ export type Database = {
           status: string | null
           tests_ordered: string[] | null
           updated_at: string
+          visit_id: string | null
         }
         Insert: {
           ai_summary?: string | null
@@ -197,6 +198,7 @@ export type Database = {
           status?: string | null
           tests_ordered?: string[] | null
           updated_at?: string
+          visit_id?: string | null
         }
         Update: {
           ai_summary?: string | null
@@ -229,6 +231,7 @@ export type Database = {
           status?: string | null
           tests_ordered?: string[] | null
           updated_at?: string
+          visit_id?: string | null
         }
         Relationships: [
           {
@@ -243,6 +246,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultations_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
             referencedColumns: ["id"]
           },
         ]
@@ -314,6 +324,7 @@ export type Database = {
           status: string | null
           total: number | null
           updated_at: string
+          visit_id: string | null
         }
         Insert: {
           clinic_id: string
@@ -331,6 +342,7 @@ export type Database = {
           status?: string | null
           total?: number | null
           updated_at?: string
+          visit_id?: string | null
         }
         Update: {
           clinic_id?: string
@@ -348,6 +360,7 @@ export type Database = {
           status?: string | null
           total?: number | null
           updated_at?: string
+          visit_id?: string | null
         }
         Relationships: [
           {
@@ -369,6 +382,172 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_orders: {
+        Row: {
+          category: string | null
+          clinic_id: string
+          completed_at: string | null
+          created_at: string
+          doctor_id: string
+          id: string
+          notes: string | null
+          order_number: string | null
+          ordered_at: string
+          patient_id: string
+          priority: string | null
+          status: string
+          test_code: string | null
+          test_name: string
+          updated_at: string
+          visit_id: string
+        }
+        Insert: {
+          category?: string | null
+          clinic_id: string
+          completed_at?: string | null
+          created_at?: string
+          doctor_id: string
+          id?: string
+          notes?: string | null
+          order_number?: string | null
+          ordered_at?: string
+          patient_id: string
+          priority?: string | null
+          status?: string
+          test_code?: string | null
+          test_name: string
+          updated_at?: string
+          visit_id: string
+        }
+        Update: {
+          category?: string | null
+          clinic_id?: string
+          completed_at?: string | null
+          created_at?: string
+          doctor_id?: string
+          id?: string
+          notes?: string | null
+          order_number?: string | null
+          ordered_at?: string
+          patient_id?: string
+          priority?: string | null
+          status?: string
+          test_code?: string | null
+          test_name?: string
+          updated_at?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_orders_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_orders_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_orders_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_results: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          is_abnormal: boolean | null
+          lab_order_id: string
+          notes: string | null
+          parameter_name: string
+          patient_id: string
+          reference_range: string | null
+          unit: string | null
+          value: string
+          verified_at: string | null
+          verified_by: string | null
+          visit_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          is_abnormal?: boolean | null
+          lab_order_id: string
+          notes?: string | null
+          parameter_name: string
+          patient_id: string
+          reference_range?: string | null
+          unit?: string | null
+          value: string
+          verified_at?: string | null
+          verified_by?: string | null
+          visit_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          is_abnormal?: boolean | null
+          lab_order_id?: string
+          notes?: string | null
+          parameter_name?: string
+          patient_id?: string
+          reference_range?: string | null
+          unit?: string | null
+          value?: string
+          verified_at?: string | null
+          verified_by?: string | null
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_results_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_results_lab_order_id_fkey"
+            columns: ["lab_order_id"]
+            isOneToOne: false
+            referencedRelation: "lab_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_results_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_results_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
             referencedColumns: ["id"]
           },
         ]
@@ -596,6 +775,7 @@ export type Database = {
           patient_id: string
           route: string | null
           severity: string | null
+          visit_id: string | null
         }
         Insert: {
           clinic_id?: string | null
@@ -612,6 +792,7 @@ export type Database = {
           patient_id: string
           route?: string | null
           severity?: string | null
+          visit_id?: string | null
         }
         Update: {
           clinic_id?: string | null
@@ -628,6 +809,7 @@ export type Database = {
           patient_id?: string
           route?: string | null
           severity?: string | null
+          visit_id?: string | null
         }
         Relationships: [
           {
@@ -649,6 +831,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescriptions_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
             referencedColumns: ["id"]
           },
         ]
