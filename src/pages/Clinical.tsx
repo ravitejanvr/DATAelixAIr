@@ -50,6 +50,8 @@ export default function Clinical() {
   const [explanationLang, setExplanationLang] = useState<"english" | "telugu">("telugu");
   const [isGeneratingExplanation, setIsGeneratingExplanation] = useState(false);
   const [showPatientExplanation, setShowPatientExplanation] = useState(false);
+  const [normalizationResults, setNormalizationResults] = useState<NormalizationMatch[]>([]);
+  const [detectedLanguages, setDetectedLanguages] = useState<string[]>([]);
   const [previousSessions, setPreviousSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
 
