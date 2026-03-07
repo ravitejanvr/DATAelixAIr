@@ -1143,6 +1143,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_lexicon_usage: { Args: { ids: string[] }; Returns: undefined }
       is_doctor_for_patient: {
         Args: { p_patient_id: string }
         Returns: boolean
