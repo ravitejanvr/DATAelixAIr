@@ -31,6 +31,7 @@ import {
   captureDocumentationStyleSignal,
 } from "@/layers/learning/api";
 import {
+  logAuditEvent,
   startPipelineTimer,
   emitSafetyAlertMetric,
   emitSessionCompletedMetric,
@@ -266,6 +267,37 @@ export default function Clinical() {
       toast({ title: "Session saved", description: "Clinical session saved successfully." });
       loadPreviousSessions();
 
+      // Governance: audit log for AI output + doctor edits (fire-and-forget)
+      const transcriptWasEdited = stabilizedTranscript !== editedTranscript;
+      const extractionWasCorrected = JSON.stringify(aiExtractedBaseline) !== JSON.stringify(extractedData);
+      const soapWasEdited = JSON.stringify(aiSoapBaseline) !== JSON.stringify(soapSections);
+      const safetyAlertsCount = safetyResults ? (safetyResults.interaction_flags.length + safetyResults.allergy_flags.length + safetyResults.dose_warnings.length + safetyResults.vitals_dangers.length + safetyResults.emergency_patterns.length) : 0;
+
+      logAuditEvent({
+        actor_id: user.id,
+        event_type: "session_completed",
+        target_type: "consultation",
+        target_id: consultData.id,
+        metadata: {
+          transcript_edited: transcriptWasEdited,
+          extraction_corrected: extractionWasCorrected,
+          soap_edited: soapWasEdited,
+          safety_alerts_count: safetyAlertsCount,
+          model_version: "gemini-3-flash-preview",
+          duration_ms: Math.round(performance.now() - sessionStartTime),
+        },
+      });
+
+      if (transcriptWasEdited) {
+        logAuditEvent({ actor_id: user.id, event_type: "ai_output_edited", target_type: "transcript", target_id: consultData.id, metadata: { stage: "transcript" } });
+      }
+      if (extractionWasCorrected) {
+        logAuditEvent({ actor_id: user.id, event_type: "ai_output_edited", target_type: "extraction", target_id: consultData.id, metadata: { stage: "extraction" } });
+      }
+      if (soapWasEdited) {
+        logAuditEvent({ actor_id: user.id, event_type: "ai_output_edited", target_type: "soap", target_id: consultData.id, metadata: { stage: "soap" } });
+      }
+
       // Learning layer: capture signals after doctor-validated save (fire-and-forget, no PHI)
       const clinicId = null; // TODO: wire from profile when available
       captureTranscriptEditSignal(user.id, clinicId, stabilizedTranscript, editedTranscript);
@@ -274,10 +306,10 @@ export default function Clinical() {
 
       // Monitoring layer: emit session completion metrics (no PHI)
       emitSessionCompletedMetric({
-        transcript_edited: stabilizedTranscript !== editedTranscript,
-        extraction_corrected: JSON.stringify(aiExtractedBaseline) !== JSON.stringify(extractedData),
-        soap_edited: JSON.stringify(aiSoapBaseline) !== JSON.stringify(soapSections),
-        safety_alerts_count: safetyResults ? (safetyResults.interaction_flags.length + safetyResults.allergy_flags.length + safetyResults.dose_warnings.length + safetyResults.vitals_dangers.length + safetyResults.emergency_patterns.length) : 0,
+        transcript_edited: transcriptWasEdited,
+        extraction_corrected: extractionWasCorrected,
+        soap_edited: soapWasEdited,
+        safety_alerts_count: safetyAlertsCount,
         total_duration_ms: Math.round(performance.now() - sessionStartTime),
       });
     } catch (err: any) {
