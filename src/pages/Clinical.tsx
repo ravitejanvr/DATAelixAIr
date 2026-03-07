@@ -31,6 +31,7 @@ import {
   captureDocumentationStyleSignal,
 } from "@/layers/learning/api";
 import {
+  logAuditEvent,
   startPipelineTimer,
   emitSafetyAlertMetric,
   emitSessionCompletedMetric,
