@@ -51,6 +51,10 @@ export interface TranscriptionAgentOutput {
 // Purpose: Clean raw transcript via lexicon lookup + AI stabilization
 // Safety: Never translate, summarize, or infer diagnoses
 
+// Re-export NormalizationMatch from multilingual layer (single source of truth)
+export type { NormalizationMatch } from "@/layers/multilingual/api";
+import type { NormalizationMatch } from "@/layers/multilingual/api";
+
 export interface StabilizerAgentOutput {
   stabilized_transcript: string;
   original_transcript: string;
@@ -58,9 +62,6 @@ export interface StabilizerAgentOutput {
   detected_languages: string[];
   match_count: number;
 }
-
-// Re-export NormalizationMatch from multilingual layer (single source of truth)
-export type { NormalizationMatch } from "@/layers/multilingual/api";
 
 // ── Agent 3: Patient Context Agent ───────────────────────────
 // Runtime: Client-side Supabase query (no AI)
