@@ -26,4 +26,4 @@ export type { PatientData, ClinicalAssessment, ClinicalAgentResponse } from './a
 export * from './multilingual/api';
 export * from './monitoring/api';
 export * from './governance/api';
-export * from './learning/api';
+export { type DoctorFavorite, type RegionalLexiconEntry, type DoctorPreferences, type LearningSignal, type LearningSignalType, captureTranscriptEditSignal, captureExtractionCorrectionSignal, captureDocumentationStyleSignal, loadDoctorPreferences, saveDoctorPreferences } from './learning/api';

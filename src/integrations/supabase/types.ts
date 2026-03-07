@@ -310,6 +310,71 @@ export type Database = {
           },
         ]
       }
+      doctor_learning_signals: {
+        Row: {
+          clinic_id: string | null
+          created_at: string
+          doctor_id: string
+          id: string
+          signal_data: Json
+          signal_type: string
+        }
+        Insert: {
+          clinic_id?: string | null
+          created_at?: string
+          doctor_id: string
+          id?: string
+          signal_data?: Json
+          signal_type?: string
+        }
+        Update: {
+          clinic_id?: string | null
+          created_at?: string
+          doctor_id?: string
+          id?: string
+          signal_data?: Json
+          signal_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doctor_learning_signals_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      doctor_preferences: {
+        Row: {
+          created_at: string
+          doctor_id: string
+          id: string
+          preferred_templates: Json
+          soap_style: Json
+          terminology_overrides: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          doctor_id: string
+          id?: string
+          preferred_templates?: Json
+          soap_style?: Json
+          terminology_overrides?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          doctor_id?: string
+          id?: string
+          preferred_templates?: Json
+          soap_style?: Json
+          terminology_overrides?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           clinic_id: string
