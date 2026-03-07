@@ -25,6 +25,11 @@ import { EMPTY_EXTRACTED, EMPTY_SOAP, PIPELINE_STEPS } from "@/layers/ai-agents/
 import type { SafetyResults } from "@/layers/safety/api";
 import { severityColor } from "@/layers/safety/api";
 import type { NormalizationMatch } from "@/layers/multilingual/api";
+import {
+  captureTranscriptEditSignal,
+  captureExtractionCorrectionSignal,
+  captureDocumentationStyleSignal,
+} from "@/layers/learning/api";
 
 export default function Clinical() {
   const { user } = useAuth();
