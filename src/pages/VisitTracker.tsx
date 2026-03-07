@@ -8,18 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import { Users, Clock, RefreshCw } from "lucide-react";
+import { VISIT_STATUSES, VISIT_STATUS_CONFIG } from "@/layers/workflow/api";
 
-const STATUSES = ["registered", "vitals", "doctor", "lab", "pharmacy", "billing", "complete"] as const;
+const STATUSES = VISIT_STATUSES;
+const statusConfig = VISIT_STATUS_CONFIG;
 
-const statusConfig: Record<string, { label: string; color: string }> = {
-  registered: { label: "Registered", color: "bg-blue-100 text-blue-800 border-blue-200" },
-  vitals: { label: "Vitals", color: "bg-purple-100 text-purple-800 border-purple-200" },
-  doctor: { label: "Doctor", color: "bg-primary/10 text-primary border-primary/20" },
-  lab: { label: "Lab", color: "bg-amber-100 text-amber-800 border-amber-200" },
-  pharmacy: { label: "Pharmacy", color: "bg-orange-100 text-orange-800 border-orange-200" },
-  billing: { label: "Billing", color: "bg-indigo-100 text-indigo-800 border-indigo-200" },
-  complete: { label: "Complete", color: "bg-emerald-100 text-emerald-800 border-emerald-200" },
-};
 
 export default function VisitTracker() {
   const { user } = useAuth();

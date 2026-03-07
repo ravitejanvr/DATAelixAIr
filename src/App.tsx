@@ -45,7 +45,8 @@ import PilotRequest from "./pages/PilotRequest";
 
 const queryClient = new QueryClient();
 
-type AppRole = string;
+import { CLINICAL_ROLES, getDefaultRouteForRole } from "@/layers/governance/api";
+import type { AppRole } from "@/layers/governance/api";
 
 function useUserRole() {
   const { user, loading: authLoading } = useAuth();
@@ -70,7 +71,7 @@ function useUserRole() {
   return { role, loading: authLoading || roleLoading, user };
 }
 
-function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: AppRole[] }) {
+function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { role, loading, user } = useUserRole();
 
   if (loading) {
@@ -103,20 +104,12 @@ function AuthRedirect() {
 
   if (!user) return <Auth />;
 
-  // Role-based redirect
-  switch (role) {
-    case "platform_admin": return <Navigate to="/platform-admin" replace />;
-    case "clinic_admin": return <Navigate to="/dashboard" replace />;
-    case "doctor": return <Navigate to="/dashboard" replace />;
-    case "nurse": return <Navigate to="/vitals" replace />;
-    case "receptionist": return <Navigate to="/dashboard" replace />;
-    case "patient": return <Navigate to="/patient-portal" replace />;
-    case "pharmacist": return <Navigate to="/prescriptions" replace />;
-    default: return <Navigate to="/dashboard" replace />;
-  }
+  // Role-based redirect using governance layer
+  const targetRoute = getDefaultRouteForRole(role as AppRole | null);
+  return <Navigate to={targetRoute} replace />;
 }
 
-const clinicalRoles = ["doctor", "nurse", "clinic_admin", "receptionist", "pharmacist", "allied_health", "lab", "care_coordinator", "front_desk"];
+const clinicalRoles: string[] = [...CLINICAL_ROLES];
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
