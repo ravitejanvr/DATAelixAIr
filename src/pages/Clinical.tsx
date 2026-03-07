@@ -271,6 +271,15 @@ export default function Clinical() {
       captureTranscriptEditSignal(user.id, clinicId, stabilizedTranscript, editedTranscript);
       captureExtractionCorrectionSignal(user.id, clinicId, aiExtractedBaseline as any, extractedData as any);
       captureDocumentationStyleSignal(user.id, clinicId, aiSoapBaseline as unknown as Record<string, string>, soapSections as unknown as Record<string, string>);
+
+      // Monitoring layer: emit session completion metrics (no PHI)
+      emitSessionCompletedMetric({
+        transcript_edited: stabilizedTranscript !== editedTranscript,
+        extraction_corrected: JSON.stringify(aiExtractedBaseline) !== JSON.stringify(extractedData),
+        soap_edited: JSON.stringify(aiSoapBaseline) !== JSON.stringify(soapSections),
+        safety_alerts_count: safetyResults ? (safetyResults.interaction_flags.length + safetyResults.allergy_flags.length + safetyResults.dose_warnings.length + safetyResults.vitals_dangers.length + safetyResults.emergency_patterns.length) : 0,
+        total_duration_ms: Math.round(performance.now() - sessionStartTime),
+      });
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally { setIsSaving(false); }
