@@ -246,7 +246,7 @@ export default function Clinical() {
       const clinicId = null; // TODO: wire from profile when available
       captureTranscriptEditSignal(user.id, clinicId, stabilizedTranscript, editedTranscript);
       captureExtractionCorrectionSignal(user.id, clinicId, aiExtractedBaseline as any, extractedData as any);
-      captureDocumentationStyleSignal(user.id, clinicId, aiSoapBaseline as Record<string, string>, soapSections as unknown as Record<string, string>);
+      captureDocumentationStyleSignal(user.id, clinicId, aiSoapBaseline as unknown as Record<string, string>, soapSections as unknown as Record<string, string>);
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally { setIsSaving(false); }
