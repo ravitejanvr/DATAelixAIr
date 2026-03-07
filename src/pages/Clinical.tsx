@@ -580,6 +580,7 @@ export default function Clinical() {
                             ))}
                           </div>
                         )}
+                      </div>
 
                       {safetyResults.requires_manual_review && (
                         <div className="p-3 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
