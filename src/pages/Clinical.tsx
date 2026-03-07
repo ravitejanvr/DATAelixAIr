@@ -141,11 +141,32 @@ export default function Clinical() {
         ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : [];
       const allergies = extractedData.allergies
         ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : [];
-      if (medications.length === 0) {
-        setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString() });
+      // Parse vitals from extracted text
+      const vitalsText = extractedData.vitals || "";
+      const parseVital = (pattern: RegExp): number | null => {
+        const m = vitalsText.match(pattern);
+        return m ? parseFloat(m[1]) : null;
+      };
+      const vitalsObj: Record<string, number | null> = {
+        bp_systolic: parseVital(/(\d{2,3})\s*\/\s*\d+/),
+        bp_diastolic: parseVital(/\d+\s*\/\s*(\d{2,3})/),
+        pulse: parseVital(/(?:pulse|hr|heart\s*rate)[:\s]*(\d+)/i) ?? parseVital(/(\d{2,3})\s*bpm/i),
+        temperature: parseVital(/(?:temp|temperature)[:\s]*([\d.]+)/i),
+        spo2: parseVital(/(?:spo2|sp02|o2\s*sat|oxygen)[:\s]*(\d+)/i),
+        respiratory_rate: parseVital(/(?:rr|resp|respiratory)[:\s]*(\d+)/i),
+        blood_sugar: parseVital(/(?:sugar|glucose|bs|rbs)[:\s]*(\d+)/i),
+      };
+      // Gather symptoms from chief complaint + associated symptoms
+      const symptomParts = [
+        extractedData.chief_complaint,
+        extractedData.associated_symptoms,
+      ].filter(Boolean).join(", ").split(",").map(s => s.trim()).filter(Boolean);
+
+      if (medications.length === 0 && !Object.values(vitalsObj).some(v => v != null) && symptomParts.length === 0) {
+        setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString() });
         return;
       }
-      const { data, error } = await supabase.functions.invoke("clinical-safety", { body: { medications, allergies } });
+      const { data, error } = await supabase.functions.invoke("clinical-safety", { body: { medications, allergies, vitals: vitalsObj, symptoms: symptomParts } });
       if (error) throw new Error(error.message);
       setSafetyResults(data as SafetyResults);
     } catch (err: any) {
