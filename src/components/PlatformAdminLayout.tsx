@@ -12,6 +12,7 @@ const navItems = [
   { label: "Overview", path: "/platform-admin", icon: LayoutDashboard },
   { label: "Pilot Requests", path: "/platform-admin/pilots", icon: Building2 },
   { label: "Users", path: "/platform-admin/users", icon: Users },
+  { label: "Governance", path: "/platform-admin/governance", icon: Shield },
   { label: "Metrics", path: "/platform-admin/metrics", icon: BarChart3 },
   { label: "Safety Logs", path: "/platform-admin/safety", icon: ShieldAlert },
   { label: "Audit Trail", path: "/platform-admin/audit", icon: FileText },
