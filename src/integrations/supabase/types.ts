@@ -620,6 +620,36 @@ export type Database = {
           },
         ]
       }
+      monitoring_events: {
+        Row: {
+          agent_name: string | null
+          created_at: string
+          duration_ms: number | null
+          event_type: string
+          id: string
+          metadata: Json
+          success: boolean
+        }
+        Insert: {
+          agent_name?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          event_type: string
+          id?: string
+          metadata?: Json
+          success?: boolean
+        }
+        Update: {
+          agent_name?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          event_type?: string
+          id?: string
+          metadata?: Json
+          success?: boolean
+        }
+        Relationships: []
+      }
       patient_visits: {
         Row: {
           assigned_to: string | null
