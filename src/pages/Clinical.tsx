@@ -233,11 +233,7 @@ export default function Clinical() {
 
   const stepIndex = steps.findIndex(s => s.key === step);
 
-  const severityColor = (sev: string) => {
-    if (sev === "severe" || sev === "high") return "text-destructive bg-destructive/10 border-destructive/20";
-    if (sev === "moderate") return "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800";
-    return "text-muted-foreground bg-muted/50 border-border";
-  };
+  // severityColor imported from @/layers/safety/api
 
   const confidenceBadge = (level: string) => {
     if (level === "high") return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"><CheckCircle className="h-3 w-3 mr-1" />High Confidence</Badge>;
