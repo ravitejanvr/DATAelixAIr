@@ -19,77 +19,10 @@ import {
   ShieldCheck, AlertTriangle, XCircle, CheckCircle, Info, Languages
 } from "lucide-react";
 import VoiceRecorder from "@/components/VoiceRecorder";
-
-interface ExtractedData {
-  chief_complaint: string;
-  duration: string;
-  associated_symptoms: string;
-  vitals: string;
-  chronic_conditions: string;
-  current_medications: string;
-  allergies: string;
-}
-
-interface SoapSections {
-  "Visit Summary": string;
-  "Findings": string;
-  "Provisional Diagnosis": string;
-  "Safety Warnings": string;
-  "Treatment Plan": string;
-  "Advice": string;
-  "Follow-up": string;
-}
-
-interface NormalizedDrug {
-  original_name: string;
-  rxnorm_id: string | null;
-  canonical_name: string | null;
-  confidence_level: "high" | "moderate" | "low";
-  warning: string | null;
-}
-
-interface InteractionFlag {
-  interaction_warning: boolean;
-  severity: "mild" | "moderate" | "severe";
-  drug_a: string;
-  drug_b: string;
-  description: string;
-}
-
-interface AllergyFlag {
-  medication: string;
-  allergy: string;
-  severity: "high";
-  message: string;
-}
-
-interface DoseWarning {
-  medication: string;
-  issue: string;
-  message: string;
-}
-
-interface SafetyResults {
-  normalized_drugs: NormalizedDrug[];
-  interaction_flags: InteractionFlag[];
-  allergy_flags: AllergyFlag[];
-  dose_warnings: DoseWarning[];
-  confidence_level: "low" | "moderate" | "high";
-  requires_manual_review: boolean;
-  timestamp: string;
-}
-
-type PipelineStep = "record" | "review" | "extract" | "safety" | "soap" | "saved";
-
-const EMPTY_EXTRACTED: ExtractedData = {
-  chief_complaint: "", duration: "", associated_symptoms: "",
-  vitals: "", chronic_conditions: "", current_medications: "", allergies: "",
-};
-
-const EMPTY_SOAP: SoapSections = {
-  "Visit Summary": "", "Findings": "", "Provisional Diagnosis": "",
-  "Safety Warnings": "", "Treatment Plan": "", "Advice": "", "Follow-up": "",
-};
+import type { ExtractedData, SoapSections, PipelineStep } from "@/layers/ai-agents/api";
+import { EMPTY_EXTRACTED, EMPTY_SOAP, PIPELINE_STEPS } from "@/layers/ai-agents/api";
+import type { SafetyResults } from "@/layers/safety/api";
+import { severityColor } from "@/layers/safety/api";
 
 export default function Clinical() {
   const { user } = useAuth();
@@ -296,19 +229,11 @@ export default function Clinical() {
   const updateExtractedField = (field: keyof ExtractedData, value: string) => setExtractedData(prev => ({ ...prev, [field]: value }));
   const updateSoapSection = (section: keyof SoapSections, value: string) => setSoapSections(prev => ({ ...prev, [section]: value }));
 
-  const steps: { key: PipelineStep; label: string; num: number }[] = [
-    { key: "record", label: "Record", num: 1 }, { key: "review", label: "Review", num: 2 },
-    { key: "extract", label: "Extract", num: 3 }, { key: "safety", label: "Safety", num: 4 },
-    { key: "soap", label: "Summary", num: 5 }, { key: "saved", label: "Saved", num: 6 },
-  ];
+  const steps = PIPELINE_STEPS;
 
   const stepIndex = steps.findIndex(s => s.key === step);
 
-  const severityColor = (sev: string) => {
-    if (sev === "severe" || sev === "high") return "text-destructive bg-destructive/10 border-destructive/20";
-    if (sev === "moderate") return "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800";
-    return "text-muted-foreground bg-muted/50 border-border";
-  };
+  // severityColor imported from @/layers/safety/api
 
   const confidenceBadge = (level: string) => {
     if (level === "high") return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"><CheckCircle className="h-3 w-3 mr-1" />High Confidence</Badge>;
