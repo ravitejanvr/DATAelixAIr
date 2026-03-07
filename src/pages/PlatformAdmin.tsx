@@ -9,10 +9,13 @@ import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import {
   Building2, Users, FileText, Check, X, Loader2, ShieldAlert, Ban,
-  Activity, TrendingUp, Clock, AlertTriangle, CheckCircle, XCircle, Zap
+  Activity, TrendingUp, Clock, AlertTriangle, CheckCircle, XCircle, Zap,
+  Shield, Cpu, Lock, Eye
 } from "lucide-react";
 import type { MonitoringDashboardData } from "@/layers/monitoring/api";
 import { fetchMonitoringDashboard } from "@/layers/monitoring/api";
+import { MODEL_REGISTRY, DATA_ACCESS_MATRIX, ROLE_LABELS } from "@/layers/governance/api";
+import type { AppRole } from "@/layers/governance/api";
 
 export default function PlatformAdmin() {
   const { user } = useAuth();
@@ -24,6 +27,7 @@ export default function PlatformAdmin() {
   const [loading, setLoading] = useState(true);
   const [monitoringData, setMonitoringData] = useState<MonitoringDashboardData | null>(null);
   const [monitoringLoading, setMonitoringLoading] = useState(false);
+  const [governanceAudit, setGovernanceAudit] = useState<any[]>([]);
 
   useEffect(() => { if (user) loadAll(); }, [user]);
 
@@ -52,6 +56,16 @@ export default function PlatformAdmin() {
     } finally {
       setMonitoringLoading(false);
     }
+  };
+
+  const loadGovernanceAudit = async () => {
+    const { data } = await supabase
+      .from("audit_logs")
+      .select("*")
+      .in("event_type", ["session_completed", "ai_output_edited", "safety_override", "pilot_approved", "pilot_rejected", "clinic_suspended", "role_assigned"])
+      .order("created_at", { ascending: false })
+      .limit(100);
+    setGovernanceAudit(data || []);
   };
 
   const updatePilotStatus = async (id: string, status: string) => {
@@ -91,6 +105,14 @@ export default function PlatformAdmin() {
     return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400 text-[10px]">{status}</Badge>;
   };
 
+  // Compute role distribution from users
+  const roleCounts: Record<string, number> = {};
+  users.forEach((u: any) => {
+    (u.user_roles as any[])?.forEach((r: any) => {
+      roleCounts[r.role] = (roleCounts[r.role] || 0) + 1;
+    });
+  });
+
   if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
@@ -98,7 +120,7 @@ export default function PlatformAdmin() {
       <SEO title="Platform Admin — DATAelixAIr" description="Platform administration." />
       <div className="p-6 max-w-6xl mx-auto">
         <h1 className="text-xl font-bold text-foreground mb-1">Platform Administration</h1>
-        <p className="text-sm text-muted-foreground mb-6">Manage pilots, clinics, users, and monitor AI performance. No access to clinical data.</p>
+        <p className="text-sm text-muted-foreground mb-6">Manage pilots, clinics, users, governance, and monitor AI performance. No access to clinical data.</p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Card><CardContent className="pt-4 pb-3"><p className="text-[10px] text-muted-foreground">Pilot Requests</p><p className="text-2xl font-bold">{pilots.length}</p></CardContent></Card>
@@ -108,10 +130,11 @@ export default function PlatformAdmin() {
         </div>
 
         <Tabs defaultValue="pilots">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="pilots"><Building2 className="h-3.5 w-3.5 mr-1" /> Pilots</TabsTrigger>
             <TabsTrigger value="clinics"><ShieldAlert className="h-3.5 w-3.5 mr-1" /> Clinics</TabsTrigger>
             <TabsTrigger value="users"><Users className="h-3.5 w-3.5 mr-1" /> Users</TabsTrigger>
+            <TabsTrigger value="governance" onClick={loadGovernanceAudit}><Shield className="h-3.5 w-3.5 mr-1" /> Governance</TabsTrigger>
             <TabsTrigger value="monitoring" onClick={loadMonitoring}><Activity className="h-3.5 w-3.5 mr-1" /> Monitoring</TabsTrigger>
             <TabsTrigger value="audit"><FileText className="h-3.5 w-3.5 mr-1" /> Audit</TabsTrigger>
           </TabsList>
@@ -193,6 +216,140 @@ export default function PlatformAdmin() {
             </div>
           </TabsContent>
 
+          {/* ============ GOVERNANCE TAB ============ */}
+          <TabsContent value="governance" className="mt-4 space-y-6">
+            {/* Role Distribution */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2"><Users className="h-4 w-4" /> Role Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {Object.entries(roleCounts).sort((a, b) => b[1] - a[1]).map(([role, count]) => (
+                    <div key={role} className="border rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold">{count}</p>
+                      <p className="text-[10px] text-muted-foreground capitalize">{ROLE_LABELS[role as AppRole] || role}</p>
+                    </div>
+                  ))}
+                  {Object.keys(roleCounts).length === 0 && <p className="text-sm text-muted-foreground col-span-full text-center py-4">No roles assigned yet.</p>}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Data Access Matrix */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2"><Lock className="h-4 w-4" /> Data Access Matrix (Clinic-Isolated via RLS)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 font-medium text-muted-foreground">Resource</th>
+                        <th className="text-left py-2 font-medium text-muted-foreground">Allowed Roles</th>
+                        <th className="text-center py-2 font-medium text-muted-foreground">Isolation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(DATA_ACCESS_MATRIX).map(([resource, roles]) => (
+                        <tr key={resource} className="border-b last:border-0">
+                          <td className="py-2 font-medium capitalize">{resource.replace(/_/g, " ")}</td>
+                          <td className="py-2">
+                            <div className="flex flex-wrap gap-1">
+                              {roles.map(r => (
+                                <Badge key={r} variant="outline" className="text-[9px]">{ROLE_LABELS[r] || r}</Badge>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-2 text-center">
+                            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 text-[9px]">
+                              <Lock className="h-2.5 w-2.5 mr-0.5" /> clinic_id
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Model Version Registry */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2"><Cpu className="h-4 w-4" /> AI Model Version Registry</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 font-medium text-muted-foreground">Agent</th>
+                        <th className="text-left py-2 font-medium text-muted-foreground">Model</th>
+                        <th className="text-left py-2 font-medium text-muted-foreground">Provider</th>
+                        <th className="text-left py-2 font-medium text-muted-foreground">Version</th>
+                        <th className="text-left py-2 font-medium text-muted-foreground">Last Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {MODEL_REGISTRY.map(m => (
+                        <tr key={m.agent} className="border-b last:border-0">
+                          <td className="py-2 font-medium">{m.agent}</td>
+                          <td className="py-2 text-muted-foreground font-mono text-[10px]">{m.model}</td>
+                          <td className="py-2"><Badge variant="outline" className="text-[9px]">{m.provider}</Badge></td>
+                          <td className="py-2 text-muted-foreground">{m.version}</td>
+                          <td className="py-2 text-muted-foreground">{m.lastUpdated}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Governance Audit Trail */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2"><Eye className="h-4 w-4" /> AI Output & Doctor Edit Audit Trail</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+                  {governanceAudit.map((log: any) => (
+                    <div key={log.id} className="flex items-center justify-between p-2.5 rounded-lg border text-xs">
+                      <div className="flex items-center gap-2">
+                        {log.event_type.includes("edited") ? (
+                          <AlertTriangle className="h-3 w-3 text-amber-600 flex-shrink-0" />
+                        ) : log.event_type.includes("approved") ? (
+                          <CheckCircle className="h-3 w-3 text-emerald-600 flex-shrink-0" />
+                        ) : log.event_type.includes("rejected") || log.event_type.includes("suspended") ? (
+                          <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />
+                        ) : (
+                          <Shield className="h-3 w-3 text-primary flex-shrink-0" />
+                        )}
+                        <div>
+                          <span className="font-medium">{log.event_type.replace(/_/g, " ")}</span>
+                          {log.target_type && <span className="text-muted-foreground ml-1.5">· {log.target_type}</span>}
+                          {log.metadata?.stage && <Badge variant="outline" className="text-[9px] ml-1.5">{log.metadata.stage}</Badge>}
+                          {log.metadata?.model_version && <Badge variant="secondary" className="text-[9px] ml-1">{log.metadata.model_version}</Badge>}
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</span>
+                    </div>
+                  ))}
+                  {governanceAudit.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8">No governance events recorded yet. Events appear after clinical sessions are completed.</p>
+                  )}
+                </div>
+                <div className="flex justify-end mt-3">
+                  <Button size="sm" variant="outline" onClick={loadGovernanceAudit}>
+                    <Shield className="h-3 w-3 mr-1" /> Refresh
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Monitoring Tab */}
           <TabsContent value="monitoring" className="mt-4 space-y-6">
             {monitoringLoading && (
@@ -212,58 +369,18 @@ export default function PlatformAdmin() {
 
             {!monitoringLoading && monitoringData && (
               <>
-                {/* KPI Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <Card>
-                    <CardContent className="pt-4 pb-3 text-center">
-                      <Zap className="h-4 w-4 text-primary mx-auto mb-1" />
-                      <p className="text-[10px] text-muted-foreground">Total Sessions</p>
-                      <p className="text-xl font-bold">{monitoringData.totalSessions}</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-4 pb-3 text-center">
-                      <TrendingUp className="h-4 w-4 text-emerald-600 mx-auto mb-1" />
-                      <p className="text-[10px] text-muted-foreground">AI Acceptance Rate</p>
-                      <p className="text-xl font-bold">{monitoringData.aiAcceptanceRate}%</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-4 pb-3 text-center">
-                      <Clock className="h-4 w-4 text-blue-600 mx-auto mb-1" />
-                      <p className="text-[10px] text-muted-foreground">Avg SOAP Time</p>
-                      <p className="text-xl font-bold">{monitoringData.avgSoapDurationMs > 0 ? `${(monitoringData.avgSoapDurationMs / 1000).toFixed(1)}s` : "—"}</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-4 pb-3 text-center">
-                      <CheckCircle className="h-4 w-4 text-emerald-600 mx-auto mb-1" />
-                      <p className="text-[10px] text-muted-foreground">Transcription Conf.</p>
-                      <p className="text-xl font-bold">{monitoringData.avgTranscriptionConfidence > 0 ? `${monitoringData.avgTranscriptionConfidence}%` : "—"}</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-4 pb-3 text-center">
-                      <AlertTriangle className="h-4 w-4 text-amber-600 mx-auto mb-1" />
-                      <p className="text-[10px] text-muted-foreground">Safety Alert Rate</p>
-                      <p className="text-xl font-bold">{monitoringData.safetyAlertRate}%</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-4 pb-3 text-center">
-                      <XCircle className="h-4 w-4 text-destructive mx-auto mb-1" />
-                      <p className="text-[10px] text-muted-foreground">Error Rate</p>
-                      <p className="text-xl font-bold">{monitoringData.errorRate}%</p>
-                    </CardContent>
-                  </Card>
+                  <Card><CardContent className="pt-4 pb-3 text-center"><Zap className="h-4 w-4 text-primary mx-auto mb-1" /><p className="text-[10px] text-muted-foreground">Total Sessions</p><p className="text-xl font-bold">{monitoringData.totalSessions}</p></CardContent></Card>
+                  <Card><CardContent className="pt-4 pb-3 text-center"><TrendingUp className="h-4 w-4 text-emerald-600 mx-auto mb-1" /><p className="text-[10px] text-muted-foreground">AI Acceptance Rate</p><p className="text-xl font-bold">{monitoringData.aiAcceptanceRate}%</p></CardContent></Card>
+                  <Card><CardContent className="pt-4 pb-3 text-center"><Clock className="h-4 w-4 text-blue-600 mx-auto mb-1" /><p className="text-[10px] text-muted-foreground">Avg SOAP Time</p><p className="text-xl font-bold">{monitoringData.avgSoapDurationMs > 0 ? `${(monitoringData.avgSoapDurationMs / 1000).toFixed(1)}s` : "—"}</p></CardContent></Card>
+                  <Card><CardContent className="pt-4 pb-3 text-center"><CheckCircle className="h-4 w-4 text-emerald-600 mx-auto mb-1" /><p className="text-[10px] text-muted-foreground">Transcription Conf.</p><p className="text-xl font-bold">{monitoringData.avgTranscriptionConfidence > 0 ? `${monitoringData.avgTranscriptionConfidence}%` : "—"}</p></CardContent></Card>
+                  <Card><CardContent className="pt-4 pb-3 text-center"><AlertTriangle className="h-4 w-4 text-amber-600 mx-auto mb-1" /><p className="text-[10px] text-muted-foreground">Safety Alert Rate</p><p className="text-xl font-bold">{monitoringData.safetyAlertRate}%</p></CardContent></Card>
+                  <Card><CardContent className="pt-4 pb-3 text-center"><XCircle className="h-4 w-4 text-destructive mx-auto mb-1" /><p className="text-[10px] text-muted-foreground">Error Rate</p><p className="text-xl font-bold">{monitoringData.errorRate}%</p></CardContent></Card>
                 </div>
 
-                {/* Agent Performance Table */}
                 {monitoringData.agentPerformance.length > 0 && (
                   <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">Agent Performance (Last 30 Days)</CardTitle>
-                    </CardHeader>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">Agent Performance (Last 30 Days)</CardTitle></CardHeader>
                     <CardContent>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -280,17 +397,13 @@ export default function PlatformAdmin() {
                               <tr key={a.agent} className="border-b last:border-0">
                                 <td className="py-2 font-medium capitalize">{a.agent.replace(/_/g, " ")}</td>
                                 <td className="py-2 text-right text-muted-foreground">{a.count}</td>
-                                <td className="py-2 text-right text-muted-foreground">
-                                  {a.avgDuration > 0 ? `${(a.avgDuration / 1000).toFixed(1)}s` : "—"}
-                                </td>
+                                <td className="py-2 text-right text-muted-foreground">{a.avgDuration > 0 ? `${(a.avgDuration / 1000).toFixed(1)}s` : "—"}</td>
                                 <td className="py-2 text-right">
                                   <Badge variant="outline" className={`text-[10px] ${
                                     a.successRate >= 95 ? "text-emerald-700 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800" :
                                     a.successRate >= 80 ? "text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-800" :
                                     "text-destructive border-destructive/20"
-                                  }`}>
-                                    {a.successRate}%
-                                  </Badge>
+                                  }`}>{a.successRate}%</Badge>
                                 </td>
                               </tr>
                             ))}
@@ -301,21 +414,14 @@ export default function PlatformAdmin() {
                   </Card>
                 )}
 
-                {/* Recent Events */}
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Recent Events</CardTitle>
-                  </CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Recent Events</CardTitle></CardHeader>
                   <CardContent>
                     <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
                       {monitoringData.recentEvents.map((e, i) => (
                         <div key={i} className="flex items-center justify-between p-2.5 rounded-lg border text-xs">
                           <div className="flex items-center gap-2">
-                            {e.success ? (
-                              <CheckCircle className="h-3 w-3 text-emerald-600 flex-shrink-0" />
-                            ) : (
-                              <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />
-                            )}
+                            {e.success ? <CheckCircle className="h-3 w-3 text-emerald-600 flex-shrink-0" /> : <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />}
                             <div>
                               <span className="font-medium">{e.event_type.replace(/_/g, " ")}</span>
                               {e.agent_name && <span className="text-muted-foreground ml-1.5">· {e.agent_name}</span>}
@@ -328,16 +434,14 @@ export default function PlatformAdmin() {
                         </div>
                       ))}
                       {monitoringData.recentEvents.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-8">No monitoring events recorded yet. Events will appear after clinical sessions are completed.</p>
+                        <p className="text-sm text-muted-foreground text-center py-8">No monitoring events recorded yet.</p>
                       )}
                     </div>
                   </CardContent>
                 </Card>
 
                 <div className="flex justify-end">
-                  <Button size="sm" variant="outline" onClick={loadMonitoring}>
-                    <Activity className="h-3 w-3 mr-1" /> Refresh
-                  </Button>
+                  <Button size="sm" variant="outline" onClick={loadMonitoring}><Activity className="h-3 w-3 mr-1" /> Refresh</Button>
                 </div>
               </>
             )}
