@@ -534,6 +534,53 @@ export default function Clinical() {
                         )}
                       </div>
 
+                      {/* Vitals Dangers */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5"><HeartPulse className="h-3.5 w-3.5 text-destructive" /> Vitals Assessment</h4>
+                        {(!safetyResults.vitals_dangers || safetyResults.vitals_dangers.length === 0) ? (
+                          <div className="flex items-center gap-1.5 pl-5"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /><p className="text-xs text-muted-foreground">No dangerous vital signs detected.</p></div>
+                        ) : (
+                          <div className="space-y-1.5 pl-5">
+                            {safetyResults.vitals_dangers.map((v, i) => (
+                              <div key={i} className={`p-2 rounded-md border text-xs ${severityColor(v.severity)}`}>
+                                <div className="flex items-center gap-1.5 font-medium">
+                                  {v.severity === "critical" ? <Siren className="h-3.5 w-3.5 shrink-0" /> : <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                                  {v.message}
+                                  <Badge variant="outline" className="text-[9px] ml-auto">{v.severity}</Badge>
+                                </div>
+                                <p className="mt-0.5 pl-5 text-muted-foreground">{v.action_hint}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Emergency Patterns */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5"><Siren className="h-3.5 w-3.5 text-destructive" /> Emergency Patterns</h4>
+                        {(!safetyResults.emergency_patterns || safetyResults.emergency_patterns.length === 0) ? (
+                          <div className="flex items-center gap-1.5 pl-5"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /><p className="text-xs text-muted-foreground">No emergency patterns detected.</p></div>
+                        ) : (
+                          <div className="space-y-1.5 pl-5">
+                            {safetyResults.emergency_patterns.map((ep, i) => (
+                              <div key={i} className={`p-3 rounded-md border text-xs ${severityColor(ep.severity)}`}>
+                                <div className="flex items-center gap-1.5 font-semibold">
+                                  <Siren className="h-4 w-4 shrink-0" />
+                                  {ep.pattern}
+                                  <Badge variant="outline" className="text-[9px] ml-auto">{ep.severity}</Badge>
+                                </div>
+                                <p className="mt-1 pl-5.5">{ep.message}</p>
+                                <div className="mt-1 pl-5.5 flex flex-wrap gap-1">
+                                  {ep.matched_indicators.map((ind, j) => (
+                                    <Badge key={j} variant="outline" className="text-[9px]">{ind}</Badge>
+                                  ))}
+                                </div>
+                                <p className="mt-1.5 pl-5.5 font-medium">→ {ep.action_hint}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                       {safetyResults.requires_manual_review && (
                         <div className="p-3 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
                           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
