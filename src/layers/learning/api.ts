@@ -157,7 +157,7 @@ export async function captureExtractionCorrectionSignal(
       // Store field-level diffs only (no patient context)
       corrections,
     },
-  } as any).then(() => {}).catch(() => {});
+  } as any);
 }
 
 /**
