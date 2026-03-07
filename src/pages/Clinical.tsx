@@ -171,7 +171,7 @@ export default function Clinical() {
       setSafetyResults(data as SafetyResults);
     } catch (err: any) {
       toast({ title: "Safety check notice", description: err.message || "Safety check could not complete." });
-      setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], confidence_level: "moderate", requires_manual_review: true, timestamp: new Date().toISOString() });
+      setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "moderate", requires_manual_review: true, timestamp: new Date().toISOString() });
     } finally { setIsRunningSafety(false); }
   };
 
