@@ -226,5 +226,5 @@ export async function saveDoctorPreferences(
     doctor_id: doctorId,
     ...updates,
     updated_at: new Date().toISOString(),
-  } as any, { onConflict: "doctor_id" }).then(() => {}).catch(() => {});
+  } as any, { onConflict: "doctor_id" });
 }
