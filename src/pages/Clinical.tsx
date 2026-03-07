@@ -229,11 +229,7 @@ export default function Clinical() {
   const updateExtractedField = (field: keyof ExtractedData, value: string) => setExtractedData(prev => ({ ...prev, [field]: value }));
   const updateSoapSection = (section: keyof SoapSections, value: string) => setSoapSections(prev => ({ ...prev, [section]: value }));
 
-  const steps: { key: PipelineStep; label: string; num: number }[] = [
-    { key: "record", label: "Record", num: 1 }, { key: "review", label: "Review", num: 2 },
-    { key: "extract", label: "Extract", num: 3 }, { key: "safety", label: "Safety", num: 4 },
-    { key: "soap", label: "Summary", num: 5 }, { key: "saved", label: "Saved", num: 6 },
-  ];
+  const steps = PIPELINE_STEPS;
 
   const stepIndex = steps.findIndex(s => s.key === step);
 
