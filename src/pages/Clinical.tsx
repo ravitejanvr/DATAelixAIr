@@ -16,7 +16,8 @@ import EvidencePanel from "@/components/EvidencePanel";
 import {
   Loader2, Save, Mic,
   CheckCircle2, ChevronRight, FileText, Clock, Edit3, Eye, EyeOff,
-  ShieldCheck, AlertTriangle, XCircle, CheckCircle, Info, Languages
+  ShieldCheck, AlertTriangle, XCircle, CheckCircle, Info, Languages,
+  HeartPulse, Siren
 } from "lucide-react";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import type { ExtractedData, SoapSections, PipelineStep } from "@/layers/ai-agents/api";
@@ -140,16 +141,37 @@ export default function Clinical() {
         ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : [];
       const allergies = extractedData.allergies
         ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : [];
-      if (medications.length === 0) {
-        setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString() });
+      // Parse vitals from extracted text
+      const vitalsText = extractedData.vitals || "";
+      const parseVital = (pattern: RegExp): number | null => {
+        const m = vitalsText.match(pattern);
+        return m ? parseFloat(m[1]) : null;
+      };
+      const vitalsObj: Record<string, number | null> = {
+        bp_systolic: parseVital(/(\d{2,3})\s*\/\s*\d+/),
+        bp_diastolic: parseVital(/\d+\s*\/\s*(\d{2,3})/),
+        pulse: parseVital(/(?:pulse|hr|heart\s*rate)[:\s]*(\d+)/i) ?? parseVital(/(\d{2,3})\s*bpm/i),
+        temperature: parseVital(/(?:temp|temperature)[:\s]*([\d.]+)/i),
+        spo2: parseVital(/(?:spo2|sp02|o2\s*sat|oxygen)[:\s]*(\d+)/i),
+        respiratory_rate: parseVital(/(?:rr|resp|respiratory)[:\s]*(\d+)/i),
+        blood_sugar: parseVital(/(?:sugar|glucose|bs|rbs)[:\s]*(\d+)/i),
+      };
+      // Gather symptoms from chief complaint + associated symptoms
+      const symptomParts = [
+        extractedData.chief_complaint,
+        extractedData.associated_symptoms,
+      ].filter(Boolean).join(", ").split(",").map(s => s.trim()).filter(Boolean);
+
+      if (medications.length === 0 && !Object.values(vitalsObj).some(v => v != null) && symptomParts.length === 0) {
+        setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString() });
         return;
       }
-      const { data, error } = await supabase.functions.invoke("clinical-safety", { body: { medications, allergies } });
+      const { data, error } = await supabase.functions.invoke("clinical-safety", { body: { medications, allergies, vitals: vitalsObj, symptoms: symptomParts } });
       if (error) throw new Error(error.message);
       setSafetyResults(data as SafetyResults);
     } catch (err: any) {
       toast({ title: "Safety check notice", description: err.message || "Safety check could not complete." });
-      setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], confidence_level: "moderate", requires_manual_review: true, timestamp: new Date().toISOString() });
+      setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "moderate", requires_manual_review: true, timestamp: new Date().toISOString() });
     } finally { setIsRunningSafety(false); }
   };
 
@@ -506,6 +528,54 @@ export default function Clinical() {
                             {safetyResults.dose_warnings.map((w, i) => (
                               <div key={i} className="p-2 rounded-md border border-amber-200 bg-amber-50/50 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400">
                                 <div className="flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5 shrink-0" />{w.message}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Vitals Dangers */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5"><HeartPulse className="h-3.5 w-3.5 text-destructive" /> Vitals Assessment</h4>
+                        {(!safetyResults.vitals_dangers || safetyResults.vitals_dangers.length === 0) ? (
+                          <div className="flex items-center gap-1.5 pl-5"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /><p className="text-xs text-muted-foreground">No dangerous vital signs detected.</p></div>
+                        ) : (
+                          <div className="space-y-1.5 pl-5">
+                            {safetyResults.vitals_dangers.map((v, i) => (
+                              <div key={i} className={`p-2 rounded-md border text-xs ${severityColor(v.severity)}`}>
+                                <div className="flex items-center gap-1.5 font-medium">
+                                  {v.severity === "critical" ? <Siren className="h-3.5 w-3.5 shrink-0" /> : <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                                  {v.message}
+                                  <Badge variant="outline" className="text-[9px] ml-auto">{v.severity}</Badge>
+                                </div>
+                                <p className="mt-0.5 pl-5 text-muted-foreground">{v.action_hint}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Emergency Patterns */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5"><Siren className="h-3.5 w-3.5 text-destructive" /> Emergency Patterns</h4>
+                        {(!safetyResults.emergency_patterns || safetyResults.emergency_patterns.length === 0) ? (
+                          <div className="flex items-center gap-1.5 pl-5"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /><p className="text-xs text-muted-foreground">No emergency patterns detected.</p></div>
+                        ) : (
+                          <div className="space-y-1.5 pl-5">
+                            {safetyResults.emergency_patterns.map((ep, i) => (
+                              <div key={i} className={`p-3 rounded-md border text-xs ${severityColor(ep.severity)}`}>
+                                <div className="flex items-center gap-1.5 font-semibold">
+                                  <Siren className="h-4 w-4 shrink-0" />
+                                  {ep.pattern}
+                                  <Badge variant="outline" className="text-[9px] ml-auto">{ep.severity}</Badge>
+                                </div>
+                                <p className="mt-1 pl-5.5">{ep.message}</p>
+                                <div className="mt-1 pl-5.5 flex flex-wrap gap-1">
+                                  {ep.matched_indicators.map((ind, j) => (
+                                    <Badge key={j} variant="outline" className="text-[9px]">{ind}</Badge>
+                                  ))}
+                                </div>
+                                <p className="mt-1.5 pl-5.5 font-medium">→ {ep.action_hint}</p>
                               </div>
                             ))}
                           </div>
