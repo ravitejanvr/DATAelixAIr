@@ -68,6 +68,7 @@ export default function Clinical() {
   // Learning layer: store AI baselines for diff comparison
   const [aiExtractedBaseline, setAiExtractedBaseline] = useState<ExtractedData>(EMPTY_EXTRACTED);
   const [aiSoapBaseline, setAiSoapBaseline] = useState<SoapSections>(EMPTY_SOAP);
+  const [sessionStartTime] = useState(() => performance.now());
 
   useEffect(() => { if (user) loadPreviousSessions(); }, [user]);
 
