@@ -112,15 +112,18 @@ export const EMPTY_EXTRACTED: ExtractedData = {
 // Safety: Use ONLY extraction + safety data. Conservative language. Doctor review required.
 
 export interface SoapSections {
-  soap_subjective: string;
-  soap_objective: string;
-  soap_assessment: string;
-  soap_plan: string;
+  "Visit Summary": string;
+  "Findings": string;
+  "Provisional Diagnosis": string;
+  "Safety Warnings": string;
+  "Treatment Plan": string;
+  "Advice": string;
+  "Follow-up": string;
 }
 
 export const EMPTY_SOAP: SoapSections = {
-  soap_subjective: "", soap_objective: "",
-  soap_assessment: "", soap_plan: "",
+  "Visit Summary": "", "Findings": "", "Provisional Diagnosis": "",
+  "Safety Warnings": "", "Treatment Plan": "", "Advice": "", "Follow-up": "",
 };
 
 // ── Agent 7: Translation Agent ───────────────────────────────
