@@ -52,3 +52,48 @@ export function getDefaultRouteForRole(role: AppRole | null): string {
 
 export const PILOT_STATUSES = ["pending", "approved", "rejected"] as const;
 export type PilotStatus = typeof PILOT_STATUSES[number];
+
+/**
+ * AI Model Version Registry
+ * Tracks which models power each pipeline agent for governance/audit.
+ */
+export interface ModelVersion {
+  agent: string;
+  model: string;
+  version: string;
+  provider: string;
+  lastUpdated: string;
+}
+
+export const MODEL_REGISTRY: ModelVersion[] = [
+  { agent: "Transcript Stabilizer", model: "gemini-3-flash-preview", version: "3.0-flash", provider: "Google", lastUpdated: "2026-03-01" },
+  { agent: "Patient Data Extractor", model: "gemini-3-flash-preview", version: "3.0-flash", provider: "Google", lastUpdated: "2026-03-01" },
+  { agent: "Clinical Safety Controller", model: "gemini-3-flash-preview", version: "3.0-flash", provider: "Google", lastUpdated: "2026-03-01" },
+  { agent: "SOAP Generator", model: "gemini-3-flash-preview", version: "3.0-flash", provider: "Google", lastUpdated: "2026-03-01" },
+  { agent: "Evidence Summarizer", model: "gemini-2.5-flash", version: "2.5-flash", provider: "Google", lastUpdated: "2026-02-15" },
+  { agent: "Patient Explainer", model: "gemini-3-flash-preview", version: "3.0-flash", provider: "Google", lastUpdated: "2026-03-01" },
+  { agent: "Clinical Translator", model: "gemini-3-flash-preview", version: "3.0-flash", provider: "Google", lastUpdated: "2026-03-01" },
+];
+
+/** Governance audit event types */
+export const GOVERNANCE_EVENT_TYPES = [
+  "pilot_approved", "pilot_rejected", "clinic_suspended", "clinic_activated",
+  "role_assigned", "role_revoked", "ai_output_generated", "ai_output_edited",
+  "session_completed", "safety_override", "config_changed",
+] as const;
+export type GovernanceEventType = typeof GOVERNANCE_EVENT_TYPES[number];
+
+/** Data isolation check: returns roles that have access to a given resource type */
+export const DATA_ACCESS_MATRIX: Record<string, AppRole[]> = {
+  consultations: ["doctor", "nurse", "allied_health", "pharmacist", "lab", "care_coordinator", "clinic_admin"],
+  patients: ["doctor", "nurse", "allied_health", "pharmacist", "lab", "care_coordinator", "clinic_admin", "receptionist", "front_desk"],
+  prescriptions: ["doctor", "pharmacist", "clinic_admin"],
+  vitals: ["doctor", "nurse", "clinic_admin"],
+  lab_orders: ["doctor", "lab", "clinic_admin"],
+  lab_results: ["doctor", "lab", "clinic_admin"],
+  invoices: ["doctor", "receptionist", "clinic_admin"],
+  audit_logs: ["platform_admin"],
+  monitoring_events: ["platform_admin"],
+  pilot_requests: ["platform_admin"],
+  clinics: ["platform_admin"],
+};
