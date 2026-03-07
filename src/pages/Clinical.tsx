@@ -130,12 +130,14 @@ export default function Clinical() {
         body: { transcript: editedTranscript.trim() },
       });
       if (error) throw new Error(error.message);
-      setExtractedData({
+      const extracted = {
         chief_complaint: data.chief_complaint || "", duration: data.duration || "",
         associated_symptoms: data.associated_symptoms || "", vitals: data.vitals || "",
         chronic_conditions: data.chronic_conditions || "", current_medications: data.current_medications || "",
         allergies: data.allergies || "",
-      });
+      };
+      setExtractedData(extracted);
+      setAiExtractedBaseline({ ...extracted }); // Learning layer: baseline for diff
     } catch (err: any) {
       toast({ title: "Extraction failed", description: err.message, variant: "destructive" });
     } finally { setIsExtracting(false); }
