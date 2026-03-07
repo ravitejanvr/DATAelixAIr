@@ -120,7 +120,7 @@ export async function captureTranscriptEditSignal(
       original_length: stabilizedTranscript.length,
       edited_length: doctorEditedTranscript.length,
     },
-  } as any).then(() => {}).catch(() => {});
+  } as any);
 }
 
 /**
