@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   LayoutDashboard, Stethoscope, Users, Pill, Activity,
-  Receipt, LogOut, Menu, X, Globe, ClipboardList
+  Receipt, LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck
 } from "lucide-react";
 
 const navItems = [
@@ -13,8 +13,9 @@ const navItems = [
   { label: "Write / Record", path: "/clinical", icon: Stethoscope },
   { label: "Patients", path: "/patients", icon: Users },
   { label: "Visit Tracker", path: "/visit-tracker", icon: ClipboardList },
-  { label: "Prescriptions", path: "/prescriptions", icon: Pill },
+  { label: "Triage", path: "/triage", icon: ClipboardCheck },
   { label: "Vitals", path: "/vitals", icon: Activity },
+  { label: "Prescriptions", path: "/prescriptions", icon: Pill },
   { label: "Billing", path: "/billing", icon: Receipt },
 ];
 

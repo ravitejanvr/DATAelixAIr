@@ -7,22 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import { Activity, Save, Search } from "lucide-react";
-
-interface VitalEntry {
-  bp_systolic: string;
-  bp_diastolic: string;
-  pulse: string;
-  temperature: string;
-  spo2: string;
-  weight_kg: string;
-  blood_sugar: string;
-  notes: string;
-}
-
-const EMPTY_VITALS: VitalEntry = {
-  bp_systolic: "", bp_diastolic: "", pulse: "", temperature: "",
-  spo2: "", weight_kg: "", blood_sugar: "", notes: "",
-};
+import { EMPTY_VITALS, type VitalEntry } from "@/layers/workflow/api";
 
 export default function Vitals() {
   const { user } = useAuth();
@@ -47,7 +32,6 @@ export default function Vitals() {
   const selectPatient = async (patient: any) => {
     setSelectedPatient(patient);
     setVitals(EMPTY_VITALS);
-    // Load recent vitals for this patient
     const { data } = await supabase
       .from("vitals")
       .select("*")
@@ -61,7 +45,6 @@ export default function Vitals() {
     if (!selectedPatient || !user) return;
     setSaving(true);
     try {
-      // Get user's clinic_id from profile
       const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("user_id", user.id).maybeSingle();
 
       const { error } = await supabase.from("vitals").insert({
@@ -73,7 +56,9 @@ export default function Vitals() {
         pulse: vitals.pulse ? parseInt(vitals.pulse) : null,
         temperature: vitals.temperature ? parseFloat(vitals.temperature) : null,
         spo2: vitals.spo2 ? parseInt(vitals.spo2) : null,
+        respiratory_rate: vitals.respiratory_rate ? parseInt(vitals.respiratory_rate) : null,
         weight_kg: vitals.weight_kg ? parseFloat(vitals.weight_kg) : null,
+        height_cm: vitals.height_cm ? parseFloat(vitals.height_cm) : null,
         blood_sugar: vitals.blood_sugar ? parseFloat(vitals.blood_sugar) : null,
         notes: vitals.notes || null,
       } as any);
@@ -81,7 +66,7 @@ export default function Vitals() {
       if (error) throw error;
       toast({ title: "Vitals saved", description: `Vitals recorded for ${selectedPatient.name}` });
       setVitals(EMPTY_VITALS);
-      selectPatient(selectedPatient); // Refresh recent
+      selectPatient(selectedPatient);
     } catch (err: any) {
       toast({ title: "Error saving vitals", description: err.message, variant: "destructive" });
     } finally {
@@ -160,7 +145,7 @@ export default function Vitals() {
                       <Input value={vitals.bp_diastolic} onChange={e => updateVital("bp_diastolic", e.target.value)} placeholder="80" className="h-9 mt-1" type="number" />
                     </div>
                     <div>
-                      <label className="text-[10px] text-muted-foreground font-medium">Pulse (bpm)</label>
+                      <label className="text-[10px] text-muted-foreground font-medium">Heart Rate (bpm)</label>
                       <Input value={vitals.pulse} onChange={e => updateVital("pulse", e.target.value)} placeholder="72" className="h-9 mt-1" type="number" />
                     </div>
                     <div>
@@ -172,11 +157,19 @@ export default function Vitals() {
                       <Input value={vitals.spo2} onChange={e => updateVital("spo2", e.target.value)} placeholder="98" className="h-9 mt-1" type="number" />
                     </div>
                     <div>
+                      <label className="text-[10px] text-muted-foreground font-medium">Resp. Rate (/min)</label>
+                      <Input value={vitals.respiratory_rate} onChange={e => updateVital("respiratory_rate", e.target.value)} placeholder="16" className="h-9 mt-1" type="number" />
+                    </div>
+                    <div>
                       <label className="text-[10px] text-muted-foreground font-medium">Weight (kg)</label>
                       <Input value={vitals.weight_kg} onChange={e => updateVital("weight_kg", e.target.value)} placeholder="70" className="h-9 mt-1" type="number" step="0.1" />
                     </div>
                     <div>
-                      <label className="text-[10px] text-muted-foreground font-medium">Blood Sugar</label>
+                      <label className="text-[10px] text-muted-foreground font-medium">Height (cm)</label>
+                      <Input value={vitals.height_cm} onChange={e => updateVital("height_cm", e.target.value)} placeholder="170" className="h-9 mt-1" type="number" step="0.1" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground font-medium">Glucose (mg/dL)</label>
                       <Input value={vitals.blood_sugar} onChange={e => updateVital("blood_sugar", e.target.value)} placeholder="90" className="h-9 mt-1" type="number" />
                     </div>
                   </div>
@@ -188,7 +181,6 @@ export default function Vitals() {
                     <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : "Save Vitals"}
                   </Button>
 
-                  {/* Recent vitals */}
                   {recentVitals.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-border">
                       <p className="text-xs font-medium text-muted-foreground mb-2">Recent Vitals</p>
@@ -197,11 +189,13 @@ export default function Vitals() {
                           <div key={v.id} className="text-[11px] p-2 rounded bg-muted/30 flex flex-wrap gap-3">
                             <span>{new Date(v.created_at).toLocaleString()}</span>
                             {v.bp_systolic && <span>BP: {v.bp_systolic}/{v.bp_diastolic}</span>}
-                            {v.pulse && <span>Pulse: {v.pulse}</span>}
+                            {v.pulse && <span>HR: {v.pulse}</span>}
                             {v.temperature && <span>Temp: {v.temperature}°F</span>}
                             {v.spo2 && <span>SpO2: {v.spo2}%</span>}
+                            {v.respiratory_rate && <span>RR: {v.respiratory_rate}</span>}
                             {v.weight_kg && <span>Wt: {v.weight_kg}kg</span>}
-                            {v.blood_sugar && <span>Sugar: {v.blood_sugar}</span>}
+                            {v.height_cm && <span>Ht: {v.height_cm}cm</span>}
+                            {v.blood_sugar && <span>Glucose: {v.blood_sugar}</span>}
                           </div>
                         ))}
                       </div>
