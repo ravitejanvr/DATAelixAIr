@@ -156,12 +156,12 @@ export default function Clinical() {
   const runSafetyCheck = async () => {
     setIsRunningSafety(true);
     setStep("safety");
+    const timer = startPipelineTimer("safety_controller");
     try {
       const medications = extractedData.current_medications
         ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : [];
       const allergies = extractedData.allergies
         ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : [];
-      // Parse vitals from extracted text
       const vitalsText = extractedData.vitals || "";
       const parseVital = (pattern: RegExp): number | null => {
         const m = vitalsText.match(pattern);
@@ -176,7 +176,6 @@ export default function Clinical() {
         respiratory_rate: parseVital(/(?:rr|resp|respiratory)[:\s]*(\d+)/i),
         blood_sugar: parseVital(/(?:sugar|glucose|bs|rbs)[:\s]*(\d+)/i),
       };
-      // Gather symptoms from chief complaint + associated symptoms
       const symptomParts = [
         extractedData.chief_complaint,
         extractedData.associated_symptoms,
@@ -184,14 +183,26 @@ export default function Clinical() {
 
       if (medications.length === 0 && !Object.values(vitalsObj).some(v => v != null) && symptomParts.length === 0) {
         setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString() });
+        timer.stop(true, { skipped: true });
         return;
       }
       const { data, error } = await supabase.functions.invoke("clinical-safety", { body: { medications, allergies, vitals: vitalsObj, symptoms: symptomParts } });
       if (error) throw new Error(error.message);
-      setSafetyResults(data as SafetyResults);
+      const results = data as SafetyResults;
+      setSafetyResults(results);
+      timer.stop(true);
+      // Emit safety alert metrics
+      emitSafetyAlertMetric({
+        interactions: results.interaction_flags?.length || 0,
+        allergies: results.allergy_flags?.length || 0,
+        dose_warnings: results.dose_warnings?.length || 0,
+        vitals_dangers: results.vitals_dangers?.length || 0,
+        emergency_patterns: results.emergency_patterns?.length || 0,
+      });
     } catch (err: any) {
       toast({ title: "Safety check notice", description: err.message || "Safety check could not complete." });
       setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "moderate", requires_manual_review: true, timestamp: new Date().toISOString() });
+      timer.stop(false, { error: err.message });
     } finally { setIsRunningSafety(false); }
   };
 
