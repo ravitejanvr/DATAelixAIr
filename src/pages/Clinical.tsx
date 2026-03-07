@@ -30,6 +30,11 @@ import {
   captureExtractionCorrectionSignal,
   captureDocumentationStyleSignal,
 } from "@/layers/learning/api";
+import {
+  startPipelineTimer,
+  emitSafetyAlertMetric,
+  emitSessionCompletedMetric,
+} from "@/layers/monitoring/api";
 
 export default function Clinical() {
   const { user } = useAuth();
