@@ -263,7 +263,7 @@ export default function Clinical() {
                 i === stepIndex ? "bg-primary text-primary-foreground" :
                 "bg-muted text-muted-foreground"
               }`}>
-                {i < stepIndex ? <CheckCircle2 className="h-3 w-3" /> : <span className="font-mono">{s.num}</span>}
+                {i < stepIndex ? <CheckCircle2 className="h-3 w-3" /> : <span className="font-mono">{i + 1}</span>}
                 <span className="hidden sm:inline">{s.label}</span>
               </div>
               {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground mx-1" />}
