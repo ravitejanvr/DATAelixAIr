@@ -241,6 +241,12 @@ export default function Clinical() {
       setStep("saved");
       toast({ title: "Session saved", description: "Clinical session saved successfully." });
       loadPreviousSessions();
+
+      // Learning layer: capture signals after doctor-validated save (fire-and-forget, no PHI)
+      const clinicId = null; // TODO: wire from profile when available
+      captureTranscriptEditSignal(user.id, clinicId, stabilizedTranscript, editedTranscript);
+      captureExtractionCorrectionSignal(user.id, clinicId, aiExtractedBaseline as any, extractedData as any);
+      captureDocumentationStyleSignal(user.id, clinicId, aiSoapBaseline, soapSections);
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally { setIsSaving(false); }
