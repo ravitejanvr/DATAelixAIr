@@ -25,6 +25,11 @@ import { EMPTY_EXTRACTED, EMPTY_SOAP, PIPELINE_STEPS } from "@/layers/ai-agents/
 import type { SafetyResults } from "@/layers/safety/api";
 import { severityColor } from "@/layers/safety/api";
 import type { NormalizationMatch } from "@/layers/multilingual/api";
+import {
+  captureTranscriptEditSignal,
+  captureExtractionCorrectionSignal,
+  captureDocumentationStyleSignal,
+} from "@/layers/learning/api";
 
 export default function Clinical() {
   const { user } = useAuth();
@@ -55,6 +60,9 @@ export default function Clinical() {
   const [detectedLanguages, setDetectedLanguages] = useState<string[]>([]);
   const [previousSessions, setPreviousSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  // Learning layer: store AI baselines for diff comparison
+  const [aiExtractedBaseline, setAiExtractedBaseline] = useState<ExtractedData>(EMPTY_EXTRACTED);
+  const [aiSoapBaseline, setAiSoapBaseline] = useState<SoapSections>(EMPTY_SOAP);
 
   useEffect(() => { if (user) loadPreviousSessions(); }, [user]);
 
@@ -122,12 +130,14 @@ export default function Clinical() {
         body: { transcript: editedTranscript.trim() },
       });
       if (error) throw new Error(error.message);
-      setExtractedData({
+      const extracted = {
         chief_complaint: data.chief_complaint || "", duration: data.duration || "",
         associated_symptoms: data.associated_symptoms || "", vitals: data.vitals || "",
         chronic_conditions: data.chronic_conditions || "", current_medications: data.current_medications || "",
         allergies: data.allergies || "",
-      });
+      };
+      setExtractedData(extracted);
+      setAiExtractedBaseline({ ...extracted }); // Learning layer: baseline for diff
     } catch (err: any) {
       toast({ title: "Extraction failed", description: err.message, variant: "destructive" });
     } finally { setIsExtracting(false); }
@@ -184,13 +194,15 @@ export default function Clinical() {
       });
       if (error) throw new Error(error.message);
       setSoapFullText(data.soap_text || "");
-      setSoapSections({
+      const sections = {
         "Visit Summary": data.sections?.["Visit Summary"] || "", "Findings": data.sections?.["Findings"] || "",
         "Provisional Diagnosis": data.sections?.["Provisional Diagnosis"] || "",
         "Safety Warnings": data.sections?.["Safety Warnings"] || "No safety concerns identified.",
         "Treatment Plan": data.sections?.["Treatment Plan"] || "", "Advice": data.sections?.["Advice"] || "",
         "Follow-up": data.sections?.["Follow-up"] || "",
-      });
+      };
+      setSoapSections(sections);
+      setAiSoapBaseline({ ...sections }); // Learning layer: baseline for diff
     } catch (err: any) {
       toast({ title: "Summary generation failed", description: err.message, variant: "destructive" });
       setStep("safety");
@@ -229,6 +241,12 @@ export default function Clinical() {
       setStep("saved");
       toast({ title: "Session saved", description: "Clinical session saved successfully." });
       loadPreviousSessions();
+
+      // Learning layer: capture signals after doctor-validated save (fire-and-forget, no PHI)
+      const clinicId = null; // TODO: wire from profile when available
+      captureTranscriptEditSignal(user.id, clinicId, stabilizedTranscript, editedTranscript);
+      captureExtractionCorrectionSignal(user.id, clinicId, aiExtractedBaseline as any, extractedData as any);
+      captureDocumentationStyleSignal(user.id, clinicId, aiSoapBaseline as unknown as Record<string, string>, soapSections as unknown as Record<string, string>);
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally { setIsSaving(false); }
