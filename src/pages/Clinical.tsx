@@ -16,7 +16,8 @@ import EvidencePanel from "@/components/EvidencePanel";
 import {
   Loader2, Save, Mic,
   CheckCircle2, ChevronRight, FileText, Clock, Edit3, Eye, EyeOff,
-  ShieldCheck, AlertTriangle, XCircle, CheckCircle, Info, Languages
+  ShieldCheck, AlertTriangle, XCircle, CheckCircle, Info, Languages,
+  HeartPulse, Siren
 } from "lucide-react";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import type { ExtractedData, SoapSections, PipelineStep } from "@/layers/ai-agents/api";
