@@ -69,15 +69,17 @@ export interface MonitoringEvent {
  * No PHI is stored — only agent names, timing, success status, and anonymized counts.
  */
 export function emitMonitoringEvent(event: MonitoringEvent): void {
-  supabase.from("monitoring_events" as any).insert({
-    event_type: event.event_type,
-    agent_name: event.agent_name || null,
-    duration_ms: event.duration_ms || null,
-    success: event.success !== false,
-    metadata: event.metadata || {},
-  }).then(() => {}).catch((err: any) => {
+  try {
+    supabase.from("monitoring_events" as any).insert({
+      event_type: event.event_type,
+      agent_name: event.agent_name || null,
+      duration_ms: event.duration_ms || null,
+      success: event.success !== false,
+      metadata: event.metadata || {},
+    });
+  } catch (err) {
     console.error("[Monitoring] Event emission failed:", err);
-  });
+  }
 }
 
 // ─── Pipeline Step Timer ────────────────────────────────────
