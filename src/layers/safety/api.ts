@@ -2,9 +2,10 @@
  * Layer 5: Safety Controller API
  * 
  * Provides medication safety validation including RxNorm normalization,
- * drug-drug interaction checks, allergy conflict detection, and dose
- * sanity rules. All results are presented for clinician review — no
- * autonomous overrides.
+ * drug-drug interaction checks, allergy conflict detection, dose
+ * sanity rules, dangerous vitals detection, and emergency symptom
+ * pattern matching. All results are presented for clinician review —
+ * no autonomous overrides.
  * 
  * Dependencies:
  *   - Layer 10 (Infrastructure): Supabase Edge Functions
@@ -44,11 +45,29 @@ export interface DoseWarning {
   message: string;
 }
 
+export interface VitalsDanger {
+  parameter: string;
+  value: number;
+  severity: "warning" | "critical";
+  message: string;
+  action_hint: string;
+}
+
+export interface EmergencyPattern {
+  pattern: string;
+  severity: "warning" | "critical";
+  matched_indicators: string[];
+  message: string;
+  action_hint: string;
+}
+
 export interface SafetyResults {
   normalized_drugs: NormalizedDrug[];
   interaction_flags: InteractionFlag[];
   allergy_flags: AllergyFlag[];
   dose_warnings: DoseWarning[];
+  vitals_dangers: VitalsDanger[];
+  emergency_patterns: EmergencyPattern[];
   confidence_level: "low" | "moderate" | "high";
   requires_manual_review: boolean;
   timestamp: string;
@@ -56,7 +75,7 @@ export interface SafetyResults {
 
 /** Color class for severity badges */
 export function severityColor(sev: string): string {
-  if (sev === "severe" || sev === "high") return "text-destructive bg-destructive/10 border-destructive/20";
-  if (sev === "moderate") return "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800";
+  if (sev === "severe" || sev === "high" || sev === "critical") return "text-destructive bg-destructive/10 border-destructive/20";
+  if (sev === "moderate" || sev === "warning") return "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800";
   return "text-muted-foreground bg-muted/50 border-border";
 }
