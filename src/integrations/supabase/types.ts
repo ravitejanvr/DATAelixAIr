@@ -899,26 +899,38 @@ export type Database = {
         Row: {
           category: string
           clinical_term: string
+          confidence: string | null
           created_at: string
           id: string
           language: string
           regional_phrase: string
+          source_language: string | null
+          updated_at: string | null
+          usage_count: number | null
         }
         Insert: {
           category?: string
           clinical_term: string
+          confidence?: string | null
           created_at?: string
           id?: string
           language?: string
           regional_phrase: string
+          source_language?: string | null
+          updated_at?: string | null
+          usage_count?: number | null
         }
         Update: {
           category?: string
           clinical_term?: string
+          confidence?: string | null
           created_at?: string
           id?: string
           language?: string
           regional_phrase?: string
+          source_language?: string | null
+          updated_at?: string | null
+          usage_count?: number | null
         }
         Relationships: []
       }
@@ -1131,6 +1143,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_lexicon_usage: { Args: { ids: string[] }; Returns: undefined }
       is_doctor_for_patient: {
         Args: { p_patient_id: string }
         Returns: boolean
