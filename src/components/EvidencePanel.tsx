@@ -7,43 +7,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
   BookOpen, ChevronDown, ChevronUp, Loader2, ExternalLink,
-  AlertTriangle, Shield, ScrollText
+  AlertTriangle, Shield, ScrollText, CheckCircle, Sparkles, Database
 } from "lucide-react";
-
-interface Citation {
-  source: string;
-  pmid?: string;
-  doi?: string;
-  title?: string;
-  year?: string;
-  url?: string;
-}
-
-interface MedicationEvidence {
-  drug: string;
-  summary: string;
-  citations: Citation[];
-}
-
-interface GuidelineRef {
-  guideline: string;
-  source: string;
-  summary_points: string[];
-}
-
-interface DrugSafetyNote {
-  drug: string;
-  black_box_warning: string | null;
-  high_risk_flags: string[];
-  citations: Citation[];
-}
-
-interface EvidenceData {
-  medication_evidence: MedicationEvidence[];
-  guidelines: GuidelineRef[];
-  drug_safety: DrugSafetyNote[];
-  total_citations: number;
-}
+import type { EvidenceData } from "@/layers/evidence/api";
+import { evidenceConfidenceColor } from "@/layers/evidence/api";
 
 interface EvidencePanelProps {
   medications: string[];
@@ -60,10 +27,8 @@ export default function EvidencePanel({
   const { toast } = useToast();
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
   const [sections, setSections] = useState({ meds: true, guidelines: true, safety: true });
 
-  // Confidence fallback: disable if low confidence
   const isLowConfidence = confidenceLevel === "low";
 
   const fetchEvidence = async () => {
@@ -78,12 +43,16 @@ export default function EvidencePanel({
       });
       if (error) throw new Error(error.message);
       setEvidence(data as EvidenceData);
-      setIsOpen(true);
     } catch (err: any) {
       toast({ title: "Evidence retrieval failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
+  };
+
+  const confidenceBadge = (conf: string) => {
+    const icon = conf === "high" ? <CheckCircle className="h-2.5 w-2.5" /> : conf === "moderate" ? <AlertTriangle className="h-2.5 w-2.5" /> : <AlertTriangle className="h-2.5 w-2.5" />;
+    return <Badge variant="outline" className={`text-[8px] ${evidenceConfidenceColor(conf)}`}>{icon} {conf}</Badge>;
   };
 
   if (isLowConfidence) {
@@ -110,9 +79,7 @@ export default function EvidencePanel({
           </CardTitle>
           {!evidence && (
             <Button
-              size="sm"
-              variant="outline"
-              onClick={fetchEvidence}
+              size="sm" variant="outline" onClick={fetchEvidence}
               disabled={loading || disabled || medications.length === 0}
               className="text-xs"
             >
@@ -124,8 +91,20 @@ export default function EvidencePanel({
 
       {evidence && (
         <CardContent className="space-y-3 pt-0">
-          <div className="text-[10px] text-muted-foreground">
-            {evidence.total_citations} citation(s) retrieved • Max 6 per session
+          {/* Summary bar */}
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span>{evidence.total_citations} citation(s) • Max 6 per session</span>
+              {evidence.retrieval_confidence && confidenceBadge(evidence.retrieval_confidence)}
+            </div>
+            {evidence.sources_queried && evidence.sources_queried.length > 0 && (
+              <div className="flex items-center gap-1">
+                <Database className="h-2.5 w-2.5" />
+                {evidence.sources_queried.map(s => (
+                  <Badge key={s} variant="outline" className="text-[7px] px-1">{s}</Badge>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Medication Evidence */}
@@ -137,17 +116,25 @@ export default function EvidencePanel({
             <CollapsibleContent className="mt-2 space-y-2 pl-5">
               {evidence.medication_evidence.map((me, i) => (
                 <div key={i} className="p-2 rounded-md border border-border text-xs space-y-1">
-                  <span className="font-medium">{me.drug}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{me.drug}</span>
+                    {me.ai_generated && (
+                      <Badge variant="outline" className="text-[7px] px-1 gap-0.5">
+                        <Sparkles className="h-2 w-2" /> AI Summary
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-muted-foreground">{me.summary}</p>
                   {me.citations.length > 0 && (
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 mt-1">
                       {me.citations.map((c, j) => (
                         <div key={j} className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <Badge variant="outline" className="text-[8px] px-1">{c.source}</Badge>
-                          {c.title && <span className="line-clamp-1">{c.title}</span>}
-                          {c.year && <span>({c.year})</span>}
+                          <Badge variant="outline" className="text-[7px] px-1">{c.source}</Badge>
+                          {c.confidence && confidenceBadge(c.confidence)}
+                          {c.title && <span className="line-clamp-1 flex-1">{c.title}</span>}
+                          {c.year && <span className="shrink-0">({c.year})</span>}
                           {c.url && (
-                            <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline shrink-0">
                               <ExternalLink className="h-2.5 w-2.5" />
                             </a>
                           )}
@@ -171,7 +158,7 @@ export default function EvidencePanel({
                 {evidence.guidelines.map((g, i) => (
                   <div key={i} className="p-2 rounded-md border border-border text-xs">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium">{g.guideline}</span>
+                      <span className="font-medium">{g.guidance || (g as any).guideline}</span>
                       <Badge variant="outline" className="text-[8px]">{g.source}</Badge>
                     </div>
                     <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
@@ -194,14 +181,22 @@ export default function EvidencePanel({
             <CollapsibleContent className="mt-2 space-y-2 pl-5">
               {evidence.drug_safety.map((ds, i) => (
                 <div key={i} className={`p-2 rounded-md border text-xs ${
-                  ds.black_box_warning
-                    ? "border-destructive/30 bg-destructive/5"
-                    : "border-border"
+                  ds.black_box_warning ? "border-destructive/30 bg-destructive/5" : "border-border"
                 }`}>
                   <span className="font-medium">{ds.drug}</span>
                   {ds.black_box_warning && (
                     <div className="mt-1 p-1.5 rounded bg-destructive/10 text-destructive text-[10px]">
                       <strong>⚠ Black Box Warning:</strong> {ds.black_box_warning}
+                    </div>
+                  )}
+                  {ds.dailymed_warnings && ds.dailymed_warnings.length > 0 && (
+                    <div className="mt-1 space-y-0.5">
+                      <span className="text-[9px] font-medium text-muted-foreground flex items-center gap-1">
+                        <Database className="h-2.5 w-2.5" /> DailyMed
+                      </span>
+                      {ds.dailymed_warnings.map((w, j) => (
+                        <p key={j} className="text-[10px] text-muted-foreground pl-3">{w}</p>
+                      ))}
                     </div>
                   )}
                   {ds.high_risk_flags.length > 0 && (
@@ -217,6 +212,12 @@ export default function EvidencePanel({
               ))}
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Disclaimer */}
+          <div className="text-[9px] text-muted-foreground pt-1 border-t border-border">
+            Evidence is advisory only and assists clinical documentation. It does not constitute medical advice.
+            AI-generated summaries are labeled with <Sparkles className="h-2 w-2 inline" />. All citations link to original sources for verification.
+          </div>
         </CardContent>
       )}
     </Card>
