@@ -194,13 +194,15 @@ export default function Clinical() {
       });
       if (error) throw new Error(error.message);
       setSoapFullText(data.soap_text || "");
-      setSoapSections({
+      const sections = {
         "Visit Summary": data.sections?.["Visit Summary"] || "", "Findings": data.sections?.["Findings"] || "",
         "Provisional Diagnosis": data.sections?.["Provisional Diagnosis"] || "",
         "Safety Warnings": data.sections?.["Safety Warnings"] || "No safety concerns identified.",
         "Treatment Plan": data.sections?.["Treatment Plan"] || "", "Advice": data.sections?.["Advice"] || "",
         "Follow-up": data.sections?.["Follow-up"] || "",
-      });
+      };
+      setSoapSections(sections);
+      setAiSoapBaseline({ ...sections }); // Learning layer: baseline for diff
     } catch (err: any) {
       toast({ title: "Summary generation failed", description: err.message, variant: "destructive" });
       setStep("safety");
