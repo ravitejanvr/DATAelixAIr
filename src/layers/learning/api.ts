@@ -198,7 +198,7 @@ export async function captureDocumentationStyleSignal(
         return acc;
       }, {} as Record<string, string>),
     },
-  } as any).then(() => {}).catch(() => {});
+  } as any);
 }
 
 /**
