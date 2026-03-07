@@ -96,6 +96,7 @@ export default function Clinical() {
     setStep("review");
     setIsStabilizing(true);
     setReviewConfirmed(false);
+    const timer = startPipelineTimer("stabilizer");
     try {
       const { data, error } = await supabase.functions.invoke("stabilize-transcript", {
         body: { transcript: rawTranscript.trim() },
@@ -104,15 +105,16 @@ export default function Clinical() {
       const stabilized = data.stabilized_transcript || rawTranscript;
       setStabilizedTranscript(stabilized);
       setEditedTranscript(stabilized);
-      // Capture normalization results from the enhanced pipeline
       setNormalizationResults(data.normalization_results || []);
       setDetectedLanguages(data.detected_languages || []);
+      timer.stop(true, { match_count: data.match_count || 0 });
     } catch {
       toast({ title: "Stabilization notice", description: "Could not stabilize transcript. Showing raw version." });
       setStabilizedTranscript(rawTranscript);
       setEditedTranscript(rawTranscript);
       setNormalizationResults([]);
       setDetectedLanguages([]);
+      timer.stop(false);
     } finally { setIsStabilizing(false); }
   };
 
