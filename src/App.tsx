@@ -45,7 +45,8 @@ import PilotRequest from "./pages/PilotRequest";
 
 const queryClient = new QueryClient();
 
-type AppRole = string;
+import { CLINICAL_ROLES, getDefaultRouteForRole } from "@/layers/governance/api";
+import type { AppRole } from "@/layers/governance/api";
 
 function useUserRole() {
   const { user, loading: authLoading } = useAuth();
