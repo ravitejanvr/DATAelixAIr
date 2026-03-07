@@ -30,6 +30,11 @@ import {
   captureExtractionCorrectionSignal,
   captureDocumentationStyleSignal,
 } from "@/layers/learning/api";
+import {
+  startPipelineTimer,
+  emitSafetyAlertMetric,
+  emitSessionCompletedMetric,
+} from "@/layers/monitoring/api";
 
 export default function Clinical() {
   const { user } = useAuth();
@@ -63,6 +68,7 @@ export default function Clinical() {
   // Learning layer: store AI baselines for diff comparison
   const [aiExtractedBaseline, setAiExtractedBaseline] = useState<ExtractedData>(EMPTY_EXTRACTED);
   const [aiSoapBaseline, setAiSoapBaseline] = useState<SoapSections>(EMPTY_SOAP);
+  const [sessionStartTime] = useState(() => performance.now());
 
   useEffect(() => { if (user) loadPreviousSessions(); }, [user]);
 
@@ -90,6 +96,7 @@ export default function Clinical() {
     setStep("review");
     setIsStabilizing(true);
     setReviewConfirmed(false);
+    const timer = startPipelineTimer("stabilizer");
     try {
       const { data, error } = await supabase.functions.invoke("stabilize-transcript", {
         body: { transcript: rawTranscript.trim() },
@@ -98,15 +105,16 @@ export default function Clinical() {
       const stabilized = data.stabilized_transcript || rawTranscript;
       setStabilizedTranscript(stabilized);
       setEditedTranscript(stabilized);
-      // Capture normalization results from the enhanced pipeline
       setNormalizationResults(data.normalization_results || []);
       setDetectedLanguages(data.detected_languages || []);
+      timer.stop(true, { match_count: data.match_count || 0 });
     } catch {
       toast({ title: "Stabilization notice", description: "Could not stabilize transcript. Showing raw version." });
       setStabilizedTranscript(rawTranscript);
       setEditedTranscript(rawTranscript);
       setNormalizationResults([]);
       setDetectedLanguages([]);
+      timer.stop(false);
     } finally { setIsStabilizing(false); }
   };
 
@@ -124,7 +132,7 @@ export default function Clinical() {
   };
 
   const runExtraction = async () => {
-    setIsExtracting(true);
+    const timer = startPipelineTimer("extraction");
     try {
       const { data, error } = await supabase.functions.invoke("extract-patient-data", {
         body: { transcript: editedTranscript.trim() },
@@ -137,21 +145,23 @@ export default function Clinical() {
         allergies: data.allergies || "",
       };
       setExtractedData(extracted);
-      setAiExtractedBaseline({ ...extracted }); // Learning layer: baseline for diff
+      setAiExtractedBaseline({ ...extracted });
+      timer.stop(true);
     } catch (err: any) {
       toast({ title: "Extraction failed", description: err.message, variant: "destructive" });
+      timer.stop(false, { error: err.message });
     } finally { setIsExtracting(false); }
   };
 
   const runSafetyCheck = async () => {
     setIsRunningSafety(true);
     setStep("safety");
+    const timer = startPipelineTimer("safety_controller");
     try {
       const medications = extractedData.current_medications
         ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : [];
       const allergies = extractedData.allergies
         ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : [];
-      // Parse vitals from extracted text
       const vitalsText = extractedData.vitals || "";
       const parseVital = (pattern: RegExp): number | null => {
         const m = vitalsText.match(pattern);
@@ -166,7 +176,6 @@ export default function Clinical() {
         respiratory_rate: parseVital(/(?:rr|resp|respiratory)[:\s]*(\d+)/i),
         blood_sugar: parseVital(/(?:sugar|glucose|bs|rbs)[:\s]*(\d+)/i),
       };
-      // Gather symptoms from chief complaint + associated symptoms
       const symptomParts = [
         extractedData.chief_complaint,
         extractedData.associated_symptoms,
@@ -174,20 +183,33 @@ export default function Clinical() {
 
       if (medications.length === 0 && !Object.values(vitalsObj).some(v => v != null) && symptomParts.length === 0) {
         setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString() });
+        timer.stop(true, { skipped: true });
         return;
       }
       const { data, error } = await supabase.functions.invoke("clinical-safety", { body: { medications, allergies, vitals: vitalsObj, symptoms: symptomParts } });
       if (error) throw new Error(error.message);
-      setSafetyResults(data as SafetyResults);
+      const results = data as SafetyResults;
+      setSafetyResults(results);
+      timer.stop(true);
+      // Emit safety alert metrics
+      emitSafetyAlertMetric({
+        interactions: results.interaction_flags?.length || 0,
+        allergies: results.allergy_flags?.length || 0,
+        dose_warnings: results.dose_warnings?.length || 0,
+        vitals_dangers: results.vitals_dangers?.length || 0,
+        emergency_patterns: results.emergency_patterns?.length || 0,
+      });
     } catch (err: any) {
       toast({ title: "Safety check notice", description: err.message || "Safety check could not complete." });
       setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "moderate", requires_manual_review: true, timestamp: new Date().toISOString() });
+      timer.stop(false, { error: err.message });
     } finally { setIsRunningSafety(false); }
   };
 
   const generateSoap = async () => {
     setIsGeneratingSoap(true);
     setStep("soap");
+    const timer = startPipelineTimer("documentation");
     try {
       const { data, error } = await supabase.functions.invoke("clinical-soap", {
         body: { transcript: editedTranscript.trim(), extractedData: { ...extractedData, safety_results: safetyResults } },
@@ -202,10 +224,12 @@ export default function Clinical() {
         "Follow-up": data.sections?.["Follow-up"] || "",
       };
       setSoapSections(sections);
-      setAiSoapBaseline({ ...sections }); // Learning layer: baseline for diff
+      setAiSoapBaseline({ ...sections });
+      timer.stop(true);
     } catch (err: any) {
       toast({ title: "Summary generation failed", description: err.message, variant: "destructive" });
       setStep("safety");
+      timer.stop(false, { error: err.message });
     } finally { setIsGeneratingSoap(false); }
   };
 
@@ -247,6 +271,15 @@ export default function Clinical() {
       captureTranscriptEditSignal(user.id, clinicId, stabilizedTranscript, editedTranscript);
       captureExtractionCorrectionSignal(user.id, clinicId, aiExtractedBaseline as any, extractedData as any);
       captureDocumentationStyleSignal(user.id, clinicId, aiSoapBaseline as unknown as Record<string, string>, soapSections as unknown as Record<string, string>);
+
+      // Monitoring layer: emit session completion metrics (no PHI)
+      emitSessionCompletedMetric({
+        transcript_edited: stabilizedTranscript !== editedTranscript,
+        extraction_corrected: JSON.stringify(aiExtractedBaseline) !== JSON.stringify(extractedData),
+        soap_edited: JSON.stringify(aiSoapBaseline) !== JSON.stringify(soapSections),
+        safety_alerts_count: safetyResults ? (safetyResults.interaction_flags.length + safetyResults.allergy_flags.length + safetyResults.dose_warnings.length + safetyResults.vitals_dangers.length + safetyResults.emergency_patterns.length) : 0,
+        total_duration_ms: Math.round(performance.now() - sessionStartTime),
+      });
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally { setIsSaving(false); }
