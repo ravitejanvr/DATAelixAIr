@@ -743,9 +743,9 @@ export default function Clinical() {
         </div>
 
         {/* ── Main Content: Three-column no-scroll ── */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1fr_1fr_260px]">
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1fr_1fr_280px]">
 
-          {/* ═══ LEFT COLUMN: Patient + Vitals + Symptoms + Record ═══ */}
+          {/* ═══ LEFT COLUMN ═══ */}
           <div className="overflow-y-auto border-r border-border">
 
             {finalizationResults ? (
@@ -758,7 +758,7 @@ export default function Clinical() {
                 onNewSession={startNewSession}
               />
             ) : (
-            <div className="p-1.5 space-y-1">
+            <div className="p-3 space-y-2.5">
 
               {/* Patient Header */}
               <ClinicalCard className="p-1.5">
