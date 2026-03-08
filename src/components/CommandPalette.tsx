@@ -26,7 +26,7 @@ const NAVIGATION_ITEMS = [
   { label: "Patient Queue", path: "/queue", icon: ListOrdered, keywords: "queue waiting list" },
   { label: "Clinical Workspace", path: "/clinical", icon: Stethoscope, keywords: "consultation write record" },
   { label: "Patients", path: "/patients", icon: Users, keywords: "patient list search" },
-  { label: "Visit Tracker", path: "/visit-tracker", icon: ClipboardCheck, keywords: "kanban status flow" },
+  
   { label: "Vitals Entry", path: "/vitals", icon: Activity, keywords: "bp temperature pulse" },
   { label: "Triage", path: "/triage", icon: ClipboardCheck, keywords: "priority complaint" },
   { label: "Intake", path: "/intake", icon: FileInput, keywords: "intake form" },
