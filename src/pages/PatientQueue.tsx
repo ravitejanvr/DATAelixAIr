@@ -68,6 +68,7 @@ export default function PatientQueue() {
       setLoading(false);
       return;
     }
+    setClinicId(profile.clinic_id);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
