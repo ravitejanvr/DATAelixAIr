@@ -31,3 +31,9 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.translate-report]
     verify_jwt = false
+  [functions.save-consultation]
+    verify_jwt = false
+  [functions.finalize-visit]
+    verify_jwt = false
+  [functions.generate-patient-report]
+    verify_jwt = false
