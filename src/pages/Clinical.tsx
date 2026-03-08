@@ -678,6 +678,7 @@ export default function Clinical() {
                   patientId={selectedPatient?.id || null}
                   consultationId={savedSessionId}
                   patientAllergies={selectedPatient?.allergies || []}
+                  externalDrugs={pendingRxFromSuggestions}
                 />
               </div>
             </Section>
