@@ -38,6 +38,7 @@ import ConsultationDetail from "./pages/ConsultationDetail";
 import PatientPortal from "./pages/PatientPortal";
 import Vitals from "./pages/Vitals";
 import Billing from "./pages/Billing";
+import ClinicAdmin from "./pages/ClinicAdmin";
 import VisitTracker from "./pages/VisitTracker";
 import Triage from "./pages/Triage";
 import Intake from "./pages/Intake";
