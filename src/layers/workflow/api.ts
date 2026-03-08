@@ -140,7 +140,7 @@ export const DEFAULT_WORKFLOW_ORDER = [
  * Clinics can skip triage or vitals via their config.
  */
 export function getActiveWorkflowSteps(config?: Partial<WorkflowConfig> | null): VisitStatus[] {
-  const base: VisitStatus[] = ["registered"];
+  const base: VisitStatus[] = ["registered", "arrived"];
   
   if (config?.triage_enabled !== false) base.push("triage");
   if (config?.vitals_required !== false) base.push("vitals");
