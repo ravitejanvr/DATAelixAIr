@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
+import ClinicQRCode from "@/components/ClinicQRCode";
 import {
   Users, Stethoscope, ClipboardList, Pill, Activity, LogOut,
   Plus, ArrowRight, Calendar, Clock, TrendingUp, LayoutDashboard,
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
   const [clinicName, setClinicName] = useState("");
+  const [clinicId, setClinicId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -58,7 +60,7 @@ export default function Dashboard() {
         supabase.from("consultations").select("*", { count: "exact", head: true }).eq("status", "draft"),
         supabase.from("patients").select("*").order("created_at", { ascending: false }).limit(5),
         supabase.from("consultations").select("*, patients(name)").order("created_at", { ascending: false }).limit(5),
-        supabase.from("profiles").select("full_name, clinic_name").eq("user_id", user!.id).maybeSingle(),
+        supabase.from("profiles").select("full_name, clinic_name, clinic_id").eq("user_id", user!.id).maybeSingle(),
       ]);
 
       // Extract top conditions from recent consultations
@@ -86,6 +88,7 @@ export default function Dashboard() {
       });
       setProfileName(profile?.full_name || "");
       setClinicName(profile?.clinic_name || "");
+      setClinicId(profile?.clinic_id || null);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
@@ -356,6 +359,10 @@ export default function Dashboard() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+            {/* QR Code for patient registration */}
+            {clinicId && (
+              <ClinicQRCode clinicId={clinicId} clinicName={clinicName} />
             )}
           </div>
         </div>
