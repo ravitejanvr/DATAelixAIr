@@ -45,26 +45,13 @@ export default function Vitals() {
     if (!selectedPatient || !user) return;
     setSaving(true);
     try {
-      const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("user_id", user.id).maybeSingle();
-
-      const { error } = await supabase.from("vitals").insert({
-        patient_id: selectedPatient.id,
-        clinic_id: profile?.clinic_id || null,
-        recorded_by: user.id,
-        bp_systolic: vitals.bp_systolic ? parseInt(vitals.bp_systolic) : null,
-        bp_diastolic: vitals.bp_diastolic ? parseInt(vitals.bp_diastolic) : null,
-        pulse: vitals.pulse ? parseInt(vitals.pulse) : null,
-        temperature: vitals.temperature ? parseFloat(vitals.temperature) : null,
-        spo2: vitals.spo2 ? parseInt(vitals.spo2) : null,
-        respiratory_rate: vitals.respiratory_rate ? parseInt(vitals.respiratory_rate) : null,
-        weight_kg: vitals.weight_kg ? parseFloat(vitals.weight_kg) : null,
-        height_cm: vitals.height_cm ? parseFloat(vitals.height_cm) : null,
-        blood_sugar: vitals.blood_sugar ? parseFloat(vitals.blood_sugar) : null,
-        notes: vitals.notes || null,
-      } as any);
-
+      const { data, error } = await supabase.functions.invoke("record-vitals", {
+        body: { patient_id: selectedPatient.id, vitals },
+      });
       if (error) throw error;
-      toast({ title: "Vitals saved", description: `Vitals recorded for ${selectedPatient.name}` });
+      if (data?.error) throw new Error(data.error);
+      const warningMsg = data?.warnings?.length ? ` (${data.warnings.length} range warning(s))` : "";
+      toast({ title: "Vitals saved", description: `Vitals recorded for ${selectedPatient.name}${warningMsg}` });
       setVitals(EMPTY_VITALS);
       selectPatient(selectedPatient);
     } catch (err: any) {

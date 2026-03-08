@@ -49,18 +49,17 @@ export default function InlineLabOrders({ patientId, visitId, clinicId }: Inline
     if (orders.length === 0) return;
     setSaving(true);
     try {
-      const rows = orders.map(o => ({
-        test_name: o.test_name,
-        priority: o.priority,
-        notes: o.notes || null,
-        patient_id: patientId,
-        visit_id: visitId,
-        clinic_id: clinicId,
-        doctor_id: user.id,
-      }));
-      const { error } = await supabase.from("lab_orders").insert(rows);
-      if (error) throw new Error(error.message);
-      toast({ title: "Lab orders saved" });
+      const { data, error } = await supabase.functions.invoke("order-lab-tests", {
+        body: {
+          patient_id: patientId,
+          visit_id: visitId,
+          clinic_id: clinicId,
+          orders,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: `Lab orders saved (${data?.count || 0} tests)` });
       setOrders([]);
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
