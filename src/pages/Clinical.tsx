@@ -870,25 +870,25 @@ export default function Clinical() {
 
               {/* Symptoms & Duration */}
               {selectedPatient && (
-                <ClinicalCard className="p-1.5">
+                <ClinicalCard className="p-3">
                   <ClinicalCardHeader
                     title="Symptoms & Duration"
-                    icon={<ClipboardCheck className="h-3 w-3" />}
-                    badge={selectedSymptoms.length > 0 ? <Badge variant="outline" className="text-[8px]">{selectedSymptoms.length}</Badge> : undefined}
+                    icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+                    badge={selectedSymptoms.length > 0 ? <Badge variant="outline" className="text-xs">{selectedSymptoms.length}</Badge> : undefined}
                   />
-                  <div className="flex flex-wrap gap-0.5">
+                  <div className="flex flex-wrap gap-1 mt-1">
                     {filteredSymptoms.map(s => (
                       <Chip key={s} variant="symptom" selected={selectedSymptoms.includes(s)} onClick={() => toggleSymptom(s)}>{s}</Chip>
                     ))}
                   </div>
-                  <div className="mt-1">
+                  <div className="mt-2">
                     <div className="relative">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-muted-foreground" />
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                       <input
                         type="text" value={symptomSearch} onChange={e => setSymptomSearch(e.target.value)}
                         onKeyDown={e => { if (e.key === "Enter" && symptomSearch.trim()) { toggleSymptom(symptomSearch.trim()); setSymptomSearch(""); } }}
                         placeholder="Search or add…"
-                        className="w-full h-6 pl-6 pr-3 text-[10px] rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                        className="w-full h-8 pl-8 pr-3 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
                       />
                     </div>
                   </div>
