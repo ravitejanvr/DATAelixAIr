@@ -1128,6 +1128,7 @@ export default function Clinical() {
             </div>
             )}
           </div>
+          )}
 
           {/* ═══ RIGHT: AI Copilot Sidebar ═══ */}
           <div className="overflow-y-auto border-l border-border bg-card/30 max-lg:hidden">
