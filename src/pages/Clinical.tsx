@@ -266,7 +266,8 @@ export default function Clinical() {
     { label: "Symptoms", status: hasSymptomInput ? "done" as const : "pending" as const },
     { label: "AI Plan", status: isProcessing ? "active" as const : pipelineComplete ? "done" as const : "pending" as const },
     { label: "Review", status: pipelineComplete && !savedSessionId ? "active" as const : savedSessionId ? "done" as const : "pending" as const },
-    { label: "Saved", status: savedSessionId ? "done" as const : "pending" as const },
+    { label: "Finalize", status: isFinalizingConsultation ? "active" as const : finalizationResults ? "done" as const : "pending" as const },
+    { label: "Complete", status: finalizationResults ? "done" as const : "pending" as const },
   ];
 
   const activeExpansions = selectedSymptoms.filter(s => SYMPTOM_EXPANSIONS[s]);
