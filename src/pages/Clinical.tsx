@@ -41,10 +41,8 @@ import {
   captureDocumentationStyleSignal,
 } from "@/layers/learning/api";
 import {
-  logAuditEvent,
   startPipelineTimer,
   emitSafetyAlertMetric,
-  emitSessionCompletedMetric,
 } from "@/layers/monitoring/api";
 import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext } from "@/lib/clinical-context";
 
