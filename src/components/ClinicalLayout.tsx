@@ -67,7 +67,7 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150 ${
                 location.pathname === item.path
                   ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  : "text-foreground hover:bg-muted/50"
               }`}
             >
               <item.icon className="h-3.5 w-3.5 shrink-0" />
