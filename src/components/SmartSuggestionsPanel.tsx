@@ -122,6 +122,7 @@ export default function SmartSuggestionsPanel({
           age: patientAge, gender: patientGender,
           allergies, medications, conditions,
           transcript_excerpt: transcriptExcerpt?.slice(0, 500),
+          clinical_context: clinicalContext,
         },
       });
       if (error) throw new Error(error.message);
