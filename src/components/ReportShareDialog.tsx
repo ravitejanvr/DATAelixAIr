@@ -24,7 +24,7 @@ interface ReportShareDialogProps {
   autoTranslateLanguage?: "hindi" | "telugu";
 }
 
-type ReportLanguage = "english" | "hindi" | "telugu";
+type ReportLanguage = "english" | "hindi" | "telugu" | "urdu";
 
 export default function ReportShareDialog({
   open,
@@ -220,6 +220,7 @@ export default function ReportShareDialog({
     english: "English",
     hindi: "हिन्दी (Hindi)",
     telugu: "తెలుగు (Telugu)",
+    urdu: "اردو (Urdu)",
   };
 
   return (
@@ -239,7 +240,7 @@ export default function ReportShareDialog({
         {/* Language selector */}
         <div className="flex gap-2 items-center flex-wrap">
           <Languages className="h-4 w-4 text-muted-foreground" />
-          {(["english", "hindi", "telugu"] as ReportLanguage[]).map((lang) => (
+          {(["english", "hindi", "telugu", "urdu"] as ReportLanguage[]).map((lang) => (
             <Button
               key={lang}
               size="sm"
