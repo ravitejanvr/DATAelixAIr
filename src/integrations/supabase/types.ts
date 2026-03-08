@@ -93,6 +93,56 @@ export type Database = {
           },
         ]
       }
+      clinic_settings: {
+        Row: {
+          clinic_id: string
+          consultation_fee: number | null
+          created_at: string | null
+          currency: string | null
+          default_prescription_templates: Json | null
+          doctor_templates: Json | null
+          followup_fee: number | null
+          id: string
+          lab_margin: number | null
+          payment_methods: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          clinic_id: string
+          consultation_fee?: number | null
+          created_at?: string | null
+          currency?: string | null
+          default_prescription_templates?: Json | null
+          doctor_templates?: Json | null
+          followup_fee?: number | null
+          id?: string
+          lab_margin?: number | null
+          payment_methods?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          consultation_fee?: number | null
+          created_at?: string | null
+          currency?: string | null
+          default_prescription_templates?: Json | null
+          doctor_templates?: Json | null
+          followup_fee?: number | null
+          id?: string
+          lab_margin?: number | null
+          payment_methods?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_settings_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: true
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_workflow_config: {
         Row: {
           billing_enabled: boolean | null
@@ -516,6 +566,53 @@ export type Database = {
           },
         ]
       }
+      lab_catalog: {
+        Row: {
+          category: string | null
+          clinic_id: string
+          created_at: string | null
+          external_lab_partner: string | null
+          id: string
+          is_active: boolean | null
+          price: number | null
+          test_code: string | null
+          test_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          clinic_id: string
+          created_at?: string | null
+          external_lab_partner?: string | null
+          id?: string
+          is_active?: boolean | null
+          price?: number | null
+          test_code?: string | null
+          test_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          clinic_id?: string
+          created_at?: string | null
+          external_lab_partner?: string | null
+          id?: string
+          is_active?: boolean | null
+          price?: number | null
+          test_code?: string | null
+          test_name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_catalog_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lab_orders: {
         Row: {
           category: string | null
@@ -601,6 +698,67 @@ export type Database = {
             columns: ["visit_id"]
             isOneToOne: false
             referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lab_partner_orders: {
+        Row: {
+          appointment_time: string | null
+          clinic_id: string
+          created_at: string | null
+          id: string
+          lab_order_id: string
+          lab_partner_id: string | null
+          notes: string | null
+          patient_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          appointment_time?: string | null
+          clinic_id: string
+          created_at?: string | null
+          id?: string
+          lab_order_id: string
+          lab_partner_id?: string | null
+          notes?: string | null
+          patient_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          appointment_time?: string | null
+          clinic_id?: string
+          created_at?: string | null
+          id?: string
+          lab_order_id?: string
+          lab_partner_id?: string | null
+          notes?: string | null
+          patient_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_partner_orders_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_partner_orders_lab_order_id_fkey"
+            columns: ["lab_order_id"]
+            isOneToOne: false
+            referencedRelation: "lab_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_partner_orders_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
         ]
@@ -902,6 +1060,60 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pharmacy_orders: {
+        Row: {
+          clinic_id: string
+          created_at: string | null
+          delivery_address: string | null
+          id: string
+          notes: string | null
+          patient_id: string
+          pharmacy_id: string | null
+          prescription_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string | null
+          delivery_address?: string | null
+          id?: string
+          notes?: string | null
+          patient_id: string
+          pharmacy_id?: string | null
+          prescription_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string | null
+          delivery_address?: string | null
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          pharmacy_id?: string | null
+          prescription_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pharmacy_orders_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pharmacy_orders_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
         ]
