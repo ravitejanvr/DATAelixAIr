@@ -3,7 +3,7 @@ import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Mic, Square, Loader2, PenLine, Languages } from "lucide-react";
+import { Mic, Square, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -20,8 +20,6 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
   const animationRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
-
-  // Track cursor position so recorded text appends at cursor or end
   const cursorRef = useRef<number | null>(null);
 
   const scribe = useScribe({
@@ -30,14 +28,12 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
     onPartialTranscript: () => {},
     onCommittedTranscript: (data) => {
       if (data.text) {
-        // Insert at cursor position or append
         const pos = cursorRef.current ?? transcript.length;
         const before = transcript.slice(0, pos);
         const after = transcript.slice(pos);
         const separator = before.length > 0 && !before.endsWith(" ") && !before.endsWith("\n") ? " " : "";
         const newText = before + separator + data.text.trim() + " " + after;
         onTranscriptChange(newText);
-        // Move cursor past inserted text
         const newPos = pos + separator.length + data.text.trim().length + 1;
         cursorRef.current = newPos;
       }
@@ -58,7 +54,6 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
       const { data, error } = await supabase.functions.invoke("elevenlabs-scribe-token");
       if (error || !data?.token) throw new Error(error?.message || "Failed to get transcription token");
 
-      // Save current cursor
       cursorRef.current = textareaRef.current?.selectionStart ?? transcript.length;
 
       await scribe.connect({
@@ -95,7 +90,7 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
 
   const isRecording = scribe.isConnected;
 
-  const bars = 20;
+  const bars = 16;
   const waveformBars = Array.from({ length: bars }, (_, i) => {
     const center = bars / 2;
     const dist = Math.abs(i - center) / center;
@@ -103,28 +98,8 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
   });
 
   return (
-    <div className="space-y-2">
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-          <PenLine className="h-3.5 w-3.5 text-primary" />
-          Consultation Input
-        </h3>
-        <div className="flex items-center gap-1.5">
-          {isRecording && (
-            <Badge variant="outline" className="text-[10px] border-destructive/40 text-destructive animate-pulse gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-destructive inline-block" />
-              Recording
-            </Badge>
-          )}
-          <Badge variant="outline" className="text-[10px] gap-1">
-            <Languages className="h-2.5 w-2.5" />
-            EN · HI · TE · UR
-          </Badge>
-        </div>
-      </div>
-
-      {/* Unified textarea – doctor writes here, recorded speech also flows here */}
+    <div className="space-y-1.5">
+      {/* Textarea */}
       <div className="relative">
         <Textarea
           ref={textareaRef}
@@ -136,58 +111,58 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
           onSelect={(e) => {
             cursorRef.current = (e.target as HTMLTextAreaElement).selectionStart;
           }}
-          placeholder="Start typing or click Record to begin capturing consultation notes…"
-          rows={8}
-          className="text-sm pr-3 resize-y min-h-[140px] font-mono bg-background"
+          placeholder="Type notes or click Record…"
+          rows={4}
+          className="text-xs pr-3 resize-none min-h-[72px] font-mono bg-background"
           disabled={disabled}
         />
 
-        {/* Partial transcript overlay */}
         {isRecording && scribe.partialTranscript && (
-          <div className="absolute bottom-2 left-2 right-2 rounded-md bg-primary/10 border border-primary/20 px-2.5 py-1.5 text-xs text-primary italic truncate">
+          <div className="absolute bottom-1.5 left-2 right-2 rounded-md bg-primary/10 border border-primary/20 px-2 py-1 text-[11px] text-primary italic truncate">
             {scribe.partialTranscript}
           </div>
         )}
       </div>
 
-      {/* Recording controls */}
+      {/* Controls row */}
       <div className="flex items-center gap-2">
         {!isRecording ? (
           <Button
             onClick={startRecording}
             size="sm"
             variant="outline"
-            className="h-8 text-xs gap-1.5"
+            className="h-7 text-[11px] gap-1"
             disabled={disabled || isConnecting}
           >
             {isConnecting ? (
-              <><Loader2 className="h-3 w-3 animate-spin" /> Connecting…</>
+              <><Loader2 className="h-2.5 w-2.5 animate-spin" /> Connecting…</>
             ) : (
-              <><Mic className="h-3 w-3" /> Record</>
+              <><Mic className="h-2.5 w-2.5" /> Record</>
             )}
           </Button>
         ) : (
-          <Button onClick={stopRecording} size="sm" variant="destructive" className="h-8 text-xs gap-1.5">
-            <Square className="h-2.5 w-2.5" /> Stop
+          <Button onClick={stopRecording} size="sm" variant="destructive" className="h-7 text-[11px] gap-1">
+            <Square className="h-2 w-2" /> Stop
           </Button>
         )}
 
-        {/* Mini waveform */}
         {isRecording && (
-          <div className="flex items-center gap-[1.5px] h-5">
-            {waveformBars.map((h, i) => (
-              <div
-                key={i}
-                className="w-[2px] rounded-full bg-primary transition-all duration-75"
-                style={{ height: `${h * 100}%`, minHeight: "3px" }}
-              />
-            ))}
-          </div>
+          <>
+            <div className="flex items-center gap-[1px] h-4">
+              {waveformBars.map((h, i) => (
+                <div
+                  key={i}
+                  className="w-[1.5px] rounded-full bg-primary transition-all duration-75"
+                  style={{ height: `${h * 100}%`, minHeight: "2px" }}
+                />
+              ))}
+            </div>
+            <Badge variant="outline" className="text-[9px] border-destructive/40 text-destructive animate-pulse gap-0.5 h-5">
+              <span className="h-1 w-1 rounded-full bg-destructive inline-block" />
+              Live
+            </Badge>
+          </>
         )}
-
-        <span className="text-[10px] text-muted-foreground ml-auto">
-          Record &amp; type simultaneously — all text merges into one notebook
-        </span>
       </div>
     </div>
   );
