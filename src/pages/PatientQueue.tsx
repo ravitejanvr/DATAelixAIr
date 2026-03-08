@@ -325,6 +325,11 @@ export default function PatientQueue() {
                         </p>
                       </div>
                     </TableCell>
+                    <TableCell className="hidden md:table-cell max-w-[180px]">
+                      <span className="text-xs text-muted-foreground truncate block">
+                        {item.chief_complaint || "—"}
+                      </span>
+                    </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       <span className="text-xs text-muted-foreground capitalize">{item.visit_type || "Walk-in"}</span>
                     </TableCell>
