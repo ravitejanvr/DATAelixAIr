@@ -955,7 +955,7 @@ export default function Clinical() {
           {/* ═══ CENTER COLUMN: Transcript + Review + Finalize ═══ */}
           <div className="overflow-y-auto border-r border-border">
             {selectedPatient && !finalizationResults && (
-            <div className="p-1.5 space-y-1">
+            <div className="p-3 space-y-2.5">
 
               {/* AI Processing */}
               <AnimatePresence>
@@ -963,12 +963,12 @@ export default function Clinical() {
                   <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
                     <ClinicalCard className="border-primary/20 p-3">
                       <div className="flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center"><Brain className="h-3 w-3 text-primary" /></div>
+                        <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center"><Brain className="h-3.5 w-3.5 text-primary" /></div>
                         <div className="flex-1">
-                          <p className="text-[10px] font-semibold text-foreground">AI analyzing…</p>
-                          <p className="text-[9px] text-muted-foreground">Building transcript & safety checks</p>
+                          <p className="text-xs font-semibold text-foreground">AI analyzing…</p>
+                          <p className="text-[11px] text-muted-foreground">Building transcript & safety checks</p>
                         </div>
-                        <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
                       </div>
                     </ClinicalCard>
                   </motion.div>
@@ -977,27 +977,27 @@ export default function Clinical() {
 
               {/* Consultation Transcript */}
               {(selectedSymptoms.length > 0 || hasTranscript || intakeData) && !pipelineRunning && (
-                <ClinicalCard className="p-2 border-primary/15">
+                <ClinicalCard className="p-3 border-primary/15">
                   <ClinicalCardHeader
                     title="Consultation Transcript"
-                    icon={<FileText className="h-3 w-3" />}
+                    icon={<FileText className="h-3.5 w-3.5" />}
                     badge={
-                      <div className="flex gap-0.5">
-                        <Badge className="bg-primary/10 text-primary border-primary/20 text-[7px] gap-0.5"><Sparkles className="h-2 w-2" />Auto</Badge>
-                        {summaryManuallyEdited && <Badge variant="outline" className="text-[7px]">Edited</Badge>}
+                      <div className="flex gap-1">
+                        <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] gap-0.5"><Sparkles className="h-2.5 w-2.5" />Auto</Badge>
+                        {summaryManuallyEdited && <Badge variant="outline" className="text-[10px]">Edited</Badge>}
                       </div>
                     }
                     action={summaryManuallyEdited ? (
-                      <Button variant="ghost" size="sm" className="h-4 text-[8px]" onClick={() => { setSummaryManuallyEdited(false); setConsultationSummary(generatedSummary); }}>
-                        <RotateCcw className="h-2 w-2 mr-0.5" /> Reset
+                      <Button variant="ghost" size="sm" className="h-5 text-xs" onClick={() => { setSummaryManuallyEdited(false); setConsultationSummary(generatedSummary); }}>
+                        <RotateCcw className="h-2.5 w-2.5 mr-0.5" /> Reset
                       </Button>
                     ) : undefined}
                   />
                   <Textarea
                     value={consultationSummary}
                     onChange={e => { setConsultationSummary(e.target.value); setSummaryManuallyEdited(true); }}
-                    rows={4}
-                    className="text-[10px] font-mono resize-none min-h-[60px] bg-background/50 rounded"
+                    rows={5}
+                    className="text-xs font-mono resize-none min-h-[80px] bg-background/50 rounded-lg"
                   />
 
                   {/* Safety alerts inline */}
