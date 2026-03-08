@@ -125,16 +125,41 @@ Deno.serve(async (req) => {
     }
 
     // ── Stage 2: Save Lab Orders ──
-    if (lab_orders && Array.isArray(lab_orders) && lab_orders.length > 0 && visit_id) {
+    let effectiveLabOrders = lab_orders && Array.isArray(lab_orders) && lab_orders.length > 0 ? lab_orders : null;
+
+    // Auto-generate lab orders via AI if none provided
+    if (!effectiveLabOrders && extracted_data?.chief_complaint && visit_id) {
       try {
-        const labRows = lab_orders.slice(0, 30).filter((o: any) => o.test_name?.trim()).map((o: any) => ({
+        const genLabResp = await fetch(`${supabaseUrl}/functions/v1/generate-lab-orders`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: authHeader, apikey: anonKey },
+          body: JSON.stringify({
+            consultation_id,
+            diagnosis: soap_sections?.["Provisional Diagnosis"] || extracted_data?.chief_complaint || "",
+            symptoms: extracted_data?.associated_symptoms || extracted_data?.chief_complaint || "",
+            clinic_id,
+          }),
+        });
+        if (genLabResp.ok) {
+          const genLabData = await genLabResp.json();
+          if (genLabData.lab_orders?.length > 0) {
+            effectiveLabOrders = genLabData.lab_orders;
+            results.ai_generated_lab_orders = true;
+          }
+        }
+      } catch (_e) { /* AI generation is best-effort */ }
+    }
+
+    if (effectiveLabOrders && effectiveLabOrders.length > 0 && visit_id) {
+      try {
+        const labRows = effectiveLabOrders.slice(0, 30).filter((o: any) => o.test_name?.trim()).map((o: any) => ({
           patient_id,
           doctor_id: user.id,
           clinic_id,
           visit_id,
           consultation_id: consultation_id || null,
           test_name: String(o.test_name).substring(0, 200),
-          priority: ["urgent", "routine"].includes(o.priority) ? o.priority : "routine",
+          priority: ["urgent", "routine", "stat"].includes(o.priority) ? o.priority : "routine",
           notes: String(o.notes || o.reason || "").substring(0, 500),
         }));
 
