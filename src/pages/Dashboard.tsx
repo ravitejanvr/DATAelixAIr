@@ -88,6 +88,7 @@ export default function Dashboard() {
       });
       setProfileName(profile?.full_name || "");
       setClinicName(profile?.clinic_name || "");
+      setClinicId(profile?.clinic_id || null);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     } finally {
