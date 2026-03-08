@@ -21,7 +21,7 @@ import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import SmartSuggestionsPanel from "@/components/SmartSuggestionsPanel";
 import CollapsibleSection from "@/components/clinical/CollapsibleSection";
 import FollowUpPanel from "@/components/clinical/FollowUpPanel";
-import TemperatureSlider from "@/components/clinical/TemperatureSlider";
+
 import ConsultationTimeline from "@/components/ConsultationTimeline";
 import ConsultationComplete from "@/components/ConsultationComplete";
 import { motion, AnimatePresence } from "framer-motion";
@@ -57,7 +57,7 @@ const MEDICATION_PRESETS = ["Paracetamol", "Ibuprofen", "Azithromycin", "Amoxici
 
 // Dynamic expansions
 const SYMPTOM_EXPANSIONS: Record<string, { label: string; chips: string[]; variant: "symptom" | "neutral" }> = {
-  "Fever": { label: "Temperature", chips: [], variant: "neutral" },
+  "Fever": { label: "Fever Type", chips: ["Low-grade", "High", "Intermittent", "Continuous"], variant: "neutral" },
   "Cough": { label: "Cough Type", chips: ["Dry", "Productive", "With blood", "Nocturnal"], variant: "neutral" },
   "Chest pain": { label: "Character", chips: ["Sharp", "Dull", "Crushing", "Burning", "Radiating"], variant: "neutral" },
   "Headache": { label: "Pattern", chips: ["Throbbing", "Constant", "One-sided", "Both sides", "With aura"], variant: "neutral" },
@@ -698,7 +698,7 @@ export default function Clinical() {
 
   return (
     <>
-      <SEO title="Clinical Workspace — DATAelixAIr" description="AI clinical consultation workspace" />
+      <SEO title="Clinical Cockpit — DATAelixAIr" description="AI clinical consultation workspace" />
 
       <div className="h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden bg-background">
 
@@ -761,10 +761,10 @@ export default function Clinical() {
                 onNewSession={startNewSession}
               />
             ) : (
-            <div className="p-2 space-y-1.5">
+            <div className="p-1.5 space-y-1">
 
               {/* Patient Header */}
-              <ClinicalCard className="p-2">
+              <ClinicalCard className="p-1.5">
                 {!selectedPatient ? (
                   <div>
                     <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1">
@@ -829,62 +829,51 @@ export default function Clinical() {
 
               {/* Vitals Grid */}
               {selectedPatient && (
-                <ClinicalCard className="p-2">
-                  <p className="text-[8px] font-semibold text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1">
+                <ClinicalCard className="p-1.5">
+                  <p className="text-[8px] font-semibold text-muted-foreground uppercase tracking-widest mb-0.5 flex items-center gap-1">
                     <Activity className="h-2.5 w-2.5" /> Vitals
                   </p>
-                  <div className="grid grid-cols-4 gap-1 mb-1.5">
-                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
-                      <Heart className="h-2.5 w-2.5 text-chip-alert-text mx-auto mb-0.5" />
-                      <div className="flex items-center justify-center gap-0.5">
-                        <input type="number" value={patientVitals?.bp_systolic ?? ""} onChange={e => updateVital("bp_systolic", e.target.value)} className="w-6 text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                        <span className="text-[8px] text-muted-foreground">/</span>
-                        <input type="number" value={patientVitals?.bp_diastolic ?? ""} onChange={e => updateVital("bp_diastolic", e.target.value)} className="w-6 text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
+                  <div className="grid grid-cols-4 gap-1 mb-1">
+                    {[
+                      { field: "bp_systolic", label: "SYS", icon: Heart, iconClass: "text-chip-alert-text", isBp: true },
+                      { field: "pulse", label: "HR", icon: Activity, iconClass: "text-primary" },
+                      { field: "spo2", label: "SpO₂%", icon: Droplets, iconClass: "text-primary", alert: patientVitals?.spo2 && Number(patientVitals.spo2) < 95 },
+                      { field: "respiratory_rate", label: "RR", icon: Wind, iconClass: "text-muted-foreground" },
+                    ].map(v => (
+                      <div key={v.field} className={`text-center p-1 rounded border cursor-text ${v.alert ? "bg-chip-alert border-chip-alert-border" : "bg-muted/40 border-border"}`}>
+                        <v.icon className={`h-2.5 w-2.5 mx-auto mb-0.5 ${v.iconClass}`} />
+                        {v.isBp ? (
+                          <div className="flex items-center justify-center gap-0.5">
+                            <input type="number" value={patientVitals?.bp_systolic ?? ""} onChange={e => updateVital("bp_systolic", e.target.value)} className="w-6 text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                            <span className="text-[8px] text-muted-foreground">/</span>
+                            <input type="number" value={patientVitals?.bp_diastolic ?? ""} onChange={e => updateVital("bp_diastolic", e.target.value)} className="w-6 text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                          </div>
+                        ) : (
+                          <input type="number" value={patientVitals?.[v.field] ?? ""} onChange={e => updateVital(v.field, e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                        )}
+                        <p className="text-[6px] text-muted-foreground">{v.isBp ? "BP" : v.label}</p>
                       </div>
-                      <p className="text-[6px] text-muted-foreground">BP</p>
-                    </div>
-                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
-                      <Activity className="h-2.5 w-2.5 text-primary mx-auto mb-0.5" />
-                      <input type="number" value={patientVitals?.pulse ?? ""} onChange={e => updateVital("pulse", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                      <p className="text-[6px] text-muted-foreground">HR</p>
-                    </div>
-                    <div className={`text-center p-1 rounded border ${patientVitals?.spo2 && Number(patientVitals.spo2) < 95 ? "bg-chip-alert border-chip-alert-border" : "bg-muted/40 border-border"}`}>
-                      <Droplets className="h-2.5 w-2.5 mx-auto mb-0.5" />
-                      <input type="number" value={patientVitals?.spo2 ?? ""} onChange={e => updateVital("spo2", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none" placeholder="—" />
-                      <p className="text-[6px] text-muted-foreground">SpO₂%</p>
-                    </div>
-                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
-                      <Wind className="h-2.5 w-2.5 mx-auto mb-0.5 text-muted-foreground" />
-                      <input type="number" value={patientVitals?.respiratory_rate ?? ""} onChange={e => updateVital("respiratory_rate", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                      <p className="text-[6px] text-muted-foreground">RR</p>
-                    </div>
+                    ))}
                   </div>
-                  <div className="grid grid-cols-3 gap-1 mb-1.5">
-                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
-                      <input type="number" value={patientVitals?.weight_kg ?? ""} onChange={e => updateVital("weight_kg", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                      <p className="text-[6px] text-muted-foreground">Wt kg</p>
-                    </div>
-                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
-                      <input type="number" value={patientVitals?.blood_sugar ?? ""} onChange={e => updateVital("blood_sugar", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                      <p className="text-[6px] text-muted-foreground">BS(F)</p>
-                    </div>
-                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
-                      <input type="number" step="0.1" value={patientVitals?.hba1c ?? ""} onChange={e => updateVital("hba1c", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                      <p className="text-[6px] text-muted-foreground">HbA1c</p>
-                    </div>
+                  <div className="grid grid-cols-4 gap-1">
+                    {[
+                      { field: "temperature", label: "Temp °F", step: "0.1" },
+                      { field: "weight_kg", label: "Wt kg" },
+                      { field: "blood_sugar", label: "BS(F)" },
+                      { field: "hba1c", label: "HbA1c", step: "0.1" },
+                    ].map(v => (
+                      <div key={v.field} className={`text-center p-1 rounded border cursor-text ${v.field === "temperature" && patientVitals?.temperature && Number(patientVitals.temperature) > 99 ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800" : "bg-muted/40 border-border"}`}>
+                        <input type="number" step={v.step || "1"} value={patientVitals?.[v.field] ?? ""} onChange={e => updateVital(v.field, e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                        <p className="text-[6px] text-muted-foreground">{v.label}</p>
+                      </div>
+                    ))}
                   </div>
-
-                  {/* Temperature Slider — appears when Fever selected OR always visible */}
-                  <TemperatureSlider
-                    value={patientVitals?.temperature ?? null}
-                    onChange={(val) => updateVital("temperature", String(val))}
-                  />
                 </ClinicalCard>
               )}
 
               {/* Symptoms & Duration */}
               {selectedPatient && (
-                <ClinicalCard className="p-2">
+                <ClinicalCard className="p-1.5">
                   <ClinicalCardHeader
                     title="Symptoms & Duration"
                     icon={<ClipboardCheck className="h-3 w-3" />}
@@ -943,7 +932,7 @@ export default function Clinical() {
 
               {/* Record / Write */}
               {selectedPatient && (
-                <ClinicalCard className="p-2">
+                <ClinicalCard className="p-1.5">
                   <ClinicalCardHeader
                     title="Record / Write"
                     icon={<Mic className="h-3 w-3" />}
@@ -969,7 +958,7 @@ export default function Clinical() {
           {/* ═══ CENTER COLUMN: Transcript + Review + Finalize ═══ */}
           <div className="overflow-y-auto border-r border-border">
             {selectedPatient && !finalizationResults && (
-            <div className="p-2 space-y-1.5">
+            <div className="p-1.5 space-y-1">
 
               {/* AI Processing */}
               <AnimatePresence>
