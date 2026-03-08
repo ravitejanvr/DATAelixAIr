@@ -16,7 +16,7 @@
 // ── Visit Status Pipeline ────────────────────────────────────
 
 export const VISIT_STATUSES = [
-  "registered", "triage", "vitals", "doctor", "lab", "pharmacy", "billing", "complete"
+  "registered", "arrived", "triage", "vitals", "doctor", "lab", "pharmacy", "billing", "complete"
 ] as const;
 
 export type VisitStatus = typeof VISIT_STATUSES[number];
