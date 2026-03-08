@@ -21,6 +21,7 @@ const navItems = [
   { label: "Vitals", path: "/vitals", icon: Activity },
   { label: "Prescriptions", path: "/prescriptions", icon: Pill },
   { label: "Billing", path: "/billing", icon: Receipt },
+  { label: "Clinic Settings", path: "/clinic-settings", icon: Settings },
 ];
 
 export default function ClinicalLayout({ children }: { children: ReactNode }) {
