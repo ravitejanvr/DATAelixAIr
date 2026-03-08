@@ -40,6 +40,7 @@ import Billing from "./pages/Billing";
 import VisitTracker from "./pages/VisitTracker";
 import Triage from "./pages/Triage";
 import Intake from "./pages/Intake";
+import PatientQueue from "./pages/PatientQueue";
 
 // Platform admin
 import PlatformAdmin from "./pages/PlatformAdmin";
