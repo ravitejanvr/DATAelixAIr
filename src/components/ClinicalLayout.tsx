@@ -7,7 +7,7 @@ import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   LayoutDashboard, Stethoscope, Users, Pill, Activity,
   Receipt, LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput, ListOrdered,
-  Search
+  Search, Settings
 } from "lucide-react";
 
 const navItems = [
@@ -21,6 +21,7 @@ const navItems = [
   { label: "Vitals", path: "/vitals", icon: Activity },
   { label: "Prescriptions", path: "/prescriptions", icon: Pill },
   { label: "Billing", path: "/billing", icon: Receipt },
+  { label: "Clinic Settings", path: "/clinic-settings", icon: Settings },
 ];
 
 export default function ClinicalLayout({ children }: { children: ReactNode }) {
