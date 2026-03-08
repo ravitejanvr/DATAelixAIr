@@ -104,8 +104,16 @@ export type Database = {
           followup_fee: number | null
           id: string
           lab_margin: number | null
+          notification_api_key: string | null
+          notification_provider: string | null
           payment_methods: Json | null
+          preferred_lab_name: string | null
+          preferred_lab_phone: string | null
+          preferred_pharmacy_name: string | null
+          preferred_pharmacy_phone: string | null
+          sms_enabled: boolean | null
           updated_at: string | null
+          whatsapp_enabled: boolean | null
         }
         Insert: {
           clinic_id: string
@@ -117,8 +125,16 @@ export type Database = {
           followup_fee?: number | null
           id?: string
           lab_margin?: number | null
+          notification_api_key?: string | null
+          notification_provider?: string | null
           payment_methods?: Json | null
+          preferred_lab_name?: string | null
+          preferred_lab_phone?: string | null
+          preferred_pharmacy_name?: string | null
+          preferred_pharmacy_phone?: string | null
+          sms_enabled?: boolean | null
           updated_at?: string | null
+          whatsapp_enabled?: boolean | null
         }
         Update: {
           clinic_id?: string
@@ -130,8 +146,16 @@ export type Database = {
           followup_fee?: number | null
           id?: string
           lab_margin?: number | null
+          notification_api_key?: string | null
+          notification_provider?: string | null
           payment_methods?: Json | null
+          preferred_lab_name?: string | null
+          preferred_lab_phone?: string | null
+          preferred_pharmacy_name?: string | null
+          preferred_pharmacy_phone?: string | null
+          sms_enabled?: boolean | null
           updated_at?: string | null
+          whatsapp_enabled?: boolean | null
         }
         Relationships: [
           {
@@ -157,6 +181,7 @@ export type Database = {
           triage_enabled: boolean | null
           updated_at: string
           vitals_required: boolean | null
+          workflow_mode: string
           workflow_order: Json | null
         }
         Insert: {
@@ -172,6 +197,7 @@ export type Database = {
           triage_enabled?: boolean | null
           updated_at?: string
           vitals_required?: boolean | null
+          workflow_mode?: string
           workflow_order?: Json | null
         }
         Update: {
@@ -187,6 +213,7 @@ export type Database = {
           triage_enabled?: boolean | null
           updated_at?: string
           vitals_required?: boolean | null
+          workflow_mode?: string
           workflow_order?: Json | null
         }
         Relationships: [
@@ -887,6 +914,107 @@ export type Database = {
           },
         ]
       }
+      notification_logs: {
+        Row: {
+          clinic_id: string | null
+          created_at: string
+          delivery_status: string | null
+          id: string
+          message_content: string | null
+          message_type: string
+          patient_id: string
+          provider: string | null
+          provider_response: Json | null
+          recipient_phone: string | null
+          trigger_event: string
+          visit_id: string | null
+        }
+        Insert: {
+          clinic_id?: string | null
+          created_at?: string
+          delivery_status?: string | null
+          id?: string
+          message_content?: string | null
+          message_type: string
+          patient_id: string
+          provider?: string | null
+          provider_response?: Json | null
+          recipient_phone?: string | null
+          trigger_event: string
+          visit_id?: string | null
+        }
+        Update: {
+          clinic_id?: string | null
+          created_at?: string
+          delivery_status?: string | null
+          id?: string
+          message_content?: string | null
+          message_type?: string
+          patient_id?: string
+          provider?: string | null
+          provider_response?: Json | null
+          recipient_phone?: string | null
+          trigger_event?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_logs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_logs_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_templates: {
+        Row: {
+          clinic_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          message_template: string
+          template_name: string
+          trigger_event: string
+          updated_at: string
+        }
+        Insert: {
+          clinic_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template: string
+          template_name: string
+          trigger_event: string
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template?: string
+          template_name?: string
+          trigger_event?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_templates_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_visits: {
         Row: {
           assigned_to: string | null
@@ -1255,12 +1383,14 @@ export type Database = {
           clinic_id: string | null
           clinic_name: string | null
           created_at: string
+          designation: string | null
           email: string | null
           full_name: string
           id: string
           license_number: string | null
           phone: string | null
           role_subtype: string | null
+          signature_text: string | null
           specialization: string | null
           updated_at: string
           user_id: string
@@ -1270,12 +1400,14 @@ export type Database = {
           clinic_id?: string | null
           clinic_name?: string | null
           created_at?: string
+          designation?: string | null
           email?: string | null
           full_name?: string
           id?: string
           license_number?: string | null
           phone?: string | null
           role_subtype?: string | null
+          signature_text?: string | null
           specialization?: string | null
           updated_at?: string
           user_id: string
@@ -1285,12 +1417,14 @@ export type Database = {
           clinic_id?: string | null
           clinic_name?: string | null
           created_at?: string
+          designation?: string | null
           email?: string | null
           full_name?: string
           id?: string
           license_number?: string | null
           phone?: string | null
           role_subtype?: string | null
+          signature_text?: string | null
           specialization?: string | null
           updated_at?: string
           user_id?: string
