@@ -36,7 +36,8 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [profileName, setProfileName] = useState("");
-  const [clinicName, setClinicName] = useState("");
+  const [clinicName, setClinicName] = "";
+  const [clinicId, setClinicId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
