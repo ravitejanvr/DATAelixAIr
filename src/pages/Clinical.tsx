@@ -745,13 +745,12 @@ export default function Clinical() {
           </div>
         </div>
 
-        {/* ── Main Content: Two-column ── */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1fr_280px]">
+        {/* ── Main Content: Three-column no-scroll ── */}
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1fr_1fr_260px]">
 
-          {/* ═══ MAIN COLUMN ═══ */}
-          <div className="overflow-y-auto">
+          {/* ═══ LEFT COLUMN: Patient + Vitals + Symptoms + Record ═══ */}
+          <div className="overflow-y-auto border-r border-border">
 
-            {/* Post-Finalization */}
             {finalizationResults ? (
               <ConsultationComplete
                 results={finalizationResults}
@@ -762,410 +761,387 @@ export default function Clinical() {
                 onNewSession={startNewSession}
               />
             ) : (
-            <div className="max-w-3xl mx-auto w-full p-3 space-y-2">
+            <div className="p-2 space-y-1.5">
 
-              {/* ══ SECTION 1: Patient + Vitals + History ══ */}
-              <motion.div {...fadeIn}>
-                <ClinicalCard className="p-2.5">
-                  {!selectedPatient ? (
-                    <div>
-                      <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                        <User className="h-2.5 w-2.5" /> Select Patient
-                      </p>
-                      <PatientSelector selected={selectedPatient} onSelect={setSelectedPatient} />
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {/* Patient header row */}
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
-                          {selectedPatient.name?.charAt(0)?.toUpperCase() || "?"}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-xs font-semibold text-foreground truncate">{selectedPatient.name}</p>
-                            <Badge variant="outline" className="text-[9px] shrink-0">
-                              {selectedPatient.age ? `${selectedPatient.age}y` : "?"} · {selectedPatient.gender?.charAt(0)?.toUpperCase() || "?"}
-                            </Badge>
-                            {visitId && <Badge className="bg-primary/10 text-primary border-primary/20 text-[8px]">Visit</Badge>}
-                          </div>
-                          {selectedPatient.phone && (
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Phone className="h-2 w-2" />{selectedPatient.phone}</p>
-                          )}
-                        </div>
-                        <Button variant="ghost" size="sm" className="h-6 text-[9px]" onClick={() => setSelectedPatient(null)}>Change</Button>
+              {/* Patient Header */}
+              <ClinicalCard className="p-2">
+                {!selectedPatient ? (
+                  <div>
+                    <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1">
+                      <User className="h-2.5 w-2.5" /> Select Patient
+                    </p>
+                    <PatientSelector selected={selectedPatient} onSelect={setSelectedPatient} />
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                        {selectedPatient.name?.charAt(0)?.toUpperCase() || "?"}
                       </div>
-
-                      {/* Chief Complaint from intake */}
-                      {intakeData?.chief_complaint && (
-                        <div className="p-2 rounded-lg bg-primary/[0.04] border border-primary/15">
-                          <p className="text-[8px] font-semibold text-primary uppercase tracking-widest mb-0.5">Chief Complaint</p>
-                          <p className="text-[11px] text-foreground">{intakeData.chief_complaint}
-                            {intakeData.symptom_duration && <span className="text-muted-foreground ml-1.5">· {intakeData.symptom_duration}</span>}
-                          </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <p className="text-[11px] font-semibold text-foreground truncate">{selectedPatient.name}</p>
+                          <Badge variant="outline" className="text-[8px] shrink-0">
+                            {selectedPatient.age ? `${selectedPatient.age}y` : "?"} · {selectedPatient.gender?.charAt(0)?.toUpperCase() || "?"}
+                          </Badge>
+                          {visitId && <Badge className="bg-primary/10 text-primary border-primary/20 text-[7px]">Visit</Badge>}
                         </div>
-                      )}
+                      </div>
+                      <Button variant="ghost" size="sm" className="h-5 text-[8px]" onClick={() => setSelectedPatient(null)}>Change</Button>
+                    </div>
 
-                      {/* ── Editable Vitals Grid ── */}
-                      <div className="p-2 rounded-lg bg-muted/40 border border-border">
-                        <p className="text-[8px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                          <Activity className="h-2.5 w-2.5" /> Vitals
+                    {/* Chief Complaint from intake */}
+                    {intakeData?.chief_complaint && (
+                      <div className="p-1.5 rounded bg-primary/[0.04] border border-primary/15">
+                        <p className="text-[7px] font-semibold text-primary uppercase tracking-widest">Chief Complaint</p>
+                        <p className="text-[10px] text-foreground">{intakeData.chief_complaint}
+                          {intakeData.symptom_duration && <span className="text-muted-foreground ml-1">· {intakeData.symptom_duration}</span>}
                         </p>
-                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
-                          {/* BP */}
-                          <div className="text-center p-1 rounded bg-background border border-border">
-                            <Heart className="h-2.5 w-2.5 text-chip-alert-text mx-auto mb-0.5" />
-                            <div className="flex items-center justify-center gap-0.5">
-                              <input type="number" value={patientVitals?.bp_systolic ?? ""} onChange={e => updateVital("bp_systolic", e.target.value)} className="w-7 text-center text-[10px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                              <span className="text-[9px] text-muted-foreground">/</span>
-                              <input type="number" value={patientVitals?.bp_diastolic ?? ""} onChange={e => updateVital("bp_diastolic", e.target.value)} className="w-7 text-center text-[10px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                            </div>
-                            <p className="text-[7px] text-muted-foreground">BP</p>
-                          </div>
-                          {/* HR */}
-                          <div className="text-center p-1 rounded bg-background border border-border">
-                            <Activity className="h-2.5 w-2.5 text-primary mx-auto mb-0.5" />
-                            <input type="number" value={patientVitals?.pulse ?? ""} onChange={e => updateVital("pulse", e.target.value)} className="w-full text-center text-[10px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                            <p className="text-[7px] text-muted-foreground">HR</p>
-                          </div>
-                          {/* Temp */}
-                          <div className={`text-center p-1 rounded border ${patientVitals?.temperature && Number(patientVitals.temperature) > 99 ? "bg-chip-alert border-chip-alert-border" : "bg-background border-border"}`}>
-                            <Thermometer className="h-2.5 w-2.5 mx-auto mb-0.5" />
-                            <input type="number" step="0.1" value={patientVitals?.temperature ?? ""} onChange={e => updateVital("temperature", e.target.value)} className="w-full text-center text-[10px] font-semibold bg-transparent border-none outline-none" placeholder="—" />
-                            <p className="text-[7px] text-muted-foreground">°F</p>
-                          </div>
-                          {/* SpO2 */}
-                          <div className={`text-center p-1 rounded border ${patientVitals?.spo2 && Number(patientVitals.spo2) < 95 ? "bg-chip-alert border-chip-alert-border" : "bg-background border-border"}`}>
-                            <Droplets className="h-2.5 w-2.5 mx-auto mb-0.5" />
-                            <input type="number" value={patientVitals?.spo2 ?? ""} onChange={e => updateVital("spo2", e.target.value)} className="w-full text-center text-[10px] font-semibold bg-transparent border-none outline-none" placeholder="—" />
-                            <p className="text-[7px] text-muted-foreground">SpO₂%</p>
-                          </div>
-                          {/* RR */}
-                          <div className="text-center p-1 rounded bg-background border border-border">
-                            <Wind className="h-2.5 w-2.5 mx-auto mb-0.5 text-muted-foreground" />
-                            <input type="number" value={patientVitals?.respiratory_rate ?? ""} onChange={e => updateVital("respiratory_rate", e.target.value)} className="w-full text-center text-[10px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                            <p className="text-[7px] text-muted-foreground">RR</p>
-                          </div>
-                          {/* Weight */}
-                          <div className="text-center p-1 rounded bg-background border border-border">
-                            <input type="number" value={patientVitals?.weight_kg ?? ""} onChange={e => updateVital("weight_kg", e.target.value)} className="w-full text-center text-[10px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                            <p className="text-[7px] text-muted-foreground">Wt kg</p>
-                          </div>
-                          {/* Blood Sugar (Fasting) */}
-                          <div className="text-center p-1 rounded bg-background border border-border">
-                            <input type="number" value={patientVitals?.blood_sugar ?? ""} onChange={e => updateVital("blood_sugar", e.target.value)} className="w-full text-center text-[10px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                            <p className="text-[7px] text-muted-foreground">BS(F)</p>
-                          </div>
-                          {/* HbA1c */}
-                          <div className="text-center p-1 rounded bg-background border border-border">
-                            <input type="number" step="0.1" value={patientVitals?.hba1c ?? ""} onChange={e => updateVital("hba1c", e.target.value)} className="w-full text-center text-[10px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
-                            <p className="text-[7px] text-muted-foreground">HbA1c</p>
-                          </div>
+                      </div>
+                    )}
+
+                    {/* Conditions / Allergies / Meds */}
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                      {selectedPatient.medical_history && Array.isArray(selectedPatient.medical_history) && (selectedPatient.medical_history as any[]).length > 0 && (
+                        <div className="flex items-center gap-0.5 flex-wrap">
+                          <span className="text-[7px] font-semibold text-muted-foreground uppercase">Hx:</span>
+                          {(selectedPatient.medical_history as any[]).map((h: any, i: number) => (
+                            <Chip key={i} variant="diagnosis" size="sm">{typeof h === "string" ? h : h?.condition || String(h)}</Chip>
+                          ))}
                         </div>
-                      </div>
-
-                      {/* Existing Conditions / Allergies / Meds — compact row */}
-                      <div className="flex flex-wrap gap-x-3 gap-y-1">
-                        {selectedPatient.medical_history && Array.isArray(selectedPatient.medical_history) && (selectedPatient.medical_history as any[]).length > 0 && (
-                          <div className="flex items-center gap-1 flex-wrap">
-                            <span className="text-[8px] font-semibold text-muted-foreground uppercase">Conditions:</span>
-                            {(selectedPatient.medical_history as any[]).map((h: any, i: number) => (
-                              <Chip key={i} variant="diagnosis" size="sm">{typeof h === "string" ? h : h?.condition || String(h)}</Chip>
-                            ))}
-                          </div>
-                        )}
-                        {selectedPatient.allergies?.length ? (
-                          <div className="flex items-center gap-1 flex-wrap">
-                            <span className="text-[8px] font-semibold text-chip-alert-text uppercase flex items-center gap-0.5"><Shield className="h-2 w-2" />Allergies:</span>
-                            {selectedPatient.allergies.map(a => <Chip key={a} variant="alert" size="sm">{a}</Chip>)}
-                          </div>
-                        ) : null}
-                        {selectedPatient.current_medications?.length ? (
-                          <div className="flex items-center gap-1 flex-wrap">
-                            <span className="text-[8px] font-semibold text-muted-foreground uppercase flex items-center gap-0.5"><Pill className="h-2 w-2" />Meds:</span>
-                            {selectedPatient.current_medications.map(m => <Chip key={m} variant="medication" size="sm">{m}</Chip>)}
-                          </div>
-                        ) : null}
-                      </div>
+                      )}
+                      {selectedPatient.allergies?.length ? (
+                        <div className="flex items-center gap-0.5 flex-wrap">
+                          <span className="text-[7px] font-semibold text-chip-alert-text uppercase flex items-center gap-0.5"><Shield className="h-2 w-2" />Allergy:</span>
+                          {selectedPatient.allergies.map(a => <Chip key={a} variant="alert" size="sm">{a}</Chip>)}
+                        </div>
+                      ) : null}
+                      {selectedPatient.current_medications?.length ? (
+                        <div className="flex items-center gap-0.5 flex-wrap">
+                          <span className="text-[7px] font-semibold text-muted-foreground uppercase flex items-center gap-0.5"><Pill className="h-2 w-2" />Meds:</span>
+                          {selectedPatient.current_medications.map(m => <Chip key={m} variant="medication" size="sm">{m}</Chip>)}
+                        </div>
+                      ) : null}
                     </div>
-                  )}
+                  </div>
+                )}
+              </ClinicalCard>
+
+              {/* Vitals Grid */}
+              {selectedPatient && (
+                <ClinicalCard className="p-2">
+                  <p className="text-[8px] font-semibold text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1">
+                    <Activity className="h-2.5 w-2.5" /> Vitals
+                  </p>
+                  <div className="grid grid-cols-4 gap-1 mb-1.5">
+                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
+                      <Heart className="h-2.5 w-2.5 text-chip-alert-text mx-auto mb-0.5" />
+                      <div className="flex items-center justify-center gap-0.5">
+                        <input type="number" value={patientVitals?.bp_systolic ?? ""} onChange={e => updateVital("bp_systolic", e.target.value)} className="w-6 text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
+                        <span className="text-[8px] text-muted-foreground">/</span>
+                        <input type="number" value={patientVitals?.bp_diastolic ?? ""} onChange={e => updateVital("bp_diastolic", e.target.value)} className="w-6 text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
+                      </div>
+                      <p className="text-[6px] text-muted-foreground">BP</p>
+                    </div>
+                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
+                      <Activity className="h-2.5 w-2.5 text-primary mx-auto mb-0.5" />
+                      <input type="number" value={patientVitals?.pulse ?? ""} onChange={e => updateVital("pulse", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
+                      <p className="text-[6px] text-muted-foreground">HR</p>
+                    </div>
+                    <div className={`text-center p-1 rounded border ${patientVitals?.spo2 && Number(patientVitals.spo2) < 95 ? "bg-chip-alert border-chip-alert-border" : "bg-muted/40 border-border"}`}>
+                      <Droplets className="h-2.5 w-2.5 mx-auto mb-0.5" />
+                      <input type="number" value={patientVitals?.spo2 ?? ""} onChange={e => updateVital("spo2", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none" placeholder="—" />
+                      <p className="text-[6px] text-muted-foreground">SpO₂%</p>
+                    </div>
+                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
+                      <Wind className="h-2.5 w-2.5 mx-auto mb-0.5 text-muted-foreground" />
+                      <input type="number" value={patientVitals?.respiratory_rate ?? ""} onChange={e => updateVital("respiratory_rate", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
+                      <p className="text-[6px] text-muted-foreground">RR</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 mb-1.5">
+                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
+                      <input type="number" value={patientVitals?.weight_kg ?? ""} onChange={e => updateVital("weight_kg", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
+                      <p className="text-[6px] text-muted-foreground">Wt kg</p>
+                    </div>
+                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
+                      <input type="number" value={patientVitals?.blood_sugar ?? ""} onChange={e => updateVital("blood_sugar", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
+                      <p className="text-[6px] text-muted-foreground">BS(F)</p>
+                    </div>
+                    <div className="text-center p-1 rounded bg-muted/40 border border-border">
+                      <input type="number" step="0.1" value={patientVitals?.hba1c ?? ""} onChange={e => updateVital("hba1c", e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground" placeholder="—" />
+                      <p className="text-[6px] text-muted-foreground">HbA1c</p>
+                    </div>
+                  </div>
+
+                  {/* Temperature Slider — appears when Fever selected OR always visible */}
+                  <TemperatureSlider
+                    value={patientVitals?.temperature ?? null}
+                    onChange={(val) => updateVital("temperature", String(val))}
+                  />
                 </ClinicalCard>
-              </motion.div>
-
-              {/* ══ SECTION 2: Symptoms & Duration ══ */}
-              {selectedPatient && (
-                <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-2.5">
-                    <ClinicalCardHeader
-                      title="Symptoms & Duration"
-                      icon={<ClipboardCheck className="h-3.5 w-3.5" />}
-                      badge={selectedSymptoms.length > 0 ? <Badge variant="outline" className="text-[9px]">{selectedSymptoms.length}</Badge> : undefined}
-                    />
-                    <div className="flex flex-wrap gap-1">
-                      {filteredSymptoms.map(s => (
-                        <Chip key={s} variant="symptom" selected={selectedSymptoms.includes(s)} onClick={() => toggleSymptom(s)}>{s}</Chip>
-                      ))}
-                    </div>
-
-                    <div className="mt-2">
-                      <div className="relative">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                        <input
-                          type="text" value={symptomSearch} onChange={e => setSymptomSearch(e.target.value)}
-                          onKeyDown={e => { if (e.key === "Enter" && symptomSearch.trim()) { toggleSymptom(symptomSearch.trim()); setSymptomSearch(""); } }}
-                          placeholder="Search or add…"
-                          className="w-full h-7 pl-7 pr-3 text-[11px] rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Expansions */}
-                    <AnimatePresence>
-                      {activeExpansions.map(symptom => {
-                        const expansion = SYMPTOM_EXPANSIONS[symptom];
-                        return (
-                          <motion.div key={`exp-${symptom}`} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mt-2">
-                            <div className="pl-2.5 border-l-2 border-primary/20">
-                              <ChipGroup label={`${symptom} → ${expansion.label}`}>
-                                {expansion.chips.map(chip => (
-                                  <Chip key={chip} variant={expansion.variant} selected={(expansionSelections[symptom] || []).includes(chip)} onClick={() => toggleExpansionChip(symptom, chip)} size="sm">{chip}</Chip>
-                                ))}
-                              </ChipGroup>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </AnimatePresence>
-
-                    {/* Duration */}
-                    <AnimatePresence>
-                      {selectedSymptoms.length > 0 && (
-                        <motion.div {...fadeIn} className="mt-2">
-                          <ChipGroup label="Duration">
-                            {DURATION_PRESETS.map(d => (
-                              <Chip key={d} variant="neutral" selected={selectedDuration === d} onClick={() => setSelectedDuration(selectedDuration === d ? "" : d)}>{d}</Chip>
-                            ))}
-                          </ChipGroup>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Prior meds */}
-                    <AnimatePresence>
-                      {selectedSymptoms.length > 0 && (
-                        <motion.div {...fadeIn} className="mt-2">
-                          <PresetChipGroup label="Medication taken" options={MEDICATION_PRESETS} selected={priorMeds} onToggle={(m) => setPriorMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])} variant="medication" allowCustom />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </ClinicalCard>
-                </motion.div>
               )}
 
-              {/* ══ SECTION 3: Record / Write ══ */}
+              {/* Symptoms & Duration */}
               {selectedPatient && (
-                <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-2.5">
-                    <ClinicalCardHeader
-                      title="Record / Write"
-                      icon={<Mic className="h-3.5 w-3.5" />}
-                      badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-[8px]">Captured</Badge> : undefined}
-                    />
-                    <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
-                  </ClinicalCard>
+                <ClinicalCard className="p-2">
+                  <ClinicalCardHeader
+                    title="Symptoms & Duration"
+                    icon={<ClipboardCheck className="h-3 w-3" />}
+                    badge={selectedSymptoms.length > 0 ? <Badge variant="outline" className="text-[8px]">{selectedSymptoms.length}</Badge> : undefined}
+                  />
+                  <div className="flex flex-wrap gap-0.5">
+                    {filteredSymptoms.map(s => (
+                      <Chip key={s} variant="symptom" selected={selectedSymptoms.includes(s)} onClick={() => toggleSymptom(s)}>{s}</Chip>
+                    ))}
+                  </div>
+                  <div className="mt-1">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-muted-foreground" />
+                      <input
+                        type="text" value={symptomSearch} onChange={e => setSymptomSearch(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter" && symptomSearch.trim()) { toggleSymptom(symptomSearch.trim()); setSymptomSearch(""); } }}
+                        placeholder="Search or add…"
+                        className="w-full h-6 pl-6 pr-3 text-[10px] rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Expansions (non-Fever) */}
+                  <AnimatePresence>
+                    {activeExpansions.filter(s => SYMPTOM_EXPANSIONS[s]?.chips.length > 0).map(symptom => {
+                      const expansion = SYMPTOM_EXPANSIONS[symptom];
+                      return (
+                        <motion.div key={`exp-${symptom}`} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mt-1">
+                          <div className="pl-2 border-l-2 border-primary/20">
+                            <ChipGroup label={`${symptom} → ${expansion.label}`}>
+                              {expansion.chips.map(chip => (
+                                <Chip key={chip} variant={expansion.variant} selected={(expansionSelections[symptom] || []).includes(chip)} onClick={() => toggleExpansionChip(symptom, chip)} size="sm">{chip}</Chip>
+                              ))}
+                            </ChipGroup>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+
+                  {/* Duration + Prior Meds inline */}
+                  <AnimatePresence>
+                    {selectedSymptoms.length > 0 && (
+                      <motion.div {...fadeIn} className="mt-1.5 space-y-1">
+                        <ChipGroup label="Duration">
+                          {DURATION_PRESETS.map(d => (
+                            <Chip key={d} variant="neutral" selected={selectedDuration === d} onClick={() => setSelectedDuration(selectedDuration === d ? "" : d)}>{d}</Chip>
+                          ))}
+                        </ChipGroup>
+                        <PresetChipGroup label="Medication taken" options={MEDICATION_PRESETS} selected={priorMeds} onToggle={(m) => setPriorMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])} variant="medication" allowCustom />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </ClinicalCard>
+              )}
+
+              {/* Record / Write */}
+              {selectedPatient && (
+                <ClinicalCard className="p-2">
+                  <ClinicalCardHeader
+                    title="Record / Write"
+                    icon={<Mic className="h-3 w-3" />}
+                    badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-[7px]">Captured</Badge> : undefined}
+                  />
+                  <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
+                </ClinicalCard>
+              )}
+
+              {/* Empty state */}
+              {!selectedPatient && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="h-10 w-10 rounded-2xl bg-primary/5 flex items-center justify-center mb-2">
+                    <Stethoscope className="h-5 w-5 text-primary/20" />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Select a patient to start.</p>
                 </motion.div>
               )}
+            </div>
+            )}
+          </div>
+
+          {/* ═══ CENTER COLUMN: Transcript + Review + Finalize ═══ */}
+          <div className="overflow-y-auto border-r border-border">
+            {selectedPatient && !finalizationResults && (
+            <div className="p-2 space-y-1.5">
 
               {/* AI Processing */}
               <AnimatePresence>
                 {pipelineRunning && (
                   <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
-                    <ClinicalCard className="border-primary/20 p-4">
-                      <div className="flex items-center justify-center gap-3">
-                        <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center"><Brain className="h-4 w-4 text-primary" /></div>
-                        <div>
-                          <p className="text-xs font-semibold text-foreground">AI analyzing…</p>
-                          <p className="text-[10px] text-muted-foreground">Building transcript & safety checks</p>
+                    <ClinicalCard className="border-primary/20 p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center"><Brain className="h-3 w-3 text-primary" /></div>
+                        <div className="flex-1">
+                          <p className="text-[10px] font-semibold text-foreground">AI analyzing…</p>
+                          <p className="text-[9px] text-muted-foreground">Building transcript & safety checks</p>
                         </div>
-                        <Loader2 className="h-4 w-4 animate-spin text-primary ml-auto" />
+                        <Loader2 className="h-3 w-3 animate-spin text-primary" />
                       </div>
                     </ClinicalCard>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* ══ SECTION 4: Consultation Transcript ══ */}
+              {/* Consultation Transcript */}
               {(selectedSymptoms.length > 0 || hasTranscript || intakeData) && !pipelineRunning && (
-                <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-2.5 border-primary/15">
-                    <ClinicalCardHeader
-                      title="Consultation Transcript"
-                      icon={<FileText className="h-3.5 w-3.5" />}
-                      badge={
-                        <div className="flex gap-1">
-                          <Badge className="bg-primary/10 text-primary border-primary/20 text-[8px] gap-0.5"><Sparkles className="h-2 w-2" />Auto</Badge>
-                          {summaryManuallyEdited && <Badge variant="outline" className="text-[8px]">Edited</Badge>}
+                <ClinicalCard className="p-2 border-primary/15">
+                  <ClinicalCardHeader
+                    title="Consultation Transcript"
+                    icon={<FileText className="h-3 w-3" />}
+                    badge={
+                      <div className="flex gap-0.5">
+                        <Badge className="bg-primary/10 text-primary border-primary/20 text-[7px] gap-0.5"><Sparkles className="h-2 w-2" />Auto</Badge>
+                        {summaryManuallyEdited && <Badge variant="outline" className="text-[7px]">Edited</Badge>}
+                      </div>
+                    }
+                    action={summaryManuallyEdited ? (
+                      <Button variant="ghost" size="sm" className="h-4 text-[8px]" onClick={() => { setSummaryManuallyEdited(false); setConsultationSummary(generatedSummary); }}>
+                        <RotateCcw className="h-2 w-2 mr-0.5" /> Reset
+                      </Button>
+                    ) : undefined}
+                  />
+                  <Textarea
+                    value={consultationSummary}
+                    onChange={e => { setConsultationSummary(e.target.value); setSummaryManuallyEdited(true); }}
+                    rows={4}
+                    className="text-[10px] font-mono resize-none min-h-[60px] bg-background/50 rounded"
+                  />
+
+                  {/* Safety alerts inline */}
+                  {safetyResults && safetyAlertCount > 0 && (
+                    <div className="mt-1.5 space-y-0.5">
+                      <p className="text-[8px] font-semibold text-chip-alert-text uppercase flex items-center gap-1">
+                        <Shield className="h-2 w-2" /> Safety Alerts
+                      </p>
+                      {safetyResults.allergy_flags.map((f, i) => (
+                        <div key={`a-${i}`} className="p-1 rounded border border-chip-alert-border bg-chip-alert text-[9px] text-chip-alert-text font-medium flex items-center gap-1">
+                          <AlertTriangle className="h-2 w-2 shrink-0" />{f.message}
                         </div>
-                      }
-                      action={summaryManuallyEdited ? (
-                        <Button variant="ghost" size="sm" className="h-5 text-[9px]" onClick={() => { setSummaryManuallyEdited(false); setConsultationSummary(generatedSummary); }}>
-                          <RotateCcw className="h-2 w-2 mr-0.5" /> Reset
-                        </Button>
-                      ) : undefined}
-                    />
-                    <Textarea
-                      value={consultationSummary}
-                      onChange={e => { setConsultationSummary(e.target.value); setSummaryManuallyEdited(true); }}
-                      rows={5}
-                      className="text-[11px] font-mono resize-none min-h-[80px] bg-background/50 rounded-lg"
-                    />
+                      ))}
+                      {safetyResults.interaction_flags.map((f, i) => (
+                        <div key={`i-${i}`} className={`p-1 rounded border text-[9px] flex items-center gap-1 ${severityColor(f.severity)}`}>
+                          <Shield className="h-2 w-2 shrink-0" />
+                          <span className="font-semibold">{f.drug_a}↔{f.drug_b}</span>: {f.description}
+                        </div>
+                      ))}
+                      {safetyResults.dose_warnings.map((w, i) => (
+                        <div key={`d-${i}`} className="p-1 rounded border border-chip-lab-border bg-chip-lab text-[9px] text-chip-lab-text flex items-center gap-1">
+                          <AlertTriangle className="h-2 w-2 shrink-0" />{w.message}
+                        </div>
+                      ))}
+                      {(safetyResults.vitals_dangers || []).map((v, i) => (
+                        <div key={`v-${i}`} className={`p-1 rounded border text-[9px] ${severityColor(v.severity)}`}>{v.message}</div>
+                      ))}
+                      {(safetyResults.emergency_patterns || []).map((ep, i) => (
+                        <div key={`e-${i}`} className={`p-1 rounded border text-[9px] ${severityColor(ep.severity)}`}>
+                          <span className="font-semibold">{ep.pattern}</span>: {ep.message}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-                    {/* Safety alerts inline */}
-                    {safetyResults && safetyAlertCount > 0 && (
-                      <div className="mt-2 space-y-1">
-                        <p className="text-[9px] font-semibold text-chip-alert-text uppercase flex items-center gap-1">
-                          <Shield className="h-2.5 w-2.5" /> Safety Alerts
-                        </p>
-                        {safetyResults.allergy_flags.map((f, i) => (
-                          <div key={`a-${i}`} className="p-1.5 rounded border border-chip-alert-border bg-chip-alert text-[10px] text-chip-alert-text font-medium flex items-center gap-1.5">
-                            <AlertTriangle className="h-2.5 w-2.5 shrink-0" />{f.message}
+                  {/* SOAP from AI pipeline */}
+                  {pipelineComplete && hasSoap && (
+                    <div className="mt-1.5 pt-1.5 border-t border-border space-y-1">
+                      <p className="text-[8px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                        <Brain className="h-2 w-2 text-primary" /> AI SOAP
+                        <Badge className="bg-primary/10 text-primary border-primary/20 text-[7px] ml-1">Draft</Badge>
+                      </p>
+                      {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
+                        soapSections[section]?.trim() ? (
+                          <div key={section} className="space-y-0.5">
+                            <Label className="text-[8px] font-semibold text-muted-foreground">{section}</Label>
+                            <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-[10px] min-h-[20px] resize-y rounded bg-background/50" />
                           </div>
-                        ))}
-                        {safetyResults.interaction_flags.map((f, i) => (
-                          <div key={`i-${i}`} className={`p-1.5 rounded border text-[10px] flex items-center gap-1.5 ${severityColor(f.severity)}`}>
-                            <Shield className="h-2.5 w-2.5 shrink-0" />
-                            <span className="font-semibold">{f.drug_a} ↔ {f.drug_b}</span>: {f.description}
-                          </div>
-                        ))}
-                        {safetyResults.dose_warnings.map((w, i) => (
-                          <div key={`d-${i}`} className="p-1.5 rounded border border-chip-lab-border bg-chip-lab text-[10px] text-chip-lab-text flex items-center gap-1.5">
-                            <AlertTriangle className="h-2.5 w-2.5 shrink-0" />{w.message}
-                          </div>
-                        ))}
-                        {(safetyResults.vitals_dangers || []).map((v, i) => (
-                          <div key={`v-${i}`} className={`p-1.5 rounded border text-[10px] ${severityColor(v.severity)}`}>{v.message}</div>
-                        ))}
-                        {(safetyResults.emergency_patterns || []).map((ep, i) => (
-                          <div key={`e-${i}`} className={`p-1.5 rounded border text-[10px] ${severityColor(ep.severity)}`}>
-                            <span className="font-semibold">{ep.pattern}</span>: {ep.message}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* SOAP from AI pipeline */}
-                    {pipelineComplete && hasSoap && (
-                      <div className="mt-2 pt-2 border-t border-border space-y-1.5">
-                        <p className="text-[9px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                          <Brain className="h-2.5 w-2.5 text-primary" /> AI SOAP
-                          <Badge className="bg-primary/10 text-primary border-primary/20 text-[8px] ml-1">Draft</Badge>
-                        </p>
-                        {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
-                          soapSections[section]?.trim() ? (
-                            <div key={section} className="space-y-0.5">
-                              <Label className="text-[9px] font-semibold text-muted-foreground">{section}</Label>
-                              <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-[11px] min-h-[24px] resize-y rounded-lg bg-background/50" />
-                            </div>
-                          ) : null
-                        ))}
-                      </div>
-                    )}
-                  </ClinicalCard>
-                </motion.div>
+                        ) : null
+                      ))}
+                    </div>
+                  )}
+                </ClinicalCard>
               )}
 
-              {/* ══ SECTION 5: Final Review ══ */}
-              {(selectedDiagnoses.length > 0 || pendingRxFromSuggestions.length > 0 || selectedTests.length > 0 || (selectedPatient && hasSymptomInput)) && (
-                <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-2.5 border-primary/15 bg-gradient-to-br from-chip-medication/20 to-transparent">
-                    <ClinicalCardHeader title="Final Review" icon={<ClipboardCheck className="h-3.5 w-3.5" />} />
+              {/* Final Review */}
+              {(selectedDiagnoses.length > 0 || pendingRxFromSuggestions.length > 0 || selectedTests.length > 0 || hasSymptomInput) && (
+                <ClinicalCard className="p-2 border-primary/15 bg-gradient-to-br from-chip-medication/20 to-transparent">
+                  <ClinicalCardHeader title="Final Review" icon={<ClipboardCheck className="h-3 w-3" />} />
 
-                    {/* Diagnosis */}
-                    {selectedDiagnoses.length > 0 && (
-                      <div className="mb-2">
-                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Diagnosis</p>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedDiagnoses.map(d => <Chip key={d} variant="diagnosis" selected removable onRemove={() => toggleDiagnosis(d)}>{d}</Chip>)}
-                        </div>
+                  {selectedDiagnoses.length > 0 && (
+                    <div className="mb-1.5">
+                      <p className="text-[8px] font-semibold text-muted-foreground uppercase mb-0.5">Diagnosis</p>
+                      <div className="flex flex-wrap gap-0.5">
+                        {selectedDiagnoses.map(d => <Chip key={d} variant="diagnosis" selected removable onRemove={() => toggleDiagnosis(d)}>{d}</Chip>)}
                       </div>
-                    )}
-
-                    {/* Prescription */}
-                    {pendingRxFromSuggestions.length > 0 && (
-                      <div className="mb-2">
-                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Prescription</p>
-                        <div className="space-y-1">
-                          {pendingRxFromSuggestions.map((rx, i) => (
-                            <div key={i} className="flex items-center gap-1.5 p-1.5 rounded bg-muted/30 border border-border/50">
-                              <Pill className="h-2.5 w-2.5 text-chip-medication-text shrink-0" />
-                              <span className="text-[11px] font-medium text-foreground">{rx.drug_name}</span>
-                              <span className="text-[9px] text-muted-foreground">{rx.dose} · {rx.frequency} · {rx.duration}</span>
-                              <button onClick={() => setPendingRxFromSuggestions(prev => prev.filter((_, idx) => idx !== i))} className="ml-auto text-muted-foreground hover:text-destructive">
-                                <XCircle className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Lab Tests */}
-                    {selectedTests.length > 0 && (
-                      <div className="mb-2">
-                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Lab Orders</p>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedTests.map(t => <Chip key={t} variant="lab" selected removable onRemove={() => toggleTest(t)}>{t}</Chip>)}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Follow-up */}
-                    <div className="mb-2">
-                      <FollowUpPanel followUpDate={followUpDate} onFollowUpDateChange={setFollowUpDate} followUpNotes={followUpNotes} onFollowUpNotesChange={setFollowUpNotes} />
                     </div>
+                  )}
 
-                    {/* Validate + Finalize */}
-                    <div className="pt-2 border-t border-border space-y-2">
-                      {/* Validate button */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full h-8 text-[11px] gap-1.5"
-                        onClick={runValidation}
-                        disabled={isValidating}
-                      >
-                        {isValidating ? (
-                          <><Loader2 className="h-3 w-3 animate-spin" /> Validating…</>
-                        ) : validationComplete ? (
-                          <><CheckCircle className="h-3 w-3 text-primary" /> Validated {safetyAlertCount > 0 ? `(${safetyAlertCount} alerts)` : "✓"}</>
-                        ) : (
-                          <><ShieldCheck className="h-3 w-3" /> Validate</>
-                        )}
-                      </Button>
-
-                      <div className="flex items-start gap-1.5">
-                        <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} className="mt-0.5" />
-                        <label htmlFor="final-review" className="text-[10px] text-muted-foreground cursor-pointer select-none leading-relaxed">
-                          I have reviewed the consultation summary, prescriptions, and safety alerts.
-                        </label>
+                  {pendingRxFromSuggestions.length > 0 && (
+                    <div className="mb-1.5">
+                      <p className="text-[8px] font-semibold text-muted-foreground uppercase mb-0.5">Prescription</p>
+                      <div className="space-y-0.5">
+                        {pendingRxFromSuggestions.map((rx, i) => (
+                          <div key={i} className="flex items-center gap-1 p-1 rounded bg-muted/30 border border-border/50">
+                            <Pill className="h-2 w-2 text-chip-medication-text shrink-0" />
+                            <span className="text-[10px] font-medium text-foreground">{rx.drug_name}</span>
+                            <span className="text-[8px] text-muted-foreground">{rx.dose}·{rx.frequency}·{rx.duration}</span>
+                            <button onClick={() => setPendingRxFromSuggestions(prev => prev.filter((_, idx) => idx !== i))} className="ml-auto text-muted-foreground hover:text-destructive">
+                              <XCircle className="h-2 w-2" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-
-                      <Button onClick={approveAndSave} disabled={isSaving || isFinalizingConsultation || !reviewConfirmed} className="w-full h-9 rounded-xl text-xs font-semibold gap-1.5">
-                        {(isSaving || isFinalizingConsultation) ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Finalizing…</> : <><CheckCircle className="h-3.5 w-3.5" />Finalize & Send</>}
-                      </Button>
                     </div>
-                  </ClinicalCard>
-                </motion.div>
-              )}
+                  )}
 
-              {/* Empty state */}
-              {!selectedPatient && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="h-12 w-12 rounded-2xl bg-primary/5 flex items-center justify-center mb-3">
-                    <Stethoscope className="h-6 w-6 text-primary/20" />
+                  {selectedTests.length > 0 && (
+                    <div className="mb-1.5">
+                      <p className="text-[8px] font-semibold text-muted-foreground uppercase mb-0.5">Lab Orders</p>
+                      <div className="flex flex-wrap gap-0.5">
+                        {selectedTests.map(t => <Chip key={t} variant="lab" selected removable onRemove={() => toggleTest(t)}>{t}</Chip>)}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mb-1.5">
+                    <FollowUpPanel followUpDate={followUpDate} onFollowUpDateChange={setFollowUpDate} followUpNotes={followUpNotes} onFollowUpNotesChange={setFollowUpNotes} />
                   </div>
-                  <p className="text-xs text-muted-foreground">Select a patient to start.</p>
-                </motion.div>
+
+                  {/* Validate + Finalize */}
+                  <div className="pt-1.5 border-t border-border space-y-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-[10px] gap-1"
+                      onClick={runValidation}
+                      disabled={isValidating}
+                    >
+                      {isValidating ? (
+                        <><Loader2 className="h-2.5 w-2.5 animate-spin" /> Validating…</>
+                      ) : validationComplete ? (
+                        <><CheckCircle className="h-2.5 w-2.5 text-primary" /> Validated {safetyAlertCount > 0 ? `(${safetyAlertCount} alerts)` : "✓"}</>
+                      ) : (
+                        <><ShieldCheck className="h-2.5 w-2.5" /> Validate</>
+                      )}
+                    </Button>
+
+                    <div className="flex items-start gap-1">
+                      <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} className="mt-0.5 h-3 w-3" />
+                      <label htmlFor="final-review" className="text-[9px] text-muted-foreground cursor-pointer select-none leading-relaxed">
+                        I have reviewed the consultation summary, prescriptions, and safety alerts.
+                      </label>
+                    </div>
+
+                    <Button onClick={approveAndSave} disabled={isSaving || isFinalizingConsultation || !reviewConfirmed} className="w-full h-8 rounded-xl text-[10px] font-semibold gap-1">
+                      {(isSaving || isFinalizingConsultation) ? <><Loader2 className="h-3 w-3 animate-spin" />Finalizing…</> : <><CheckCircle className="h-3 w-3" />Finalize & Send</>}
+                    </Button>
+                  </div>
+                </ClinicalCard>
               )}
             </div>
             )}
