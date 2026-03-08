@@ -20,7 +20,7 @@ const navItems = [
   { label: "Intake", path: "/intake", icon: FileInput },
   { label: "Vitals", path: "/vitals", icon: Activity },
   { label: "Prescriptions", path: "/prescriptions", icon: Pill },
-  { label: "Billing", path: "/billing", icon: Receipt },
+  { label: "Billing", path: "/billing", icon: IndianRupee },
   { label: "Clinic Settings", path: "/clinic-settings", icon: Settings },
 ];
 
