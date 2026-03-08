@@ -932,7 +932,7 @@ export default function Clinical() {
 
               {/* Record / Write */}
               {selectedPatient && (
-                <ClinicalCard className="p-2">
+                <ClinicalCard className="p-1.5">
                   <ClinicalCardHeader
                     title="Record / Write"
                     icon={<Mic className="h-3 w-3" />}
