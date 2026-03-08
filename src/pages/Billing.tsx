@@ -56,25 +56,19 @@ export default function Billing() {
     if (!selectedPatient || !user) return;
     setSaving(true);
     try {
-      const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("user_id", user.id).maybeSingle();
-      const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
-
-      const { error } = await supabase.from("invoices").insert({
-        patient_id: selectedPatient.id,
-        clinic_id: profile?.clinic_id || null,
-        doctor_id: user.id,
-        consultation_fee: parseFloat(consultationFee) || 0,
-        procedures: procedures.filter(p => p.description),
-        lab_charges: labCharges.filter(l => l.description),
-        discount: parseFloat(discount) || 0,
-        total: total(),
-        payment_mode: paymentMode,
-        invoice_number: invoiceNumber,
-        status: "paid",
-      } as any);
-
+      const { data, error } = await supabase.functions.invoke("generate-invoice", {
+        body: {
+          patient_id: selectedPatient.id,
+          consultation_fee: consultationFee,
+          procedures: procedures.filter(p => p.description),
+          lab_charges: labCharges.filter(l => l.description),
+          discount,
+          payment_mode: paymentMode,
+        },
+      });
       if (error) throw error;
-      toast({ title: "Invoice saved", description: `${invoiceNumber} — ₹${total()}` });
+      if (data?.error) throw new Error(data.error);
+      toast({ title: "Invoice saved", description: `${data.invoice_number} — ₹${data.total}` });
       loadRecentInvoices();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });

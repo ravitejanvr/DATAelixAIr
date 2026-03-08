@@ -49,3 +49,7 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.order-lab-tests]
     verify_jwt = false
+  [functions.generate-invoice]
+    verify_jwt = false
+  [functions.update-visit-status]
+    verify_jwt = false
