@@ -958,7 +958,7 @@ export default function Clinical() {
           {/* ═══ CENTER COLUMN: Transcript + Review + Finalize ═══ */}
           <div className="overflow-y-auto border-r border-border">
             {selectedPatient && !finalizationResults && (
-            <div className="p-2 space-y-1.5">
+            <div className="p-1.5 space-y-1">
 
               {/* AI Processing */}
               <AnimatePresence>
