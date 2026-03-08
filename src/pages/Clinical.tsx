@@ -242,11 +242,11 @@ export default function Clinical() {
           clinical_context: clinicalContext,
         },
       });
-      setSafetyResults(safetyData as SafetyResults || { normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString() });
+      setSafetyResults(safetyData as SafetyResults || EMPTY_SAFETY);
       t3.stop(true);
       emitSafetyAlertMetric({ interactions: safetyData?.interaction_flags?.length || 0, allergies: safetyData?.allergy_flags?.length || 0, dose_warnings: safetyData?.dose_warnings?.length || 0, vitals_dangers: safetyData?.vitals_dangers?.length || 0, emergency_patterns: safetyData?.emergency_patterns?.length || 0 });
     } catch {
-      setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "moderate", requires_manual_review: true, timestamp: new Date().toISOString() });
+      setSafetyResults({ ...EMPTY_SAFETY, confidence_level: "moderate", requires_manual_review: true });
       t3.stop(false);
     }
     setIsRunningSafety(false);
