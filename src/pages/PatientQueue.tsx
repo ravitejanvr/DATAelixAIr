@@ -299,6 +299,7 @@ export default function PatientQueue() {
               <TableRow>
                 <TableHead className="w-20">Token</TableHead>
                 <TableHead>Patient</TableHead>
+                <TableHead className="hidden md:table-cell">Complaint</TableHead>
                 <TableHead className="hidden sm:table-cell">Type</TableHead>
                 <TableHead>Wait Time</TableHead>
                 <TableHead>Status</TableHead>
