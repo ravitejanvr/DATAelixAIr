@@ -38,6 +38,7 @@ import ConsultationDetail from "./pages/ConsultationDetail";
 import PatientPortal from "./pages/PatientPortal";
 import Vitals from "./pages/Vitals";
 import Billing from "./pages/Billing";
+import ClinicAdmin from "./pages/ClinicAdmin";
 import VisitTracker from "./pages/VisitTracker";
 import Triage from "./pages/Triage";
 import Intake from "./pages/Intake";
@@ -163,6 +164,7 @@ const App = () => (
               <Route path="/triage" element={<ProtectedRoute allowedRoles={["nurse", "doctor", "clinic_admin", "receptionist"]}><ClinicalLayout><Triage /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/intake" element={<ProtectedRoute allowedRoles={["nurse", "doctor", "clinic_admin", "receptionist", "front_desk"]}><ClinicalLayout><Intake /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/billing" element={<ProtectedRoute allowedRoles={["doctor", "receptionist", "clinic_admin"]}><ClinicalLayout><Billing /></ClinicalLayout></ProtectedRoute>} />
+              <Route path="/clinic-settings" element={<ProtectedRoute allowedRoles={["doctor", "clinic_admin"]}><ClinicalLayout><ClinicAdmin /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/visit-tracker" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><VisitTracker /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/queue" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><PatientQueue /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/patient-portal" element={<ProtectedRoute allowedRoles={["patient"]}><PatientPortal /></ProtectedRoute>} />
