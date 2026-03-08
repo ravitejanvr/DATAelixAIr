@@ -500,9 +500,10 @@ export default function Clinical() {
       // Run safety check and wait for results
       setIsRunningSafety(true);
       const timer = startPipelineTimer("safety_controller");
+      // Format medications with dose and frequency for accurate validation
       const medications = [
         ...(extractedData.current_medications?.split(",").map(s => s.trim()).filter(Boolean) || []),
-        ...pendingRxFromSuggestions.map(r => r.drug_name),
+        ...pendingRxFromSuggestions.map(r => `${r.drug_name} ${r.dose} ${r.frequency}`),
       ];
       const allergies = [
         ...(extractedData.allergies?.split(",").map(s => s.trim()).filter(Boolean) || []),
