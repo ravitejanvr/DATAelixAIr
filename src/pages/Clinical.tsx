@@ -231,8 +231,18 @@ export default function Clinical() {
     setIsGeneratingSoap(true);
     const t4 = startPipelineTimer("documentation");
     try {
+      // Build intake context for SOAP generation
+      const intakeContext: Record<string, string> = {};
+      if (intakeData) {
+        intakeContext.chief_complaint = intakeData.chief_complaint || "";
+        intakeContext.symptom_duration = intakeData.symptom_duration || "";
+        intakeContext.pain_score = intakeData.pain_score != null ? `${intakeData.pain_score}/10` : "";
+        intakeContext.allergies = intakeData.allergies_noted || "";
+        intakeContext.medications = intakeData.current_medications || "";
+        intakeContext.pregnancy_status = intakeData.pregnancy_status || "";
+      }
       const { data, error } = await supabase.functions.invoke("clinical-soap", {
-        body: { transcript: stableText.trim(), extractedData: {} },
+        body: { transcript: stableText.trim(), extractedData: intakeContext },
       });
       if (error) throw new Error(error.message);
       const sections = {
