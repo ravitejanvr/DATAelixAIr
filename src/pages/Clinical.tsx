@@ -103,6 +103,7 @@ export default function Clinical() {
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [pipelineComplete, setPipelineComplete] = useState(false);
   const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [intakeApproved, setIntakeApproved] = useState(false);
 
   // Learning baselines
   const [aiExtractedBaseline, setAiExtractedBaseline] = useState<ExtractedData>(EMPTY_EXTRACTED);
