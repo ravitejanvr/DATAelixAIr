@@ -304,7 +304,7 @@ export default function Clinical() {
         intakeContext.pregnancy_status = intakeData.pregnancy_status || "";
       }
       const { data, error } = await supabase.functions.invoke("clinical-soap", {
-        body: { transcript: stableText.trim(), extractedData: intakeContext },
+        body: { transcript: stableText.trim(), extractedData: intakeContext, clinical_context: clinicalContext },
       });
       if (error) throw new Error(error.message);
       const sections = {
