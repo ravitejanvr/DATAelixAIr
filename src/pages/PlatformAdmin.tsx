@@ -373,9 +373,12 @@ export default function PlatformAdmin() {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                    ))}
+                    {nonPendingUsers.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4">No approved or rejected users yet.</p>
+                    )}
+                  </div>
                 </div>
-              </div>
             </div>
           </TabsContent>
 
