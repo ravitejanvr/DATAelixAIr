@@ -10,10 +10,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { transcript, extractedData } = await req.json();
+    const { transcript, extractedData, clinical_context } = await req.json();
 
-    if (!transcript && !extractedData) {
-      return new Response(JSON.stringify({ error: "Transcript or extracted data required" }), {
+    if (!transcript && !extractedData && !clinical_context) {
+      return new Response(JSON.stringify({ error: "Transcript, extracted data, or clinical context required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -74,11 +74,15 @@ RULES:
 - When uncertainty is detected, ALWAYS use provisional/hedged language
 - NEVER generate hallucinated contraindications or side effects not supported by data`;
 
+    const clinicalContextBlock = clinical_context
+      ? `\n\nCLINICAL CONTEXT (patient demographics, vitals, history):\n${JSON.stringify(clinical_context, null, 2)}`
+      : "";
+
     const userMessage = `CONSULTATION TRANSCRIPT:
 ${transcript || "Not provided"}
 
 EXTRACTED CLINICAL DATA:
-${JSON.stringify(extractedData || {}, null, 2)}${safetyContext}
+${JSON.stringify(extractedData || {}, null, 2)}${safetyContext}${clinicalContextBlock}
 
 Generate the concise clinical summary following the format exactly.`;
 

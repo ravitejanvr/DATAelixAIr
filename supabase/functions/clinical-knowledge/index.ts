@@ -224,6 +224,7 @@ interface PatientContext {
   conditions?: string;
   vitals?: string;
   transcript_excerpt?: string;
+  clinical_context?: Record<string, any>;
 }
 
 interface EvidenceBackedSuggestion {
@@ -297,6 +298,10 @@ Return ONLY valid JSON matching this structure:
   "guidelines": [{ "guideline": "", "source": "", "summary_points": [""] }]
 }`;
 
+  const clinicalCtxBlock = patientCtx.clinical_context
+    ? `\nSTRUCTURED CLINICAL CONTEXT:\n${JSON.stringify(patientCtx.clinical_context, null, 2)}\n`
+    : "";
+
   const userPrompt = `PATIENT CONTEXT:
 - Chief complaint: ${patientCtx.chief_complaint}
 - Duration: ${patientCtx.duration || "not specified"}
@@ -306,7 +311,7 @@ Return ONLY valid JSON matching this structure:
 - Chronic conditions: ${patientCtx.conditions || "none"}
 - Vitals: ${patientCtx.vitals || "not recorded"}
 ${patientCtx.transcript_excerpt ? `- Transcript excerpt: ${patientCtx.transcript_excerpt}` : ""}
-
+${clinicalCtxBlock}
 RETRIEVED EVIDENCE (${filteredCitations.length} citations):
 ${citationContext || "No citations retrieved."}
 
@@ -365,6 +370,7 @@ serve(async (req) => {
     const {
       chief_complaint, duration, symptoms, age, gender,
       allergies, medications, conditions, vitals, transcript_excerpt,
+      clinical_context,
     } = body;
 
     if (!chief_complaint) {
@@ -413,7 +419,7 @@ serve(async (req) => {
 
     // ── AGENT 3: Clinical Context Mapping ──
     const { suggestions, model } = await mapEvidenceToContext(
-      { chief_complaint, duration, age, gender, allergies, medications, conditions, vitals, transcript_excerpt },
+      { chief_complaint, duration, age, gender, allergies, medications, conditions, vitals, transcript_excerpt, clinical_context },
       filteredCitations,
       drugSafetyResults as DrugSafetyRaw[],
     );
