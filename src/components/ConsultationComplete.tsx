@@ -1,22 +1,23 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Chip } from "@/components/ui/chip";
 import { ClinicalCard, ClinicalCardHeader } from "@/components/ui/clinical-card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   CheckCircle, Pill, FlaskConical, FileText, CreditCard,
   Send, Download, Loader2, Printer, Building2, TestTube,
   User, RotateCcw, ExternalLink
 } from "lucide-react";
+import brainLogo from "@/assets/brain-logo-nobg.png";
 
 interface FinalizationResults {
   consultation_id: string;
-  prescriptions?: { id: string; drug_name: string }[];
-  lab_orders?: { id: string; test_name: string }[];
-  invoice?: { id: string; invoice_number: string; total: number; status: string };
+  prescriptions?: { id: string; drug_name: string; dosage?: string; frequency?: string; duration?: string; route?: string; instructions?: string }[];
+  lab_orders?: { id: string; test_name: string; priority?: string; notes?: string }[];
+  invoice?: { id: string; invoice_number: string; total: number; status: string; consultation_fee?: number; lab_charges?: any[] };
   report?: any;
   stages: { stage: string; status: string; count?: number; total?: number; error?: string }[];
   errors?: string[];
@@ -47,6 +48,8 @@ export default function ConsultationComplete({
   const [deliveryResults, setDeliveryResults] = useState<Record<string, string>>({});
   const [markingPaid, setMarkingPaid] = useState(false);
   const [invoicePaid, setInvoicePaid] = useState(results.invoice?.status === "paid");
+  const [downloading, setDownloading] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
 
   const deliver = async (target: string) => {
     setDelivering(target);
@@ -91,29 +94,189 @@ export default function ConsultationComplete({
     }
   };
 
+  const downloadPDF = async () => {
+    setDownloading(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const now = new Date();
+      const dateStr = now.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+      // Header
+      doc.setFillColor(15, 23, 42);
+      doc.rect(0, 0, 210, 32, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("DATAelixAIr", 15, 15);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text("AI Clinical Productivity Assistant", 15, 22);
+      doc.text(`${dateStr}  ${timeStr}`, 195, 15, { align: "right" });
+      doc.text(`Consultation ID: ${results.consultation_id?.slice(0, 8) || "N/A"}`, 195, 22, { align: "right" });
+
+      // Patient info
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      let y = 42;
+      doc.text(`Patient: ${patientName}`, 15, y);
+      y += 10;
+
+      // Prescription section
+      if (results.prescriptions?.length) {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(10, y - 5, 190, 8, "F");
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text("Prescription", 15, y);
+        if (results.ai_generated_prescriptions) {
+          doc.setFontSize(7);
+          doc.setTextColor(59, 130, 246);
+          doc.text("AI Generated", 75, y);
+          doc.setTextColor(30, 41, 59);
+        }
+        y += 10;
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("Drug", 15, y);
+        doc.text("Dose", 70, y);
+        doc.text("Freq", 100, y);
+        doc.text("Duration", 125, y);
+        doc.text("Route", 155, y);
+        doc.text("Instructions", 175, y);
+        y += 2;
+        doc.setDrawColor(200, 200, 200);
+        doc.line(15, y, 195, y);
+        y += 5;
+
+        doc.setFont("helvetica", "normal");
+        results.prescriptions.forEach((rx) => {
+          if (y > 270) { doc.addPage(); y = 20; }
+          doc.text(rx.drug_name || "", 15, y);
+          doc.text(rx.dosage || "", 70, y);
+          doc.text(rx.frequency || "", 100, y);
+          doc.text(rx.duration || "", 125, y);
+          doc.text(rx.route || "oral", 155, y);
+          doc.text((rx.instructions || "").substring(0, 20), 175, y);
+          y += 7;
+        });
+        y += 5;
+      }
+
+      // Lab Orders section
+      if (results.lab_orders?.length) {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(10, y - 5, 190, 8, "F");
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text("Lab Orders", 15, y);
+        if (results.ai_generated_lab_orders) {
+          doc.setFontSize(7);
+          doc.setTextColor(59, 130, 246);
+          doc.text("AI Generated", 65, y);
+          doc.setTextColor(30, 41, 59);
+        }
+        y += 10;
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("Test", 15, y);
+        doc.text("Priority", 120, y);
+        doc.text("Notes", 150, y);
+        y += 2;
+        doc.line(15, y, 195, y);
+        y += 5;
+
+        doc.setFont("helvetica", "normal");
+        results.lab_orders.forEach((lo) => {
+          if (y > 270) { doc.addPage(); y = 20; }
+          doc.text(lo.test_name || "", 15, y);
+          doc.text(lo.priority || "routine", 120, y);
+          doc.text((lo.notes || "").substring(0, 30), 150, y);
+          y += 7;
+        });
+        y += 5;
+      }
+
+      // Invoice section
+      if (results.invoice) {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(10, y - 5, 190, 8, "F");
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text("Invoice", 15, y);
+        y += 10;
+
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Invoice #: ${results.invoice.invoice_number}`, 15, y);
+        y += 6;
+        doc.text(`Total: ₹${results.invoice.total}`, 15, y);
+        doc.text(`Status: ${invoicePaid ? "PAID" : "PENDING"}`, 100, y);
+        y += 10;
+      }
+
+      // Footer
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFillColor(248, 250, 252);
+        doc.rect(0, 280, 210, 17, "F");
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
+        doc.text("Generated by DATAelixAIr · AI Clinical Productivity Assistant · This is an AI-assisted document for clinician review", 105, 287, { align: "center" });
+        doc.text(`Page ${i} of ${pageCount}`, 195, 292, { align: "right" });
+      }
+
+      doc.save(`DATAelixAIr_${patientName.replace(/\s/g, "_")}_${dateStr.replace(/\s/g, "")}.pdf`);
+      toast({ title: "PDF Downloaded", description: "Clinical report saved." });
+    } catch (err: any) {
+      toast({ title: "Download failed", description: err.message, variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const stageStatus = (stage: string) => results.stages.find(s => s.stage === stage);
 
   return (
     <motion.div
+      ref={printRef}
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4 }}
       className="max-w-3xl mx-auto w-full space-y-4 p-4"
     >
-      {/* Success Header */}
+      {/* Branded Header */}
       <ClinicalCard className="border-primary/20 bg-gradient-to-br from-primary/[0.04] to-transparent">
         <div className="flex flex-col items-center text-center py-6 space-y-3">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
-            className="h-16 w-16 rounded-full bg-chip-medication flex items-center justify-center"
+            className="flex items-center gap-3"
           >
-            <CheckCircle className="h-8 w-8 text-chip-medication-text" />
+            <img src={brainLogo} alt="DATAelixAIr" className="h-12 w-12" />
+            <div className="text-left">
+              <h1 className="text-lg font-bold text-foreground tracking-tight">DATAelixAIr</h1>
+              <p className="text-[10px] text-muted-foreground">AI Clinical Productivity Assistant</p>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.35 }}
+            className="h-14 w-14 rounded-full bg-chip-medication flex items-center justify-center"
+          >
+            <CheckCircle className="h-7 w-7 text-chip-medication-text" />
           </motion.div>
           <h2 className="text-lg font-bold text-foreground">Consultation Finalized</h2>
           <p className="text-sm text-muted-foreground">
-            {patientName} · All outputs generated successfully
+            {patientName} · {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
           </p>
 
           {/* Stage Summary */}
@@ -151,9 +314,17 @@ export default function ConsultationComplete({
                 </div>
               }
             />
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {results.prescriptions.map(rx => (
-                <Chip key={rx.id} variant="medication" size="sm">{rx.drug_name}</Chip>
+            <div className="mt-3 space-y-2">
+              {results.prescriptions.map((rx) => (
+                <div key={rx.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-border/50">
+                  <Pill className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{rx.drug_name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {[rx.dosage, rx.frequency, rx.duration, rx.route].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+                </div>
               ))}
             </div>
           </ClinicalCard>
@@ -174,9 +345,17 @@ export default function ConsultationComplete({
                 </div>
               }
             />
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {results.lab_orders.map(lo => (
-                <Chip key={lo.id} variant="lab" size="sm">{lo.test_name}</Chip>
+            <div className="mt-3 space-y-2">
+              {results.lab_orders.map((lo) => (
+                <div key={lo.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border border-border/50">
+                  <FlaskConical className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{lo.test_name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Priority: {lo.priority || "routine"}{lo.notes ? ` · ${lo.notes}` : ""}
+                    </p>
+                  </div>
+                </div>
               ))}
             </div>
           </ClinicalCard>
@@ -282,10 +461,26 @@ export default function ConsultationComplete({
         <Button variant="outline" className="flex-1 h-11 rounded-xl gap-2" onClick={onNewSession}>
           <RotateCcw className="h-4 w-4" /> New Consultation
         </Button>
+        <Button
+          variant="default"
+          className="h-11 rounded-xl gap-2"
+          onClick={downloadPDF}
+          disabled={downloading}
+        >
+          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          Download PDF
+        </Button>
         <Button variant="outline" className="h-11 rounded-xl gap-2" onClick={() => window.print()}>
           <Printer className="h-4 w-4" /> Print
         </Button>
       </motion.div>
+
+      {/* Branding Footer */}
+      <div className="text-center pt-2 pb-4">
+        <p className="text-[10px] text-muted-foreground">
+          Generated by <span className="font-semibold text-primary">DATAelixAIr</span> · AI-assisted clinical document for clinician review
+        </p>
+      </div>
 
       {/* Errors */}
       {results.errors && results.errors.length > 0 && (
