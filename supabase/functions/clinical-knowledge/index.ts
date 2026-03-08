@@ -297,6 +297,10 @@ Return ONLY valid JSON matching this structure:
   "guidelines": [{ "guideline": "", "source": "", "summary_points": [""] }]
 }`;
 
+  const clinicalCtxBlock = patientCtx.clinical_context
+    ? `\nSTRUCTURED CLINICAL CONTEXT:\n${JSON.stringify(patientCtx.clinical_context, null, 2)}\n`
+    : "";
+
   const userPrompt = `PATIENT CONTEXT:
 - Chief complaint: ${patientCtx.chief_complaint}
 - Duration: ${patientCtx.duration || "not specified"}
@@ -306,7 +310,7 @@ Return ONLY valid JSON matching this structure:
 - Chronic conditions: ${patientCtx.conditions || "none"}
 - Vitals: ${patientCtx.vitals || "not recorded"}
 ${patientCtx.transcript_excerpt ? `- Transcript excerpt: ${patientCtx.transcript_excerpt}` : ""}
-
+${clinicalCtxBlock}
 RETRIEVED EVIDENCE (${filteredCitations.length} citations):
 ${citationContext || "No citations retrieved."}
 
