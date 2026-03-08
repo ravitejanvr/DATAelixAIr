@@ -20,6 +20,8 @@ interface FinalizationResults {
   report?: any;
   stages: { stage: string; status: string; count?: number; total?: number; error?: string }[];
   errors?: string[];
+  ai_generated_prescriptions?: boolean;
+  ai_generated_lab_orders?: boolean;
 }
 
 interface ConsultationCompleteProps {
