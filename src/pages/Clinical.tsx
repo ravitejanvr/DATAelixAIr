@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -14,11 +14,16 @@ import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/SEO";
 import EvidencePanel from "@/components/EvidencePanel";
 import ConsultationInput from "@/components/ConsultationInput";
+import PatientSelector, { type SelectedPatient } from "@/components/PatientSelector";
+import InlineVitals from "@/components/InlineVitals";
+import VisitTimeline from "@/components/VisitTimeline";
+import InlinePrescriptionBuilder from "@/components/InlinePrescriptionBuilder";
+import InlineLabOrders from "@/components/InlineLabOrders";
 import {
   Loader2, Save, CheckCircle2, ChevronDown, ChevronRight, FileText,
-  Edit3, Eye, EyeOff, ShieldCheck, AlertTriangle, XCircle, CheckCircle,
-  Info, Languages, HeartPulse, Siren, Pill, FlaskConical, User, Activity,
-  Sparkles, RotateCcw
+  Edit3, Eye, ShieldCheck, AlertTriangle, XCircle, CheckCircle,
+  Languages, HeartPulse, Pill, FlaskConical, User, Activity,
+  Sparkles, RotateCcw, Clock, ClipboardCheck
 } from "lucide-react";
 import type { ExtractedData, SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_EXTRACTED, EMPTY_SOAP } from "@/layers/ai-agents/api";
@@ -63,10 +68,12 @@ export default function Clinical() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Transcript state – unified for record + write
+  // Patient selection
+  const [selectedPatient, setSelectedPatient] = useState<SelectedPatient | null>(null);
+
+  // Transcript state
   const [transcript, setTranscript] = useState("");
   const [stabilizedTranscript, setStabilizedTranscript] = useState("");
-  const [showRaw, setShowRaw] = useState(false);
 
   // Pipeline processing states
   const [isStabilizing, setIsStabilizing] = useState(false);
@@ -90,8 +97,6 @@ export default function Clinical() {
   // Session management
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
-
-  // Pipeline completion tracking
   const [pipelineComplete, setPipelineComplete] = useState(false);
   const [pipelineRunning, setPipelineRunning] = useState(false);
 
@@ -100,21 +105,39 @@ export default function Clinical() {
   const [aiSoapBaseline, setAiSoapBaseline] = useState<SoapSections>(EMPTY_SOAP);
   const [sessionStartTime] = useState(() => performance.now());
 
-  // Patient context (if navigated from patient detail)
-  const [patientInfo, setPatientInfo] = useState<any>(null);
+  // Profile for clinic_id
+  const [profileClinicId, setProfileClinicId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if navigated with patient state
+    if (!user) return;
+    supabase.from("profiles").select("clinic_id").eq("user_id", user.id).maybeSingle().then(({ data }) => {
+      if (data?.clinic_id) setProfileClinicId(data.clinic_id);
+    });
+    // Check navigation state
     const state = window.history.state?.usr;
-    if (state?.patient) setPatientInfo(state.patient);
-  }, []);
+    if (state?.patient) {
+      setSelectedPatient(state.patient);
+    }
+  }, [user]);
+
+  // Pre-fill allergies/meds from selected patient
+  useEffect(() => {
+    if (selectedPatient) {
+      if (selectedPatient.allergies?.length) {
+        setExtractedData(prev => ({ ...prev, allergies: selectedPatient.allergies!.join(", ") }));
+      }
+      if (selectedPatient.current_medications?.length) {
+        setExtractedData(prev => ({ ...prev, current_medications: selectedPatient.current_medications!.join(", ") }));
+      }
+    }
+  }, [selectedPatient]);
 
   const hasTranscript = transcript.trim().length > 0;
   const hasExtraction = extractedData.chief_complaint.trim().length > 0;
   const hasSoap = Object.values(soapSections).some(v => v.trim().length > 0);
   const isProcessing = isStabilizing || isExtracting || isRunningSafety || isGeneratingSoap;
 
-  // ── Full AI Pipeline (one-click) ──────────────────────────────
+  // ── Full AI Pipeline ──────────────────────────────
   const runFullPipeline = async () => {
     if (!transcript.trim()) {
       toast({ title: "Empty input", description: "Record or type consultation notes first.", variant: "destructive" });
@@ -136,9 +159,7 @@ export default function Clinical() {
         setNormalizationResults(data.normalization_results || []);
         setDetectedLanguages(data.detected_languages || []);
         t1.stop(true, { match_count: data.match_count || 0 });
-      } else {
-        t1.stop(false);
-      }
+      } else { t1.stop(false); }
     } catch { t1.stop(false); }
     setStabilizedTranscript(stableText);
     setTranscript(stableText);
@@ -173,17 +194,9 @@ export default function Clinical() {
     setIsRunningSafety(true);
     const t3 = startPipelineTimer("safety_controller");
     try {
-      // Re-read latest extractedData from the closure — use local variable
-      const latestExtracted = extractedData;
-      const { data: safetyData, error: safetyError } = await supabase.functions.invoke("clinical-safety", {
-        body: {
-          medications: [],
-          allergies: [],
-          vitals: {},
-          symptoms: [],
-        },
+      const { data: safetyData } = await supabase.functions.invoke("clinical-safety", {
+        body: { medications: [], allergies: [], vitals: {}, symptoms: [] },
       });
-      // We'll run safety with whatever we have; use a simplified version
       setSafetyResults(safetyData as SafetyResults || {
         normalized_drugs: [], interaction_flags: [], allergy_flags: [],
         dose_warnings: [], vitals_dangers: [], emergency_patterns: [],
@@ -230,7 +243,7 @@ export default function Clinical() {
     setPipelineComplete(true);
   };
 
-  // ── Safety with actual extracted data (called after doctor edits extraction) ──
+  // ── Safety re-run ──
   const runSafetyCheck = async () => {
     setIsRunningSafety(true);
     const timer = startPipelineTimer("safety_controller");
@@ -249,16 +262,13 @@ export default function Clinical() {
         blood_sugar: parseVital(/(?:sugar|glucose|bs|rbs)[:\s]*(\d+)/i),
       };
       const symptoms = [extractedData.chief_complaint, extractedData.associated_symptoms].filter(Boolean).join(", ").split(",").map(s => s.trim()).filter(Boolean);
-
       const { data, error } = await supabase.functions.invoke("clinical-safety", { body: { medications, allergies, vitals: vitalsObj, symptoms } });
       if (error) throw new Error(error.message);
       setSafetyResults(data as SafetyResults);
       timer.stop(true);
       emitSafetyAlertMetric({
-        interactions: data.interaction_flags?.length || 0,
-        allergies: data.allergy_flags?.length || 0,
-        dose_warnings: data.dose_warnings?.length || 0,
-        vitals_dangers: data.vitals_dangers?.length || 0,
+        interactions: data.interaction_flags?.length || 0, allergies: data.allergy_flags?.length || 0,
+        dose_warnings: data.dose_warnings?.length || 0, vitals_dangers: data.vitals_dangers?.length || 0,
         emergency_patterns: data.emergency_patterns?.length || 0,
       });
     } catch (err: any) {
@@ -267,7 +277,7 @@ export default function Clinical() {
     } finally { setIsRunningSafety(false); }
   };
 
-  // ── Save Session ──────────────────────────────────────────────
+  // ── Save Session ──
   const saveSession = async () => {
     if (!user) return;
     if (!reviewConfirmed) {
@@ -277,16 +287,24 @@ export default function Clinical() {
     setIsSaving(true);
     try {
       const editedSoapText = Object.entries(soapSections).map(([h, c]) => `**${h}**\n${c}`).join("\n\n");
-      const { data: patientData, error: patientError } = await supabase.from("patients").insert({
-        name: patientInfo?.name || (extractedData.chief_complaint ? "Session Patient" : "Quick Patient"),
-        doctor_id: user.id,
-        current_medications: extractedData.current_medications ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : [],
-        allergies: extractedData.allergies ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : [],
-      }).select("id").single();
-      if (patientError) throw new Error(patientError.message);
+      let patientId = selectedPatient?.id;
+
+      // Create patient if none selected
+      if (!patientId) {
+        const { data: patientData, error: patientError } = await supabase.from("patients").insert({
+          name: extractedData.chief_complaint ? "Session Patient" : "Quick Patient",
+          doctor_id: user.id,
+          clinic_id: profileClinicId,
+          current_medications: extractedData.current_medications ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : [],
+          allergies: extractedData.allergies ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : [],
+        }).select("id").single();
+        if (patientError) throw new Error(patientError.message);
+        patientId = patientData.id;
+      }
 
       const { data: consultData, error } = await supabase.from("consultations").insert({
-        patient_id: patientData.id, doctor_id: user.id, chief_complaint: extractedData.chief_complaint,
+        patient_id: patientId, doctor_id: user.id, clinic_id: profileClinicId,
+        chief_complaint: extractedData.chief_complaint,
         raw_transcript: stabilizedTranscript || transcript, stabilized_transcript: stabilizedTranscript,
         doctor_final_transcript: transcript, review_confirmed: reviewConfirmed,
         edited_transcript: transcript, extracted_data: extractedData as any, ai_summary: editedSoapText,
@@ -303,7 +321,7 @@ export default function Clinical() {
       setSavedSessionId(consultData.id);
       toast({ title: "Session saved", description: "Clinical session saved successfully." });
 
-      // Governance audit + learning signals (fire-and-forget)
+      // Governance audit + learning signals
       const transcriptWasEdited = stabilizedTranscript !== transcript;
       const extractionWasCorrected = JSON.stringify(aiExtractedBaseline) !== JSON.stringify(extractedData);
       const soapWasEdited = JSON.stringify(aiSoapBaseline) !== JSON.stringify(soapSections);
@@ -327,7 +345,7 @@ export default function Clinical() {
     setTranscript(""); setStabilizedTranscript(""); setExtractedData(EMPTY_EXTRACTED);
     setSoapSections(EMPTY_SOAP); setSavedSessionId(null); setSafetyResults(null);
     setPatientExplanation(""); setReviewConfirmed(false); setPipelineComplete(false);
-    setNormalizationResults([]); setDetectedLanguages([]);
+    setNormalizationResults([]); setDetectedLanguages([]); setSelectedPatient(null);
   };
 
   const generatePatientExplanation = async () => {
@@ -353,48 +371,78 @@ export default function Clinical() {
     return <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800 text-[10px]"><XCircle className="h-2.5 w-2.5 mr-0.5" />Low</Badge>;
   };
 
+  // Pre-save checklist
+  const checklistItems = [
+    { label: "Patient selected", ok: !!selectedPatient },
+    { label: "Notes present", ok: hasTranscript },
+    { label: "AI summary generated", ok: hasSoap },
+    { label: "Review confirmed", ok: reviewConfirmed },
+  ];
+
   return (
     <>
       <SEO title="Consultation — DATAelixAIr" description="AI clinical documentation workspace" />
 
       <div className="h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden">
-        {/* ── Top Action Bar ─────────────────────────────── */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card shrink-0">
-          <div className="flex items-center gap-3">
-            {patientInfo && (
-              <div className="flex items-center gap-2 text-xs">
-                <User className="h-3.5 w-3.5 text-primary" />
-                <span className="font-medium text-foreground">{patientInfo.name}</span>
-                {patientInfo.age && <span className="text-muted-foreground">• {patientInfo.age}y</span>}
-                {patientInfo.gender && <span className="text-muted-foreground">• {patientInfo.gender}</span>}
-              </div>
-            )}
-            {isProcessing && (
-              <div className="flex items-center gap-1.5 text-xs text-primary">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                {isStabilizing && "Stabilizing…"}
-                {isExtracting && "Extracting…"}
-                {isRunningSafety && "Safety check…"}
-                {isGeneratingSoap && "Generating notes…"}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {savedSessionId && (
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => navigate(`/consultations/${savedSessionId}`)}>
-                View Saved
+        {/* ── Top Context Bar: Patient + Vitals + Timeline ── */}
+        <div className="shrink-0 border-b border-border bg-card">
+          {/* Action row */}
+          <div className="flex items-center justify-between px-4 py-1.5 border-b border-border/50">
+            <div className="flex items-center gap-3">
+              {isProcessing && (
+                <div className="flex items-center gap-1.5 text-xs text-primary">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {isStabilizing && "Stabilizing…"}
+                  {isExtracting && "Extracting…"}
+                  {isRunningSafety && "Safety check…"}
+                  {isGeneratingSoap && "Generating notes…"}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {savedSessionId && (
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => navigate(`/consultations/${savedSessionId}`)}>
+                  View Saved
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={startNewSession}>
+                <RotateCcw className="h-3 w-3" /> New
               </Button>
-            )}
-            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={startNewSession}>
-              <RotateCcw className="h-3 w-3" /> New
-            </Button>
+            </div>
+          </div>
+
+          {/* Context panels row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 px-4 py-2">
+            {/* Patient Info */}
+            <div>
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                <User className="h-2.5 w-2.5" /> Patient
+              </div>
+              <PatientSelector selected={selectedPatient} onSelect={setSelectedPatient} />
+            </div>
+
+            {/* Vitals */}
+            <div>
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                <HeartPulse className="h-2.5 w-2.5" /> Vitals
+              </div>
+              <InlineVitals patientId={selectedPatient?.id || null} />
+            </div>
+
+            {/* Visit Timeline */}
+            <div>
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                <Clock className="h-2.5 w-2.5" /> Visit History
+              </div>
+              <VisitTimeline patientId={selectedPatient?.id || null} />
+            </div>
           </div>
         </div>
 
-        {/* ── Main workspace ────────────────────────────── */}
+        {/* ── Main workspace ── */}
         <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-0">
 
-          {/* ══ LEFT COLUMN: Input + Extraction ══════════ */}
+          {/* ══ LEFT COLUMN: Input + Extraction + Safety ══ */}
           <div className="overflow-y-auto border-r border-border p-4 space-y-3">
 
             {/* Consultation Input (Record + Write unified) */}
@@ -440,9 +488,9 @@ export default function Clinical() {
               )}
             </Button>
 
-            {/* Extracted Data Section */}
+            {/* Extracted Data */}
             <Section title="Extracted Clinical Data" icon={FileText} defaultOpen={hasExtraction}
-              badge={hasExtraction ? <Badge variant="outline" className="text-[9px]">AI-filled</Badge> : undefined}>
+              badge={hasExtraction ? <Badge variant="outline" className="text-[9px] gap-0.5"><Sparkles className="h-2 w-2" />AI Draft</Badge> : undefined}>
               <div className="space-y-2 px-1">
                 {([
                   { key: "chief_complaint" as const, label: "Chief Complaint" },
@@ -467,7 +515,7 @@ export default function Clinical() {
               </div>
             </Section>
 
-            {/* Safety Flags Section */}
+            {/* Safety Flags */}
             {safetyResults && (
               <Section title="Safety Check" icon={ShieldCheck}
                 defaultOpen={safetyAlertCount > 0}
@@ -481,15 +529,11 @@ export default function Clinical() {
                     <span className="text-[10px] text-muted-foreground">Confidence</span>
                     {confidenceBadge(safetyResults.confidence_level)}
                   </div>
-                  {safetyResults.interaction_flags.length > 0 && (
-                    <div className="space-y-1">
-                      {safetyResults.interaction_flags.map((f, i) => (
-                        <div key={i} className={`p-1.5 rounded border text-[10px] ${severityColor(f.severity)}`}>
-                          <span className="font-medium">{f.drug_a} ↔ {f.drug_b}</span>: {f.description}
-                        </div>
-                      ))}
+                  {safetyResults.interaction_flags.length > 0 && safetyResults.interaction_flags.map((f, i) => (
+                    <div key={i} className={`p-1.5 rounded border text-[10px] ${severityColor(f.severity)}`}>
+                      <span className="font-medium">{f.drug_a} ↔ {f.drug_b}</span>: {f.description}
                     </div>
-                  )}
+                  ))}
                   {safetyResults.allergy_flags.length > 0 && safetyResults.allergy_flags.map((f, i) => (
                     <div key={i} className="p-1.5 rounded border border-destructive/30 bg-destructive/5 text-[10px] text-destructive font-medium">{f.message}</div>
                   ))}
@@ -514,24 +558,25 @@ export default function Clinical() {
             )}
           </div>
 
-          {/* ══ RIGHT COLUMN: Clinical Notes + Actions ═══ */}
+          {/* ══ RIGHT COLUMN: AI Notes + Rx + Labs + Review ══ */}
           <div className="overflow-y-auto p-4 space-y-3">
 
             {/* SOAP / Clinical Summary */}
-            <Section title="Clinical Summary (AI Draft)" icon={Edit3} defaultOpen={hasSoap}
-              badge={hasSoap ? <Badge variant="outline" className="text-[9px]">Editable</Badge> : undefined}>
+            <Section title="AI Draft Clinical Summary" icon={Edit3} defaultOpen={hasSoap}
+              badge={hasSoap ? <Badge variant="outline" className="text-[9px] gap-0.5"><Sparkles className="h-2 w-2" />AI Generated Draft</Badge> : undefined}>
               <div className="space-y-2 px-1">
                 {hasSoap ? (
-                  <>
-                    {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
-                      <div key={section}>
+                  (Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
+                    <div key={section}>
+                      <div className="flex items-center justify-between">
                         <Label className={`text-[10px] font-semibold ${section === "Safety Warnings" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
                           {section === "Safety Warnings" && <ShieldCheck className="h-2.5 w-2.5 inline mr-0.5" />}{section}
                         </Label>
-                        <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-xs min-h-[40px]" />
+                        <Badge variant="outline" className="text-[7px] gap-0.5"><Sparkles className="h-1.5 w-1.5" />AI Draft</Badge>
                       </div>
-                    ))}
-                  </>
+                      <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-xs min-h-[40px]" />
+                    </div>
+                  ))
                 ) : (
                   <p className="text-xs text-muted-foreground py-4 text-center">Run the AI pipeline to generate clinical notes</p>
                 )}
@@ -547,6 +592,28 @@ export default function Clinical() {
                 confidenceLevel={safetyResults?.confidence_level || "moderate"}
               />
             )}
+
+            {/* Inline Prescription Builder */}
+            <Section title="Prescriptions" icon={Pill} defaultOpen={false}>
+              <div className="px-1">
+                <InlinePrescriptionBuilder
+                  patientId={selectedPatient?.id || null}
+                  consultationId={savedSessionId}
+                  patientAllergies={selectedPatient?.allergies || []}
+                />
+              </div>
+            </Section>
+
+            {/* Inline Lab Orders */}
+            <Section title="Lab Orders" icon={FlaskConical} defaultOpen={false}>
+              <div className="px-1">
+                <InlineLabOrders
+                  patientId={selectedPatient?.id || null}
+                  visitId={null}
+                  clinicId={profileClinicId}
+                />
+              </div>
+            </Section>
 
             {/* Patient Explanation */}
             {hasSoap && (
@@ -568,34 +635,32 @@ export default function Clinical() {
               </Section>
             )}
 
-            {/* Quick Links: Prescriptions & Lab Orders */}
-            {hasSoap && (
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" className="h-9 text-xs gap-1.5" onClick={() => {
-                  if (savedSessionId) navigate(`/prescriptions?consultation=${savedSessionId}`);
-                  else toast({ title: "Save first", description: "Save the session to access prescriptions." });
-                }}>
-                  <Pill className="h-3.5 w-3.5" /> Prescriptions
-                </Button>
-                <Button variant="outline" size="sm" className="h-9 text-xs gap-1.5" onClick={() => {
-                  toast({ title: "Lab Orders", description: "Save session first, then manage lab orders from the consultation detail." });
-                }}>
-                  <FlaskConical className="h-3.5 w-3.5" /> Lab Orders
-                </Button>
-              </div>
-            )}
-
-            {/* Final Approval */}
+            {/* Final Review & Save */}
             {hasSoap && (
               <Card className="border-primary/20 bg-primary/[0.02]">
                 <CardContent className="py-3 space-y-3">
                   <h4 className="text-xs font-semibold flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Doctor Final Approval
+                    <ClipboardCheck className="h-3.5 w-3.5 text-primary" /> Pre-Save Checklist
                   </h4>
-                  <div className="flex items-start gap-2">
+
+                  {/* Checklist */}
+                  <div className="space-y-1">
+                    {checklistItems.map(item => (
+                      <div key={item.label} className="flex items-center gap-2 text-[11px]">
+                        {item.ok ? (
+                          <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        ) : (
+                          <XCircle className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                        )}
+                        <span className={item.ok ? "text-foreground" : "text-muted-foreground"}>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-start gap-2 pt-1 border-t border-border">
                     <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} />
                     <label htmlFor="final-review" className="text-[11px] text-muted-foreground cursor-pointer select-none leading-tight">
-                      I have reviewed and approve the transcript, extracted data, safety alerts, and clinical summary.
+                      I have reviewed and approve the transcript, extracted data, safety alerts, and clinical summary. AI outputs are drafts only.
                     </label>
                   </div>
                   <Button onClick={saveSession} disabled={isSaving || !reviewConfirmed} className="w-full" size="sm">
@@ -611,11 +676,11 @@ export default function Clinical() {
               </Card>
             )}
 
-            {/* Empty state for right column */}
+            {/* Empty state */}
             {!hasSoap && !pipelineRunning && (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Sparkles className="h-10 w-10 text-muted-foreground/20 mb-3" />
-                <p className="text-sm text-muted-foreground">Record or type your consultation notes on the left, then click <strong>Run AI Pipeline</strong> to generate structured clinical documentation.</p>
+                <p className="text-sm text-muted-foreground">Write or record your consultation notes on the left, then click <strong>Run AI Pipeline</strong> to generate structured clinical documentation.</p>
               </div>
             )}
           </div>
