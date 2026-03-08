@@ -374,7 +374,7 @@ export default function Clinical() {
 
   const startNewSession = () => {
     setTranscript(""); setStabilizedTranscript(""); setExtractedData(EMPTY_EXTRACTED);
-    setSoapSections(EMPTY_SOAP); setSavedSessionId(null); setSafetyResults(null);
+    setSoapSections(EMPTY_SOAP); setSavedSessionId(null); setSafetyResults(null); setPendingRxFromSuggestions([]);
     setPatientExplanation(""); setReviewConfirmed(false); setPipelineComplete(false);
     setNormalizationResults([]); setDetectedLanguages([]); setSelectedPatient(null);
     setIntakeData(null); setVisitId(null); setIntakeApproved(false);
