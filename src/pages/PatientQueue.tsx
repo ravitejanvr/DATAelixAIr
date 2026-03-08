@@ -9,11 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Chip, ChipGroup } from "@/components/ui/chip";
 import { ClinicalCard, ClinicalCardHeader, SkeletonCard } from "@/components/ui/clinical-card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Users, PhoneCall, Clock, CheckCircle2, Loader2, RefreshCw,
   Search, UserCheck, Stethoscope, QrCode, Activity, AlertTriangle,
 } from "lucide-react";
 import ClinicQRCode from "@/components/ClinicQRCode";
+import { VISIT_STATUSES, VISIT_STATUS_CONFIG } from "@/layers/workflow/api";
 
 interface QueueItem {
   id: string;
@@ -58,6 +61,10 @@ export default function PatientQueue() {
   const [filter, setFilter] = useState<string>("all");
   const [clinicId, setClinicId] = useState<string | null>(null);
   const [showQR, setShowQR] = useState(false);
+  const [tab, setTab] = useState<string>("queue");
+
+  // Visit tracker state
+  const [kanbanVisits, setKanbanVisits] = useState<any[]>([]);
 
   const loadQueue = async () => {
     if (!user) return;
@@ -78,13 +85,16 @@ export default function PatientQueue() {
     if (error) {
       toast({ title: "Error loading queue", description: error.message, variant: "destructive" });
     } else {
-      setQueue((data || []).map((v: any) => ({
+      const items = (data || []).map((v: any) => ({
         id: v.id, token_number: v.token_number, check_in_time: v.check_in_time,
         status: v.status, visit_type: v.visit_type, patient_id: v.patient_id,
         patient_name: v.patients?.name || "Unknown", patient_age: v.patients?.age,
         patient_gender: v.patients?.gender, patient_phone: v.patients?.phone,
         chief_complaint: v.triage?.[0]?.chief_complaint || v.triage?.chief_complaint || null,
-      })));
+      }));
+      setQueue(items);
+      // Also feed kanban
+      setKanbanVisits((data || []).map((v: any) => ({ ...v, patients: v.patients })));
     }
     setLoading(false);
   };
@@ -116,6 +126,15 @@ export default function PatientQueue() {
     else loadQueue();
   };
 
+  const updateStatus = async (visitId: string, newStatus: string) => {
+    const { data: result, error } = await supabase.functions.invoke("update-visit-status", {
+      body: { visit_id: visitId, target_status: newStatus },
+    });
+    if (error || result?.error) {
+      toast({ title: "Error updating status", description: error?.message || result?.error, variant: "destructive" });
+    }
+  };
+
   const waitingTime = (checkIn: string) => {
     const mins = Math.floor((Date.now() - new Date(checkIn).getTime()) / 60000);
     if (mins < 60) return `${mins}m`;
@@ -135,9 +154,12 @@ export default function PatientQueue() {
   const activeCount = queue.filter(q => q.status === "doctor").length;
   const completedCount = queue.filter(q => q.status === "complete").length;
 
+  const STATUSES = VISIT_STATUSES;
+  const statusConfig = VISIT_STATUS_CONFIG;
+
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto space-y-5">
-      <SEO title="Patient Queue | DATAelixAIr" description="Manage clinic patient queue" />
+      <SEO title="Patient Queue | DATAelixAIr" description="Manage clinic patient queue and visit tracking" />
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -185,97 +207,175 @@ export default function PatientQueue() {
         ))}
       </div>
 
-      {/* Search + Filter Chips */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search name or token…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 rounded-lg" />
-        </div>
-        <ChipGroup>
-          {STATUS_FILTERS.map(f => (
-            <Chip key={f.key} variant={filter === f.key ? "action" : "neutral"} selected={filter === f.key} onClick={() => setFilter(f.key)}>
-              {f.label} {f.key === "all" ? `(${queue.length})` : ""}
-            </Chip>
-          ))}
-        </ChipGroup>
-      </div>
+      {/* Tabs: Queue List / Visit Tracker */}
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="w-auto">
+          <TabsTrigger value="queue">Queue List</TabsTrigger>
+          <TabsTrigger value="tracker">Visit Tracker</TabsTrigger>
+        </TabsList>
 
-      {/* Patient Cards */}
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
-        </div>
-      ) : filteredQueue.length === 0 ? (
-        <ClinicalCard className="py-16 text-center">
-          <Users className="h-12 w-12 mx-auto text-muted-foreground/20 mb-3" />
-          <p className="text-sm text-muted-foreground">No patients in queue</p>
-        </ClinicalCard>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredQueue.map(item => {
-            const cfg = STATUS_CHIP[item.status] || { label: item.status, variant: "neutral" as const };
-            return (
-              <ClinicalCard key={item.id} className="flex flex-col justify-between">
-                <div>
-                  {/* Header row */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
-                        {item.token_number || "–"}
+        {/* ═══ Queue List Tab ═══ */}
+        <TabsContent value="queue" className="space-y-4 mt-4">
+          {/* Search + Filter Chips */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search name or token…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 rounded-lg" />
+            </div>
+            <ChipGroup>
+              {STATUS_FILTERS.map(f => (
+                <Chip key={f.key} variant={filter === f.key ? "action" : "neutral"} selected={filter === f.key} onClick={() => setFilter(f.key)}>
+                  {f.label} {f.key === "all" ? `(${queue.length})` : ""}
+                </Chip>
+              ))}
+            </ChipGroup>
+          </div>
+
+          {/* Patient Cards */}
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
+            </div>
+          ) : filteredQueue.length === 0 ? (
+            <ClinicalCard className="py-16 text-center">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground/20 mb-3" />
+              <p className="text-sm text-muted-foreground">No patients in queue</p>
+            </ClinicalCard>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredQueue.map(item => {
+                const cfg = STATUS_CHIP[item.status] || { label: item.status, variant: "neutral" as const };
+                return (
+                  <ClinicalCard key={item.id} className="flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
+                            {item.token_number || "–"}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-sm text-foreground">{item.patient_name}</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {[item.patient_age && `${item.patient_age}y`, item.patient_gender].filter(Boolean).join(" · ")}
+                            </p>
+                          </div>
+                        </div>
+                        <Chip variant={cfg.variant} size="sm">{cfg.label}</Chip>
                       </div>
-                      <div>
-                        <p className="font-semibold text-sm text-foreground">{item.patient_name}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {[item.patient_age && `${item.patient_age}y`, item.patient_gender].filter(Boolean).join(" · ")}
+
+                      {item.chief_complaint && (
+                        <div className="mb-3">
+                          <Chip variant="symptom" size="sm">{item.chief_complaint}</Chip>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span>Waiting {waitingTime(item.check_in_time)}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-3 border-t border-border flex gap-2">
+                      {item.status === "doctor" ? (
+                        <>
+                          <Button size="sm" variant="outline" className="flex-1 rounded-lg text-xs" onClick={() =>
+                            navigate("/clinical", { state: { queuePatient: { id: item.patient_id, name: item.patient_name, age: item.patient_age, gender: item.patient_gender, phone: item.patient_phone }, visitId: item.id } })
+                          }>
+                            <Stethoscope className="h-3.5 w-3.5 mr-1" /> Open
+                          </Button>
+                          <Button size="sm" variant="ghost" className="rounded-lg" onClick={() => markComplete(item.id)}>
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      ) : ["registered", "intake", "triage", "vitals"].includes(item.status) ? (
+                        <Button size="sm" className="flex-1 rounded-lg text-xs" onClick={async () => {
+                          const { data: result, error } = await supabase.functions.invoke("update-visit-status", { body: { visit_id: item.id, target_status: "with_doctor" } });
+                          if (!error && !result?.error) {
+                            navigate("/clinical", { state: { queuePatient: { id: item.patient_id, name: item.patient_name, age: item.patient_age, gender: item.patient_gender, phone: item.patient_phone }, visitId: item.id } });
+                          }
+                        }}>
+                          <UserCheck className="h-3.5 w-3.5 mr-1" /> Start Consultation
+                        </Button>
+                      ) : null}
+                    </div>
+                  </ClinicalCard>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ═══ Visit Tracker Tab (Kanban) ═══ */}
+        <TabsContent value="tracker" className="mt-4">
+          <div className="flex gap-3 overflow-x-auto pb-4">
+            {STATUSES.map((status) => {
+              const config = statusConfig[status];
+              const statusVisits = kanbanVisits.filter(v => v.status === status);
+              return (
+                <div key={status} className="min-w-[200px] flex-shrink-0">
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2.5 w-2.5 rounded-full ${
+                        status === "complete" ? "bg-chip-medication-text" :
+                        status === "doctor" ? "bg-primary" : "bg-muted-foreground/40"
+                      }`} />
+                      <span className="text-xs font-semibold text-foreground">{config.label}</span>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] h-5 min-w-[20px] justify-center">
+                      {statusVisits.length}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-2 min-h-[120px]">
+                    {statusVisits.map(visit => (
+                      <ClinicalCard key={visit.id} className="p-3">
+                        <p className="text-sm font-semibold text-foreground truncate mb-1">
+                          {(visit.patients as any)?.name || "Unknown"}
                         </p>
-                      </div>
-                    </div>
-                    <Chip variant={cfg.variant} size="sm">{cfg.label}</Chip>
-                  </div>
-
-                  {/* Complaint chip */}
-                  {item.chief_complaint && (
-                    <div className="mb-3">
-                      <Chip variant="symptom" size="sm">{item.chief_complaint}</Chip>
-                    </div>
-                  )}
-
-                  {/* Wait time */}
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    <span>Waiting {waitingTime(item.check_in_time)}</span>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {(visit.patients as any)?.age && (
+                            <Chip variant="neutral" size="sm">
+                              {(visit.patients as any).age}y · {(visit.patients as any).gender || ""}
+                            </Chip>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mb-2">
+                          <Clock className="h-3 w-3" />
+                          {waitingTime(visit.check_in_time)}
+                        </div>
+                        {status !== "complete" && (
+                          <Select
+                            value={visit.status}
+                            onValueChange={(val) => updateStatus(visit.id, val)}
+                          >
+                            <SelectTrigger className="h-7 text-[10px] rounded-lg">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {STATUSES.map(s => (
+                                <SelectItem key={s} value={s} className="text-xs">
+                                  {statusConfig[s].label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </ClinicalCard>
+                    ))}
                   </div>
                 </div>
+              );
+            })}
+          </div>
 
-                {/* Actions */}
-                <div className="mt-3 pt-3 border-t border-border flex gap-2">
-                  {item.status === "doctor" ? (
-                    <>
-                      <Button size="sm" variant="outline" className="flex-1 rounded-lg text-xs" onClick={() =>
-                        navigate("/clinical", { state: { queuePatient: { id: item.patient_id, name: item.patient_name, age: item.patient_age, gender: item.patient_gender, phone: item.patient_phone }, visitId: item.id } })
-                      }>
-                        <Stethoscope className="h-3.5 w-3.5 mr-1" /> Open
-                      </Button>
-                      <Button size="sm" variant="ghost" className="rounded-lg" onClick={() => markComplete(item.id)}>
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </>
-                  ) : ["registered", "intake", "triage", "vitals"].includes(item.status) ? (
-                    <Button size="sm" className="flex-1 rounded-lg text-xs" onClick={async () => {
-                      const { data: result, error } = await supabase.functions.invoke("update-visit-status", { body: { visit_id: item.id, target_status: "with_doctor" } });
-                      if (!error && !result?.error) {
-                        navigate("/clinical", { state: { queuePatient: { id: item.patient_id, name: item.patient_name, age: item.patient_age, gender: item.patient_gender, phone: item.patient_phone }, visitId: item.id } });
-                      }
-                    }}>
-                      <UserCheck className="h-3.5 w-3.5 mr-1" /> Start Consultation
-                    </Button>
-                  ) : null}
-                </div>
-              </ClinicalCard>
-            );
-          })}
-        </div>
-      )}
+          {kanbanVisits.length === 0 && !loading && (
+            <ClinicalCard className="mt-6 py-16 text-center">
+              <Users className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">No active visits. Register a patient to begin tracking.</p>
+            </ClinicalCard>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
