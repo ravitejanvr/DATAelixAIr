@@ -1,43 +1,33 @@
 project_id = "mhqdqilzkqvbgtygtlab"
 
-[functions.pubmed-search]
-verify_jwt = false
-
-[functions.clinical-agent]
-verify_jwt = false
-
-[functions.clinical-soap]
-verify_jwt = false
-
-[functions.extract-patient-data]
-verify_jwt = false
-
-[functions.translate-clinical]
-verify_jwt = false
-
-[functions.air-quality]
-verify_jwt = false
-
-[functions.places-search]
-verify_jwt = false
-
-[functions.translate-report]
-verify_jwt = false
-
-[functions.stabilize-transcript]
-verify_jwt = false
-
-[functions.evidence-agents]
-verify_jwt = false
-
-[functions.patient-explanation]
-verify_jwt = false
-
-[functions.smart-suggestions]
-verify_jwt = false
-
-[functions.clinical-safety]
-verify_jwt = false
-
-[functions.clinical-knowledge]
-verify_jwt = false
+[functions]
+  [functions.air-quality]
+    verify_jwt = false
+  [functions.auth-email-hook]
+    verify_jwt = false
+  [functions.clinical-agent]
+    verify_jwt = false
+  [functions.clinical-knowledge]
+    verify_jwt = false
+  [functions.clinical-safety]
+    verify_jwt = false
+  [functions.clinical-soap]
+    verify_jwt = false
+  [functions.evidence-agents]
+    verify_jwt = false
+  [functions.extract-patient-data]
+    verify_jwt = false
+  [functions.patient-explanation]
+    verify_jwt = false
+  [functions.places-search]
+    verify_jwt = false
+  [functions.pubmed-search]
+    verify_jwt = false
+  [functions.smart-suggestions]
+    verify_jwt = false
+  [functions.stabilize-transcript]
+    verify_jwt = false
+  [functions.translate-clinical]
+    verify_jwt = false
+  [functions.translate-report]
+    verify_jwt = false
