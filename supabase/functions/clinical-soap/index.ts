@@ -10,10 +10,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { transcript, extractedData } = await req.json();
+    const { transcript, extractedData, clinical_context } = await req.json();
 
-    if (!transcript && !extractedData) {
-      return new Response(JSON.stringify({ error: "Transcript or extracted data required" }), {
+    if (!transcript && !extractedData && !clinical_context) {
+      return new Response(JSON.stringify({ error: "Transcript, extracted data, or clinical context required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
