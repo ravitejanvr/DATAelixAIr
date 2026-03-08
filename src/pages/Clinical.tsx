@@ -698,19 +698,16 @@ export default function Clinical() {
 
   return (
     <>
-      <SEO title="Clinical Cockpit — DATAelixAIr" description="AI clinical consultation workspace" />
+      <SEO title="DATAelixAIr — Clinical" description="AI clinical consultation workspace" />
 
       <div className="h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden bg-background">
 
         {/* ── Toolbar ── */}
-        <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-border bg-card">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xs font-bold text-foreground tracking-tight flex items-center gap-1.5">
-              <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Stethoscope className="h-3.5 w-3.5 text-primary" />
-              </div>
-              <span className="hidden sm:inline">Clinical Cockpit</span>
-            </h1>
+        <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-border bg-card">
+          <div className="flex items-center gap-3">
+            <div className="hidden md:block">
+              <ConsultationTimeline steps={timelineSteps} />
+            </div>
             <div className="hidden md:block">
               <ConsultationTimeline steps={timelineSteps} />
             </div>
