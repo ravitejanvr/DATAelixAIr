@@ -20,6 +20,7 @@ import VisitTimeline from "@/components/VisitTimeline";
 import InlinePrescriptionBuilder from "@/components/InlinePrescriptionBuilder";
 import InlineLabOrders from "@/components/InlineLabOrders";
 import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
+import DoctorIntakeReview from "@/components/DoctorIntakeReview";
 import {
   Loader2, Save, CheckCircle2, ChevronDown, ChevronRight, FileText,
   Edit3, Eye, ShieldCheck, AlertTriangle, XCircle, CheckCircle,
@@ -102,6 +103,7 @@ export default function Clinical() {
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [pipelineComplete, setPipelineComplete] = useState(false);
   const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [intakeApproved, setIntakeApproved] = useState(false);
 
   // Learning baselines
   const [aiExtractedBaseline, setAiExtractedBaseline] = useState<ExtractedData>(EMPTY_EXTRACTED);
@@ -373,7 +375,7 @@ export default function Clinical() {
     setSoapSections(EMPTY_SOAP); setSavedSessionId(null); setSafetyResults(null);
     setPatientExplanation(""); setReviewConfirmed(false); setPipelineComplete(false);
     setNormalizationResults([]); setDetectedLanguages([]); setSelectedPatient(null);
-    setIntakeData(null); setVisitId(null);
+    setIntakeData(null); setVisitId(null); setIntakeApproved(false);
   };
 
   const generatePatientExplanation = async () => {
@@ -465,12 +467,25 @@ export default function Clinical() {
               <VisitTimeline patientId={selectedPatient?.id || null} />
           </div>
 
-          {/* Intake Summary Banner */}
-          {(intakeData || selectedPatient?.id) && (
-            <div className="px-4 py-1.5 border-t border-border/50">
-              <IntakeSummary patientId={selectedPatient?.id || null} visitId={visitId} intakeData={intakeData} />
-            </div>
-          )}
+          {/* Doctor Intake Review Panel */}
+          <div className="lg:col-span-3 px-4 py-1.5 border-t border-border/50">
+            <DoctorIntakeReview
+              patientId={selectedPatient?.id || null}
+              visitId={visitId}
+              intakeData={intakeData}
+              userId={user?.id || ""}
+              onApproved={(approved) => {
+                setIntakeData(approved);
+                setIntakeApproved(true);
+                setExtractedData(prev => ({
+                  ...prev,
+                  chief_complaint: approved.chief_complaint || prev.chief_complaint,
+                  allergies: approved.allergies_noted || prev.allergies,
+                  current_medications: approved.current_medications || prev.current_medications,
+                }));
+              }}
+            />
+          </div>
         </div>
         </div>
 
