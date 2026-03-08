@@ -6,8 +6,8 @@ import CommandPalette from "@/components/CommandPalette";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   LayoutDashboard, Stethoscope, Users, Pill, Activity,
-  Receipt, LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput, ListOrdered,
-  Search, Settings
+  LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput, ListOrdered,
+  Search, Settings, IndianRupee
 } from "lucide-react";
 
 const navItems = [
@@ -20,7 +20,7 @@ const navItems = [
   { label: "Intake", path: "/intake", icon: FileInput },
   { label: "Vitals", path: "/vitals", icon: Activity },
   { label: "Prescriptions", path: "/prescriptions", icon: Pill },
-  { label: "Billing", path: "/billing", icon: Receipt },
+  { label: "Billing", path: "/billing", icon: IndianRupee },
   { label: "Clinic Settings", path: "/clinic-settings", icon: Settings },
 ];
 
