@@ -26,6 +26,7 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Auth() {
   const [mode, setMode] = useState<AuthMode>("signin");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [signInEmail, setSignInEmail] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
   const [signUpName, setSignUpName] = useState("");
@@ -52,7 +53,7 @@ export default function Auth() {
   };
 
   // Designated platform admin emails — auto-promoted on registration
-  const PLATFORM_ADMIN_EMAILS = ["raviteja@elixair.uk", "raviteja.nvr@elixair.uk"];
+  const PLATFORM_ADMIN_EMAILS = ["raviteja@elixair.uk", "raviteja.nvr@elixair.uk", "raviteja.nvr@gmail.com"];
 
   const ensureProfileAndRole = async (userId: string) => {
     const isPlatformAdmin = PLATFORM_ADMIN_EMAILS.includes(signUpEmail.trim().toLowerCase());
@@ -138,6 +139,29 @@ export default function Auth() {
     finally { setLoading(false); }
   };
 
+  const handleForgotPassword = async () => {
+    if (!emailRegex.test(signInEmail)) {
+      toast({ title: "Enter your email", description: "Type your email address above, then click Forgot Password.", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(signInEmail.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        toast({ title: "Reset failed", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Reset email sent", description: "Check your inbox for a password reset link." });
+        setShowForgotPassword(false);
+      }
+    } catch {
+      toast({ title: "Connection error", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEnter = (e: React.KeyboardEvent, action: "signin" | "signup") => {
     if (e.key !== "Enter") return;
     if (action === "signin") handleSignIn();
@@ -166,6 +190,9 @@ export default function Auth() {
                 <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input type="email" value={signInEmail} onChange={e => setSignInEmail(e.target.value)} onKeyDown={e => handleEnter(e, "signin")} placeholder="you@clinic.com" className="pl-10 h-11" autoFocus autoComplete="email" /></div>
                 <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input type="password" value={signInPassword} onChange={e => setSignInPassword(e.target.value)} onKeyDown={e => handleEnter(e, "signin")} placeholder="Password" className="pl-10 h-11" autoComplete="current-password" /></div>
                 <Button className="w-full h-11" onClick={handleSignIn} disabled={!canSignIn}>{loading ? "Signing in…" : <>Sign In <LogIn className="h-4 w-4 ml-2" /></>}</Button>
+                <button type="button" onClick={handleForgotPassword} className="w-full text-xs text-muted-foreground hover:text-primary transition-colors" disabled={loading}>
+                  Forgot password?
+                </button>
               </>
             ) : (
               <>
