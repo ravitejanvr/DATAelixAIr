@@ -419,7 +419,7 @@ serve(async (req) => {
 
     // ── AGENT 3: Clinical Context Mapping ──
     const { suggestions, model } = await mapEvidenceToContext(
-      { chief_complaint, duration, age, gender, allergies, medications, conditions, vitals, transcript_excerpt },
+      { chief_complaint, duration, age, gender, allergies, medications, conditions, vitals, transcript_excerpt, clinical_context },
       filteredCitations,
       drugSafetyResults as DrugSafetyRaw[],
     );
