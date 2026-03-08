@@ -1002,31 +1002,31 @@ export default function Clinical() {
 
                   {/* Safety alerts inline */}
                   {safetyResults && safetyAlertCount > 0 && (
-                    <div className="mt-1.5 space-y-0.5">
-                      <p className="text-[8px] font-semibold text-chip-alert-text uppercase flex items-center gap-1">
-                        <Shield className="h-2 w-2" /> Safety Alerts
+                    <div className="mt-2 space-y-1">
+                      <p className="text-[10px] font-semibold text-chip-alert-text uppercase flex items-center gap-1">
+                        <Shield className="h-3 w-3" /> Safety Alerts
                       </p>
                       {safetyResults.allergy_flags.map((f, i) => (
-                        <div key={`a-${i}`} className="p-1 rounded border border-chip-alert-border bg-chip-alert text-[9px] text-chip-alert-text font-medium flex items-center gap-1">
-                          <AlertTriangle className="h-2 w-2 shrink-0" />{f.message}
+                        <div key={`a-${i}`} className="p-1.5 rounded-lg border border-chip-alert-border bg-chip-alert text-xs text-chip-alert-text font-medium flex items-center gap-1.5">
+                          <AlertTriangle className="h-3 w-3 shrink-0" />{f.message}
                         </div>
                       ))}
                       {safetyResults.interaction_flags.map((f, i) => (
-                        <div key={`i-${i}`} className={`p-1 rounded border text-[9px] flex items-center gap-1 ${severityColor(f.severity)}`}>
-                          <Shield className="h-2 w-2 shrink-0" />
+                        <div key={`i-${i}`} className={`p-1.5 rounded-lg border text-xs flex items-center gap-1.5 ${severityColor(f.severity)}`}>
+                          <Shield className="h-3 w-3 shrink-0" />
                           <span className="font-semibold">{f.drug_a}↔{f.drug_b}</span>: {f.description}
                         </div>
                       ))}
                       {safetyResults.dose_warnings.map((w, i) => (
-                        <div key={`d-${i}`} className="p-1 rounded border border-chip-lab-border bg-chip-lab text-[9px] text-chip-lab-text flex items-center gap-1">
-                          <AlertTriangle className="h-2 w-2 shrink-0" />{w.message}
+                        <div key={`d-${i}`} className="p-1.5 rounded-lg border border-chip-lab-border bg-chip-lab text-xs text-chip-lab-text flex items-center gap-1.5">
+                          <AlertTriangle className="h-3 w-3 shrink-0" />{w.message}
                         </div>
                       ))}
                       {(safetyResults.vitals_dangers || []).map((v, i) => (
-                        <div key={`v-${i}`} className={`p-1 rounded border text-[9px] ${severityColor(v.severity)}`}>{v.message}</div>
+                        <div key={`v-${i}`} className={`p-1.5 rounded-lg border text-xs ${severityColor(v.severity)}`}>{v.message}</div>
                       ))}
                       {(safetyResults.emergency_patterns || []).map((ep, i) => (
-                        <div key={`e-${i}`} className={`p-1 rounded border text-[9px] ${severityColor(ep.severity)}`}>
+                        <div key={`e-${i}`} className={`p-1.5 rounded-lg border text-xs ${severityColor(ep.severity)}`}>
                           <span className="font-semibold">{ep.pattern}</span>: {ep.message}
                         </div>
                       ))}
@@ -1035,16 +1035,16 @@ export default function Clinical() {
 
                   {/* SOAP from AI pipeline */}
                   {pipelineComplete && hasSoap && (
-                    <div className="mt-1.5 pt-1.5 border-t border-border space-y-1">
-                      <p className="text-[8px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                        <Brain className="h-2 w-2 text-primary" /> AI SOAP
-                        <Badge className="bg-primary/10 text-primary border-primary/20 text-[7px] ml-1">Draft</Badge>
+                    <div className="mt-2 pt-2 border-t border-border space-y-1.5">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                        <Brain className="h-3 w-3 text-primary" /> AI SOAP
+                        <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] ml-1">Draft</Badge>
                       </p>
                       {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
                         soapSections[section]?.trim() ? (
                           <div key={section} className="space-y-0.5">
-                            <Label className="text-[8px] font-semibold text-muted-foreground">{section}</Label>
-                            <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-[10px] min-h-[20px] resize-y rounded bg-background/50" />
+                            <Label className="text-[10px] font-semibold text-muted-foreground">{section}</Label>
+                            <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-xs min-h-[28px] resize-y rounded-lg bg-background/50" />
                           </div>
                         ) : null
                       ))}
