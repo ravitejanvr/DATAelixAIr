@@ -94,7 +94,7 @@ const confidenceColor = (c: string) => {
 export default function SmartSuggestionsPanel({
   chiefComplaint, duration, symptoms, vitals,
   patientAge, patientGender, allergies, medications, conditions,
-  userId, transcriptExcerpt, onAddPrescription, onAddLabTest, onInsertText,
+  userId, transcriptExcerpt, clinicalContext, onAddPrescription, onAddLabTest, onInsertText,
 }: SmartSuggestionsPanelProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
