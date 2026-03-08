@@ -66,6 +66,7 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
+export default function PlatformAdmin() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [pilots, setPilots] = useState<any[]>([]);
