@@ -1,97 +1,138 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Slider } from "@/components/ui/slider";
+import { Card, CardContent } from "@/components/ui/card";
 import SEO from "@/components/SEO";
 import {
-  CheckCircle2, ChevronLeft, ChevronRight, Loader2,
-  AlertTriangle, Pill, Stethoscope, Activity, FileText,
-  Search, X
+  CheckCircle2, ChevronLeft, Loader2,
+  AlertTriangle, Search, X, Globe,
+  Thermometer, HeadsetIcon, Frown, Meh, Smile,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+/* ─── Multilingual labels ─── */
+type Lang = "en" | "te" | "hi" | "ur";
+const LANG_META: { code: Lang; label: string; native: string }[] = [
+  { code: "en", label: "English", native: "English" },
+  { code: "te", label: "Telugu", native: "తెలుగు" },
+  { code: "hi", label: "Hindi", native: "हिन्दी" },
+  { code: "ur", label: "Urdu", native: "اردو" },
+];
+
+const T: Record<string, Record<Lang, string>> = {
+  title:        { en: "Quick Check-in", te: "త్వరిత చెక్-ఇన్", hi: "त्वरित चेक-इन", ur: "فوری چیک ان" },
+  step1Title:   { en: "What brings you in?", te: "మీరు ఎందుకు వచ్చారు?", hi: "आप क्यों आए हैं?", ur: "آپ کیوں آئے ہیں؟" },
+  step1Sub:     { en: "Tap your symptoms", te: "మీ లక్షణాలను ట్యాప్ చేయండి", hi: "अपने लक्षण चुनें", ur: "اپنی علامات منتخب کریں" },
+  other:        { en: "Other", te: "ఇతరం", hi: "अन्य", ur: "دیگر" },
+  searchSymptom:{ en: "Type symptom...", te: "లక్షణం టైప్ చేయండి...", hi: "लक्षण टाइप करें...", ur: "علامت ٹائپ کریں..." },
+  step2Title:   { en: "How long?", te: "ఎంత కాలం?", hi: "कितने समय से?", ur: "کتنے عرصے سے؟" },
+  step3Title:   { en: "How bad is it?", te: "ఎంత తీవ్రంగా ఉంది?", hi: "कितना गंभीर है?", ur: "کتنا شدید ہے؟" },
+  mild:         { en: "Mild", te: "తేలికైన", hi: "हल्का", ur: "ہلکا" },
+  moderate:     { en: "Moderate", te: "మధ్యస్థం", hi: "मध्यम", ur: "درمیانہ" },
+  severe:       { en: "Severe", te: "తీవ్రమైన", hi: "गंभीर", ur: "شدید" },
+  step4Title:   { en: "Quick safety check", te: "భద్రతా తనిఖీ", hi: "सुरक्षा जाँच", ur: "حفاظتی جانچ" },
+  conditions:   { en: "Any of these conditions?", te: "ఈ పరిస్థితుల్లో ఏదైనా?", hi: "इनमें से कोई स्थिति?", ur: "ان میں سے کوئی حالت؟" },
+  diabetes:     { en: "Diabetes", te: "షుగర్ వ్యాధి", hi: "मधुमेह", ur: "ذیابیطس" },
+  bp:           { en: "High BP", te: "అధిక BP", hi: "उच्च रक्तचाप", ur: "ہائی بلڈ پریشر" },
+  asthma:       { en: "Asthma", te: "ఆస్తమా", hi: "दमा", ur: "دمہ" },
+  none:         { en: "None", te: "ఏమీ లేదు", hi: "कोई नहीं", ur: "کوئی نہیں" },
+  allergyQ:     { en: "Any medicine allergies?", te: "మందుల అలెర్జీ ఉందా?", hi: "कोई दवा एलर्जी?", ur: "دوا سے الرجی؟" },
+  yes:          { en: "Yes", te: "అవును", hi: "हाँ", ur: "ہاں" },
+  no:           { en: "No", te: "లేదు", hi: "नहीं", ur: "نہیں" },
+  searchAllergy:{ en: "Type allergy...", te: "అలెర్జీ టైప్ చేయండి...", hi: "एलर्जी टाइप करें...", ur: "الرجی ٹائپ کریں..." },
+  review:       { en: "Review & Confirm", te: "సమీక్ష & నిర్ధారించండి", hi: "समीक्षा एवं पुष्टि", ur: "جائزہ اور تصدیق" },
+  complaint:    { en: "Complaint", te: "ఫిర్యాదు", hi: "शिकायत", ur: "شکایت" },
+  duration:     { en: "Duration", te: "వ్యవధి", hi: "अवधि", ur: "مدت" },
+  severity:     { en: "Severity", te: "తీవ్రత", hi: "गंभीरता", ur: "شدت" },
+  allergies:    { en: "Allergies", te: "అలెర్జీలు", hi: "एलर्जी", ur: "الرجی" },
+  conditionsL:  { en: "Conditions", te: "పరిస్థితులు", hi: "स्थितियाँ", ur: "حالات" },
+  noneNoted:    { en: "None noted", te: "ఏమీ లేదు", hi: "कोई नहीं", ur: "کوئی نہیں" },
+  submit:       { en: "Confirm & Submit", te: "నిర్ధారించి సమర్పించండి", hi: "पुष्टि करें और जमा करें", ur: "تصدیق اور جمع کریں" },
+  edit:         { en: "Edit", te: "మార్చు", hi: "संपादित करें", ur: "ترمیم" },
+  back:         { en: "Back", te: "వెనుకకు", hi: "पीछे", ur: "واپس" },
+  next:         { en: "Next", te: "తదుపరి", hi: "अगला", ur: "اگلا" },
+  thanks:       { en: "Thank You!", te: "ధన్యవాదాలు!", hi: "धन्यवाद!", ur: "شکریہ!" },
+  thanksMsg:    { en: "Your information has been submitted. Your doctor will review it.", te: "మీ సమాచారం సమర్పించబడింది.", hi: "आपकी जानकारी सबमिट हो गई है।", ur: "آپ کی معلومات جمع کر دی گئیں۔" },
+  close:        { en: "You may close this page.", te: "ఈ పేజీని మూసివేయవచ్చు.", hi: "आप इस पेज को बंद कर सकते हैं।", ur: "آپ یہ صفحہ بند کر سکتے ہیں۔" },
+  invalid:      { en: "Invalid Link", te: "చెల్లని లింక్", hi: "अमान्य लिंक", ur: "غلط لنک" },
+  invalidMsg:   { en: "This intake link is invalid or expired. Ask reception for a new link.", te: "ఈ లింక్ చెల్లదు. రిసెప్షన్ ను అడగండి.", hi: "यह लिंक अमान्य है। रिसेप्शन से पूछें।", ur: "یہ لنک غلط ہے۔ استقبالیہ سے پوچھیں۔" },
+};
 
 /* ─── Symptom chips ─── */
 const SYMPTOM_CHIPS = [
-  "Fever", "Cough", "Cold", "Headache", "Body Pain", "Chest Pain",
-  "Abdominal Pain", "Nausea", "Vomiting", "Diarrhea", "Breathing Difficulty",
-  "Dizziness", "Fatigue", "Back Pain", "Joint Pain", "Skin Rash",
-  "Sore Throat", "Ear Pain", "Eye Pain", "Urinary Issues",
-  "Anxiety", "Insomnia", "Weight Loss", "Swelling",
+  { en: "Fever", te: "జ్వరం", hi: "बुखार", ur: "بخار", icon: "🤒" },
+  { en: "Cough", te: "దగ్గు", hi: "खांसी", ur: "کھانسی", icon: "😷" },
+  { en: "Headache", te: "తలనొప్పి", hi: "सिरदर्द", ur: "سر درد", icon: "🤕" },
+  { en: "Stomach Pain", te: "కడుపు నొప్పి", hi: "पेट दर्द", ur: "پیٹ درد", icon: "😣" },
+  { en: "Back Pain", te: "వెన్నునొప్పి", hi: "कमर दर्द", ur: "کمر درد", icon: "💪" },
+  { en: "Skin Problem", te: "చర్మ సమస్య", hi: "त्वचा समस्या", ur: "جلد مسئلہ", icon: "🩹" },
+  { en: "Breathing Difficulty", te: "శ్వాస కష్టం", hi: "साँस की तकलीफ", ur: "سانس لینے میں دشواری", icon: "😮‍💨" },
 ];
 
-const DURATION_OPTIONS = [
-  "Today", "1-2 days", "3-5 days", "1 week", "2 weeks", "1 month", "Over a month",
+const DURATION_OPTS = [
+  { en: "Today", te: "ఈ రోజు", hi: "आज", ur: "آج" },
+  { en: "1–2 days", te: "1–2 రోజులు", hi: "1–2 दिन", ur: "1–2 دن" },
+  { en: "3–7 days", te: "3–7 రోజులు", hi: "3–7 दिन", ur: "3–7 دن" },
+  { en: "More than 1 week", te: "1 వారం పైన", hi: "1 सप्ताह से अधिक", ur: "1 ہفتے سے زیادہ" },
 ];
 
-const SEVERITY_OPTIONS = [
-  { label: "Mild", value: 2, color: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" },
-  { label: "Moderate", value: 5, color: "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-400" },
-  { label: "Severe", value: 8, color: "border-destructive/30 bg-destructive/10 text-destructive" },
-  { label: "Very Severe", value: 10, color: "border-destructive bg-destructive/20 text-destructive" },
+const SEVERITY_OPTS = [
+  { key: "mild", score: 2, emoji: "😊", color: "border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400" },
+  { key: "moderate", score: 5, emoji: "😐", color: "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-400" },
+  { key: "severe", score: 8, emoji: "😣", color: "border-destructive/50 bg-destructive/10 text-destructive" },
 ];
 
-const COMMON_ALLERGIES = [
+const CONDITION_KEYS = ["diabetes", "bp", "asthma", "none"] as const;
+
+const COMMON_DRUG_ALLERGENS = [
   "Penicillin", "Sulfa drugs", "Aspirin", "Ibuprofen", "Codeine",
-  "Latex", "Peanuts", "Shellfish", "Dust", "Pollen",
-  "None",
+  "Amoxicillin", "Cephalosporins", "Erythromycin", "Ciprofloxacin",
+  "Metformin", "Diclofenac", "Tetracycline", "Naproxen",
 ];
 
-const COMMON_CONDITIONS = [
-  "Diabetes", "Hypertension", "Asthma", "Heart Disease", "Thyroid Disorder",
-  "Arthritis", "COPD", "Kidney Disease", "Liver Disease", "Epilepsy",
-  "Depression", "None",
+/* ─── Autocomplete symptom dictionary ─── */
+const SYMPTOM_DICTIONARY = [
+  "Fever", "Cough", "Headache", "Stomach Pain", "Back Pain", "Skin Problem",
+  "Breathing Difficulty", "Cold", "Body Pain", "Chest Pain", "Nausea", "Vomiting",
+  "Diarrhea", "Dizziness", "Fatigue", "Joint Pain", "Skin Rash", "Sore Throat",
+  "Ear Pain", "Eye Pain", "Urinary Issues", "Anxiety", "Insomnia", "Weight Loss",
+  "Swelling", "Palpitations", "Numbness", "Constipation", "Blurred Vision",
+  "Leg Pain", "Neck Pain", "Toothache", "Sneezing", "Runny Nose",
 ];
 
-const COMMON_MEDICATIONS = [
-  "Metformin", "Amlodipine", "Atorvastatin", "Losartan", "Omeprazole",
-  "Levothyroxine", "Paracetamol", "Aspirin", "Metoprolol", "Pantoprazole",
-  "Salbutamol Inhaler", "Insulin", "Clopidogrel", "Telmisartan",
-];
+type IntakeStep = 0 | 1 | 2 | 3 | 4; // 0-3 = steps, 4 = review
 
-const PREGNANCY_OPTIONS = [
-  { label: "Not Applicable", value: "not_applicable" },
-  { label: "Not Pregnant", value: "not_pregnant" },
-  { label: "Pregnant", value: "pregnant" },
-  { label: "Breastfeeding", value: "breastfeeding" },
-];
-
-type Step = "symptoms" | "details" | "history" | "review";
-const STEPS: { key: Step; label: string; icon: React.ElementType }[] = [
-  { key: "symptoms", label: "Symptoms", icon: Stethoscope },
-  { key: "details", label: "Details", icon: Activity },
-  { key: "history", label: "History", icon: Pill },
-  { key: "review", label: "Review", icon: FileText },
-];
+const SLIDE = { initial: { opacity: 0, x: 40 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -40 }, transition: { duration: 0.2 } };
 
 export default function PatientSelfIntake() {
   const { visitId } = useParams<{ visitId: string }>();
   const [searchParams] = useSearchParams();
   const clinicId = searchParams.get("clinic");
 
-  const [step, setStep] = useState<Step>("symptoms");
+  const [lang, setLang] = useState<Lang>("en");
+  const [step, setStep] = useState<IntakeStep>(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [visitValid, setVisitValid] = useState<boolean | null>(null);
   const [patientName, setPatientName] = useState("");
+  const [showLangPicker, setShowLangPicker] = useState(false);
 
-  // Form state
+  // Form data
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
+  const [showOtherSearch, setShowOtherSearch] = useState(false);
   const [symptomSearch, setSymptomSearch] = useState("");
-  const [customSymptom, setCustomSymptom] = useState("");
   const [duration, setDuration] = useState("");
-  const [severity, setSeverity] = useState<number>(0);
-  const [painScore, setPainScore] = useState<number[]>([3]);
+  const [severityKey, setSeverityKey] = useState<string>("");
+  const [painScore, setPainScore] = useState(0);
+  const [conditions, setConditions] = useState<string[]>([]);
+  const [hasAllergy, setHasAllergy] = useState<boolean | null>(null);
   const [allergies, setAllergies] = useState<string[]>([]);
   const [allergySearch, setAllergySearch] = useState("");
-  const [medications, setMedications] = useState<string[]>([]);
-  const [medSearch, setMedSearch] = useState("");
-  const [conditions, setConditions] = useState<string[]>([]);
-  const [pregnancyStatus, setPregnancyStatus] = useState("not_applicable");
-  const [notes, setNotes] = useState("");
+
+  const t = useCallback((key: string) => T[key]?.[lang] || T[key]?.en || key, [lang]);
 
   // Validate visit
   useEffect(() => {
@@ -104,58 +145,67 @@ export default function PatientSelfIntake() {
         .maybeSingle();
       if (data) {
         setVisitValid(true);
-        const p = data.patients as any;
-        setPatientName(p?.name || "");
+        setPatientName((data.patients as any)?.name || "");
       } else {
         setVisitValid(false);
       }
     })();
   }, [visitId]);
 
-  const filteredSymptoms = useMemo(() => {
-    if (symptomSearch.length < 1) return SYMPTOM_CHIPS;
+  // Autocomplete: symptoms
+  const filteredSuggestions = useMemo(() => {
+    if (symptomSearch.length < 3) return [];
     const q = symptomSearch.toLowerCase();
-    return SYMPTOM_CHIPS.filter(s => s.toLowerCase().includes(q));
-  }, [symptomSearch]);
+    return SYMPTOM_DICTIONARY.filter(s =>
+      s.toLowerCase().includes(q) && !selectedSymptoms.includes(s)
+    ).slice(0, 5);
+  }, [symptomSearch, selectedSymptoms]);
 
-  const filteredAllergies = useMemo(() => {
+  // Autocomplete: allergies
+  const filteredAllergens = useMemo(() => {
     if (allergySearch.length < 3) return [];
     const q = allergySearch.toLowerCase();
-    return COMMON_ALLERGIES.filter(a => a.toLowerCase().includes(q) && !allergies.includes(a));
+    return COMMON_DRUG_ALLERGENS.filter(a =>
+      a.toLowerCase().includes(q) && !allergies.includes(a)
+    ).slice(0, 5);
   }, [allergySearch, allergies]);
 
-  const filteredMeds = useMemo(() => {
-    if (medSearch.length < 3) return [];
-    const q = medSearch.toLowerCase();
-    return COMMON_MEDICATIONS.filter(m => m.toLowerCase().includes(q) && !medications.includes(m));
-  }, [medSearch, medications]);
+  const toggleSymptom = (name: string) => {
+    setSelectedSymptoms(prev =>
+      prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name]
+    );
+  };
 
-  const toggleChip = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, item: string) => {
-    if (item === "None") {
-      setList(prev => prev.includes("None") ? [] : ["None"]);
+  const toggleCondition = (key: string) => {
+    if (key === "none") {
+      setConditions(prev => prev.includes("None") ? [] : ["None"]);
       return;
     }
-    setList(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev.filter(i => i !== "None"), item]);
+    const label = T[key]?.en || key;
+    setConditions(prev => {
+      if (prev.includes(label)) return prev.filter(c => c !== label);
+      return [...prev.filter(c => c !== "None"), label];
+    });
   };
 
-  const chiefComplaint = selectedSymptoms.join(", ") + (customSymptom ? (selectedSymptoms.length ? ", " : "") + customSymptom : "");
+  const chiefComplaint = selectedSymptoms.join(", ");
+  const severityObj = SEVERITY_OPTS.find(s => s.key === severityKey);
 
-  const canProceed: Record<Step, boolean> = {
-    symptoms: selectedSymptoms.length > 0 || customSymptom.length > 0,
-    details: !!duration && severity > 0,
-    history: true,
-    review: true,
+  const canProceed: Record<IntakeStep, boolean> = {
+    0: selectedSymptoms.length > 0,
+    1: !!duration,
+    2: !!severityKey,
+    3: conditions.length > 0 && hasAllergy !== null,
+    4: true,
   };
 
-  const stepIdx = STEPS.findIndex(s => s.key === step);
-  const goNext = () => { if (stepIdx < STEPS.length - 1) setStep(STEPS[stepIdx + 1].key); };
-  const goBack = () => { if (stepIdx > 0) setStep(STEPS[stepIdx - 1].key); };
+  const goNext = () => { if (step < 4) setStep((step + 1) as IntakeStep); };
+  const goBack = () => { if (step > 0) setStep((step - 1) as IntakeStep); };
 
   const handleSubmit = async () => {
     if (!visitId) return;
     setSubmitting(true);
     try {
-      // Get visit details
       const { data: visit } = await supabase
         .from("patient_visits")
         .select("patient_id, clinic_id")
@@ -163,67 +213,54 @@ export default function PatientSelfIntake() {
         .single();
       if (!visit) throw new Error("Visit not found");
 
-      // Insert triage record (using service-level insert since patient may not be authed)
+      const allergyList = allergies.length > 0 ? allergies : [];
+      const conditionList = conditions.filter(c => c !== "None");
+
       const { error } = await supabase.from("triage").insert({
         visit_id: visitId,
         patient_id: visit.patient_id,
         clinic_id: visit.clinic_id,
         chief_complaint: chiefComplaint,
         symptom_duration: duration,
-        pain_score: painScore[0],
-        allergies_noted: allergies.filter(a => a !== "None").join(", ") || null,
-        pregnancy_status: pregnancyStatus,
-        priority: severity >= 8 ? "urgent" : severity >= 5 ? "semi_urgent" : "routine",
-        notes: [
-          conditions.filter(c => c !== "None").length ? `Chronic: ${conditions.filter(c => c !== "None").join(", ")}` : "",
-          medications.length ? `Medications: ${medications.join(", ")}` : "",
-          notes,
-        ].filter(Boolean).join(". ") || null,
-        recorded_by: visit.patient_id, // patient self-recorded
+        pain_score: painScore,
+        allergies_noted: allergyList.join(", ") || null,
+        pregnancy_status: "not_applicable",
+        priority: painScore >= 8 ? "urgent" : painScore >= 5 ? "semi_urgent" : "routine",
+        notes: conditionList.length ? `Chronic: ${conditionList.join(", ")}` : null,
+        recorded_by: visit.patient_id,
       });
-
       if (error) throw error;
 
-      // Update visit status to indicate intake complete
-      await supabase
-        .from("patient_visits")
-        .update({ status: "triage" })
-        .eq("id", visitId);
+      await supabase.from("patient_visits").update({ status: "triage" }).eq("id", visitId);
 
-      // Update patient allergies and medications
-      const allergyList = allergies.filter(a => a !== "None");
-      const medList = medications;
-      if (allergyList.length || medList.length) {
-        const updates: Record<string, any> = {};
-        if (allergyList.length) updates.allergies = allergyList;
-        if (medList.length) updates.current_medications = medList;
-        await supabase.from("patients").update(updates).eq("id", visit.patient_id);
+      if (allergyList.length) {
+        await supabase.from("patients").update({ allergies: allergyList }).eq("id", visit.patient_id);
       }
 
       setSubmitted(true);
-    } catch (e: any) {
+    } catch (e) {
       console.error("Intake submission error:", e);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Invalid visit
+  // ── Invalid
   if (visitValid === false) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-sm w-full text-center">
           <CardContent className="pt-8 pb-6 space-y-3">
             <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
-            <h2 className="text-lg font-semibold text-foreground">Invalid Link</h2>
-            <p className="text-sm text-muted-foreground">This intake link is invalid or has expired. Please ask the reception desk for a new link.</p>
+            <h2 className="text-lg font-semibold text-foreground">{t("invalid")}</h2>
+            <p className="text-sm text-muted-foreground">{t("invalidMsg")}</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  // Loading
+  // ── Loading
   if (visitValid === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -232,331 +269,350 @@ export default function PatientSelfIntake() {
     );
   }
 
-  // Submitted
+  // ── Submitted
   if (submitted) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <SEO title="Intake Complete | DATAelixAIr" description="Your intake form has been submitted." />
         <Card className="max-w-sm w-full text-center">
           <CardContent className="pt-8 pb-6 space-y-3">
-            <CheckCircle2 className="h-12 w-12 text-primary mx-auto" />
-            <h2 className="text-lg font-semibold text-foreground">Thank You!</h2>
-            <p className="text-sm text-muted-foreground">Your intake information has been submitted. Your doctor will review it during your consultation.</p>
-            <p className="text-xs text-muted-foreground mt-2">You may close this page now.</p>
+            <CheckCircle2 className="h-14 w-14 text-primary mx-auto" />
+            <h2 className="text-xl font-semibold text-foreground">{t("thanks")}</h2>
+            <p className="text-sm text-muted-foreground">{t("thanksMsg")}</p>
+            <p className="text-xs text-muted-foreground mt-2">{t("close")}</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
+  const stepCount = 4;
+  const displayStep = Math.min(step, 3);
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background flex flex-col">
       <SEO title="Patient Intake | DATAelixAIr" description="Complete your pre-visit intake form." />
 
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3">
-        <div className="max-w-lg mx-auto">
+        <div className="max-w-md mx-auto">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-sm font-bold text-foreground">Pre-Visit Intake</h1>
-            {patientName && <span className="text-xs text-muted-foreground">{patientName}</span>}
+            <h1 className="text-base font-bold text-foreground">{t("title")}</h1>
+            <button
+              onClick={() => setShowLangPicker(!showLangPicker)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-full border border-border"
+            >
+              <Globe className="h-3 w-3" />
+              {LANG_META.find(l => l.code === lang)?.native}
+            </button>
           </div>
-          {/* Step indicator */}
+
+          {showLangPicker && (
+            <div className="flex gap-2 mb-2">
+              {LANG_META.map(l => (
+                <button
+                  key={l.code}
+                  onClick={() => { setLang(l.code); setShowLangPicker(false); }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    lang === l.code
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-foreground border-border"
+                  }`}
+                >
+                  {l.native}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Progress */}
           <div className="flex gap-1">
-            {STEPS.map((s, i) => (
-              <div key={s.key} className={`flex-1 h-1 rounded-full transition-colors ${i <= stepIdx ? "bg-primary" : "bg-muted"}`} />
+            {Array.from({ length: stepCount }).map((_, i) => (
+              <div
+                key={i}
+                className={`flex-1 h-1.5 rounded-full transition-colors ${i <= displayStep ? "bg-primary" : "bg-muted/30"}`}
+              />
             ))}
           </div>
-          <div className="flex justify-between mt-1">
-            {STEPS.map((s, i) => (
-              <span key={s.key} className={`text-[9px] ${i <= stepIdx ? "text-primary font-medium" : "text-muted-foreground"}`}>
-                {s.label}
-              </span>
-            ))}
-          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            {displayStep + 1}/{stepCount}
+            {patientName && ` · ${patientName}`}
+          </p>
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-4 pb-24">
-        {/* ─── Step 1: Symptoms ─── */}
-        {step === "symptoms" && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground mb-1">What brings you in today?</h2>
-              <p className="text-xs text-muted-foreground mb-3">Select all that apply or search below.</p>
-
-              <div className="relative mb-3">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search symptoms..."
-                  value={symptomSearch}
-                  onChange={e => setSymptomSearch(e.target.value)}
-                  className="pl-8 h-9 text-sm"
-                />
+      {/* ── Content ── */}
+      <div className="flex-1 max-w-md mx-auto w-full px-4 py-5 pb-28">
+        <AnimatePresence mode="wait">
+          {/* ── STEP 0: Chief Complaint ── */}
+          {step === 0 && (
+            <motion.div key="s0" {...SLIDE} className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">{t("step1Title")}</h2>
+                <p className="text-sm text-muted-foreground">{t("step1Sub")}</p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                {filteredSymptoms.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => toggleChip(selectedSymptoms, setSelectedSymptoms, s)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                      selectedSymptoms.includes(s)
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-card text-foreground border-border hover:border-primary/50"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-3">
+                {SYMPTOM_CHIPS.map(chip => {
+                  const selected = selectedSymptoms.includes(chip.en);
+                  return (
+                    <button
+                      key={chip.en}
+                      onClick={() => toggleSymptom(chip.en)}
+                      className={`flex items-center gap-2 px-4 py-3.5 rounded-xl text-sm font-medium border-2 transition-all active:scale-95 ${
+                        selected
+                          ? "bg-primary/10 text-primary border-primary shadow-sm"
+                          : "bg-card text-foreground border-border hover:border-primary/40"
+                      }`}
+                    >
+                      <span className="text-lg">{chip.icon}</span>
+                      <span>{chip[lang] || chip.en}</span>
+                    </button>
+                  );
+                })}
+                {/* Other button */}
+                <button
+                  onClick={() => setShowOtherSearch(!showOtherSearch)}
+                  className={`flex items-center gap-2 px-4 py-3.5 rounded-xl text-sm font-medium border-2 transition-all active:scale-95 ${
+                    showOtherSearch
+                      ? "bg-primary/10 text-primary border-primary"
+                      : "bg-card text-foreground border-border hover:border-primary/40"
+                  }`}
+                >
+                  <span className="text-lg">➕</span>
+                  <span>{t("other")}</span>
+                </button>
               </div>
-            </div>
 
-            <div>
-              <label className="text-xs font-medium text-foreground mb-1 block">Other symptom not listed</label>
-              <Input
-                placeholder="Describe your symptom..."
-                value={customSymptom}
-                onChange={e => setCustomSymptom(e.target.value)}
-                className="h-9 text-sm"
-              />
-            </div>
+              {showOtherSearch && (
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    autoFocus
+                    placeholder={t("searchSymptom")}
+                    value={symptomSearch}
+                    onChange={e => setSymptomSearch(e.target.value)}
+                    className="pl-9 h-11 text-sm rounded-xl"
+                  />
+                  {filteredSuggestions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-xl shadow-lg overflow-hidden">
+                      {filteredSuggestions.map(s => (
+                        <button
+                          key={s}
+                          onClick={() => { toggleSymptom(s); setSymptomSearch(""); setShowOtherSearch(false); }}
+                          className="w-full text-left px-4 py-3 text-sm hover:bg-muted transition-colors text-foreground"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
-            {selectedSymptoms.length > 0 && (
-              <div className="flex flex-wrap gap-1 p-2 bg-primary/5 rounded-lg border border-primary/20">
-                <span className="text-[10px] text-primary font-medium w-full mb-1">Selected:</span>
-                {selectedSymptoms.map(s => (
-                  <Badge key={s} variant="secondary" className="text-[10px] gap-1">
-                    {s}
-                    <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => toggleChip(selectedSymptoms, setSelectedSymptoms, s)} />
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── Step 2: Details ─── */}
-        {step === "details" && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground mb-1">How long have you had this?</h2>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {DURATION_OPTIONS.map(d => (
-                  <button
-                    key={d}
-                    onClick={() => setDuration(d)}
-                    className={`px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
-                      duration === d
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-card text-foreground border-border hover:border-primary/50"
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-sm font-semibold text-foreground mb-1">How severe is it?</h2>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {SEVERITY_OPTIONS.map(s => (
-                  <button
-                    key={s.value}
-                    onClick={() => { setSeverity(s.value); setPainScore([s.value]); }}
-                    className={`px-3 py-2.5 rounded-lg text-xs font-medium border transition-all ${
-                      severity === s.value ? s.color + " ring-1 ring-offset-1" : "bg-card text-foreground border-border hover:border-primary/50"
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <h2 className="text-sm font-semibold text-foreground">Pain level</h2>
-                <Badge variant="outline" className="text-xs">{painScore[0]}/10</Badge>
-              </div>
-              <Slider value={painScore} onValueChange={setPainScore} max={10} min={0} step={1} className="mt-2" />
-              <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
-                <span>No pain</span><span>Worst pain</span>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-sm font-semibold text-foreground mb-1">Pregnancy status</h2>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                {PREGNANCY_OPTIONS.map(p => (
-                  <button
-                    key={p.value}
-                    onClick={() => setPregnancyStatus(p.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                      pregnancyStatus === p.value
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-card text-foreground border-border hover:border-primary/50"
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── Step 3: History ─── */}
-        {step === "history" && (
-          <div className="space-y-5">
-            {/* Allergies */}
-            <div>
-              <h2 className="text-sm font-semibold text-foreground mb-1">Any allergies?</h2>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {COMMON_ALLERGIES.map(a => (
-                  <button
-                    key={a}
-                    onClick={() => toggleChip(allergies, setAllergies, a)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                      allergies.includes(a)
-                        ? a === "None" ? "bg-muted text-foreground border-muted" : "bg-destructive/10 text-destructive border-destructive/30"
-                        : "bg-card text-foreground border-border hover:border-primary/50"
-                    }`}
-                  >
-                    {a}
-                  </button>
-                ))}
-              </div>
-              <div className="relative mt-2">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search other allergies (3+ chars)..."
-                  value={allergySearch}
-                  onChange={e => setAllergySearch(e.target.value)}
-                  className="pl-8 h-9 text-sm"
-                />
-                {filteredAllergies.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-lg shadow-md max-h-32 overflow-y-auto">
-                    {filteredAllergies.map(a => (
-                      <button key={a} onClick={() => { setAllergies(prev => [...prev.filter(i => i !== "None"), a]); setAllergySearch(""); }}
-                        className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors text-foreground">
-                        {a}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Chronic conditions */}
-            <div>
-              <h2 className="text-sm font-semibold text-foreground mb-1">Chronic conditions</h2>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {COMMON_CONDITIONS.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => toggleChip(conditions, setConditions, c)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                      conditions.includes(c)
-                        ? c === "None" ? "bg-muted text-foreground border-muted" : "bg-primary/10 text-primary border-primary/30"
-                        : "bg-card text-foreground border-border hover:border-primary/50"
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Medications */}
-            <div>
-              <h2 className="text-sm font-semibold text-foreground mb-1">Current medications</h2>
-              {medications.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {medications.map(m => (
-                    <Badge key={m} variant="secondary" className="text-[10px] gap-1">
-                      {m}
-                      <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => setMedications(prev => prev.filter(i => i !== m))} />
+              {selectedSymptoms.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedSymptoms.map(s => (
+                    <Badge key={s} variant="secondary" className="text-xs gap-1 py-1 px-2.5">
+                      {s}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => toggleSymptom(s)} />
                     </Badge>
                   ))}
                 </div>
               )}
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search medications (3+ chars)..."
-                  value={medSearch}
-                  onChange={e => setMedSearch(e.target.value)}
-                  className="pl-8 h-9 text-sm"
-                />
-                {filteredMeds.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-lg shadow-md max-h-32 overflow-y-auto">
-                    {filteredMeds.map(m => (
-                      <button key={m} onClick={() => { setMedications(prev => [...prev, m]); setMedSearch(""); }}
-                        className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors text-foreground">
-                        {m}
+            </motion.div>
+          )}
+
+          {/* ── STEP 1: Duration ── */}
+          {step === 1 && (
+            <motion.div key="s1" {...SLIDE} className="space-y-4">
+              <h2 className="text-lg font-semibold text-foreground">{t("step2Title")}</h2>
+              <div className="grid grid-cols-1 gap-3">
+                {DURATION_OPTS.map(d => (
+                  <button
+                    key={d.en}
+                    onClick={() => setDuration(d.en)}
+                    className={`px-5 py-4 rounded-xl text-base font-medium border-2 transition-all active:scale-[0.97] text-left ${
+                      duration === d.en
+                        ? "bg-primary/10 text-primary border-primary shadow-sm"
+                        : "bg-card text-foreground border-border hover:border-primary/40"
+                    }`}
+                  >
+                    {d[lang] || d.en}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── STEP 2: Severity ── */}
+          {step === 2 && (
+            <motion.div key="s2" {...SLIDE} className="space-y-4">
+              <h2 className="text-lg font-semibold text-foreground">{t("step3Title")}</h2>
+              <div className="grid grid-cols-3 gap-3">
+                {SEVERITY_OPTS.map(s => (
+                  <button
+                    key={s.key}
+                    onClick={() => { setSeverityKey(s.key); setPainScore(s.score); }}
+                    className={`flex flex-col items-center gap-2 px-3 py-5 rounded-xl text-sm font-medium border-2 transition-all active:scale-95 ${
+                      severityKey === s.key
+                        ? s.color + " shadow-sm ring-1 ring-offset-1"
+                        : "bg-card text-foreground border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <span className="text-3xl">{s.emoji}</span>
+                    <span>{t(s.key)}</span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── STEP 3: Safety Flags ── */}
+          {step === 3 && (
+            <motion.div key="s3" {...SLIDE} className="space-y-5">
+              <h2 className="text-lg font-semibold text-foreground">{t("step4Title")}</h2>
+
+              {/* Conditions */}
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">{t("conditions")}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {CONDITION_KEYS.map(key => {
+                    const label = T[key]?.en || key;
+                    const isSelected = key === "none" ? conditions.includes("None") : conditions.includes(label);
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => toggleCondition(key)}
+                        className={`px-4 py-3.5 rounded-xl text-sm font-medium border-2 transition-all active:scale-95 ${
+                          isSelected
+                            ? key === "none"
+                              ? "bg-muted text-foreground border-muted"
+                              : "bg-primary/10 text-primary border-primary"
+                            : "bg-card text-foreground border-border hover:border-primary/40"
+                        }`}
+                      >
+                        {t(key)}
                       </button>
-                    ))}
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Allergies */}
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">{t("allergyQ")}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => { setHasAllergy(false); setAllergies([]); setAllergySearch(""); }}
+                    className={`px-4 py-3.5 rounded-xl text-sm font-medium border-2 transition-all active:scale-95 ${
+                      hasAllergy === false
+                        ? "bg-muted text-foreground border-muted"
+                        : "bg-card text-foreground border-border hover:border-primary/40"
+                    }`}
+                  >
+                    {t("no")}
+                  </button>
+                  <button
+                    onClick={() => setHasAllergy(true)}
+                    className={`px-4 py-3.5 rounded-xl text-sm font-medium border-2 transition-all active:scale-95 ${
+                      hasAllergy === true
+                        ? "bg-destructive/10 text-destructive border-destructive/50"
+                        : "bg-card text-foreground border-border hover:border-primary/40"
+                    }`}
+                  >
+                    {t("yes")}
+                  </button>
+                </div>
+
+                {hasAllergy && (
+                  <div className="mt-3 space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        autoFocus
+                        placeholder={t("searchAllergy")}
+                        value={allergySearch}
+                        onChange={e => setAllergySearch(e.target.value)}
+                        className="pl-9 h-11 text-sm rounded-xl"
+                      />
+                      {filteredAllergens.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-xl shadow-lg overflow-hidden">
+                          {filteredAllergens.map(a => (
+                            <button
+                              key={a}
+                              onClick={() => { setAllergies(prev => [...prev, a]); setAllergySearch(""); }}
+                              className="w-full text-left px-4 py-3 text-sm hover:bg-muted transition-colors text-foreground"
+                            >
+                              {a}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {allergies.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {allergies.map(a => (
+                          <Badge key={a} variant="destructive" className="text-xs gap-1 py-1 px-2.5">
+                            {a}
+                            <X className="h-3 w-3 cursor-pointer" onClick={() => setAllergies(prev => prev.filter(x => x !== a))} />
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
+          )}
 
-            {/* Notes */}
-            <div>
-              <h2 className="text-sm font-semibold text-foreground mb-1">Anything else? (optional)</h2>
-              <Textarea
-                placeholder="Any additional information for your doctor..."
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                className="text-sm min-h-[60px]"
-                maxLength={500}
-              />
-            </div>
-          </div>
-        )}
+          {/* ── STEP 4: Review ── */}
+          {step === 4 && (
+            <motion.div key="s4" {...SLIDE} className="space-y-4">
+              <h2 className="text-lg font-semibold text-foreground">{t("review")}</h2>
 
-        {/* ─── Step 4: Review ─── */}
-        {step === "review" && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-foreground">Review Your Information</h2>
-            <p className="text-xs text-muted-foreground">Please confirm everything is correct before submitting.</p>
-
-            <Card className="border-primary/20">
-              <CardContent className="p-3 space-y-2.5">
-                <ReviewRow label="Symptoms" value={chiefComplaint || "—"} />
-                <ReviewRow label="Duration" value={duration || "—"} />
-                <ReviewRow label="Severity" value={SEVERITY_OPTIONS.find(s => s.value === severity)?.label || "—"} />
-                <ReviewRow label="Pain score" value={`${painScore[0]}/10`} />
-                <ReviewRow label="Allergies" value={allergies.length ? allergies.join(", ") : "None noted"} highlight={allergies.length > 0 && !allergies.includes("None")} />
-                <ReviewRow label="Chronic conditions" value={conditions.length ? conditions.join(", ") : "None noted"} />
-                <ReviewRow label="Medications" value={medications.length ? medications.join(", ") : "None"} />
-                {pregnancyStatus !== "not_applicable" && (
-                  <ReviewRow label="Pregnancy" value={pregnancyStatus.replace("_", " ")} />
-                )}
-                {notes && <ReviewRow label="Notes" value={notes} />}
-              </CardContent>
-            </Card>
-          </div>
-        )}
+              <Card className="border-primary/30 overflow-hidden">
+                <CardContent className="p-0 divide-y divide-border">
+                  <ReviewRow label={t("complaint")} value={chiefComplaint} />
+                  <ReviewRow label={t("duration")} value={duration} />
+                  <ReviewRow label={t("severity")} value={severityObj ? `${severityObj.emoji} ${t(severityObj.key)}` : "—"} />
+                  <ReviewRow label={t("conditionsL")} value={conditions.filter(c => c !== "None").join(", ") || t("noneNoted")} />
+                  <ReviewRow
+                    label={t("allergies")}
+                    value={allergies.length > 0 ? allergies.join(", ") : t("noneNoted")}
+                    highlight={allergies.length > 0}
+                  />
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Bottom navigation */}
+      {/* ── Bottom nav ── */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 py-3 z-20">
-        <div className="max-w-lg mx-auto flex gap-3">
-          {stepIdx > 0 && (
-            <Button variant="outline" onClick={goBack} className="flex-1 h-11 gap-1">
-              <ChevronLeft className="h-4 w-4" /> Back
+        <div className="max-w-md mx-auto flex gap-3">
+          {step > 0 && (
+            <Button variant="outline" onClick={goBack} className="h-12 px-5 rounded-xl text-sm">
+              <ChevronLeft className="h-4 w-4 mr-1" /> {t("back")}
             </Button>
           )}
-          {step !== "review" ? (
-            <Button onClick={goNext} disabled={!canProceed[step]} className="flex-1 h-11 gap-1">
-              Next <ChevronRight className="h-4 w-4" />
+          {step < 4 ? (
+            <Button
+              onClick={goNext}
+              disabled={!canProceed[step]}
+              className="flex-1 h-12 rounded-xl text-sm"
+            >
+              {t("next")}
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={submitting} className="flex-1 h-11 gap-1">
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="flex-1 h-12 rounded-xl text-sm gap-2"
+            >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              {submitting ? "Submitting..." : "Submit Intake"}
+              {submitting ? "..." : t("submit")}
             </Button>
           )}
         </div>
@@ -567,9 +623,9 @@ export default function PatientSelfIntake() {
 
 function ReviewRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="flex justify-between items-start gap-2">
-      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0">{label}</span>
-      <span className={`text-xs text-right ${highlight ? "text-destructive font-medium" : "text-foreground"}`}>{value}</span>
+    <div className="flex justify-between items-center px-4 py-3">
+      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
+      <span className={`text-sm text-right font-medium ${highlight ? "text-destructive" : "text-foreground"}`}>{value}</span>
     </div>
   );
 }
