@@ -21,6 +21,7 @@ import InlinePrescriptionBuilder from "@/components/InlinePrescriptionBuilder";
 import InlineLabOrders from "@/components/InlineLabOrders";
 import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import DoctorIntakeReview from "@/components/DoctorIntakeReview";
+import SmartSuggestionsPanel from "@/components/SmartSuggestionsPanel";
 import {
   Loader2, Save, CheckCircle2, ChevronDown, ChevronRight, FileText,
   Edit3, Eye, ShieldCheck, AlertTriangle, XCircle, CheckCircle,
