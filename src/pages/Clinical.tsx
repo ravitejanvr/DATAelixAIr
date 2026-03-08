@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Chip, ChipGroup, PresetChipGroup } from "@/components/ui/chip";
 import { ClinicalCard, ClinicalCardHeader, SkeletonCard } from "@/components/ui/clinical-card";
 import { useToast } from "@/hooks/use-toast";
@@ -15,25 +16,24 @@ import SEO from "@/components/SEO";
 import EvidencePanel from "@/components/EvidencePanel";
 import ConsultationInput from "@/components/ConsultationInput";
 import PatientSelector, { type SelectedPatient } from "@/components/PatientSelector";
-import InlineVitals from "@/components/InlineVitals";
-import VisitTimeline from "@/components/VisitTimeline";
 import InlinePrescriptionBuilder from "@/components/InlinePrescriptionBuilder";
 import InlineLabOrders from "@/components/InlineLabOrders";
 import DoctorFavoritesPanel from "@/components/DoctorFavoritesPanel";
 import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import DoctorIntakeReview from "@/components/DoctorIntakeReview";
 import SmartSuggestionsPanel from "@/components/SmartSuggestionsPanel";
-import ClinicalContextPanel from "@/components/ClinicalContextPanel";
 import CollapsibleSection from "@/components/clinical/CollapsibleSection";
 import FollowUpPanel from "@/components/clinical/FollowUpPanel";
 import ConsultationTimeline from "@/components/ConsultationTimeline";
+import VisitTimeline from "@/components/VisitTimeline";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, Save, FileText,
   Edit3, ShieldCheck, AlertTriangle, XCircle, CheckCircle,
   Languages, HeartPulse, Pill, FlaskConical, User,
   Sparkles, RotateCcw, Clock, ClipboardCheck, Brain, CalendarDays,
-  Zap, Activity, Stethoscope, Eye
+  Zap, Activity, Stethoscope, Eye, Search, Moon, Sun,
+  Heart, Thermometer, Wind, Droplets, Shield
 } from "lucide-react";
 import type { ExtractedData, SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_EXTRACTED, EMPTY_SOAP } from "@/layers/ai-agents/api";
@@ -51,17 +51,31 @@ import {
 } from "@/layers/monitoring/api";
 import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext } from "@/lib/clinical-context";
 
-// Common symptom chips
+// Symptom presets
 const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain"];
+const SUGGESTED_CONDITIONS = ["Dengue suspicion", "Malaria suspicion", "UTI symptoms", "URTI", "Gastritis", "Viral syndrome"];
 const DURATION_PRESETS = ["Today", "2 days", "3 days", "5 days", "1 week", "2 weeks", "1 month"];
+const MEDICATION_PRESETS = ["Paracetamol", "Ibuprofen", "Azithromycin", "Amoxicillin", "ORS", "Pantoprazole", "Cetirizine"];
 
-// Dynamic expansion: extra chips when specific symptoms are selected
+// Dynamic expansions
 const SYMPTOM_EXPANSIONS: Record<string, { label: string; chips: string[]; variant: "symptom" | "neutral" }> = {
   "Fever": { label: "Temperature", chips: ["99°F", "100°F", "101°F", "102°F", "103°F+"], variant: "neutral" },
   "Cough": { label: "Cough Type", chips: ["Dry", "Productive", "With blood", "Nocturnal"], variant: "neutral" },
   "Chest pain": { label: "Character", chips: ["Sharp", "Dull", "Crushing", "Burning", "Radiating"], variant: "neutral" },
   "Headache": { label: "Pattern", chips: ["Throbbing", "Constant", "One-sided", "Both sides", "With aura"], variant: "neutral" },
   "Abdominal pain": { label: "Location", chips: ["Upper", "Lower", "Right", "Left", "Diffuse", "Periumbilical"], variant: "neutral" },
+};
+
+// Quick Rx templates
+const QUICK_RX_TEMPLATES: Record<string, { drug: string; dose: string; freq: string; dur: string }[]> = {
+  "Fever": [
+    { drug: "Paracetamol", dose: "650mg", freq: "TID", dur: "3 days" },
+    { drug: "ORS", dose: "1 sachet", freq: "BD", dur: "3 days" },
+  ],
+  "Cough": [
+    { drug: "Ambroxol", dose: "30mg", freq: "BD", dur: "5 days" },
+    { drug: "Cetirizine", dose: "10mg", freq: "OD", dur: "5 days" },
+  ],
 };
 
 const fadeIn = {
@@ -129,10 +143,15 @@ export default function Clinical() {
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [selectedDuration, setSelectedDuration] = useState<string>("");
   const [expansionSelections, setExpansionSelections] = useState<Record<string, string[]>>({});
+  const [priorMeds, setPriorMeds] = useState<string[]>([]);
+  const [symptomSearch, setSymptomSearch] = useState("");
 
   // Clinical Context
   const [clinicalContext, setClinicalContext] = useState<ClinicalContext>(EMPTY_CLINICAL_CONTEXT);
   const [patientVitals, setPatientVitals] = useState<any>(null);
+
+  // Dark mode
+  const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
 
   // Learning baselines
   const [aiExtractedBaseline, setAiExtractedBaseline] = useState<ExtractedData>(EMPTY_EXTRACTED);
@@ -140,12 +159,21 @@ export default function Clinical() {
   const [sessionStartTime] = useState(() => performance.now());
   const [profileClinicId, setProfileClinicId] = useState<string | null>(null);
 
+  // Auto-generate trigger
+  const [autoGenerateTriggered, setAutoGenerateTriggered] = useState(false);
+
+  // Toggle dark mode
+  const toggleDarkMode = useCallback(() => {
+    const next = !darkMode;
+    setDarkMode(next);
+    document.documentElement.classList.toggle("dark", next);
+  }, [darkMode]);
+
   // Sync symptom chips to extracted data
   useEffect(() => {
     if (selectedSymptoms.length > 0) {
       const complaint = selectedSymptoms[0];
       const associated = selectedSymptoms.slice(1).join(", ");
-      // Include expansion selections in the transcript context
       const expansionDetails = Object.entries(expansionSelections)
         .filter(([_, vals]) => vals.length > 0)
         .map(([symptom, vals]) => `${symptom}: ${vals.join(", ")}`)
@@ -159,10 +187,20 @@ export default function Clinical() {
   }, [selectedSymptoms, expansionSelections]);
 
   useEffect(() => {
-    if (selectedDuration) {
-      setExtractedData(prev => ({ ...prev, duration: selectedDuration }));
-    }
+    if (selectedDuration) setExtractedData(prev => ({ ...prev, duration: selectedDuration }));
   }, [selectedDuration]);
+
+  // Auto-trigger pipeline when enough context exists
+  useEffect(() => {
+    if (autoGenerateTriggered || pipelineRunning || pipelineComplete) return;
+    const hasEnoughContext = selectedSymptoms.length >= 2 && selectedDuration !== "";
+    if (hasEnoughContext && selectedPatient) {
+      setAutoGenerateTriggered(true);
+      // Small delay so UI feels intentional
+      const timer = setTimeout(() => runFullPipeline(), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedSymptoms, selectedDuration, selectedPatient, autoGenerateTriggered, pipelineRunning, pipelineComplete]);
 
   useEffect(() => {
     if (!user) return;
@@ -220,17 +258,18 @@ export default function Clinical() {
   const isProcessing = isStabilizing || isExtracting || isRunningSafety || isGeneratingSoap;
   const hasSymptomInput = selectedSymptoms.length > 0 || hasTranscript;
 
-  // Build timeline steps
   const timelineSteps = [
     { label: "Patient", status: selectedPatient ? "done" as const : "pending" as const },
     { label: "Symptoms", status: hasSymptomInput ? "done" as const : "pending" as const },
-    { label: "AI Processing", status: isProcessing ? "active" as const : pipelineComplete ? "done" as const : "pending" as const },
+    { label: "AI Plan", status: isProcessing ? "active" as const : pipelineComplete ? "done" as const : "pending" as const },
     { label: "Review", status: pipelineComplete && !savedSessionId ? "active" as const : savedSessionId ? "done" as const : "pending" as const },
     { label: "Saved", status: savedSessionId ? "done" as const : "pending" as const },
   ];
 
-  // Active expansions based on selected symptoms
   const activeExpansions = selectedSymptoms.filter(s => SYMPTOM_EXPANSIONS[s]);
+  
+  // Contextual quick Rx based on selected symptoms
+  const contextualRx = selectedSymptoms.flatMap(s => QUICK_RX_TEMPLATES[s] || []);
 
   // ── Full AI Pipeline ──
   const runFullPipeline = async () => {
@@ -240,7 +279,8 @@ export default function Clinical() {
         .filter(([_, vals]) => vals.length > 0)
         .map(([symptom, vals]) => `${symptom} characteristics: ${vals.join(", ")}`)
         .join(". ");
-      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${expansionDetails ? ` ${expansionDetails}.` : ""}`;
+      const medsContext = priorMeds.length > 0 ? ` Patient has already taken: ${priorMeds.join(", ")}.` : "";
+      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${expansionDetails ? ` ${expansionDetails}.` : ""}${medsContext}`;
       setTranscript(effectiveTranscript);
     }
     if (!effectiveTranscript) { toast({ title: "No input", description: "Select symptoms or type notes first.", variant: "destructive" }); return; }
@@ -289,7 +329,7 @@ export default function Clinical() {
       setIsRunningSafety(false);
 
       if (data.ai_suggestions_blocked) {
-        toast({ title: "Incomplete Clinical Context", description: "Please fill required fields (age, sex, chief complaint) before generating AI notes.", variant: "destructive" });
+        toast({ title: "Incomplete Clinical Context", description: "Please fill required fields before generating AI notes.", variant: "destructive" });
         setPipelineRunning(false); setIsGeneratingSoap(false); return;
       }
 
@@ -337,7 +377,7 @@ export default function Clinical() {
     } finally { setIsRunningSafety(false); }
   };
 
-  // ── Approve & Save (single action) ──
+  // ── Approve & Save ──
   const approveAndSave = async () => {
     if (!user) return;
     if (!reviewConfirmed) { toast({ title: "Confirmation required", description: "Please confirm you have reviewed the AI care plan.", variant: "destructive" }); return; }
@@ -391,6 +431,7 @@ export default function Clinical() {
     setClinicalContext(EMPTY_CLINICAL_CONTEXT); setPatientVitals(null);
     setFollowUpDate(""); setFollowUpNotes("");
     setSelectedSymptoms([]); setSelectedDuration(""); setExpansionSelections({});
+    setPriorMeds([]); setAutoGenerateTriggered(false); setSymptomSearch("");
   };
 
   const generatePatientExplanation = async () => {
@@ -413,7 +454,6 @@ export default function Clinical() {
   const toggleSymptom = (s: string) => {
     setSelectedSymptoms(prev => {
       const next = prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s];
-      // Clear expansion selections for removed symptoms
       if (prev.includes(s)) {
         setExpansionSelections(prev => { const copy = { ...prev }; delete copy[s]; return copy; });
       }
@@ -424,12 +464,14 @@ export default function Clinical() {
   const toggleExpansionChip = (symptom: string, chip: string) => {
     setExpansionSelections(prev => {
       const current = prev[symptom] || [];
-      return {
-        ...prev,
-        [symptom]: current.includes(chip) ? current.filter(c => c !== chip) : [...current, chip],
-      };
+      return { ...prev, [symptom]: current.includes(chip) ? current.filter(c => c !== chip) : [...current, chip] };
     });
   };
+
+  // Filtered symptoms for search
+  const filteredSymptoms = symptomSearch
+    ? COMMON_SYMPTOMS.filter(s => s.toLowerCase().includes(symptomSearch.toLowerCase()))
+    : COMMON_SYMPTOMS;
 
   return (
     <>
@@ -447,31 +489,37 @@ export default function Clinical() {
               <span className="hidden sm:inline">Clinical Cockpit</span>
             </h1>
 
-            {/* Consultation Timeline */}
+            {/* Progress Steps */}
             <div className="hidden md:block">
               <ConsultationTimeline steps={timelineSteps} />
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {isProcessing && (
-              <motion.div {...fadeIn} className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/5 border border-primary/10">
-                <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                <span className="text-[11px] text-primary font-medium">
-                  {isStabilizing && "Stabilizing…"}
-                  {!isStabilizing && isExtracting && "Extracting…"}
-                  {!isStabilizing && !isExtracting && isRunningSafety && "Safety check…"}
-                  {!isStabilizing && !isExtracting && !isRunningSafety && isGeneratingSoap && "Generating care plan…"}
-                </span>
-              </motion.div>
-            )}
+            {/* AI Status Indicator */}
+            <AnimatePresence mode="wait">
+              {isProcessing && (
+                <motion.div key="processing" {...fadeIn} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/5 border border-primary/10">
+                  <div className="relative">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                    <div className="absolute inset-0 h-3 w-3 rounded-full bg-primary/20 animate-ping" />
+                  </div>
+                  <span className="text-[11px] text-primary font-medium">
+                    {isStabilizing && "Analyzing…"}
+                    {!isStabilizing && isExtracting && "Extracting…"}
+                    {!isStabilizing && !isExtracting && isRunningSafety && "Safety check…"}
+                    {!isStabilizing && !isExtracting && !isRunningSafety && isGeneratingSoap && "Building care plan…"}
+                  </span>
+                </motion.div>
+              )}
 
-            {pipelineComplete && !isProcessing && (
-              <motion.div {...fadeIn} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-chip-medication border border-chip-medication-border">
-                <CheckCircle className="h-3 w-3 text-chip-medication-text" />
-                <span className="text-[11px] text-chip-medication-text font-medium">Care plan ready</span>
-              </motion.div>
-            )}
+              {pipelineComplete && !isProcessing && !savedSessionId && (
+                <motion.div key="ready" {...fadeIn} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-chip-medication border border-chip-medication-border">
+                  <CheckCircle className="h-3 w-3 text-chip-medication-text" />
+                  <span className="text-[11px] text-chip-medication-text font-semibold">AI Plan Ready — Review Below</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {safetyResults && safetyAlertCount > 0 && (
               <motion.div {...fadeIn} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-chip-alert border border-chip-alert-border">
@@ -479,6 +527,21 @@ export default function Clinical() {
                 <span className="text-[11px] text-chip-alert-text font-medium">{safetyAlertCount} alert{safetyAlertCount > 1 ? "s" : ""}</span>
               </motion.div>
             )}
+
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={toggleDarkMode}
+              className="h-7 w-7 rounded-lg border border-border bg-background flex items-center justify-center hover:bg-muted transition-colors"
+              title="Toggle dark mode"
+            >
+              {darkMode ? <Sun className="h-3.5 w-3.5 text-foreground" /> : <Moon className="h-3.5 w-3.5 text-foreground" />}
+            </button>
+
+            {/* Command palette hint */}
+            <div className="hidden lg:flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-muted/50 text-muted-foreground cursor-pointer hover:bg-muted transition-colors" onClick={() => { const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true }); document.dispatchEvent(event); }}>
+              <Search className="h-3 w-3" />
+              <span className="text-[10px]">⌘K</span>
+            </div>
 
             {savedSessionId && (
               <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg" onClick={() => navigate(`/consultations/${savedSessionId}`)}>View Saved</Button>
@@ -490,9 +553,9 @@ export default function Clinical() {
         </div>
 
         {/* ── 3-Column Layout ── */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[280px_1fr_320px]">
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[300px_1fr_340px]">
 
-          {/* ═══ LEFT: Patient Context ═══ */}
+          {/* ═══ LEFT: Patient Context (Visual Cards) ═══ */}
           <div className="overflow-y-auto border-r border-border bg-card/50 max-lg:border-b max-lg:max-h-[40vh]">
             <div className="p-3 space-y-3">
               {/* Patient Selector */}
@@ -503,59 +566,105 @@ export default function Clinical() {
                 <PatientSelector selected={selectedPatient} onSelect={setSelectedPatient} />
               </div>
 
-              {/* Quick Vitals Summary */}
+              {/* Patient Identity Card */}
               <AnimatePresence>
-                {patientVitals && (
+                {selectedPatient && (
                   <motion.div {...fadeIn}>
-                    <ClinicalCard className="p-3">
-                      <ClinicalCardHeader title="Vitals" icon={<Activity className="h-3.5 w-3.5" />} />
-                      <div className="flex flex-wrap gap-1.5">
-                        {patientVitals.bp_systolic && (
-                          <Chip variant="neutral" size="sm">BP {patientVitals.bp_systolic}/{patientVitals.bp_diastolic}</Chip>
-                        )}
-                        {patientVitals.pulse && <Chip variant="neutral" size="sm">HR {patientVitals.pulse}</Chip>}
-                        {patientVitals.temperature && <Chip variant="neutral" size="sm">{patientVitals.temperature}°F</Chip>}
-                        {patientVitals.spo2 && <Chip variant="neutral" size="sm">SpO₂ {patientVitals.spo2}%</Chip>}
+                    <ClinicalCard className="p-3 bg-gradient-to-br from-primary/[0.04] to-transparent">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                          {selectedPatient.name?.charAt(0)?.toUpperCase() || "?"}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{selectedPatient.name}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {selectedPatient.age ? `${selectedPatient.age}${selectedPatient.gender ? selectedPatient.gender.charAt(0).toUpperCase() : ""}` : "Age unknown"}
+                            {selectedPatient.phone ? ` · ${selectedPatient.phone}` : ""}
+                          </p>
+                        </div>
                       </div>
+
+                      {/* Vitals Chips */}
+                      {patientVitals && (
+                        <div className="mb-2.5">
+                          <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                            <Activity className="h-2.5 w-2.5" /> Vitals
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {patientVitals.bp_systolic && (
+                              <Chip variant="neutral" size="sm" icon={<Heart className="h-2.5 w-2.5 text-chip-alert-text" />}>
+                                BP {patientVitals.bp_systolic}/{patientVitals.bp_diastolic}
+                              </Chip>
+                            )}
+                            {patientVitals.pulse && (
+                              <Chip variant="neutral" size="sm" icon={<Activity className="h-2.5 w-2.5 text-primary" />}>
+                                HR {patientVitals.pulse}
+                              </Chip>
+                            )}
+                            {patientVitals.temperature && (
+                              <Chip variant={Number(patientVitals.temperature) > 99 ? "alert" : "neutral"} size="sm" icon={<Thermometer className="h-2.5 w-2.5" />}>
+                                {patientVitals.temperature}°F
+                              </Chip>
+                            )}
+                            {patientVitals.spo2 && (
+                              <Chip variant={Number(patientVitals.spo2) < 95 ? "alert" : "neutral"} size="sm" icon={<Droplets className="h-2.5 w-2.5" />}>
+                                SpO₂ {patientVitals.spo2}%
+                              </Chip>
+                            )}
+                            {patientVitals.respiratory_rate && (
+                              <Chip variant="neutral" size="sm" icon={<Wind className="h-2.5 w-2.5" />}>
+                                RR {patientVitals.respiratory_rate}
+                              </Chip>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Conditions */}
+                      {selectedPatient.medical_history && (Array.isArray(selectedPatient.medical_history) ? selectedPatient.medical_history : []).length > 0 && (
+                        <div className="mb-2.5">
+                          <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">Conditions</p>
+                          <div className="flex flex-wrap gap-1">
+                            {(Array.isArray(selectedPatient.medical_history) ? selectedPatient.medical_history : []).map((h: any, i: number) => (
+                              <Chip key={i} variant="diagnosis" size="sm">{typeof h === 'string' ? h : h?.condition || String(h)}</Chip>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Allergies */}
+                      {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
+                        <div className="mb-2.5">
+                          <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                            <Shield className="h-2.5 w-2.5 text-chip-alert-text" /> Allergies
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedPatient.allergies.map(a => (
+                              <Chip key={a} variant="alert" size="sm">{a}</Chip>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Medications */}
+                      {selectedPatient.current_medications && selectedPatient.current_medications.length > 0 && (
+                        <div>
+                          <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                            <Pill className="h-2.5 w-2.5 text-chip-medication-text" /> Current Medications
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedPatient.current_medications.map(m => (
+                              <Chip key={m} variant="medication" size="sm">{m}</Chip>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </ClinicalCard>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Medical Context Chips */}
-              {selectedPatient && (
-                <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-3">
-                    <ClinicalCardHeader title="Medical Context" icon={<HeartPulse className="h-3.5 w-3.5" />} />
-                    <div className="space-y-2">
-                      {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
-                        <ChipGroup label="Allergies">
-                          {selectedPatient.allergies.map(a => (
-                            <Chip key={a} variant="alert" size="sm">{a}</Chip>
-                          ))}
-                        </ChipGroup>
-                      )}
-                      {selectedPatient.current_medications && selectedPatient.current_medications.length > 0 && (
-                        <ChipGroup label="Medications">
-                          {selectedPatient.current_medications.map(m => (
-                            <Chip key={m} variant="medication" size="sm">{m}</Chip>
-                          ))}
-                        </ChipGroup>
-                      )}
-                    </div>
-                  </ClinicalCard>
-                </motion.div>
-              )}
-
-              <ClinicalContextPanel
-                context={clinicalContext}
-                onUpdate={(field, value) => setClinicalContext(prev => ({ ...prev, [field]: value }))}
-              />
-
-              <CollapsibleSection title="Vitals Detail" icon={HeartPulse} defaultOpen={false}>
-                <InlineVitals patientId={selectedPatient?.id || null} />
-              </CollapsibleSection>
-
+              {/* Intake Review */}
               <DoctorIntakeReview
                 patientId={selectedPatient?.id || null}
                 visitId={visitId}
@@ -572,34 +681,114 @@ export default function Clinical() {
                 }}
               />
 
+              {/* Visit History */}
               <CollapsibleSection title="Visit History" icon={Clock}>
                 <VisitTimeline patientId={selectedPatient?.id || null} />
               </CollapsibleSection>
             </div>
           </div>
 
-          {/* ═══ CENTER: Smart Clinical Builder ═══ */}
+          {/* ═══ CENTER: Structured Clinical Builder ═══ */}
           <div className="overflow-y-auto flex flex-col pb-20 lg:pb-16">
-            <div className="flex-1 p-4 space-y-4">
+            <div className="flex-1 p-4 space-y-4 max-w-3xl mx-auto w-full">
 
-              {/* Symptom Chip Builder */}
+              {/* ── Structured Sentence Builder ── */}
               <motion.div {...fadeIn}>
                 <ClinicalCard>
                   <ClinicalCardHeader 
-                    title="Clinical Input" 
+                    title="Clinical Builder" 
                     icon={<Edit3 className="h-4 w-4" />}
                     badge={selectedSymptoms.length > 0 ? <Badge variant="outline" className="text-[10px]">{selectedSymptoms.length} selected</Badge> : undefined}
                   />
 
-                  {/* Complaint Chips */}
-                  <PresetChipGroup
-                    label="Chief Complaint"
-                    options={COMMON_SYMPTOMS}
-                    selected={selectedSymptoms}
-                    onToggle={toggleSymptom}
-                    variant="symptom"
-                    allowCustom
-                  />
+                  {/* Structured sentence */}
+                  {selectedSymptoms.length > 0 && (
+                    <motion.div {...fadeIn} className="mb-4 p-3 rounded-xl bg-muted/50 border border-border">
+                      <p className="text-xs text-foreground leading-relaxed">
+                        <span className="text-muted-foreground">Patient has </span>
+                        {selectedSymptoms.map((s, i) => (
+                          <span key={s}>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-chip-symptom text-chip-symptom-text text-[11px] font-medium mx-0.5">{s}</span>
+                            {i < selectedSymptoms.length - 1 && <span className="text-muted-foreground">{i === selectedSymptoms.length - 2 ? " and " : ", "}</span>}
+                          </span>
+                        ))}
+                        {selectedDuration && (
+                          <>
+                            <span className="text-muted-foreground"> for </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-muted border border-border text-[11px] font-medium">{selectedDuration}</span>
+                          </>
+                        )}
+                        {priorMeds.length > 0 && (
+                          <>
+                            <span className="text-muted-foreground">. Already taken </span>
+                            {priorMeds.map((m, i) => (
+                              <span key={m}>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-chip-medication text-chip-medication-text text-[11px] font-medium mx-0.5">{m}</span>
+                                {i < priorMeds.length - 1 && <span className="text-muted-foreground">, </span>}
+                              </span>
+                            ))}
+                          </>
+                        )}
+                        <span className="text-muted-foreground">.</span>
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {/* Common Symptoms */}
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Common Symptoms</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {filteredSymptoms.map(s => (
+                        <Chip
+                          key={s}
+                          variant="symptom"
+                          selected={selectedSymptoms.includes(s)}
+                          onClick={() => toggleSymptom(s)}
+                        >
+                          {s}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* AI Suggested Conditions */}
+                  <div className="mt-3">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                      <Sparkles className="h-2.5 w-2.5 text-primary" /> Suggested
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SUGGESTED_CONDITIONS.map(s => (
+                        <Chip
+                          key={s}
+                          variant="diagnosis"
+                          selected={selectedSymptoms.includes(s)}
+                          onClick={() => toggleSymptom(s)}
+                        >
+                          {s}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Search symptom */}
+                  <div className="mt-3">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={symptomSearch}
+                        onChange={e => setSymptomSearch(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter" && symptomSearch.trim()) {
+                            toggleSymptom(symptomSearch.trim());
+                            setSymptomSearch("");
+                          }
+                        }}
+                        placeholder="Search or add symptom…"
+                        className="w-full h-8 pl-8 pr-3 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      />
+                    </div>
+                  </div>
 
                   {/* Dynamic Symptom Expansions */}
                   <AnimatePresence>
@@ -612,9 +801,9 @@ export default function Clinical() {
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
                           transition={{ duration: 0.2 }}
-                          className="overflow-hidden mt-2"
+                          className="overflow-hidden mt-3"
                         >
-                          <div className="pl-2 border-l-2 border-primary/20">
+                          <div className="pl-3 border-l-2 border-primary/20">
                             <ChipGroup label={`${symptom} → ${expansion.label}`}>
                               {expansion.chips.map(chip => (
                                 <Chip
@@ -640,12 +829,7 @@ export default function Clinical() {
                       <motion.div {...fadeIn} className="mt-3">
                         <ChipGroup label="Duration">
                           {DURATION_PRESETS.map(d => (
-                            <Chip
-                              key={d}
-                              variant="neutral"
-                              selected={selectedDuration === d}
-                              onClick={() => setSelectedDuration(selectedDuration === d ? "" : d)}
-                            >
+                            <Chip key={d} variant="neutral" selected={selectedDuration === d} onClick={() => setSelectedDuration(selectedDuration === d ? "" : d)}>
                               {d}
                             </Chip>
                           ))}
@@ -654,17 +838,30 @@ export default function Clinical() {
                     )}
                   </AnimatePresence>
 
-                  {/* Voice / Text Input */}
-                  <div className="mt-4">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                      Voice / Notes
-                    </p>
+                  {/* Prior Medication */}
+                  <AnimatePresence>
+                    {selectedSymptoms.length > 0 && (
+                      <motion.div {...fadeIn} className="mt-3">
+                        <PresetChipGroup
+                          label="Medication already taken"
+                          options={MEDICATION_PRESETS}
+                          selected={priorMeds}
+                          onToggle={(m) => setPriorMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])}
+                          variant="medication"
+                          allowCustom
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Voice / Notes (compact) */}
+                  <CollapsibleSection title="Voice / Additional Notes" icon={Edit3} defaultOpen={false}>
                     <ConsultationInput
                       transcript={transcript}
                       onTranscriptChange={setTranscript}
                       disabled={pipelineRunning}
                     />
-                  </div>
+                  </CollapsibleSection>
                 </ClinicalCard>
               </motion.div>
 
@@ -693,32 +890,56 @@ export default function Clinical() {
                 )}
               </AnimatePresence>
 
-              {/* Generate AI Care Plan */}
-              <motion.div whileTap={{ scale: 0.98 }}>
-                <Button
-                  onClick={runFullPipeline}
-                  disabled={!hasSymptomInput || pipelineRunning}
-                  className="w-full h-11 rounded-xl text-sm font-semibold gap-2"
-                  size="lg"
-                >
-                  {pipelineRunning ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Generating Care Plan…</>
-                  ) : (
-                    <><Sparkles className="h-4 w-4" />Generate AI Care Plan</>
-                  )}
-                </Button>
-              </motion.div>
+              {/* AI Processing Animation */}
+              <AnimatePresence>
+                {pipelineRunning && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="py-8"
+                  >
+                    <ClinicalCard className="border-primary/20">
+                      <div className="flex flex-col items-center justify-center py-6 space-y-4">
+                        <div className="relative">
+                          <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                            <Brain className="h-7 w-7 text-primary" />
+                          </div>
+                          <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                            <Loader2 className="h-2.5 w-2.5 animate-spin text-primary-foreground" />
+                          </div>
+                        </div>
+                        <div className="text-center space-y-1">
+                          <p className="text-sm font-semibold text-foreground">AI analyzing symptoms…</p>
+                          <p className="text-[11px] text-muted-foreground">Building diagnosis, treatment plan, and safety checks</p>
+                        </div>
+                        <div className="flex gap-1">
+                          {[0, 1, 2].map(i => (
+                            <motion.div
+                              key={i}
+                              className="h-1.5 w-1.5 rounded-full bg-primary"
+                              animate={{ opacity: [0.3, 1, 0.3] }}
+                              transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </ClinicalCard>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              {/* ══ AI Care Plan Review ══ */}
+              {/* ══ AI Care Plan Card ══ */}
               <AnimatePresence>
                 {pipelineComplete && hasSoap && (
                   <motion.div
+                    data-care-plan
                     initial={{ opacity: 0, y: 20, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
                   >
-                    <ClinicalCard className="border-primary/20 bg-primary/[0.02]">
+                    <ClinicalCard className="border-primary/20 bg-gradient-to-br from-primary/[0.03] to-transparent">
                       <ClinicalCardHeader
                         title="AI Care Plan"
                         icon={<Brain className="h-4 w-4" />}
@@ -736,26 +957,33 @@ export default function Clinical() {
                         {AI_DRAFT_LABEL}
                       </div>
 
-                      {/* Safety Alerts */}
+                      {/* Inline Safety Alerts */}
                       <AnimatePresence>
                         {safetyResults && safetyAlertCount > 0 && (
                           <motion.div {...fadeIn} className="mb-3 space-y-1.5">
-                            {safetyResults.interaction_flags.map((f, i) => (
-                              <div key={`int-${i}`} className={`p-2 rounded-lg border text-[11px] ${severityColor(f.severity)}`}>
-                                <span className="font-semibold">{f.drug_a} ↔ {f.drug_b}</span>: {f.description}
+                            {safetyResults.allergy_flags.map((f, i) => (
+                              <div key={`alg-${i}`} className="p-2.5 rounded-lg border border-chip-alert-border bg-chip-alert text-[11px] text-chip-alert-text font-medium flex items-center gap-2">
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                {f.message}
                               </div>
                             ))}
-                            {safetyResults.allergy_flags.map((f, i) => (
-                              <div key={`alg-${i}`} className="p-2 rounded-lg border border-chip-alert-border bg-chip-alert text-[11px] text-chip-alert-text font-medium">{f.message}</div>
+                            {safetyResults.interaction_flags.map((f, i) => (
+                              <div key={`int-${i}`} className={`p-2.5 rounded-lg border text-[11px] flex items-center gap-2 ${severityColor(f.severity)}`}>
+                                <Shield className="h-3.5 w-3.5 shrink-0" />
+                                <span><span className="font-semibold">{f.drug_a} ↔ {f.drug_b}</span>: {f.description}</span>
+                              </div>
                             ))}
                             {safetyResults.dose_warnings.map((w, i) => (
-                              <div key={`dose-${i}`} className="p-2 rounded-lg border border-chip-lab-border bg-chip-lab text-[11px] text-chip-lab-text">{w.message}</div>
+                              <div key={`dose-${i}`} className="p-2.5 rounded-lg border border-chip-lab-border bg-chip-lab text-[11px] text-chip-lab-text flex items-center gap-2">
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                {w.message}
+                              </div>
                             ))}
                             {(safetyResults.vitals_dangers || []).map((v, i) => (
-                              <div key={`vit-${i}`} className={`p-2 rounded-lg border text-[11px] ${severityColor(v.severity)}`}>{v.message}</div>
+                              <div key={`vit-${i}`} className={`p-2.5 rounded-lg border text-[11px] ${severityColor(v.severity)}`}>{v.message}</div>
                             ))}
                             {(safetyResults.emergency_patterns || []).map((ep, i) => (
-                              <div key={`em-${i}`} className={`p-2 rounded-lg border text-[11px] ${severityColor(ep.severity)}`}>
+                              <div key={`em-${i}`} className={`p-2.5 rounded-lg border text-[11px] ${severityColor(ep.severity)}`}>
                                 <span className="font-semibold">{ep.pattern}</span>: {ep.message}
                               </div>
                             ))}
@@ -763,14 +991,14 @@ export default function Clinical() {
                         )}
                       </AnimatePresence>
 
-                      {/* SOAP Sections as editable cards */}
+                      {/* SOAP Sections */}
                       <div className="space-y-3">
-                        {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
+                        {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section, idx) => (
                           <motion.div
                             key={section}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.05 * Object.keys(EMPTY_SOAP).indexOf(section) }}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.05 * idx }}
                             className="space-y-1"
                           >
                             <Label className={`text-[11px] font-semibold ${section === "Safety Warnings" ? "text-chip-alert-text" : "text-muted-foreground"}`}>
@@ -786,6 +1014,16 @@ export default function Clinical() {
                         ))}
                       </div>
 
+                      {/* Confidence */}
+                      {safetyResults && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground">Confidence:</span>
+                          <Badge variant="outline" className={`text-[10px] ${safetyResults.confidence_level === 'high' ? 'border-chip-medication-border text-chip-medication-text' : safetyResults.confidence_level === 'moderate' ? 'border-chip-lab-border text-chip-lab-text' : 'border-chip-alert-border text-chip-alert-text'}`}>
+                            {safetyResults.confidence_level}
+                          </Badge>
+                        </div>
+                      )}
+
                       {/* Approve & Save */}
                       <div className="mt-4 pt-4 border-t border-border space-y-3">
                         <div className="flex items-start gap-2">
@@ -795,20 +1033,29 @@ export default function Clinical() {
                           </label>
                         </div>
 
-                        <motion.div whileTap={{ scale: 0.98 }}>
+                        <div className="flex gap-2">
                           <Button
-                            onClick={approveAndSave}
-                            disabled={isSaving || !reviewConfirmed}
-                            className="w-full h-11 rounded-xl text-sm font-semibold gap-2"
-                            size="lg"
+                            variant="outline"
+                            onClick={() => { setPipelineComplete(false); setAutoGenerateTriggered(false); }}
+                            className="flex-1 h-11 rounded-xl text-sm gap-2"
                           >
-                            {isSaving ? (
-                              <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
-                            ) : (
-                              <><CheckCircle className="h-4 w-4" />Approve & Save Consultation</>
-                            )}
+                            <Edit3 className="h-4 w-4" /> Modify
                           </Button>
-                        </motion.div>
+                          <motion.div whileTap={{ scale: 0.98 }} className="flex-[2]">
+                            <Button
+                              onClick={approveAndSave}
+                              disabled={isSaving || !reviewConfirmed}
+                              className="w-full h-11 rounded-xl text-sm font-semibold gap-2"
+                              size="lg"
+                            >
+                              {isSaving ? (
+                                <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+                              ) : (
+                                <><CheckCircle className="h-4 w-4" />Approve & Save</>
+                              )}
+                            </Button>
+                          </motion.div>
+                        </div>
 
                         {savedSessionId && (
                           <motion.div {...fadeIn} className="flex items-center gap-1.5 text-xs text-primary justify-center">
@@ -822,26 +1069,27 @@ export default function Clinical() {
                 )}
               </AnimatePresence>
 
-              {/* Extracted Data (collapsed when care plan is visible) */}
-              {hasExtraction && !pipelineComplete && (
-                <CollapsibleSection title="Extracted Data" icon={Brain} defaultOpen badge={<Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] gap-0.5"><Sparkles className="h-2 w-2" />AI</Badge>}>
-                  <div className="grid grid-cols-2 gap-2 px-0.5">
-                    {([
-                      { key: "chief_complaint" as const, label: "Complaint" },
-                      { key: "duration" as const, label: "Duration" },
-                      { key: "associated_symptoms" as const, label: "Symptoms" },
-                      { key: "vitals" as const, label: "Vitals" },
-                      { key: "chronic_conditions" as const, label: "Conditions" },
-                      { key: "current_medications" as const, label: "Meds" },
-                      { key: "allergies" as const, label: "Allergies" },
-                    ]).map(({ key, label }) => (
-                      <div key={key} className={key === "chief_complaint" ? "col-span-2" : ""}>
-                        <Label className="text-[10px] text-muted-foreground">{label}</Label>
-                        <Input value={extractedData[key]} onChange={e => updateExtractedField(key, e.target.value)} className="h-8 text-xs rounded-lg" />
-                      </div>
-                    ))}
-                  </div>
-                </CollapsibleSection>
+              {/* Consultation Timeline / Audit Log */}
+              {(pipelineComplete || savedSessionId) && (
+                <motion.div {...fadeIn}>
+                  <ClinicalCard className="p-3">
+                    <ClinicalCardHeader title="Consultation Timeline" icon={<Clock className="h-3.5 w-3.5" />} />
+                    <div className="space-y-2">
+                      {[
+                        { time: new Date(sessionStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), label: "Session started", done: true },
+                        { time: "", label: "Patient selected", done: !!selectedPatient },
+                        { time: "", label: `${selectedSymptoms.length} symptom(s) selected`, done: selectedSymptoms.length > 0 },
+                        { time: "", label: "AI care plan generated", done: pipelineComplete },
+                        { time: "", label: "Consultation saved", done: !!savedSessionId },
+                      ].map((step, i) => (
+                        <div key={i} className="flex items-center gap-2.5">
+                          <div className={`h-2 w-2 rounded-full shrink-0 ${step.done ? 'bg-primary' : 'bg-border'}`} />
+                          <span className={`text-[11px] ${step.done ? 'text-foreground' : 'text-muted-foreground/50'}`}>{step.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </ClinicalCard>
+                </motion.div>
               )}
 
               {/* Patient Explanation */}
@@ -866,39 +1114,107 @@ export default function Clinical() {
 
               {/* Empty state */}
               {!hasSoap && !pipelineRunning && !hasExtraction && selectedSymptoms.length === 0 && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex flex-col items-center justify-center py-16 text-center"
-                >
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="h-16 w-16 rounded-2xl bg-primary/5 flex items-center justify-center mb-4">
                     <Sparkles className="h-8 w-8 text-primary/20" />
                   </div>
                   <p className="text-sm text-muted-foreground max-w-xs">
-                    Select symptoms above or record notes, then generate an AI care plan.
+                    Select symptoms above to build a clinical context. AI will auto-generate a care plan.
                   </p>
-                  <p className="text-[11px] text-muted-foreground/60 mt-1">
-                    Press <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono mx-0.5">⌘K</kbd> to search patients & medications
+                  <p className="text-[11px] text-muted-foreground/60 mt-2">
+                    Press <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono mx-0.5">⌘K</kbd> to search patients, drugs & labs
                   </p>
                 </motion.div>
               )}
             </div>
           </div>
 
-          {/* ═══ RIGHT: AI Copilot ═══ */}
+          {/* ═══ RIGHT: AI Copilot (Active Thinking Assistant) ═══ */}
           <div className="overflow-y-auto border-l border-border bg-card/30 max-lg:border-t">
             <div className="p-3 space-y-3">
 
               {/* AI Copilot Header */}
               <div className="flex items-center gap-2 px-1">
-                <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center">
+                <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center relative">
                   <Zap className="h-3.5 w-3.5 text-primary" />
+                  <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-chip-medication-text animate-pulse" />
                 </div>
                 <span className="text-xs font-semibold text-foreground">AI Copilot</span>
-                <Badge variant="outline" className="text-[9px] ml-auto">Live</Badge>
+                <Badge className="bg-chip-medication border-chip-medication-border text-chip-medication-text text-[9px] ml-auto">Active</Badge>
               </div>
 
-              {/* Smart Suggestions */}
+              {/* AI Detected Context */}
+              {selectedSymptoms.length > 0 && (
+                <motion.div {...fadeIn}>
+                  <ClinicalCard className="p-3 border-primary/15 bg-primary/[0.02]">
+                    <p className="text-[10px] font-semibold text-primary uppercase tracking-widest mb-2 flex items-center gap-1">
+                      <Brain className="h-3 w-3" /> AI Detected
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedSymptoms.map(s => (
+                        <Chip key={s} variant="symptom" size="sm">{s}</Chip>
+                      ))}
+                    </div>
+
+                    {/* Quick diagnosis suggestions based on symptoms */}
+                    {selectedSymptoms.includes("Fever") && (
+                      <div className="mt-3 pt-2 border-t border-border">
+                        <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">Possible Diagnosis</p>
+                        <div className="flex flex-wrap gap-1">
+                          {["Viral Fever", "Dengue", "Malaria", "Typhoid"].map(d => (
+                            <Chip key={d} variant="diagnosis" size="sm" onClick={() => toggleSymptom(d)}>{d}</Chip>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Suggested tests */}
+                    <div className="mt-3 pt-2 border-t border-border">
+                      <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">Suggested Tests</p>
+                      <div className="flex flex-wrap gap-1">
+                        {["CBC", "Dengue NS1", "Malaria Antigen", "Widal"].filter((_, i) => i < (selectedSymptoms.length > 2 ? 4 : 2)).map(t => (
+                          <Chip key={t} variant="lab" size="sm" addable onClick={() => toast({ title: `+ ${t}`, description: "Added to lab orders" })}>{t}</Chip>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Suggested treatment */}
+                    {contextualRx.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-border">
+                        <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">Suggested Treatment</p>
+                        <div className="flex flex-wrap gap-1">
+                          {contextualRx.slice(0, 3).map((rx, i) => (
+                            <Chip
+                              key={i}
+                              variant="medication"
+                              size="sm"
+                              addable
+                              onClick={() => {
+                                setPendingRxFromSuggestions(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur }]);
+                                toast({ title: `+ ${rx.drug}`, description: `${rx.dose} · ${rx.freq} · ${rx.dur}` });
+                              }}
+                            >
+                              {rx.drug} {rx.dose}
+                            </Chip>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Advice */}
+                    <div className="mt-3 pt-2 border-t border-border">
+                      <p className="text-[10px] font-semibold text-muted-foreground mb-1.5">Advice</p>
+                      <div className="flex flex-wrap gap-1">
+                        {["Hydration", "Rest", "Monitor temperature"].map(a => (
+                          <Chip key={a} variant="neutral" size="sm">{a}</Chip>
+                        ))}
+                      </div>
+                    </div>
+                  </ClinicalCard>
+                </motion.div>
+              )}
+
+              {/* Smart Suggestions (from AI backend) */}
               <SmartSuggestionsPanel
                 chiefComplaint={extractedData.chief_complaint}
                 duration={extractedData.duration || ""}
@@ -916,16 +1232,14 @@ export default function Clinical() {
                   setPendingRxFromSuggestions(prev => [...prev, { drug_name: rx.drug_name, dose: rx.dose, frequency: rx.frequency, duration: rx.duration }]);
                   toast({ title: `+ ${rx.drug_name}`, description: `${rx.dose} · ${rx.frequency}` });
                 }}
-                onAddLabTest={(testName) => {
-                  toast({ title: `+ ${testName}`, description: "Added to lab orders" });
-                }}
+                onAddLabTest={(testName) => toast({ title: `+ ${testName}`, description: "Added to lab orders" })}
                 onInsertText={(text) => {
                   setTranscript(prev => prev ? `${prev}\n${text}` : text);
                   toast({ title: "Inserted", description: text.slice(0, 50) + "…" });
                 }}
               />
 
-              {/* Quick Rx */}
+              {/* Quick Rx with Favorites */}
               <CollapsibleSection title="Quick Rx" icon={Pill} defaultOpen>
                 <div className="px-0.5">
                   <DoctorFavoritesPanel
@@ -938,7 +1252,7 @@ export default function Clinical() {
               </CollapsibleSection>
 
               {/* Prescriptions */}
-              <CollapsibleSection title="Prescriptions" icon={Pill} defaultOpen>
+              <CollapsibleSection title="Prescriptions" icon={Pill}>
                 <div className="px-0.5">
                   <InlinePrescriptionBuilder
                     patientId={selectedPatient?.id || null}
@@ -950,7 +1264,7 @@ export default function Clinical() {
               </CollapsibleSection>
 
               {/* Lab Orders */}
-              <CollapsibleSection title="Lab Orders" icon={FlaskConical} defaultOpen>
+              <CollapsibleSection title="Quick Labs" icon={FlaskConical}>
                 <div className="px-0.5">
                   <InlineLabOrders
                     patientId={selectedPatient?.id || null}
@@ -986,7 +1300,7 @@ export default function Clinical() {
 
         {/* ═══ FLOATING BOTTOM ACTION BAR ═══ */}
         <AnimatePresence>
-          {(hasSymptomInput || pipelineComplete) && !savedSessionId && (
+          {(hasSymptomInput && !pipelineComplete && !pipelineRunning && !savedSessionId) && (
             <motion.div
               initial={{ y: 80, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -994,44 +1308,44 @@ export default function Clinical() {
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
               className="fixed bottom-0 left-0 lg:left-56 right-0 z-30 bg-card/95 backdrop-blur-md border-t border-border px-4 py-3 flex items-center justify-center gap-3"
             >
-              {!pipelineComplete ? (
-                <Button
-                  onClick={runFullPipeline}
-                  disabled={!hasSymptomInput || pipelineRunning}
-                  className="h-10 rounded-xl text-sm font-semibold gap-2 px-8"
-                  size="lg"
-                >
-                  {pipelineRunning ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Processing…</>
-                  ) : (
-                    <><Sparkles className="h-4 w-4" />Generate AI Care Plan</>
-                  )}
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      document.querySelector('[data-care-plan]')?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="h-10 rounded-xl text-sm gap-2"
-                  >
-                    <Eye className="h-4 w-4" /> Review Plan
-                  </Button>
-                  <Button
-                    onClick={approveAndSave}
-                    disabled={isSaving || !reviewConfirmed}
-                    className="h-10 rounded-xl text-sm font-semibold gap-2 px-8"
-                    size="lg"
-                  >
-                    {isSaving ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
-                    ) : (
-                      <><CheckCircle className="h-4 w-4" />Finalize Consultation</>
-                    )}
-                  </Button>
-                </>
-              )}
+              <Button
+                onClick={runFullPipeline}
+                disabled={!hasSymptomInput || pipelineRunning}
+                className="h-10 rounded-xl text-sm font-semibold gap-2 px-8"
+                size="lg"
+              >
+                <Sparkles className="h-4 w-4" /> Generate AI Care Plan
+              </Button>
+            </motion.div>
+          )}
+
+          {pipelineComplete && !savedSessionId && (
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="fixed bottom-0 left-0 lg:left-56 right-0 z-30 bg-card/95 backdrop-blur-md border-t border-border px-4 py-3 flex items-center justify-center gap-3"
+            >
+              <Button
+                variant="outline"
+                onClick={() => document.querySelector('[data-care-plan]')?.scrollIntoView({ behavior: 'smooth' })}
+                className="h-10 rounded-xl text-sm gap-2"
+              >
+                <Eye className="h-4 w-4" /> Review Plan
+              </Button>
+              <Button
+                onClick={approveAndSave}
+                disabled={isSaving || !reviewConfirmed}
+                className="h-10 rounded-xl text-sm font-semibold gap-2 px-8"
+                size="lg"
+              >
+                {isSaving ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+                ) : (
+                  <><CheckCircle className="h-4 w-4" />Finalize Consultation</>
+                )}
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>
