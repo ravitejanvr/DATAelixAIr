@@ -18,7 +18,54 @@ import { fetchMonitoringDashboard } from "@/layers/monitoring/api";
 import { MODEL_REGISTRY, DATA_ACCESS_MATRIX, ROLE_LABELS } from "@/layers/governance/api";
 import type { AppRole } from "@/layers/governance/api";
 
-export default function PlatformAdmin() {
+function UserApprovalCard({ user: u, clinics, onAction }: {
+  user: any;
+  clinics: any[];
+  onAction: (userId: string, action: "approve" | "reject", clinicId?: string) => Promise<void>;
+}) {
+  const [selectedClinic, setSelectedClinic] = useState<string>("");
+  const [acting, setActing] = useState(false);
+  const roles = (u.user_roles as any[])?.map((r: any) => r.role) || [];
+
+  return (
+    <Card className="border-amber-200 dark:border-amber-800">
+      <CardContent className="py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <p className="text-sm font-medium">{u.full_name || "—"}</p>
+            <p className="text-[10px] text-muted-foreground">{u.phone || "No phone"} · Registered {new Date(u.created_at).toLocaleDateString()}</p>
+            <div className="flex gap-1 mt-1">
+              {roles.map((r: string, i: number) => (
+                <Badge key={i} variant="outline" className="text-[9px]">{r}</Badge>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Select value={selectedClinic} onValueChange={setSelectedClinic}>
+              <SelectTrigger className="h-8 text-xs w-[160px]">
+                <SelectValue placeholder="Assign clinic…" />
+              </SelectTrigger>
+              <SelectContent>
+                {clinics.filter(c => c.status === "active").map(c => (
+                  <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" className="h-8 text-xs" disabled={!selectedClinic || acting}
+              onClick={async () => { setActing(true); await onAction(u.user_id, "approve", selectedClinic); setActing(false); }}>
+              <UserCheck className="h-3 w-3 mr-1" /> Approve
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs text-destructive" disabled={acting}
+              onClick={async () => { setActing(true); await onAction(u.user_id, "reject"); setActing(false); }}>
+              <UserX className="h-3 w-3 mr-1" /> Reject
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
   const { user } = useAuth();
   const { toast } = useToast();
   const [pilots, setPilots] = useState<any[]>([]);
