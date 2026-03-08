@@ -1055,29 +1055,29 @@ export default function Clinical() {
 
               {/* Final Review */}
               {(selectedDiagnoses.length > 0 || pendingRxFromSuggestions.length > 0 || selectedTests.length > 0 || hasSymptomInput) && (
-                <ClinicalCard className="p-2 border-primary/15 bg-gradient-to-br from-chip-medication/20 to-transparent">
-                  <ClinicalCardHeader title="Final Review" icon={<ClipboardCheck className="h-3 w-3" />} />
+                <ClinicalCard className="p-3 border-primary/15 bg-gradient-to-br from-chip-medication/20 to-transparent">
+                  <ClinicalCardHeader title="Final Review" icon={<ClipboardCheck className="h-3.5 w-3.5" />} />
 
                   {selectedDiagnoses.length > 0 && (
-                    <div className="mb-1.5">
-                      <p className="text-[8px] font-semibold text-muted-foreground uppercase mb-0.5">Diagnosis</p>
-                      <div className="flex flex-wrap gap-0.5">
+                    <div className="mb-2">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Diagnosis</p>
+                      <div className="flex flex-wrap gap-1">
                         {selectedDiagnoses.map(d => <Chip key={d} variant="diagnosis" selected removable onRemove={() => toggleDiagnosis(d)}>{d}</Chip>)}
                       </div>
                     </div>
                   )}
 
                   {pendingRxFromSuggestions.length > 0 && (
-                    <div className="mb-1.5">
-                      <p className="text-[8px] font-semibold text-muted-foreground uppercase mb-0.5">Prescription</p>
-                      <div className="space-y-0.5">
+                    <div className="mb-2">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Prescription</p>
+                      <div className="space-y-1">
                         {pendingRxFromSuggestions.map((rx, i) => (
-                          <div key={i} className="flex items-center gap-1 p-1 rounded bg-muted/30 border border-border/50">
-                            <Pill className="h-2 w-2 text-chip-medication-text shrink-0" />
-                            <span className="text-[10px] font-medium text-foreground">{rx.drug_name}</span>
-                            <span className="text-[8px] text-muted-foreground">{rx.dose}·{rx.frequency}·{rx.duration}</span>
+                          <div key={i} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-muted/30 border border-border/50">
+                            <Pill className="h-3 w-3 text-chip-medication-text shrink-0" />
+                            <span className="text-xs font-medium text-foreground">{rx.drug_name}</span>
+                            <span className="text-[10px] text-muted-foreground">{rx.dose} · {rx.frequency} · {rx.duration}</span>
                             <button onClick={() => setPendingRxFromSuggestions(prev => prev.filter((_, idx) => idx !== i))} className="ml-auto text-muted-foreground hover:text-destructive">
-                              <XCircle className="h-2 w-2" />
+                              <XCircle className="h-3 w-3" />
                             </button>
                           </div>
                         ))}
@@ -1086,45 +1086,45 @@ export default function Clinical() {
                   )}
 
                   {selectedTests.length > 0 && (
-                    <div className="mb-1.5">
-                      <p className="text-[8px] font-semibold text-muted-foreground uppercase mb-0.5">Lab Orders</p>
-                      <div className="flex flex-wrap gap-0.5">
+                    <div className="mb-2">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Lab Orders</p>
+                      <div className="flex flex-wrap gap-1">
                         {selectedTests.map(t => <Chip key={t} variant="lab" selected removable onRemove={() => toggleTest(t)}>{t}</Chip>)}
                       </div>
                     </div>
                   )}
 
-                  <div className="mb-1.5">
+                  <div className="mb-2">
                     <FollowUpPanel followUpDate={followUpDate} onFollowUpDateChange={setFollowUpDate} followUpNotes={followUpNotes} onFollowUpNotesChange={setFollowUpNotes} />
                   </div>
 
                   {/* Validate + Finalize */}
-                  <div className="pt-1.5 border-t border-border space-y-1.5">
+                  <div className="pt-2 border-t border-border space-y-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full h-7 text-[10px] gap-1"
+                      className="w-full h-8 text-xs gap-1.5"
                       onClick={runValidation}
                       disabled={isValidating}
                     >
                       {isValidating ? (
-                        <><Loader2 className="h-2.5 w-2.5 animate-spin" /> Validating…</>
+                        <><Loader2 className="h-3 w-3 animate-spin" /> Validating…</>
                       ) : validationComplete ? (
-                        <><CheckCircle className="h-2.5 w-2.5 text-primary" /> Validated {safetyAlertCount > 0 ? `(${safetyAlertCount} alerts)` : "✓"}</>
+                        <><CheckCircle className="h-3 w-3 text-primary" /> Validated {safetyAlertCount > 0 ? `(${safetyAlertCount} alerts)` : "✓"}</>
                       ) : (
-                        <><ShieldCheck className="h-2.5 w-2.5" /> Validate</>
+                        <><ShieldCheck className="h-3 w-3" /> Validate</>
                       )}
                     </Button>
 
-                    <div className="flex items-start gap-1">
-                      <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} className="mt-0.5 h-3 w-3" />
-                      <label htmlFor="final-review" className="text-[9px] text-muted-foreground cursor-pointer select-none leading-relaxed">
+                    <div className="flex items-start gap-1.5">
+                      <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} className="mt-0.5 h-3.5 w-3.5" />
+                      <label htmlFor="final-review" className="text-xs text-muted-foreground cursor-pointer select-none leading-relaxed">
                         I have reviewed the consultation summary, prescriptions, and safety alerts.
                       </label>
                     </div>
 
-                    <Button onClick={approveAndSave} disabled={isSaving || isFinalizingConsultation || !reviewConfirmed} className="w-full h-8 rounded-xl text-[10px] font-semibold gap-1">
-                      {(isSaving || isFinalizingConsultation) ? <><Loader2 className="h-3 w-3 animate-spin" />Finalizing…</> : <><CheckCircle className="h-3 w-3" />Finalize & Send</>}
+                    <Button onClick={approveAndSave} disabled={isSaving || isFinalizingConsultation || !reviewConfirmed} className="w-full h-9 rounded-xl text-xs font-semibold gap-1.5">
+                      {(isSaving || isFinalizingConsultation) ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Finalizing…</> : <><CheckCircle className="h-3.5 w-3.5" />Finalize & Send</>}
                     </Button>
                   </div>
                 </ClinicalCard>
