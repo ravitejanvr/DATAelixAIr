@@ -142,6 +142,7 @@ const App = () => (
               <Route path="/onboard" element={<Onboard />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
               <Route path="/awaiting-approval" element={<AwaitingApproval />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Patient self-intake & QR registration (public, no auth) */}
               <Route path="/patient-intake/:visitId" element={<PatientSelfIntake />} />
