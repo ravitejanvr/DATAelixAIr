@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import SEO from "@/components/SEO";
@@ -23,11 +22,13 @@ import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import DoctorIntakeReview from "@/components/DoctorIntakeReview";
 import SmartSuggestionsPanel from "@/components/SmartSuggestionsPanel";
 import ClinicalContextPanel from "@/components/ClinicalContextPanel";
+import CollapsibleSection from "@/components/clinical/CollapsibleSection";
+import FollowUpPanel from "@/components/clinical/FollowUpPanel";
 import {
-  Loader2, Save, ChevronDown, ChevronRight, FileText,
+  Loader2, Save, FileText,
   Edit3, ShieldCheck, AlertTriangle, XCircle, CheckCircle,
   Languages, HeartPulse, Pill, FlaskConical, User,
-  Sparkles, RotateCcw, Clock, ClipboardCheck, Brain
+  Sparkles, RotateCcw, Clock, ClipboardCheck, Brain, CalendarDays
 } from "lucide-react";
 import type { ExtractedData, SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_EXTRACTED, EMPTY_SOAP } from "@/layers/ai-agents/api";
@@ -46,27 +47,6 @@ import {
   emitSessionCompletedMetric,
 } from "@/layers/monitoring/api";
 import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext } from "@/lib/clinical-context";
-
-/* ── Compact collapsible section ── */
-function Section({ title, icon: Icon, badge, defaultOpen = false, children, className = "" }: {
-  title: string; icon: React.ElementType; badge?: React.ReactNode;
-  defaultOpen?: boolean; children: React.ReactNode; className?: string;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger asChild>
-        <button className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card hover:bg-muted/50 transition-colors text-left ${className}`}>
-          <Icon className="h-3 w-3 text-primary shrink-0" />
-          <span className="text-[11px] font-semibold text-foreground flex-1">{title}</span>
-          {badge}
-          {open ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-1">{children}</CollapsibleContent>
-    </Collapsible>
-  );
-}
 
 export default function Clinical() {
   const { user } = useAuth();
@@ -110,6 +90,10 @@ export default function Clinical() {
   const [explanationLang, setExplanationLang] = useState<"english" | "telugu">("telugu");
   const [isGeneratingExplanation, setIsGeneratingExplanation] = useState(false);
 
+  // Follow-up
+  const [followUpDate, setFollowUpDate] = useState("");
+  const [followUpNotes, setFollowUpNotes] = useState("");
+
   // Session management
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
   const [pendingRxFromSuggestions, setPendingRxFromSuggestions] = useState<{ drug_name: string; dose: string; frequency: string; duration: string }[]>([]);
@@ -121,9 +105,6 @@ export default function Clinical() {
   // Clinical Context
   const [clinicalContext, setClinicalContext] = useState<ClinicalContext>(EMPTY_CLINICAL_CONTEXT);
   const [patientVitals, setPatientVitals] = useState<any>(null);
-
-  // Left panel collapse
-  const [contextCollapsed, setContextCollapsed] = useState(false);
 
   // Learning baselines
   const [aiExtractedBaseline, setAiExtractedBaseline] = useState<ExtractedData>(EMPTY_EXTRACTED);
@@ -249,7 +230,6 @@ export default function Clinical() {
       t3.stop(true);
       emitSafetyAlertMetric({ interactions: safetyData?.interaction_flags?.length || 0, allergies: safetyData?.allergy_flags?.length || 0, dose_warnings: safetyData?.dose_warnings?.length || 0, vitals_dangers: safetyData?.vitals_dangers?.length || 0, emergency_patterns: safetyData?.emergency_patterns?.length || 0 });
 
-      // Context gate: block SOAP if safety says context incomplete
       if (safetyResult.ai_suggestions_blocked) {
         toast({ title: "Incomplete Clinical Context", description: "Please fill required fields (age, sex, chief complaint) before generating AI notes.", variant: "destructive" });
         setPipelineRunning(false); setIsRunningSafety(false); return;
@@ -260,7 +240,7 @@ export default function Clinical() {
     }
     setIsRunningSafety(false);
 
-    // 4. Generate SOAP — with clinical context
+    // 4. Generate SOAP
     setIsGeneratingSoap(true);
     const t4 = startPipelineTimer("documentation");
     try {
@@ -283,6 +263,8 @@ export default function Clinical() {
         "Follow-up": data.sections?.["Follow-up"] || "",
       };
       setSoapSections(sections); setAiSoapBaseline({ ...sections }); t4.stop(true);
+      // Auto-populate follow-up notes from AI
+      if (sections["Follow-up"]) setFollowUpNotes(prev => prev || sections["Follow-up"]);
     } catch (err: any) {
       toast({ title: "Summary generation failed", description: err.message, variant: "destructive" }); t4.stop(false);
     }
@@ -341,7 +323,8 @@ export default function Clinical() {
         edited_transcript: transcript, extracted_data: extractedData as any, ai_summary: editedSoapText,
         soap_subjective: soapSections["Visit Summary"], soap_objective: soapSections["Findings"],
         soap_assessment: soapSections["Provisional Diagnosis"],
-        soap_plan: `${soapSections["Treatment Plan"]}\n\n${soapSections["Advice"]}\n\n${soapSections["Follow-up"]}`,
+        soap_plan: `${soapSections["Treatment Plan"]}\n\n${soapSections["Advice"]}\n\n${followUpNotes}`,
+        follow_up_date: followUpDate || null,
         status: "completed",
         safety_flags: safetyResults ? [...safetyResults.interaction_flags, ...safetyResults.allergy_flags, ...safetyResults.dose_warnings] : [],
         normalization_results: safetyResults?.normalized_drugs || [],
@@ -356,7 +339,7 @@ export default function Clinical() {
       const soapWasEdited = JSON.stringify(aiSoapBaseline) !== JSON.stringify(soapSections);
       const safetyAlertsCount = safetyResults ? (safetyResults.interaction_flags.length + safetyResults.allergy_flags.length + safetyResults.dose_warnings.length + safetyResults.vitals_dangers.length + safetyResults.emergency_patterns.length) : 0;
 
-      logAuditEvent({ actor_id: user.id, event_type: "session_completed", target_type: "consultation", target_id: consultData.id, metadata: { transcript_edited: transcriptWasEdited, extraction_corrected: extractionWasCorrected, soap_edited: soapWasEdited, safety_alerts_count: safetyAlertsCount, model_version: "gemini-3-flash-preview", duration_ms: Math.round(performance.now() - sessionStartTime) } });
+      logAuditEvent({ actor_id: user.id, event_type: "session_completed", target_type: "consultation", target_id: consultData.id, metadata: { transcript_edited: transcriptWasEdited, extraction_corrected: extractionWasCorrected, soap_edited: soapWasEdited, safety_alerts_count: safetyAlertsCount, follow_up_date: followUpDate || null, model_version: "gemini-3-flash-preview", duration_ms: Math.round(performance.now() - sessionStartTime) } });
       if (transcriptWasEdited) logAuditEvent({ actor_id: user.id, event_type: "ai_output_edited", target_type: "transcript", target_id: consultData.id, metadata: { stage: "transcript" } });
       if (extractionWasCorrected) logAuditEvent({ actor_id: user.id, event_type: "ai_output_edited", target_type: "extraction", target_id: consultData.id, metadata: { stage: "extraction" } });
       if (soapWasEdited) logAuditEvent({ actor_id: user.id, event_type: "ai_output_edited", target_type: "soap", target_id: consultData.id, metadata: { stage: "soap" } });
@@ -377,6 +360,7 @@ export default function Clinical() {
     setNormalizationResults([]); setDetectedLanguages([]); setSelectedPatient(null);
     setIntakeData(null); setVisitId(null); setIntakeApproved(false);
     setClinicalContext(EMPTY_CLINICAL_CONTEXT); setPatientVitals(null);
+    setFollowUpDate(""); setFollowUpNotes("");
   };
 
   const generatePatientExplanation = async () => {
@@ -400,6 +384,7 @@ export default function Clinical() {
     { label: "Patient", ok: !!selectedPatient },
     { label: "Notes", ok: hasTranscript },
     { label: "AI Summary", ok: hasSoap },
+    { label: "Rx", ok: pendingRxFromSuggestions.length > 0 },
     { label: "Reviewed", ok: reviewConfirmed },
   ];
 
@@ -414,10 +399,9 @@ export default function Clinical() {
           <div className="flex items-center gap-3">
             <h1 className="text-sm font-bold text-foreground tracking-tight flex items-center gap-1.5">
               <FileText className="h-4 w-4 text-primary" />
-              Clinical Pad
+              <span className="hidden sm:inline">Clinical Pad</span>
             </h1>
 
-            {/* Pipeline progress */}
             {isProcessing && (
               <div className="flex items-center gap-1.5 text-[11px] text-primary animate-pulse">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -428,7 +412,6 @@ export default function Clinical() {
               </div>
             )}
 
-            {/* Safety badge */}
             {safetyResults && safetyAlertCount > 0 && (
               <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[9px] gap-0.5">
                 <AlertTriangle className="h-2.5 w-2.5" /> {safetyAlertCount} alert{safetyAlertCount > 1 ? "s" : ""}
@@ -437,8 +420,8 @@ export default function Clinical() {
           </div>
 
           <div className="flex items-center gap-1.5">
-            {/* Checklist mini */}
-            <div className="hidden lg:flex items-center gap-1.5 mr-2">
+            {/* Checklist */}
+            <div className="hidden md:flex items-center gap-1.5 mr-2">
               {checklistItems.map(item => (
                 <div key={item.label} className="flex items-center gap-0.5 text-[9px]">
                   {item.ok ? <CheckCircle className="h-2.5 w-2.5 text-emerald-500" /> : <XCircle className="h-2.5 w-2.5 text-muted-foreground/30" />}
@@ -456,13 +439,12 @@ export default function Clinical() {
           </div>
         </div>
 
-        {/* ── 3-Column Clinical Pad Layout ── */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[280px_1fr_320px] gap-0">
+        {/* ── 3-Column Layout (desktop) / Single scroll (mobile) ── */}
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[260px_1fr_300px]">
 
           {/* ═══ LEFT: Patient Context ═══ */}
-          <div className={`overflow-y-auto border-r border-border bg-card/50 transition-all ${contextCollapsed ? "lg:col-span-0 lg:w-0 hidden lg:block lg:!w-10" : ""}`}>
+          <div className="overflow-y-auto border-r border-border bg-card/50 max-lg:border-b max-lg:max-h-[40vh]">
             <div className="p-2.5 space-y-2">
-              {/* Patient selector — compact */}
               <div>
                 <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1">
                   <User className="h-2.5 w-2.5" /> Patient
@@ -470,18 +452,15 @@ export default function Clinical() {
                 <PatientSelector selected={selectedPatient} onSelect={setSelectedPatient} />
               </div>
 
-              {/* Clinical Context Panel */}
               <ClinicalContextPanel
                 context={clinicalContext}
                 onUpdate={(field, value) => setClinicalContext(prev => ({ ...prev, [field]: value }))}
               />
 
-              {/* Vitals */}
-              <Section title="Vitals" icon={HeartPulse} defaultOpen={!!selectedPatient}>
+              <CollapsibleSection title="Vitals" icon={HeartPulse} defaultOpen={!!selectedPatient}>
                 <InlineVitals patientId={selectedPatient?.id || null} />
-              </Section>
+              </CollapsibleSection>
 
-              {/* Intake Review */}
               <DoctorIntakeReview
                 patientId={selectedPatient?.id || null}
                 visitId={visitId}
@@ -498,18 +477,17 @@ export default function Clinical() {
                 }}
               />
 
-              {/* Visit Timeline */}
-              <Section title="Visit History" icon={Clock}>
+              <CollapsibleSection title="Visit History" icon={Clock}>
                 <VisitTimeline patientId={selectedPatient?.id || null} />
-              </Section>
+              </CollapsibleSection>
             </div>
           </div>
 
-          {/* ═══ CENTER: Clinical Pad (primary) ═══ */}
+          {/* ═══ CENTER: Clinical Pad ═══ */}
           <div className="overflow-y-auto flex flex-col">
             <div className="flex-1 p-3 space-y-2">
 
-              {/* Main consultation input — LARGE and primary */}
+              {/* Main consultation input */}
               <ConsultationInput
                 transcript={transcript}
                 onTranscriptChange={setTranscript}
@@ -537,7 +515,7 @@ export default function Clinical() {
                 </div>
               )}
 
-              {/* Run Pipeline + Extracted Data (inline, not collapsible by default) */}
+              {/* Run Pipeline */}
               <div className="flex gap-2">
                 <Button onClick={runFullPipeline} disabled={!hasTranscript || pipelineRunning} className="flex-1 h-9" size="sm">
                   {pipelineRunning ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Processing…</> : <><Sparkles className="h-3.5 w-3.5 mr-1.5" />Run AI Pipeline</>}
@@ -549,9 +527,9 @@ export default function Clinical() {
                 )}
               </div>
 
-              {/* Extracted Data — compact inline */}
+              {/* Extracted Data */}
               {hasExtraction && (
-                <Section title="Extracted Data" icon={Brain} defaultOpen badge={<Badge variant="outline" className="text-[8px] gap-0.5"><Sparkles className="h-2 w-2" />AI</Badge>}>
+                <CollapsibleSection title="Extracted Data" icon={Brain} defaultOpen badge={<Badge variant="outline" className="text-[8px] gap-0.5"><Sparkles className="h-2 w-2" />AI</Badge>}>
                   <div className="grid grid-cols-2 gap-1.5 px-0.5">
                     {([
                       { key: "chief_complaint" as const, label: "Complaint" },
@@ -568,12 +546,12 @@ export default function Clinical() {
                       </div>
                     ))}
                   </div>
-                </Section>
+                </CollapsibleSection>
               )}
 
-              {/* Safety Alerts — inline */}
+              {/* Safety Alerts */}
               {safetyResults && safetyAlertCount > 0 && (
-                <Section title="Safety Alerts" icon={ShieldCheck} defaultOpen
+                <CollapsibleSection title="Safety Alerts" icon={ShieldCheck} defaultOpen
                   badge={<Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[8px]">{safetyAlertCount}</Badge>}>
                   <div className="space-y-1 px-0.5">
                     {safetyResults.interaction_flags.map((f, i) => (
@@ -596,12 +574,12 @@ export default function Clinical() {
                       </div>
                     ))}
                   </div>
-                </Section>
+                </CollapsibleSection>
               )}
 
               {/* Context Completeness Warnings */}
               {safetyResults?.context_completeness && !safetyResults.context_completeness.context_complete && (
-                <Section title="Missing Context" icon={AlertTriangle} defaultOpen
+                <CollapsibleSection title="Missing Context" icon={AlertTriangle} defaultOpen
                   badge={<Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[8px]">Action Required</Badge>}>
                   <div className="space-y-1 px-0.5">
                     {safetyResults.context_completeness.issues.map((issue, i) => (
@@ -610,12 +588,12 @@ export default function Clinical() {
                       </div>
                     ))}
                   </div>
-                </Section>
+                </CollapsibleSection>
               )}
 
-              {/* SOAP Draft — editable with AI Draft label */}
+              {/* SOAP Draft */}
               {hasSoap && (
-                <Section title="AI Clinical Summary" icon={Edit3} defaultOpen
+                <CollapsibleSection title="AI Clinical Summary" icon={Edit3} defaultOpen
                   badge={<Badge variant="outline" className="text-[8px] gap-0.5"><Sparkles className="h-2 w-2" />Draft</Badge>}>
                   <div className="px-0.5">
                     <div className="mb-1.5 px-2 py-1 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[9px] text-amber-700 dark:text-amber-400 font-medium">
@@ -632,12 +610,12 @@ export default function Clinical() {
                       ))}
                     </div>
                   </div>
-                </Section>
+                </CollapsibleSection>
               )}
 
               {/* Patient Explanation */}
               {hasSoap && (
-                <Section title="Patient Explanation" icon={Languages} badge={<Badge variant="outline" className="text-[8px]">Optional</Badge>}>
+                <CollapsibleSection title="Patient Explanation" icon={Languages} badge={<Badge variant="outline" className="text-[8px]">Optional</Badge>}>
                   <div className="space-y-1.5 px-0.5">
                     <div className="flex items-center gap-1.5">
                       <select value={explanationLang} onChange={e => setExplanationLang(e.target.value as "english" | "telugu")} className="text-[10px] border border-border rounded px-1.5 py-0.5 bg-background">
@@ -652,7 +630,7 @@ export default function Clinical() {
                       <div className="p-2 rounded-md border border-primary/20 bg-primary/5 text-[11px] whitespace-pre-wrap">{patientExplanation}</div>
                     )}
                   </div>
-                </Section>
+                </CollapsibleSection>
               )}
 
               {/* Empty state */}
@@ -665,8 +643,8 @@ export default function Clinical() {
             </div>
           </div>
 
-          {/* ═══ RIGHT: Rx + Labs + Suggestions + Save ═══ */}
-          <div className="overflow-y-auto border-l border-border bg-card/30">
+          {/* ═══ RIGHT: Orders + Save ═══ */}
+          <div className="overflow-y-auto border-l border-border bg-card/30 max-lg:border-t">
             <div className="p-2.5 space-y-2">
 
               {/* Smart Suggestions */}
@@ -697,7 +675,7 @@ export default function Clinical() {
               />
 
               {/* Doctor Favorites + Recent Rx */}
-              <Section title="Quick Rx" icon={Pill} defaultOpen>
+              <CollapsibleSection title="Quick Rx" icon={Pill} defaultOpen>
                 <div className="px-0.5">
                   <DoctorFavoritesPanel
                     onSelectDrug={(drug) => {
@@ -706,10 +684,10 @@ export default function Clinical() {
                     }}
                   />
                 </div>
-              </Section>
+              </CollapsibleSection>
 
-              {/* Prescriptions — always visible */}
-              <Section title="Prescriptions" icon={Pill} defaultOpen>
+              {/* Prescriptions */}
+              <CollapsibleSection title="Prescriptions" icon={Pill} defaultOpen>
                 <div className="px-0.5">
                   <InlinePrescriptionBuilder
                     patientId={selectedPatient?.id || null}
@@ -718,10 +696,10 @@ export default function Clinical() {
                     externalDrugs={pendingRxFromSuggestions}
                   />
                 </div>
-              </Section>
+              </CollapsibleSection>
 
-              {/* Lab Orders — always visible */}
-              <Section title="Lab Orders" icon={FlaskConical} defaultOpen>
+              {/* Lab Orders */}
+              <CollapsibleSection title="Lab Orders" icon={FlaskConical} defaultOpen>
                 <div className="px-0.5">
                   <InlineLabOrders
                     patientId={selectedPatient?.id || null}
@@ -729,7 +707,17 @@ export default function Clinical() {
                     clinicId={profileClinicId}
                   />
                 </div>
-              </Section>
+              </CollapsibleSection>
+
+              {/* Follow-Up Instructions */}
+              <CollapsibleSection title="Follow-Up Instructions" icon={CalendarDays} defaultOpen={!!followUpDate || !!followUpNotes}>
+                <FollowUpPanel
+                  followUpDate={followUpDate}
+                  onFollowUpDateChange={setFollowUpDate}
+                  followUpNotes={followUpNotes}
+                  onFollowUpNotesChange={setFollowUpNotes}
+                />
+              </CollapsibleSection>
 
               {/* Evidence */}
               {hasSoap && (
@@ -741,32 +729,30 @@ export default function Clinical() {
                 />
               )}
 
-              {/* Save Card */}
-              {hasSoap && (
-                <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-2.5 space-y-2">
-                  <h4 className="text-[11px] font-semibold flex items-center gap-1">
-                    <ClipboardCheck className="h-3 w-3 text-primary" /> Finalize
-                  </h4>
+              {/* Finalize Card */}
+              <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-2.5 space-y-2">
+                <h4 className="text-[11px] font-semibold flex items-center gap-1">
+                  <ClipboardCheck className="h-3 w-3 text-primary" /> Finalize Consultation
+                </h4>
 
-                  <div className="flex items-start gap-2">
-                    <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} />
-                    <label htmlFor="final-review" className="text-[10px] text-muted-foreground cursor-pointer select-none leading-tight">
-                      I have reviewed the AI-generated summary, prescriptions, and safety alerts.
-                    </label>
-                  </div>
-
-                  <Button onClick={saveSession} disabled={isSaving || !reviewConfirmed} className="w-full h-8" size="sm">
-                    {isSaving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Saving…</> : <><Save className="h-3.5 w-3.5 mr-1" />Save & Finalize</>}
-                  </Button>
-
-                  {savedSessionId && (
-                    <div className="flex items-center gap-1 text-[10px] text-primary">
-                      <CheckCircle className="h-3 w-3" />
-                      Saved — <button className="underline" onClick={() => navigate(`/consultations/${savedSessionId}`)}>View</button>
-                    </div>
-                  )}
+                <div className="flex items-start gap-2">
+                  <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} />
+                  <label htmlFor="final-review" className="text-[10px] text-muted-foreground cursor-pointer select-none leading-tight">
+                    I have reviewed the AI-generated summary, prescriptions, and safety alerts.
+                  </label>
                 </div>
-              )}
+
+                <Button onClick={saveSession} disabled={isSaving || !reviewConfirmed} className="w-full h-8" size="sm">
+                  {isSaving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Saving…</> : <><Save className="h-3.5 w-3.5 mr-1" />Save & Finalize</>}
+                </Button>
+
+                {savedSessionId && (
+                  <div className="flex items-center gap-1 text-[10px] text-primary">
+                    <CheckCircle className="h-3 w-3" />
+                    Saved — <button className="underline" onClick={() => navigate(`/consultations/${savedSessionId}`)}>View</button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
