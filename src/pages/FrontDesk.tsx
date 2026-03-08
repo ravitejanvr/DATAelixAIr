@@ -254,7 +254,7 @@ export default function FrontDesk() {
       doc.text("DATAelixAIr", 15, 15);
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
-      doc.text("AI Clinical Productivity Assistant", 15, 22);
+      
       doc.text(dateStr, 195, 15, { align: "right" });
 
       let y = 42;
