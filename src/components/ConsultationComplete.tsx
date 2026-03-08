@@ -103,136 +103,188 @@ export default function ConsultationComplete({
       const dateStr = now.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
-      // Header
-      doc.setFillColor(15, 23, 42);
-      doc.rect(0, 0, 210, 32, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
-      doc.setFont("helvetica", "bold");
-      doc.text("DATAelixAIr", 15, 15);
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.text("AI Clinical Productivity Assistant", 15, 22);
-      doc.text(`${dateStr}  ${timeStr}`, 195, 15, { align: "right" });
-      doc.text(`Consultation ID: ${results.consultation_id?.slice(0, 8) || "N/A"}`, 195, 22, { align: "right" });
-
-      // Patient info
-      doc.setTextColor(30, 41, 59);
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      let y = 42;
-      doc.text(`Patient: ${patientName}`, 15, y);
-      y += 10;
-
-      // Prescription section
-      if (results.prescriptions?.length) {
-        doc.setFillColor(241, 245, 249);
-        doc.rect(10, y - 5, 190, 8, "F");
-        doc.setFontSize(11);
+      const addHeader = () => {
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, 210, 32, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(18);
         doc.setFont("helvetica", "bold");
-        doc.text("Prescription", 15, y);
-        if (results.ai_generated_prescriptions) {
-          doc.setFontSize(7);
-          doc.setTextColor(59, 130, 246);
-          doc.text("AI Generated", 75, y);
-          doc.setTextColor(30, 41, 59);
-        }
-        y += 10;
-
+        doc.text("DATAelixAIr", 15, 15);
         doc.setFontSize(8);
-        doc.setFont("helvetica", "bold");
-        doc.text("Drug", 15, y);
-        doc.text("Dose", 70, y);
-        doc.text("Freq", 100, y);
-        doc.text("Duration", 125, y);
-        doc.text("Route", 155, y);
-        doc.text("Instructions", 175, y);
-        y += 2;
-        doc.setDrawColor(200, 200, 200);
-        doc.line(15, y, 195, y);
-        y += 5;
-
         doc.setFont("helvetica", "normal");
-        results.prescriptions.forEach((rx) => {
-          if (y > 270) { doc.addPage(); y = 20; }
-          doc.text(rx.drug_name || "", 15, y);
-          doc.text(rx.dosage || "", 70, y);
-          doc.text(rx.frequency || "", 100, y);
-          doc.text(rx.duration || "", 125, y);
-          doc.text(rx.route || "oral", 155, y);
-          doc.text((rx.instructions || "").substring(0, 20), 175, y);
-          y += 7;
-        });
-        y += 5;
-      }
+        doc.text("AI Clinical Productivity Assistant", 15, 22);
+        doc.text(`${dateStr}  ${timeStr}`, 195, 15, { align: "right" });
+        doc.text(`Consultation ID: ${results.consultation_id?.slice(0, 8) || "N/A"}`, 195, 22, { align: "right" });
+      };
 
-      // Lab Orders section
-      if (results.lab_orders?.length) {
-        doc.setFillColor(241, 245, 249);
-        doc.rect(10, y - 5, 190, 8, "F");
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text("Lab Orders", 15, y);
-        if (results.ai_generated_lab_orders) {
-          doc.setFontSize(7);
-          doc.setTextColor(59, 130, 246);
-          doc.text("AI Generated", 65, y);
-          doc.setTextColor(30, 41, 59);
-        }
-        y += 10;
-
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "bold");
-        doc.text("Test", 15, y);
-        doc.text("Priority", 120, y);
-        doc.text("Notes", 150, y);
-        y += 2;
-        doc.line(15, y, 195, y);
-        y += 5;
-
-        doc.setFont("helvetica", "normal");
-        results.lab_orders.forEach((lo) => {
-          if (y > 270) { doc.addPage(); y = 20; }
-          doc.text(lo.test_name || "", 15, y);
-          doc.text(lo.priority || "routine", 120, y);
-          doc.text((lo.notes || "").substring(0, 30), 150, y);
-          y += 7;
-        });
-        y += 5;
-      }
-
-      // Invoice section
-      if (results.invoice) {
-        doc.setFillColor(241, 245, 249);
-        doc.rect(10, y - 5, 190, 8, "F");
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text("Invoice", 15, y);
-        y += 10;
-
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Invoice #: ${results.invoice.invoice_number}`, 15, y);
-        y += 6;
-        doc.text(`Total: ₹${results.invoice.total}`, 15, y);
-        doc.text(`Status: ${invoicePaid ? "PAID" : "PENDING"}`, 100, y);
-        y += 10;
-      }
-
-      // Footer
-      const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
+      const addFooter = () => {
         doc.setFillColor(248, 250, 252);
         doc.rect(0, 280, 210, 17, "F");
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184);
         doc.text("Generated by DATAelixAIr · AI Clinical Productivity Assistant · This is an AI-assisted document for clinician review", 105, 287, { align: "center" });
+      };
+
+      // ═══ PAGE 1: Health Record / Clinical Summary ═══
+      addHeader();
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      let y = 42;
+      doc.text("Health Record", 15, y);
+      y += 10;
+
+      doc.setFontSize(11);
+      doc.text(`Patient: ${patientName}`, 15, y);
+      y += 8;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(`Date: ${dateStr}  ${timeStr}`, 15, y);
+      y += 6;
+      doc.text(`Consultation ID: ${results.consultation_id || "N/A"}`, 15, y);
+      y += 10;
+
+      // Stage summary
+      doc.setFillColor(241, 245, 249);
+      doc.rect(10, y - 4, 190, 8, "F");
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("Finalization Summary", 15, y);
+      y += 10;
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      results.stages.forEach((s) => {
+        const icon = s.status === "saved" || s.status === "created" || s.status === "generated" || s.status === "complete" || s.status === "passed" ? "✓" : s.status === "skipped" ? "–" : "✗";
+        doc.text(`${icon}  ${s.stage.replace(/_/g, " ")} — ${s.status}${s.count ? ` (${s.count})` : ""}`, 18, y);
+        y += 6;
+      });
+      y += 5;
+
+      // Invoice summary on health record page
+      if (results.invoice) {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(10, y - 4, 190, 8, "F");
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("Invoice", 15, y);
+        y += 10;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Invoice #: ${results.invoice.invoice_number || "N/A"}`, 15, y);
+        y += 6;
+        doc.text(`Total: ₹${results.invoice.total}`, 15, y);
+        doc.text(`Status: ${invoicePaid ? "PAID" : "PENDING"}`, 100, y);
+        y += 6;
+        if (results.invoice.consultation_fee) {
+          doc.text(`Consultation Fee: ₹${results.invoice.consultation_fee}`, 15, y);
+          y += 6;
+        }
+      }
+      addFooter();
+
+      // ═══ PAGE 2: Prescription ═══
+      if (results.prescriptions?.length) {
+        doc.addPage();
+        addHeader();
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        y = 42;
+        doc.text("Prescription", 15, y);
+        if (results.ai_generated_prescriptions) {
+          doc.setFontSize(8);
+          doc.setTextColor(59, 130, 246);
+          doc.text("AI Generated", 75, y);
+          doc.setTextColor(30, 41, 59);
+        }
+        y += 4;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Patient: ${patientName}  ·  Date: ${dateStr}`, 15, y);
+        y += 10;
+
+        // Table header
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        const cols = [15, 65, 95, 120, 145, 170];
+        doc.text("Drug Name", cols[0], y);
+        doc.text("Dosage", cols[1], y);
+        doc.text("Frequency", cols[2], y);
+        doc.text("Duration", cols[3], y);
+        doc.text("Route", cols[4], y);
+        doc.text("Instructions", cols[5], y);
+        y += 2;
+        doc.setDrawColor(200, 200, 200);
+        doc.line(15, y, 195, y);
+        y += 6;
+
+        doc.setFont("helvetica", "normal");
+        results.prescriptions.forEach((rx) => {
+          if (y > 265) { addFooter(); doc.addPage(); addHeader(); y = 42; }
+          doc.text((rx.drug_name || "").substring(0, 25), cols[0], y);
+          doc.text(rx.dosage || "", cols[1], y);
+          doc.text(rx.frequency || "", cols[2], y);
+          doc.text(rx.duration || "", cols[3], y);
+          doc.text(rx.route || "oral", cols[4], y);
+          doc.text((rx.instructions || "").substring(0, 15), cols[5], y);
+          y += 8;
+        });
+        addFooter();
+      }
+
+      // ═══ PAGE 3: Lab Orders ═══
+      if (results.lab_orders?.length) {
+        doc.addPage();
+        addHeader();
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        y = 42;
+        doc.text("Lab Orders", 15, y);
+        if (results.ai_generated_lab_orders) {
+          doc.setFontSize(8);
+          doc.setTextColor(59, 130, 246);
+          doc.text("AI Generated", 65, y);
+          doc.setTextColor(30, 41, 59);
+        }
+        y += 4;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Patient: ${patientName}  ·  Date: ${dateStr}`, 15, y);
+        y += 10;
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("Test Name", 15, y);
+        doc.text("Priority", 110, y);
+        doc.text("Notes", 145, y);
+        y += 2;
+        doc.setDrawColor(200, 200, 200);
+        doc.line(15, y, 195, y);
+        y += 6;
+
+        doc.setFont("helvetica", "normal");
+        results.lab_orders.forEach((lo) => {
+          if (y > 265) { addFooter(); doc.addPage(); addHeader(); y = 42; }
+          doc.text((lo.test_name || "").substring(0, 45), 15, y);
+          doc.text(lo.priority || "routine", 110, y);
+          doc.text((lo.notes || "").substring(0, 30), 145, y);
+          y += 8;
+        });
+        addFooter();
+      }
+
+      // Add page numbers
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
         doc.text(`Page ${i} of ${pageCount}`, 195, 292, { align: "right" });
       }
 
       doc.save(`DATAelixAIr_${patientName.replace(/\s/g, "_")}_${dateStr.replace(/\s/g, "")}.pdf`);
-      toast({ title: "PDF Downloaded", description: "Clinical report saved." });
+      toast({ title: "PDF Downloaded", description: "Report with health record, prescription & lab orders saved." });
     } catch (err: any) {
       toast({ title: "Download failed", description: err.message, variant: "destructive" });
     } finally {
