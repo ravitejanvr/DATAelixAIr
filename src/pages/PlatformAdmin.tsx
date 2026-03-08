@@ -82,15 +82,22 @@ export default function PlatformAdmin() {
 
   const loadAll = async () => {
     setLoading(true);
-    const [pilotRes, clinicRes, profileRes, auditRes] = await Promise.all([
+    const [pilotRes, clinicRes, profileRes, rolesRes, auditRes] = await Promise.all([
       supabase.from("pilot_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("clinics").select("*").order("created_at", { ascending: false }),
-      supabase.from("profiles").select("*, user_roles(role)").order("created_at", { ascending: false }) as any,
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+      supabase.from("user_roles").select("*"),
       supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
+    // Merge roles into profiles
+    const roles = rolesRes.data || [];
+    const profilesWithRoles = (profileRes.data || []).map((p: any) => {
+      const userRole = roles.find((r: any) => r.user_id === p.user_id);
+      return { ...p, user_roles: userRole ? [{ role: userRole.role }] : [] };
+    });
     setPilots(pilotRes.data || []);
     setClinics(clinicRes.data || []);
-    setUsers(profileRes.data || []);
+    setUsers(profilesWithRoles);
     setAuditLogs(auditRes.data || []);
     setLoading(false);
   };
