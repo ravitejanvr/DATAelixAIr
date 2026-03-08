@@ -16,11 +16,9 @@ import SEO from "@/components/SEO";
 import EvidencePanel from "@/components/EvidencePanel";
 import ConsultationInput from "@/components/ConsultationInput";
 import PatientSelector, { type SelectedPatient } from "@/components/PatientSelector";
-import DoctorFavoritesPanel from "@/components/DoctorFavoritesPanel";
 import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
-import SmartSuggestionsPanel from "@/components/SmartSuggestionsPanel";
-import CollapsibleSection from "@/components/clinical/CollapsibleSection";
 import FollowUpPanel from "@/components/clinical/FollowUpPanel";
+import ClinicalCopilot from "@/components/clinical/ClinicalCopilot";
 
 import ConsultationTimeline from "@/components/ConsultationTimeline";
 import ConsultationComplete from "@/components/ConsultationComplete";
