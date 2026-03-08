@@ -6,8 +6,8 @@ import CommandPalette from "@/components/CommandPalette";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   LayoutDashboard, Stethoscope, Users, Pill, Activity,
-  Receipt, LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput, ListOrdered,
-  Search, Settings
+  LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput, ListOrdered,
+  Search, Settings, IndianRupee
 } from "lucide-react";
 
 const navItems = [
