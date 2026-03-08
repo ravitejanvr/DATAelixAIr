@@ -167,7 +167,12 @@ export default function ConsultationComplete({
             <ClinicalCardHeader
               title="Lab Orders"
               icon={<FlaskConical className="h-4 w-4" />}
-              badge={<Badge variant="outline" className="text-[10px]">{results.lab_orders.length} tests</Badge>}
+              badge={
+                <div className="flex gap-1">
+                  <Badge variant="outline" className="text-[10px]">{results.lab_orders.length} tests</Badge>
+                  {results.ai_generated_lab_orders && <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">AI Generated</Badge>}
+                </div>
+              }
             />
             <div className="flex flex-wrap gap-1.5 mt-2">
               {results.lab_orders.map(lo => (
