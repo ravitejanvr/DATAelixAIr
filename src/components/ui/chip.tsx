@@ -29,7 +29,7 @@ const variantClasses: Record<ChipVariant, string> = {
   status: "bg-secondary text-secondary-foreground border-border",
 };
 
-export function Chip({
+export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(({
   children,
   variant = "neutral",
   selected,
@@ -41,9 +41,10 @@ export function Chip({
   size = "md",
   icon,
   disabled,
-}: ChipProps) {
+}, ref) => {
   return (
     <button
+      ref={ref}
       type="button"
       disabled={disabled}
       onClick={onClick}
@@ -68,7 +69,8 @@ export function Chip({
       )}
     </button>
   );
-}
+});
+Chip.displayName = "Chip";
 
 interface ChipGroupProps {
   children: React.ReactNode;
