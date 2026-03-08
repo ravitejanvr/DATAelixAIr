@@ -42,6 +42,7 @@ import Triage from "./pages/Triage";
 import Intake from "./pages/Intake";
 import PatientQueue from "./pages/PatientQueue";
 import PatientSelfIntake from "./pages/PatientSelfIntake";
+import QRVisitRegistration from "./pages/QRVisitRegistration";
 
 // Platform admin
 import PlatformAdmin from "./pages/PlatformAdmin";
