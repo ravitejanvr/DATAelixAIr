@@ -31,7 +31,7 @@ import {
 import type { ExtractedData, SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_EXTRACTED, EMPTY_SOAP } from "@/layers/ai-agents/api";
 import type { SafetyResults } from "@/layers/safety/api";
-import { severityColor } from "@/layers/safety/api";
+import { severityColor, AI_DRAFT_LABEL } from "@/layers/safety/api";
 import type { NormalizationMatch } from "@/layers/multilingual/api";
 import {
   captureTranscriptEditSignal,
@@ -92,6 +92,15 @@ export default function Clinical() {
   const [extractedData, setExtractedData] = useState<ExtractedData>(EMPTY_EXTRACTED);
   const [soapSections, setSoapSections] = useState<SoapSections>(EMPTY_SOAP);
   const [safetyResults, setSafetyResults] = useState<SafetyResults | null>(null);
+
+  const EMPTY_SAFETY: SafetyResults = {
+    normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [],
+    vitals_dangers: [], emergency_patterns: [],
+    context_completeness: { issues: [], context_complete: true, ai_suggestions_blocked: false },
+    confidence_level: "high", requires_manual_review: false, ai_suggestions_blocked: false,
+    output_policy: { label: AI_DRAFT_LABEL, conservative_language: true, evidence_required: true },
+    timestamp: new Date().toISOString(),
+  };
   const [normalizationResults, setNormalizationResults] = useState<NormalizationMatch[]>([]);
   const [detectedLanguages, setDetectedLanguages] = useState<string[]>([]);
 
@@ -231,13 +240,21 @@ export default function Clinical() {
           },
           symptoms: [clinicalContext.chief_complaint, extractedData.associated_symptoms].filter(Boolean).join(", ").split(",").map(s => s.trim()).filter(Boolean),
           clinical_context: clinicalContext,
+          actor_id: user?.id,
         },
       });
-      setSafetyResults(safetyData as SafetyResults || { normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString() });
+      const safetyResult = safetyData as SafetyResults || EMPTY_SAFETY;
+      setSafetyResults(safetyResult);
       t3.stop(true);
       emitSafetyAlertMetric({ interactions: safetyData?.interaction_flags?.length || 0, allergies: safetyData?.allergy_flags?.length || 0, dose_warnings: safetyData?.dose_warnings?.length || 0, vitals_dangers: safetyData?.vitals_dangers?.length || 0, emergency_patterns: safetyData?.emergency_patterns?.length || 0 });
+
+      // Context gate: block SOAP if safety says context incomplete
+      if (safetyResult.ai_suggestions_blocked) {
+        toast({ title: "Incomplete Clinical Context", description: "Please fill required fields (age, sex, chief complaint) before generating AI notes.", variant: "destructive" });
+        setPipelineRunning(false); setIsRunningSafety(false); return;
+      }
     } catch {
-      setSafetyResults({ normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [], vitals_dangers: [], emergency_patterns: [], confidence_level: "moderate", requires_manual_review: true, timestamp: new Date().toISOString() });
+      setSafetyResults({ ...EMPTY_SAFETY, confidence_level: "moderate", requires_manual_review: true });
       t3.stop(false);
     }
     setIsRunningSafety(false);
@@ -581,19 +598,38 @@ export default function Clinical() {
                 </Section>
               )}
 
-              {/* SOAP Draft — editable */}
+              {/* Context Completeness Warnings */}
+              {safetyResults?.context_completeness && !safetyResults.context_completeness.context_complete && (
+                <Section title="Missing Context" icon={AlertTriangle} defaultOpen
+                  badge={<Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[8px]">Action Required</Badge>}>
+                  <div className="space-y-1 px-0.5">
+                    {safetyResults.context_completeness.issues.map((issue, i) => (
+                      <div key={i} className={`p-1.5 rounded border text-[10px] ${severityColor(issue.severity)}`}>
+                        <span className="font-medium capitalize">{issue.field.replace(/_/g, " ")}</span>: {issue.message}
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* SOAP Draft — editable with AI Draft label */}
               {hasSoap && (
                 <Section title="AI Clinical Summary" icon={Edit3} defaultOpen
                   badge={<Badge variant="outline" className="text-[8px] gap-0.5"><Sparkles className="h-2 w-2" />Draft</Badge>}>
-                  <div className="space-y-1.5 px-0.5">
-                    {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
-                      <div key={section}>
-                        <Label className={`text-[9px] font-semibold ${section === "Safety Warnings" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
-                          {section}
-                        </Label>
-                        <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-[11px] min-h-[32px] resize-y" />
-                      </div>
-                    ))}
+                  <div className="px-0.5">
+                    <div className="mb-1.5 px-2 py-1 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[9px] text-amber-700 dark:text-amber-400 font-medium">
+                      ⚕️ {AI_DRAFT_LABEL}
+                    </div>
+                    <div className="space-y-1.5">
+                      {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
+                        <div key={section}>
+                          <Label className={`text-[9px] font-semibold ${section === "Safety Warnings" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                            {section}
+                          </Label>
+                          <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-[11px] min-h-[32px] resize-y" />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </Section>
               )}
