@@ -71,6 +71,8 @@ export default function Clinical() {
 
   // Patient selection
   const [selectedPatient, setSelectedPatient] = useState<SelectedPatient | null>(null);
+  const [intakeData, setIntakeData] = useState<IntakeData | null>(null);
+  const [visitId, setVisitId] = useState<string | null>(null);
 
   // Transcript state
   const [transcript, setTranscript] = useState("");
