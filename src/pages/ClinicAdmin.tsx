@@ -107,8 +107,8 @@ export default function ClinicAdmin() {
           currency: settingsData.currency || "INR",
           payment_methods: Array.isArray(settingsData.payment_methods) ? settingsData.payment_methods as string[] : ["cash", "upi"],
           lab_margin: Number(settingsData.lab_margin) || 0,
-          default_prescription_templates: Array.isArray(settingsData.default_prescription_templates) ? settingsData.default_prescription_templates as PrescriptionTemplate[] : [],
-          doctor_templates: Array.isArray(settingsData.doctor_templates) ? settingsData.doctor_templates as PrescriptionTemplate[] : [],
+          default_prescription_templates: Array.isArray(settingsData.default_prescription_templates) ? settingsData.default_prescription_templates as unknown as PrescriptionTemplate[] : [],
+          doctor_templates: Array.isArray(settingsData.doctor_templates) ? settingsData.doctor_templates as unknown as PrescriptionTemplate[] : [],
         });
       } else {
         setSettings(prev => ({ ...prev, clinic_id: profile.clinic_id }));
