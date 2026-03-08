@@ -88,6 +88,24 @@ export default function InlinePrescriptionBuilder({ patientId, consultationId, p
 
   const removeDrug = (i: number) => setDrugs(prev => prev.filter((_, idx) => idx !== i));
 
+  const saveToFavorites = async (d: DrugEntry) => {
+    if (!user || !d.drug_name.trim()) return;
+    const { error } = await supabase.from("doctor_favorites").insert({
+      doctor_id: user.id,
+      generic_name: d.drug_name,
+      default_dose: d.dosage,
+      frequency: d.frequency,
+      duration: d.duration,
+      route: d.route,
+      instructions: d.instructions,
+    });
+    if (error) {
+      toast({ title: "Already in favorites", variant: "destructive" });
+    } else {
+      toast({ title: `★ ${d.drug_name} saved to favorites` });
+    }
+  };
+
   // Simple allergy check
   const checkAllergyConflict = (drugName: string): string | null => {
     const lower = drugName.toLowerCase();
