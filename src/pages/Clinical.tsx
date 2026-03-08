@@ -159,7 +159,34 @@ export default function Clinical() {
     }
   }, [selectedPatient]);
 
-  const hasTranscript = transcript.trim().length > 0;
+  // Fetch vitals for clinical context
+  useEffect(() => {
+    if (!selectedPatient?.id) { setPatientVitals(null); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("vitals")
+        .select("bp_systolic, bp_diastolic, pulse, temperature, spo2, respiratory_rate, weight_kg, height_cm")
+        .eq("patient_id", selectedPatient.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setPatientVitals(data);
+    })();
+  }, [selectedPatient?.id]);
+
+  // Rebuild clinical context whenever source data changes
+  useEffect(() => {
+    const ctx = buildClinicalContext(
+      selectedPatient ? { age: selectedPatient.age, gender: selectedPatient.gender, medical_history: selectedPatient.medical_history, allergies: selectedPatient.allergies, current_medications: selectedPatient.current_medications } : null,
+      patientVitals,
+      intakeData ? { chief_complaint: intakeData.chief_complaint, symptom_duration: intakeData.symptom_duration, allergies_noted: intakeData.allergies_noted, current_medications: intakeData.current_medications } : null,
+      extractedData.chief_complaint,
+      extractedData.duration,
+      extractedData.current_medications,
+      extractedData.allergies,
+    );
+    setClinicalContext(ctx);
+  }, [selectedPatient, patientVitals, intakeData, extractedData]);
   const hasExtraction = extractedData.chief_complaint.trim().length > 0;
   const hasSoap = Object.values(soapSections).some(v => v.trim().length > 0);
   const isProcessing = isStabilizing || isExtracting || isRunningSafety || isGeneratingSoap;
