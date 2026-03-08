@@ -994,6 +994,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          account_status: string
           clinic_id: string | null
           clinic_name: string | null
           created_at: string
@@ -1007,6 +1008,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_status?: string
           clinic_id?: string | null
           clinic_name?: string | null
           created_at?: string
@@ -1020,6 +1022,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_status?: string
           clinic_id?: string | null
           clinic_name?: string | null
           created_at?: string
