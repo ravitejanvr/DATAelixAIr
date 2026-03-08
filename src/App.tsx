@@ -41,6 +41,7 @@ import VisitTracker from "./pages/VisitTracker";
 import Triage from "./pages/Triage";
 import Intake from "./pages/Intake";
 import PatientQueue from "./pages/PatientQueue";
+import PatientSelfIntake from "./pages/PatientSelfIntake";
 
 // Platform admin
 import PlatformAdmin from "./pages/PlatformAdmin";
