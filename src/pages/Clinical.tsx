@@ -761,61 +761,61 @@ export default function Clinical() {
             <div className="p-3 space-y-2.5">
 
               {/* Patient Header */}
-              <ClinicalCard className="p-1.5">
+              <ClinicalCard className="p-3">
                 {!selectedPatient ? (
                   <div>
-                    <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1">
-                      <User className="h-2.5 w-2.5" /> Select Patient
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5" /> Select Patient
                     </p>
                     <PatientSelector selected={selectedPatient} onSelect={setSelectedPatient} />
                   </div>
                 ) : (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
                         {selectedPatient.name?.charAt(0)?.toUpperCase() || "?"}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
-                          <p className="text-[11px] font-semibold text-foreground truncate">{selectedPatient.name}</p>
-                          <Badge variant="outline" className="text-[8px] shrink-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold text-foreground truncate">{selectedPatient.name}</p>
+                          <Badge variant="outline" className="text-[10px] shrink-0">
                             {selectedPatient.age ? `${selectedPatient.age}y` : "?"} · {selectedPatient.gender?.charAt(0)?.toUpperCase() || "?"}
                           </Badge>
-                          {visitId && <Badge className="bg-primary/10 text-primary border-primary/20 text-[7px]">Visit</Badge>}
+                          {visitId && <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px]">Visit</Badge>}
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" className="h-5 text-[8px]" onClick={() => setSelectedPatient(null)}>Change</Button>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelectedPatient(null)}>Change</Button>
                     </div>
 
                     {/* Chief Complaint from intake */}
                     {intakeData?.chief_complaint && (
-                      <div className="p-1.5 rounded bg-primary/[0.04] border border-primary/15">
-                        <p className="text-[7px] font-semibold text-primary uppercase tracking-widest">Chief Complaint</p>
-                        <p className="text-[10px] text-foreground">{intakeData.chief_complaint}
+                      <div className="p-2 rounded-lg bg-primary/[0.04] border border-primary/15">
+                        <p className="text-[9px] font-semibold text-primary uppercase tracking-widest">Chief Complaint</p>
+                        <p className="text-xs text-foreground">{intakeData.chief_complaint}
                           {intakeData.symptom_duration && <span className="text-muted-foreground ml-1">· {intakeData.symptom_duration}</span>}
                         </p>
                       </div>
                     )}
 
                     {/* Conditions / Allergies / Meds */}
-                    <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
                       {selectedPatient.medical_history && Array.isArray(selectedPatient.medical_history) && (selectedPatient.medical_history as any[]).length > 0 && (
-                        <div className="flex items-center gap-0.5 flex-wrap">
-                          <span className="text-[7px] font-semibold text-muted-foreground uppercase">Hx:</span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="text-[9px] font-semibold text-muted-foreground uppercase">Hx:</span>
                           {(selectedPatient.medical_history as any[]).map((h: any, i: number) => (
                             <Chip key={i} variant="diagnosis" size="sm">{typeof h === "string" ? h : h?.condition || String(h)}</Chip>
                           ))}
                         </div>
                       )}
                       {selectedPatient.allergies?.length ? (
-                        <div className="flex items-center gap-0.5 flex-wrap">
-                          <span className="text-[7px] font-semibold text-chip-alert-text uppercase flex items-center gap-0.5"><Shield className="h-2 w-2" />Allergy:</span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="text-[9px] font-semibold text-chip-alert-text uppercase flex items-center gap-0.5"><Shield className="h-2.5 w-2.5" />Allergy:</span>
                           {selectedPatient.allergies.map(a => <Chip key={a} variant="alert" size="sm">{a}</Chip>)}
                         </div>
                       ) : null}
                       {selectedPatient.current_medications?.length ? (
-                        <div className="flex items-center gap-0.5 flex-wrap">
-                          <span className="text-[7px] font-semibold text-muted-foreground uppercase flex items-center gap-0.5"><Pill className="h-2 w-2" />Meds:</span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="text-[9px] font-semibold text-muted-foreground uppercase flex items-center gap-0.5"><Pill className="h-2.5 w-2.5" />Meds:</span>
                           {selectedPatient.current_medications.map(m => <Chip key={m} variant="medication" size="sm">{m}</Chip>)}
                         </div>
                       ) : null}
@@ -826,9 +826,9 @@ export default function Clinical() {
 
               {/* Vitals Grid */}
               {selectedPatient && (
-                <ClinicalCard className="p-1.5">
-                  <p className="text-[8px] font-semibold text-muted-foreground uppercase tracking-widest mb-0.5 flex items-center gap-1">
-                    <Activity className="h-2.5 w-2.5" /> Vitals
+                <ClinicalCard className="p-3">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    <Activity className="h-3 w-3" /> Vitals
                   </p>
                   <div className="grid grid-cols-4 gap-1 mb-1">
                     {[
