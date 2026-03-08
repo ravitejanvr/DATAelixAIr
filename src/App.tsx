@@ -131,6 +131,9 @@ const App = () => (
               <Route path="/unauthorized" element={<Unauthorized />} />
               <Route path="/awaiting-approval" element={<AwaitingApproval />} />
 
+              {/* Patient self-intake (public, no auth) */}
+              <Route path="/patient-intake/:visitId" element={<PatientSelfIntake />} />
+
               {/* Layer 2: Clinical App — wrapped in ClinicalLayout */}
               <Route path="/dashboard" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><Dashboard /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/clinical" element={<ProtectedRoute allowedRoles={["doctor", "clinic_admin"]}><ClinicalLayout><Clinical /></ClinicalLayout></ProtectedRoute>} />
