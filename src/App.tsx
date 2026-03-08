@@ -39,6 +39,7 @@ import Vitals from "./pages/Vitals";
 import Billing from "./pages/Billing";
 import VisitTracker from "./pages/VisitTracker";
 import Triage from "./pages/Triage";
+import Intake from "./pages/Intake";
 
 // Platform admin
 import PlatformAdmin from "./pages/PlatformAdmin";
