@@ -126,14 +126,13 @@ export default function PatientQueue() {
       return;
     }
 
-    // Update visit status to "doctor"
-    const { error } = await supabase
-      .from("patient_visits")
-      .update({ status: "doctor", assigned_to: user!.id })
-      .eq("id", waiting.id);
+    // Update visit status via edge function
+    const { data: result, error } = await supabase.functions.invoke("update-visit-status", {
+      body: { visit_id: waiting.id, target_status: "with_doctor" },
+    });
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    if (error || result?.error) {
+      toast({ title: "Error", description: error?.message || result?.error, variant: "destructive" });
       return;
     }
 
