@@ -1164,6 +1164,7 @@ export default function Clinical() {
                 </motion.div>
               )}
             </div>
+            )}
           </div>
 
           {/* ═══ RIGHT: AI Copilot (Active Thinking Assistant) ═══ */}
