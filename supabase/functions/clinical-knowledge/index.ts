@@ -365,6 +365,7 @@ serve(async (req) => {
     const {
       chief_complaint, duration, symptoms, age, gender,
       allergies, medications, conditions, vitals, transcript_excerpt,
+      clinical_context,
     } = body;
 
     if (!chief_complaint) {
