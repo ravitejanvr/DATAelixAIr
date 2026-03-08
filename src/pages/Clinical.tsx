@@ -458,8 +458,15 @@ export default function Clinical() {
                 <Clock className="h-2.5 w-2.5" /> Visit History
               </div>
               <VisitTimeline patientId={selectedPatient?.id || null} />
-            </div>
           </div>
+
+          {/* Intake Summary Banner */}
+          {(intakeData || selectedPatient?.id) && (
+            <div className="px-4 py-1.5 border-t border-border/50">
+              <IntakeSummary patientId={selectedPatient?.id || null} visitId={visitId} intakeData={intakeData} />
+            </div>
+          )}
+        </div>
         </div>
 
         {/* ── Main workspace ── */}
