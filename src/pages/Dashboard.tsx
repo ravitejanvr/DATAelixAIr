@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import SEO from "@/components/SEO";
 import brainLogo from "@/assets/brain-logo-nobg.png";
+import ClinicQRCode from "@/components/ClinicQRCode";
 import {
   Users, Stethoscope, ClipboardList, Pill, Activity, LogOut,
   Plus, ArrowRight, Calendar, Clock, TrendingUp, LayoutDashboard,
