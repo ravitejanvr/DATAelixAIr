@@ -39,7 +39,7 @@ export default function Auth() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) routeAfterAuth(data.session.user.id);
+      if (data.session) checkApprovalAndRoute(data.session.user.id);
     });
   }, []);
 
@@ -57,16 +57,30 @@ export default function Auth() {
 
     const { data: existingProfile } = await supabase.from("profiles").select("id").eq("user_id", userId).limit(1);
     if (!existingProfile?.length) {
-      await supabase.from("profiles").insert({ user_id: userId, full_name: signUpName, phone: signUpPhone || "" });
+      await supabase.from("profiles").insert({ user_id: userId, full_name: signUpName, phone: signUpPhone || "", account_status: "pending" });
     } else {
       await supabase.from("profiles").update({ full_name: signUpName, phone: signUpPhone || "" }).eq("user_id", userId);
     }
   };
 
-  const routeAfterAuth = async (userId: string, fallbackRole?: AppRole) => {
+  const checkApprovalAndRoute = async (userId: string, fallbackRole?: AppRole) => {
+    // Check account_status
+    const { data: profile } = await supabase.from("profiles").select("account_status").eq("user_id", userId).maybeSingle();
+    const status = (profile as any)?.account_status;
+
+    // Platform admins bypass approval
     const role = fallbackRole ?? (await getUserRole(userId));
+    if (role === "platform_admin") {
+      navigate("/platform-admin");
+      return;
+    }
+
+    if (status !== "approved") {
+      navigate("/awaiting-approval");
+      return;
+    }
+
     switch (role) {
-      case "platform_admin": navigate("/platform-admin"); break;
       case "clinic_admin": navigate("/dashboard"); break;
       case "nurse": navigate("/vitals"); break;
       case "patient": navigate("/patient-portal"); break;
@@ -82,7 +96,7 @@ export default function Auth() {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email: signInEmail.trim(), password: signInPassword });
       if (error) { toast({ title: "Sign-in failed", description: error.message === "Invalid login credentials" ? "Invalid email or password." : error.message, variant: "destructive" }); return; }
-      await routeAfterAuth(data.user.id);
+      await checkApprovalAndRoute(data.user.id);
     } catch { toast({ title: "Connection error", description: "Unable to reach authentication service.", variant: "destructive" }); }
     finally { setLoading(false); }
   };
@@ -93,7 +107,7 @@ export default function Auth() {
     try {
       const { data, error } = await supabase.auth.signUp({
         email: signUpEmail.trim(), password: signUpPassword,
-        options: { data: { full_name: signUpName, role: signUpRole, phone: signUpPhone }, emailRedirectTo: `${window.location.origin}/dashboard` },
+        options: { data: { full_name: signUpName, role: signUpRole, phone: signUpPhone }, emailRedirectTo: `${window.location.origin}/auth` },
       });
       if (error) { toast({ title: "Registration failed", description: error.message, variant: "destructive" }); return; }
       if (data.user?.identities?.length === 0) {
@@ -103,11 +117,11 @@ export default function Auth() {
       if (!data.user) { toast({ title: "Registration pending", description: "Please verify your email." }); setMode("signin"); return; }
       if (data.session) {
         await ensureProfileAndRole(data.user.id);
-        toast({ title: "Account created", description: "You're signed in successfully." });
-        await routeAfterAuth(data.user.id, signUpRole);
+        toast({ title: "Account created", description: "Your account is pending administrator approval." });
+        navigate("/awaiting-approval");
         return;
       }
-      toast({ title: "Account created", description: "Please verify your email before signing in." });
+      toast({ title: "Account created", description: "Please verify your email. Your account will then await administrator approval." });
       setMode("signin"); setSignInEmail(signUpEmail.trim());
     } catch { toast({ title: "Connection error", description: "Unable to complete registration.", variant: "destructive" }); }
     finally { setLoading(false); }

@@ -56,28 +56,28 @@ import type { AppRole } from "@/layers/governance/api";
 function useUserRole() {
   const { user, loading: authLoading } = useAuth();
   const [role, setRole] = useState<AppRole | null>(null);
+  const [accountStatus, setAccountStatus] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { setRole(null); setRoleLoading(false); return; }
+    if (!user) { setRole(null); setAccountStatus(null); setRoleLoading(false); return; }
 
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .limit(1)
-      .then(({ data }) => {
-        setRole(data?.[0]?.role || null);
-        setRoleLoading(false);
-      });
+    Promise.all([
+      supabase.from("user_roles").select("role").eq("user_id", user.id).limit(1),
+      supabase.from("profiles").select("account_status").eq("user_id", user.id).maybeSingle(),
+    ]).then(([roleRes, profileRes]) => {
+      setRole(roleRes.data?.[0]?.role || null);
+      setAccountStatus((profileRes.data as any)?.account_status || "pending");
+      setRoleLoading(false);
+    });
   }, [user, authLoading]);
 
-  return { role, loading: authLoading || roleLoading, user };
+  return { role, accountStatus, loading: authLoading || roleLoading, user };
 }
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
-  const { role, loading, user } = useUserRole();
+  const { role, accountStatus, loading, user } = useUserRole();
 
   if (loading) {
     return (
@@ -89,6 +89,11 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
 
   if (!user) return <Navigate to="/auth" replace />;
 
+  // Platform admins bypass approval check
+  if (role !== "platform_admin" && accountStatus !== "approved") {
+    return <Navigate to="/awaiting-approval" replace />;
+  }
+
   if (allowedRoles && role && !allowedRoles.includes(role)) {
     return <Navigate to="/unauthorized" replace />;
   }
@@ -97,7 +102,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
 }
 
 function AuthRedirect() {
-  const { role, loading, user } = useUserRole();
+  const { role, accountStatus, loading, user } = useUserRole();
 
   if (loading) {
     return (
@@ -109,7 +114,12 @@ function AuthRedirect() {
 
   if (!user) return <Auth />;
 
-  // Role-based redirect using governance layer
+  // Platform admins bypass approval
+  if (role === "platform_admin") return <Navigate to="/platform-admin" replace />;
+
+  // Non-approved users go to waiting page
+  if (accountStatus !== "approved") return <Navigate to="/awaiting-approval" replace />;
+
   const targetRoute = getDefaultRouteForRole(role as AppRole | null);
   return <Navigate to={targetRoute} replace />;
 }
