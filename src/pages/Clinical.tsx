@@ -829,8 +829,8 @@ export default function Clinical() {
 
               {/* Vitals Grid */}
               {selectedPatient && (
-                <ClinicalCard className="p-2">
-                  <p className="text-[8px] font-semibold text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1">
+                <ClinicalCard className="p-1.5">
+                  <p className="text-[8px] font-semibold text-muted-foreground uppercase tracking-widest mb-0.5 flex items-center gap-1">
                     <Activity className="h-2.5 w-2.5" /> Vitals
                   </p>
                   <div className="grid grid-cols-4 gap-1 mb-1">
