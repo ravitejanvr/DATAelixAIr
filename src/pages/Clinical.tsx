@@ -714,8 +714,19 @@ export default function Clinical() {
             </div>
           </div>
 
-          {/* ═══ CENTER: Structured Clinical Builder ═══ */}
+          {/* ═══ CENTER: Structured Clinical Builder / Finalization ═══ */}
           <div className="overflow-y-auto flex flex-col pb-20 lg:pb-16">
+            {/* ── Post-Finalization Complete Screen ── */}
+            {finalizationResults ? (
+              <ConsultationComplete
+                results={finalizationResults}
+                patientId={selectedPatient?.id || ""}
+                clinicId={profileClinicId || ""}
+                visitId={visitId}
+                patientName={selectedPatient?.name || "Patient"}
+                onNewSession={startNewSession}
+              />
+            ) : (
             <div className="flex-1 p-4 space-y-4 max-w-3xl mx-auto w-full">
 
               {/* ── Structured Sentence Builder ── */}
