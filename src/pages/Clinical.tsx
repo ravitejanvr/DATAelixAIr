@@ -246,12 +246,25 @@ export default function Clinical() {
     }
     setIsExtracting(false);
 
-    // 3. Safety Check
+    // 3. Safety Check — pass clinical context
     setIsRunningSafety(true);
     const t3 = startPipelineTimer("safety_controller");
     try {
       const { data: safetyData } = await supabase.functions.invoke("clinical-safety", {
-        body: { medications: [], allergies: [], vitals: {}, symptoms: [] },
+        body: {
+          medications: clinicalContext.current_medications,
+          allergies: clinicalContext.allergies,
+          vitals: {
+            bp_systolic: clinicalContext.blood_pressure ? parseInt(clinicalContext.blood_pressure.split("/")[0]) : null,
+            bp_diastolic: clinicalContext.blood_pressure ? parseInt(clinicalContext.blood_pressure.split("/")[1]) : null,
+            pulse: clinicalContext.pulse,
+            temperature: clinicalContext.temperature,
+            spo2: clinicalContext.oxygen_saturation,
+            respiratory_rate: clinicalContext.respiratory_rate,
+          },
+          symptoms: [clinicalContext.chief_complaint, extractedData.associated_symptoms].filter(Boolean).join(", ").split(",").map(s => s.trim()).filter(Boolean),
+          clinical_context: clinicalContext,
+        },
       });
       setSafetyResults(safetyData as SafetyResults || {
         normalized_drugs: [], interaction_flags: [], allergy_flags: [],
@@ -259,7 +272,13 @@ export default function Clinical() {
         confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString(),
       });
       t3.stop(true);
-      emitSafetyAlertMetric({ interactions: 0, allergies: 0, dose_warnings: 0, vitals_dangers: 0, emergency_patterns: 0 });
+      emitSafetyAlertMetric({
+        interactions: safetyData?.interaction_flags?.length || 0,
+        allergies: safetyData?.allergy_flags?.length || 0,
+        dose_warnings: safetyData?.dose_warnings?.length || 0,
+        vitals_dangers: safetyData?.vitals_dangers?.length || 0,
+        emergency_patterns: safetyData?.emergency_patterns?.length || 0,
+      });
     } catch {
       setSafetyResults({
         normalized_drugs: [], interaction_flags: [], allergy_flags: [],
