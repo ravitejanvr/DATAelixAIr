@@ -103,24 +103,52 @@ export default function PlatformAdmin() {
 
   const loadAll = async () => {
     setLoading(true);
-    const [pilotRes, clinicRes, profileRes, rolesRes, auditRes] = await Promise.all([
-      supabase.from("pilot_requests").select("*").order("created_at", { ascending: false }),
-      supabase.from("clinics").select("*").order("created_at", { ascending: false }),
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.from("user_roles").select("*"),
-      supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(50),
-    ]);
-    // Merge roles into profiles
-    const roles = rolesRes.data || [];
-    const profilesWithRoles = (profileRes.data || []).map((p: any) => {
-      const userRole = roles.find((r: any) => r.user_id === p.user_id);
-      return { ...p, user_roles: userRole ? [{ role: userRole.role }] : [] };
-    });
-    setPilots(pilotRes.data || []);
-    setClinics(clinicRes.data || []);
-    setUsers(profilesWithRoles);
-    setAuditLogs(auditRes.data || []);
-    setLoading(false);
+    try {
+      const [pilotRes, clinicRes, profileRes, rolesRes, auditRes] = await Promise.all([
+        supabase.from("pilot_requests").select("*").order("created_at", { ascending: false }),
+        supabase.from("clinics").select("*").order("created_at", { ascending: false }),
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("user_roles").select("user_id, role"),
+        supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(50),
+      ]);
+
+      if (pilotRes.error || clinicRes.error || profileRes.error || rolesRes.error || auditRes.error) {
+        throw new Error(
+          pilotRes.error?.message ||
+          clinicRes.error?.message ||
+          profileRes.error?.message ||
+          rolesRes.error?.message ||
+          auditRes.error?.message ||
+          "Failed to load admin data"
+        );
+      }
+
+      const rolesByUserId = new Map<string, { role: string }[]>();
+      (rolesRes.data || []).forEach((roleRow: any) => {
+        const existing = rolesByUserId.get(roleRow.user_id) || [];
+        existing.push({ role: roleRow.role });
+        rolesByUserId.set(roleRow.user_id, existing);
+      });
+
+      const profilesWithRoles = (profileRes.data || []).map((p: any) => ({
+        ...p,
+        user_roles: rolesByUserId.get(p.user_id) || [],
+      }));
+
+      setPilots(pilotRes.data || []);
+      setClinics(clinicRes.data || []);
+      setUsers(profilesWithRoles);
+      setAuditLogs(auditRes.data || []);
+    } catch (error) {
+      console.error("Platform admin loadAll error:", error);
+      toast({
+        title: "Failed to load admin data",
+        description: error instanceof Error ? error.message : "Please refresh and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadMonitoring = async () => {
