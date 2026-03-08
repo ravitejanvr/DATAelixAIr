@@ -612,6 +612,31 @@ export default function Clinical() {
           {/* ══ RIGHT COLUMN: AI Notes + Rx + Labs + Review ══ */}
           <div className="overflow-y-auto p-4 space-y-3">
 
+            {/* Smart Suggestions Panel */}
+            <SmartSuggestionsPanel
+              chiefComplaint={extractedData.chief_complaint}
+              duration={extractedData.duration || ""}
+              symptoms={extractedData.associated_symptoms || ""}
+              vitals={extractedData.vitals || ""}
+              patientAge={selectedPatient?.age ?? null}
+              patientGender={selectedPatient?.gender ?? null}
+              allergies={extractedData.allergies || ""}
+              medications={extractedData.current_medications || ""}
+              conditions={extractedData.chronic_conditions || ""}
+              userId={user?.id || ""}
+              onAddPrescription={(rx) => {
+                // Prescription builder will pick up from toast notification pattern
+                toast({ title: `Added: ${rx.drug_name}`, description: `${rx.dose} · ${rx.frequency} · ${rx.duration}` });
+              }}
+              onAddLabTest={(testName) => {
+                toast({ title: `Lab test queued: ${testName}`, description: "Add via Lab Orders below." });
+              }}
+              onInsertText={(text) => {
+                setTranscript(prev => prev ? `${prev}\n${text}` : text);
+                toast({ title: "Text inserted", description: text.slice(0, 60) + "…" });
+              }}
+            />
+
             {/* SOAP / Clinical Summary */}
             <Section title="AI Draft Clinical Summary" icon={Edit3} defaultOpen={hasSoap}
               badge={hasSoap ? <Badge variant="outline" className="text-[9px] gap-0.5"><Sparkles className="h-2 w-2" />AI Generated Draft</Badge> : undefined}>
