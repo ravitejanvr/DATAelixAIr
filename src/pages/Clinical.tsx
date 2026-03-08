@@ -92,6 +92,15 @@ export default function Clinical() {
   const [extractedData, setExtractedData] = useState<ExtractedData>(EMPTY_EXTRACTED);
   const [soapSections, setSoapSections] = useState<SoapSections>(EMPTY_SOAP);
   const [safetyResults, setSafetyResults] = useState<SafetyResults | null>(null);
+
+  const EMPTY_SAFETY: SafetyResults = {
+    normalized_drugs: [], interaction_flags: [], allergy_flags: [], dose_warnings: [],
+    vitals_dangers: [], emergency_patterns: [],
+    context_completeness: { issues: [], context_complete: true, ai_suggestions_blocked: false },
+    confidence_level: "high", requires_manual_review: false, ai_suggestions_blocked: false,
+    output_policy: { label: AI_DRAFT_LABEL, conservative_language: true, evidence_required: true },
+    timestamp: new Date().toISOString(),
+  };
   const [normalizationResults, setNormalizationResults] = useState<NormalizationMatch[]>([]);
   const [detectedLanguages, setDetectedLanguages] = useState<string[]>([]);
 
