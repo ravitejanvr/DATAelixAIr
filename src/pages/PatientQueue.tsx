@@ -71,7 +71,7 @@ export default function PatientQueue() {
 
     const { data, error } = await supabase
       .from("patient_visits")
-      .select("id, token_number, check_in_time, status, visit_type, patient_id, patients(name, age, gender, phone)")
+      .select("id, token_number, check_in_time, status, visit_type, patient_id, patients(name, age, gender, phone), triage(chief_complaint)")
       .eq("clinic_id", profile.clinic_id)
       .gte("check_in_time", today.toISOString())
       .order("token_number", { ascending: true });
@@ -90,6 +90,7 @@ export default function PatientQueue() {
         patient_age: v.patients?.age,
         patient_gender: v.patients?.gender,
         patient_phone: v.patients?.phone,
+        chief_complaint: v.triage?.[0]?.chief_complaint || v.triage?.chief_complaint || null,
       }));
       setQueue(mapped);
     }
