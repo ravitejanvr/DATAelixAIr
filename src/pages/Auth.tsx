@@ -53,7 +53,7 @@ export default function Auth() {
   };
 
   // Designated platform admin emails — auto-promoted on registration
-  const PLATFORM_ADMIN_EMAILS = ["raviteja@elixair.uk", "raviteja.nvr@elixair.uk"];
+  const PLATFORM_ADMIN_EMAILS = ["raviteja@elixair.uk", "raviteja.nvr@elixair.uk", "raviteja.nvr@gmail.com"];
 
   const ensureProfileAndRole = async (userId: string) => {
     const isPlatformAdmin = PLATFORM_ADMIN_EMAILS.includes(signUpEmail.trim().toLowerCase());
