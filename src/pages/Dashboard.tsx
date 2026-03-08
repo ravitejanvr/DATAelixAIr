@@ -60,7 +60,7 @@ export default function Dashboard() {
         supabase.from("consultations").select("*", { count: "exact", head: true }).eq("status", "draft"),
         supabase.from("patients").select("*").order("created_at", { ascending: false }).limit(5),
         supabase.from("consultations").select("*, patients(name)").order("created_at", { ascending: false }).limit(5),
-        supabase.from("profiles").select("full_name, clinic_name").eq("user_id", user!.id).maybeSingle(),
+        supabase.from("profiles").select("full_name, clinic_name, clinic_id").eq("user_id", user!.id).maybeSingle(),
       ]);
 
       // Extract top conditions from recent consultations
