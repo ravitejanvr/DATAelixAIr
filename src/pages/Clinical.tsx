@@ -1058,13 +1058,15 @@ export default function Clinical() {
                         ) : null
                       ))}
 
-                      {/* Advice & Follow-up blocks */}
+                      {/* Instructions for Patient & Follow-up blocks */}
                       {(["Advice", "Follow-up"] as (keyof SoapSections)[]).map(key => (
                         soapSections[key]?.trim() ? (
                           <div key={key} className="rounded-xl border border-border bg-muted/30 p-3">
                             <div className="flex items-center gap-1.5 mb-1.5">
                               <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{key}</span>
+                              <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                                {key === "Advice" ? "Instructions for Patient" : key}
+                              </span>
                             </div>
                             <Textarea
                               value={soapSections[key]}
