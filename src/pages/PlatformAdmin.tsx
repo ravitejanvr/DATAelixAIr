@@ -118,21 +118,13 @@ export default function PlatformAdmin() {
   };
 
   const updatePilotStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from("pilot_requests").update({ status } as any).eq("id", id);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    if (status === "approved") {
-      const pilot = pilots.find(p => p.id === id);
-      if (pilot) {
-        await supabase.from("clinics").insert({
-          name: pilot.clinic_name, location: pilot.location, specialty: pilot.speciality,
-          email: pilot.contact_email, phone: pilot.contact_phone || null, status: "active",
-        });
-      }
-    }
-    await supabase.from("audit_logs").insert({
-      actor_id: user!.id, event_type: `pilot_${status}`,
-      target_type: "pilot_request", target_id: id, metadata: { status },
+    const { data: result, error } = await supabase.functions.invoke("admin-action", {
+      body: { action_type: "update_pilot_status", pilot_id: id, status },
     });
+    if (error || result?.error) {
+      toast({ title: "Error", description: error?.message || result?.error, variant: "destructive" });
+      return;
+    }
     toast({ title: `Pilot ${status}` });
     loadAll();
   };
