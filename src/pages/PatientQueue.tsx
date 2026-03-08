@@ -51,6 +51,8 @@ export default function PatientQueue() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "waiting" | "active" | "complete">("all");
+  const [clinicId, setClinicId] = useState<string | null>(null);
+  const [showQR, setShowQR] = useState(false);
 
   const loadQueue = async () => {
     if (!user) return;
