@@ -196,24 +196,68 @@ export default function PlatformAdmin() {
             </div>
           </TabsContent>
 
-          {/* Users Tab */}
+          {/* Users Tab — with approval workflow */}
           <TabsContent value="users" className="mt-4">
-            <div className="space-y-2">
-              {users.map((u: any) => (
-                <Card key={u.id}>
-                  <CardContent className="py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{u.full_name || "—"}</p>
-                      <p className="text-[10px] text-muted-foreground">{u.clinic_name || "No clinic"} · {u.specialization || ""}</p>
-                    </div>
-                    <div className="flex gap-1">
-                      {(u.user_roles as any[])?.map((r: any, i: number) => (
-                        <Badge key={i} variant="outline" className="text-[10px]">{r.role}</Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="space-y-4">
+              {/* Pending approvals first */}
+              {users.filter((u: any) => (u as any).account_status === "pending").length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1.5">
+                    <Clock className="h-4 w-4" /> Pending Approval ({users.filter((u: any) => (u as any).account_status === "pending").length})
+                  </h3>
+                  <div className="space-y-2">
+                    {users.filter((u: any) => (u as any).account_status === "pending").map((u: any) => (
+                      <UserApprovalCard key={u.id} user={u} clinics={clinics} onAction={async (userId, action, clinicId) => {
+                        if (action === "approve" && clinicId) {
+                          await supabase.from("profiles").update({ account_status: "approved", clinic_id: clinicId } as any).eq("user_id", userId);
+                          // Also add to clinic_members
+                          const role = (u.user_roles as any[])?.[0]?.role || "staff";
+                          await supabase.from("clinic_members").insert({ user_id: userId, clinic_id: clinicId, role, is_primary: true });
+                          await supabase.from("audit_logs").insert({ actor_id: user!.id, event_type: "user_approved", target_type: "profile", target_id: userId, metadata: { clinic_id: clinicId, role } });
+                          toast({ title: "User approved", description: `${u.full_name} has been approved and assigned to a clinic.` });
+                        } else if (action === "reject") {
+                          await supabase.from("profiles").update({ account_status: "rejected" } as any).eq("user_id", userId);
+                          await supabase.from("audit_logs").insert({ actor_id: user!.id, event_type: "user_rejected", target_type: "profile", target_id: userId });
+                          toast({ title: "User rejected", description: `${u.full_name}'s registration has been rejected.` });
+                        }
+                        loadAll();
+                      }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Approved users */}
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2">All Users</h3>
+                <div className="space-y-2">
+                  {users.filter((u: any) => (u as any).account_status !== "pending").map((u: any) => (
+                    <Card key={u.id}>
+                      <CardContent className="py-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">{u.full_name || "—"}</p>
+                          <p className="text-[10px] text-muted-foreground">{u.clinic_name || "No clinic"} · {u.specialization || ""}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {(u as any).account_status === "approved" && (
+                            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 text-[9px]">
+                              <CheckCircle className="h-2.5 w-2.5 mr-0.5" /> Approved
+                            </Badge>
+                          )}
+                          {(u as any).account_status === "rejected" && (
+                            <Badge className="bg-destructive/10 text-destructive text-[9px]">
+                              <XCircle className="h-2.5 w-2.5 mr-0.5" /> Rejected
+                            </Badge>
+                          )}
+                          {(u.user_roles as any[])?.map((r: any, i: number) => (
+                            <Badge key={i} variant="outline" className="text-[10px]">{r.role}</Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
             </div>
           </TabsContent>
 
