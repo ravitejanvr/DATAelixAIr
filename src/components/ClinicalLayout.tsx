@@ -36,54 +36,52 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
       <CommandPalette />
 
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex flex-col w-56 border-r border-border bg-card shrink-0">
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <img src={brainLogo} alt="DATAelixAIr" className="h-7 w-7" />
-            <div>
-              <p className="text-sm font-bold text-foreground leading-none">DATAelixAIr</p>
-            </div>
+      <aside className="hidden lg:flex flex-col w-44 border-r border-border bg-card shrink-0">
+        <div className="px-3 py-2.5 border-b border-border">
+          <div className="flex items-center gap-1.5">
+            <img src={brainLogo} alt="DATAelixAIr" className="h-6 w-6" />
+            <p className="text-xs font-bold text-foreground leading-none">DATAelixAIr</p>
           </div>
         </div>
 
         {/* Search trigger */}
-        <div className="px-3 pt-3">
+        <div className="px-2 pt-2">
           <button
             onClick={() => {
               const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true });
               window.dispatchEvent(event);
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground bg-muted/50 hover:bg-muted border border-border/50 transition-colors"
+            className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs text-muted-foreground bg-muted/50 hover:bg-muted border border-border/50 transition-colors"
           >
-            <Search className="h-3.5 w-3.5" />
-            <span className="text-xs">Search…</span>
-            <kbd className="ml-auto text-[10px] bg-background px-1.5 py-0.5 rounded border border-border font-mono">⌘K</kbd>
+            <Search className="h-3 w-3" />
+            <span className="text-[10px]">Search…</span>
+            <kbd className="ml-auto text-[8px] bg-background px-1 py-0.5 rounded border border-border font-mono">⌘K</kbd>
           </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-0.5">
+        <nav className="flex-1 px-2 py-1.5 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => (
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150 ${
                 location.pathname === item.path
-                  ? "bg-primary/10 text-primary font-medium shadow-sm"
+                  ? "bg-primary/10 text-primary font-medium"
                   : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
               }`}
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              <item.icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{item.label}</span>
             </button>
           ))}
         </nav>
-        <div className="p-3 border-t border-border space-y-2">
-          <button onClick={() => navigate("/")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted/50 transition-colors">
-            <Globe className="h-4 w-4" /> ← Website
+        <div className="px-2 py-2 border-t border-border space-y-1">
+          <button onClick={() => navigate("/")} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-muted/50 transition-colors">
+            <Globe className="h-3.5 w-3.5" /> ← Website
           </button>
-          <div className="px-3 py-1"><p className="text-[10px] text-muted-foreground truncate">{user?.email}</p></div>
-          <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" onClick={() => { signOut(); navigate("/auth"); }}>
-            <LogOut className="h-4 w-4 mr-2" /> Sign out
+          <div className="px-2"><p className="text-[9px] text-muted-foreground truncate">{user?.email}</p></div>
+          <Button variant="ghost" size="sm" className="w-full justify-start text-xs text-muted-foreground h-7" onClick={() => { signOut(); navigate("/auth"); }}>
+            <LogOut className="h-3.5 w-3.5 mr-1.5" /> Sign out
           </Button>
         </div>
       </aside>

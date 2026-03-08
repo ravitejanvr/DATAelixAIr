@@ -703,11 +703,8 @@ export default function Clinical() {
       <div className="h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden bg-background">
 
         {/* ── Toolbar ── */}
-        <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-border bg-card">
+        <div className="shrink-0 flex items-center justify-between px-4 py-1.5 border-b border-border bg-card">
           <div className="flex items-center gap-3">
-            <div className="hidden md:block">
-              <ConsultationTimeline steps={timelineSteps} />
-            </div>
             <div className="hidden md:block">
               <ConsultationTimeline steps={timelineSteps} />
             </div>
@@ -743,7 +740,7 @@ export default function Clinical() {
         </div>
 
         {/* ── Main Content: Three-column no-scroll ── */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1fr_1fr_280px]">
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(280px,1fr)_minmax(320px,1.2fr)_260px]">
 
           {/* ═══ LEFT COLUMN ═══ */}
           <div className="overflow-y-auto border-r border-border">
@@ -758,7 +755,7 @@ export default function Clinical() {
                 onNewSession={startNewSession}
               />
             ) : (
-            <div className="p-3 space-y-2.5">
+            <div className="p-2.5 space-y-2">
 
               {/* Patient Header */}
               <ClinicalCard className="p-3">
@@ -927,18 +924,6 @@ export default function Clinical() {
                 </ClinicalCard>
               )}
 
-              {/* Record / Write */}
-              {selectedPatient && (
-                <ClinicalCard className="p-3">
-                  <ClinicalCardHeader
-                    title="Record / Write"
-                    icon={<Mic className="h-3.5 w-3.5" />}
-                    badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">Captured</Badge> : undefined}
-                  />
-                  <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
-                </ClinicalCard>
-              )}
-
               {/* Empty state */}
               {!selectedPatient && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-12 text-center">
@@ -956,6 +941,16 @@ export default function Clinical() {
           <div className="overflow-y-auto border-r border-border">
             {selectedPatient && !finalizationResults && (
             <div className="p-3 space-y-2.5">
+
+              {/* Record / Write */}
+              <ClinicalCard className="p-3">
+                <ClinicalCardHeader
+                  title="Record / Write"
+                  icon={<Mic className="h-3.5 w-3.5" />}
+                  badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">Captured</Badge> : undefined}
+                />
+                <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
+              </ClinicalCard>
 
               {/* AI Processing */}
               <AnimatePresence>
