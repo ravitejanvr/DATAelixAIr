@@ -19,6 +19,7 @@ import InlineVitals from "@/components/InlineVitals";
 import VisitTimeline from "@/components/VisitTimeline";
 import InlinePrescriptionBuilder from "@/components/InlinePrescriptionBuilder";
 import InlineLabOrders from "@/components/InlineLabOrders";
+import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import {
   Loader2, Save, CheckCircle2, ChevronDown, ChevronRight, FileText,
   Edit3, Eye, ShieldCheck, AlertTriangle, XCircle, CheckCircle,
@@ -70,6 +71,8 @@ export default function Clinical() {
 
   // Patient selection
   const [selectedPatient, setSelectedPatient] = useState<SelectedPatient | null>(null);
+  const [intakeData, setIntakeData] = useState<IntakeData | null>(null);
+  const [visitId, setVisitId] = useState<string | null>(null);
 
   // Transcript state
   const [transcript, setTranscript] = useState("");
@@ -113,10 +116,20 @@ export default function Clinical() {
     supabase.from("profiles").select("clinic_id").eq("user_id", user.id).maybeSingle().then(({ data }) => {
       if (data?.clinic_id) setProfileClinicId(data.clinic_id);
     });
-    // Check navigation state
+    // Check navigation state (from intake or patient detail)
     const state = window.history.state?.usr;
-    if (state?.patient) {
-      setSelectedPatient(state.patient);
+    if (state?.patient) setSelectedPatient(state.patient);
+    if (state?.visitId) setVisitId(state.visitId);
+    if (state?.intakeData) {
+      setIntakeData(state.intakeData as IntakeData);
+      // Pre-fill extracted data from intake
+      const id = state.intakeData as IntakeData;
+      setExtractedData(prev => ({
+        ...prev,
+        chief_complaint: id.chief_complaint || prev.chief_complaint,
+        allergies: id.allergies_noted || prev.allergies,
+        current_medications: id.current_medications || prev.current_medications,
+      }));
     }
   }, [user]);
 
@@ -218,8 +231,18 @@ export default function Clinical() {
     setIsGeneratingSoap(true);
     const t4 = startPipelineTimer("documentation");
     try {
+      // Build intake context for SOAP generation
+      const intakeContext: Record<string, string> = {};
+      if (intakeData) {
+        intakeContext.chief_complaint = intakeData.chief_complaint || "";
+        intakeContext.symptom_duration = intakeData.symptom_duration || "";
+        intakeContext.pain_score = intakeData.pain_score != null ? `${intakeData.pain_score}/10` : "";
+        intakeContext.allergies = intakeData.allergies_noted || "";
+        intakeContext.medications = intakeData.current_medications || "";
+        intakeContext.pregnancy_status = intakeData.pregnancy_status || "";
+      }
       const { data, error } = await supabase.functions.invoke("clinical-soap", {
-        body: { transcript: stableText.trim(), extractedData: {} },
+        body: { transcript: stableText.trim(), extractedData: intakeContext },
       });
       if (error) throw new Error(error.message);
       const sections = {
@@ -346,6 +369,7 @@ export default function Clinical() {
     setSoapSections(EMPTY_SOAP); setSavedSessionId(null); setSafetyResults(null);
     setPatientExplanation(""); setReviewConfirmed(false); setPipelineComplete(false);
     setNormalizationResults([]); setDetectedLanguages([]); setSelectedPatient(null);
+    setIntakeData(null); setVisitId(null);
   };
 
   const generatePatientExplanation = async () => {
@@ -435,8 +459,15 @@ export default function Clinical() {
                 <Clock className="h-2.5 w-2.5" /> Visit History
               </div>
               <VisitTimeline patientId={selectedPatient?.id || null} />
-            </div>
           </div>
+
+          {/* Intake Summary Banner */}
+          {(intakeData || selectedPatient?.id) && (
+            <div className="px-4 py-1.5 border-t border-border/50">
+              <IntakeSummary patientId={selectedPatient?.id || null} visitId={visitId} intakeData={intakeData} />
+            </div>
+          )}
+        </div>
         </div>
 
         {/* ── Main workspace ── */}
