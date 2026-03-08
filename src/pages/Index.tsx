@@ -15,7 +15,7 @@ const Index = () => (
   <div>
     <SEO
       title="DATAelixAIr — AI Clinical Documentation in Under 60 Seconds"
-      description="Convert consultation audio into structured SOAP notes, prescription drafts, and patient summaries — securely and reviewable by clinicians."
+      description="Write or record consultations — get structured SOAP notes, prescriptions, and patient summaries generated instantly and reviewable by clinicians."
     />
     <script
       type="application/ld+json"
@@ -42,8 +42,8 @@ const Index = () => (
       <div className="container mx-auto px-4 py-20 relative z-10">
         <motion.div initial="hidden" animate="visible" className="text-center max-w-3xl mx-auto">
           <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 mb-8 px-4 py-1.5 rounded-full border border-border bg-card text-xs font-medium text-muted-foreground">
-            <Mic className="w-3.5 h-3.5 text-primary" />
-            AI-Powered Clinical Documentation
+            <FileText className="w-3.5 h-3.5 text-primary" />
+            Clinical Documentation Workspace
           </motion.div>
 
           <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.4rem,5vw,3.8rem)] font-extrabold leading-[1.08] tracking-tight text-foreground">
@@ -52,7 +52,7 @@ const Index = () => (
           </motion.h1>
 
           <motion.p variants={fadeUp} custom={2} className="mt-7 text-[clamp(1rem,1.4vw,1.15rem)] font-light leading-relaxed text-muted-foreground max-w-2xl mx-auto">
-            Convert consultation audio into structured SOAP notes, prescription drafts, and patient summaries — securely and reviewable by clinicians.
+            Write or record your consultations — get structured SOAP notes, prescriptions, and patient summaries generated instantly and reviewable by clinicians.
           </motion.p>
 
           <motion.div variants={fadeUp} custom={3} className="mt-10 flex flex-wrap justify-center gap-4">
@@ -130,7 +130,7 @@ const Index = () => (
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
           {[
-            { step: "01", icon: Mic, title: "Record Consultation", desc: "Voice input during patient visit — speak naturally, we handle the rest." },
+            { step: "01", icon: Mic, title: "Write or Record", desc: "Type notes or use voice input during the consultation — both merge into one clinical notebook." },
             { step: "02", icon: FileText, title: "AI Generates Notes", desc: "Structured SOAP notes, risk flags, and clinical summaries created automatically." },
             { step: "03", icon: UserCheck, title: "Clinician Reviews", desc: "Every AI output is presented as a draft — you review, edit, and approve." },
             { step: "04", icon: Share2, title: "Export & Share", desc: "Generate bilingual PDFs, share via WhatsApp, or save to patient records." },
