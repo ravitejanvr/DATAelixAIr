@@ -298,56 +298,46 @@ export default function Clinical() {
     } finally { setIsRunningSafety(false); }
   };
 
-  // ── Save Session ──
+  // ── Save Session (via Edge Function) ──
   const saveSession = async () => {
     if (!user) return;
     if (!reviewConfirmed) { toast({ title: "Confirmation required", description: "Please confirm you have reviewed the AI outputs.", variant: "destructive" }); return; }
     setIsSaving(true);
     try {
-      const editedSoapText = Object.entries(soapSections).map(([h, c]) => `**${h}**\n${c}`).join("\n\n");
-      let patientId = selectedPatient?.id;
-      if (!patientId) {
-        const { data: patientData, error: patientError } = await supabase.from("patients").insert({
-          name: extractedData.chief_complaint ? "Session Patient" : "Quick Patient", doctor_id: user.id, clinic_id: profileClinicId,
-          current_medications: extractedData.current_medications ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : [],
-          allergies: extractedData.allergies ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : [],
-        }).select("id").single();
-        if (patientError) throw new Error(patientError.message);
-        patientId = patientData.id;
-      }
-      const { data: consultData, error } = await supabase.from("consultations").insert({
-        patient_id: patientId, doctor_id: user.id, clinic_id: profileClinicId,
-        chief_complaint: extractedData.chief_complaint,
-        raw_transcript: stabilizedTranscript || transcript, stabilized_transcript: stabilizedTranscript,
-        doctor_final_transcript: transcript, review_confirmed: reviewConfirmed,
-        edited_transcript: transcript, extracted_data: extractedData as any, ai_summary: editedSoapText,
-        soap_subjective: soapSections["Visit Summary"], soap_objective: soapSections["Findings"],
-        soap_assessment: soapSections["Provisional Diagnosis"],
-        soap_plan: `${soapSections["Treatment Plan"]}\n\n${soapSections["Advice"]}\n\n${followUpNotes}`,
-        follow_up_date: followUpDate || null,
-        status: "completed",
-        safety_flags: safetyResults ? [...safetyResults.interaction_flags, ...safetyResults.allergy_flags, ...safetyResults.dose_warnings] : [],
-        normalization_results: safetyResults?.normalized_drugs || [],
-        confidence_score: safetyResults?.confidence_level || "moderate",
-      } as any).select("id").single();
+      const { data, error } = await supabase.functions.invoke("save-consultation", {
+        body: {
+          patient_id: selectedPatient?.id || null,
+          clinic_id: profileClinicId,
+          visit_id: visitId,
+          transcript,
+          stabilized_transcript: stabilizedTranscript,
+          extracted_data: extractedData,
+          soap_sections: soapSections,
+          safety_results: safetyResults,
+          follow_up_date: followUpDate || null,
+          follow_up_notes: followUpNotes,
+          review_confirmed: reviewConfirmed,
+          ai_extracted_baseline: aiExtractedBaseline,
+          ai_soap_baseline: aiSoapBaseline,
+          session_duration_ms: Math.round(performance.now() - sessionStartTime),
+        },
+      });
       if (error) throw new Error(error.message);
-      setSavedSessionId(consultData.id);
+      setSavedSessionId(data.consultation_id);
       toast({ title: "Session saved", description: "Clinical session saved successfully." });
 
-      const transcriptWasEdited = stabilizedTranscript !== transcript;
-      const extractionWasCorrected = JSON.stringify(aiExtractedBaseline) !== JSON.stringify(extractedData);
-      const soapWasEdited = JSON.stringify(aiSoapBaseline) !== JSON.stringify(soapSections);
-      const safetyAlertsCount = safetyResults ? (safetyResults.interaction_flags.length + safetyResults.allergy_flags.length + safetyResults.dose_warnings.length + safetyResults.vitals_dangers.length + safetyResults.emergency_patterns.length) : 0;
-
-      logAuditEvent({ actor_id: user.id, event_type: "session_completed", target_type: "consultation", target_id: consultData.id, metadata: { transcript_edited: transcriptWasEdited, extraction_corrected: extractionWasCorrected, soap_edited: soapWasEdited, safety_alerts_count: safetyAlertsCount, follow_up_date: followUpDate || null, model_version: "gemini-3-flash-preview", duration_ms: Math.round(performance.now() - sessionStartTime) } });
-      if (transcriptWasEdited) logAuditEvent({ actor_id: user.id, event_type: "ai_output_edited", target_type: "transcript", target_id: consultData.id, metadata: { stage: "transcript" } });
-      if (extractionWasCorrected) logAuditEvent({ actor_id: user.id, event_type: "ai_output_edited", target_type: "extraction", target_id: consultData.id, metadata: { stage: "extraction" } });
-      if (soapWasEdited) logAuditEvent({ actor_id: user.id, event_type: "ai_output_edited", target_type: "soap", target_id: consultData.id, metadata: { stage: "soap" } });
-
-      captureTranscriptEditSignal(user.id, null, stabilizedTranscript, transcript);
-      captureExtractionCorrectionSignal(user.id, null, aiExtractedBaseline as any, extractedData as any);
-      captureDocumentationStyleSignal(user.id, null, aiSoapBaseline as unknown as Record<string, string>, soapSections as unknown as Record<string, string>);
-      emitSessionCompletedMetric({ transcript_edited: transcriptWasEdited, extraction_corrected: extractionWasCorrected, soap_edited: soapWasEdited, safety_alerts_count: safetyAlertsCount, total_duration_ms: Math.round(performance.now() - sessionStartTime) });
+      // Finalize visit if linked
+      if (visitId) {
+        await supabase.functions.invoke("finalize-visit", {
+          body: {
+            visit_id: visitId,
+            consultation_id: data.consultation_id,
+            clinic_id: profileClinicId,
+            target_status: "consultation_complete",
+            billing_enabled: true,
+          },
+        });
+      }
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally { setIsSaving(false); }
