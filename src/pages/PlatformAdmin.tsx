@@ -86,6 +86,8 @@ const getPathFromTab = (tab: AdminTab): string => (
 export default function PlatformAdmin() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [pilots, setPilots] = useState<any[]>([]);
   const [clinics, setClinics] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -94,8 +96,10 @@ export default function PlatformAdmin() {
   const [monitoringData, setMonitoringData] = useState<MonitoringDashboardData | null>(null);
   const [monitoringLoading, setMonitoringLoading] = useState(false);
   const [governanceAudit, setGovernanceAudit] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => getTabFromPath(location.pathname));
 
   useEffect(() => { if (user) loadAll(); }, [user]);
+  useEffect(() => { setActiveTab(getTabFromPath(location.pathname)); }, [location.pathname]);
 
   const loadAll = async () => {
     setLoading(true);
