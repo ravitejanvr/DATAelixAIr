@@ -240,7 +240,7 @@ export default function ReportShareDialog({
         {/* Language selector */}
         <div className="flex gap-2 items-center flex-wrap">
           <Languages className="h-4 w-4 text-muted-foreground" />
-          {(["english", "hindi", "telugu"] as ReportLanguage[]).map((lang) => (
+          {(["english", "hindi", "telugu", "urdu"] as ReportLanguage[]).map((lang) => (
             <Button
               key={lang}
               size="sm"
