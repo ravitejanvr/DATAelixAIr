@@ -52,7 +52,7 @@ const Index = () => (
           </motion.h1>
 
           <motion.p variants={fadeUp} custom={2} className="mt-7 text-[clamp(1rem,1.4vw,1.15rem)] font-light leading-relaxed text-muted-foreground max-w-2xl mx-auto">
-            Convert consultation audio into structured SOAP notes, prescription drafts, and patient summaries — securely and reviewable by clinicians.
+            Write or record your consultations — get structured SOAP notes, prescriptions, and patient summaries generated instantly and reviewable by clinicians.
           </motion.p>
 
           <motion.div variants={fadeUp} custom={3} className="mt-10 flex flex-wrap justify-center gap-4">
