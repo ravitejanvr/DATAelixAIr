@@ -696,6 +696,18 @@ export default function Clinical() {
                 }}
               />
 
+              {/* Doctor Favorites + Recent Rx */}
+              <Section title="Quick Rx" icon={Pill} defaultOpen>
+                <div className="px-0.5">
+                  <DoctorFavoritesPanel
+                    onSelectDrug={(drug) => {
+                      setPendingRxFromSuggestions(prev => [...prev, { drug_name: drug.drug_name, dose: drug.dosage, frequency: drug.frequency, duration: drug.duration }]);
+                      toast({ title: `Added: ${drug.drug_name}`, description: `${drug.dosage} · ${drug.frequency}` });
+                    }}
+                  />
+                </div>
+              </Section>
+
               {/* Prescriptions — always visible */}
               <Section title="Prescriptions" icon={Pill} defaultOpen>
                 <div className="px-0.5">
