@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.clinical-safety]
 verify_jwt = false
+
+[functions.clinical-knowledge]
+verify_jwt = false
