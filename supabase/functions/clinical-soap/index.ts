@@ -74,11 +74,15 @@ RULES:
 - When uncertainty is detected, ALWAYS use provisional/hedged language
 - NEVER generate hallucinated contraindications or side effects not supported by data`;
 
+    const clinicalContextBlock = clinical_context
+      ? `\n\nCLINICAL CONTEXT (patient demographics, vitals, history):\n${JSON.stringify(clinical_context, null, 2)}`
+      : "";
+
     const userMessage = `CONSULTATION TRANSCRIPT:
 ${transcript || "Not provided"}
 
 EXTRACTED CLINICAL DATA:
-${JSON.stringify(extractedData || {}, null, 2)}${safetyContext}
+${JSON.stringify(extractedData || {}, null, 2)}${safetyContext}${clinicalContextBlock}
 
 Generate the concise clinical summary following the format exactly.`;
 
