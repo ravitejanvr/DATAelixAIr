@@ -1166,9 +1166,9 @@ export default function Clinical() {
               {/* AI Suggestions — Tests */}
               {selectedSymptoms.length > 0 && copilotTests.length > 0 && (
                 <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-2 border-primary/10">
-                    <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                      <FlaskConical className="h-2.5 w-2.5 text-chip-lab-text" /> Tests
+                  <ClinicalCard className="p-2.5 border-primary/10">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                      <FlaskConical className="h-3 w-3 text-chip-lab-text" /> Tests
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {copilotTests.map(t => (
@@ -1182,9 +1182,9 @@ export default function Clinical() {
               {/* AI Suggestions — Medications */}
               {contextualRx.length > 0 && (
                 <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-2 border-primary/10">
-                    <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                      <Pill className="h-2.5 w-2.5 text-chip-medication-text" /> Medications
+                  <ClinicalCard className="p-2.5 border-primary/10">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                      <Pill className="h-3 w-3 text-chip-medication-text" /> Medications
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {contextualRx.map((rx, i) => (
