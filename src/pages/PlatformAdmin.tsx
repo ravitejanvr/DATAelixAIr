@@ -34,7 +34,7 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
             <p className="text-sm font-medium">{u.full_name || "—"}</p>
-            <p className="text-[10px] text-muted-foreground">{u.phone || "No phone"} · Registered {new Date(u.created_at).toLocaleDateString()}</p>
+            <p className="text-[10px] text-muted-foreground">{u.email || "No email"} · {u.phone || "No phone"} · Registered {new Date(u.created_at).toLocaleDateString()}</p>
             <div className="flex gap-1 mt-1">
               {roles.map((r: string, i: number) => (
                 <Badge key={i} variant="outline" className="text-[9px]">{r}</Badge>
