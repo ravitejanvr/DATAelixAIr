@@ -598,19 +598,38 @@ export default function Clinical() {
                 </Section>
               )}
 
-              {/* SOAP Draft — editable */}
+              {/* Context Completeness Warnings */}
+              {safetyResults?.context_completeness && !safetyResults.context_completeness.context_complete && (
+                <Section title="Missing Context" icon={AlertTriangle} defaultOpen
+                  badge={<Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[8px]">Action Required</Badge>}>
+                  <div className="space-y-1 px-0.5">
+                    {safetyResults.context_completeness.issues.map((issue, i) => (
+                      <div key={i} className={`p-1.5 rounded border text-[10px] ${severityColor(issue.severity)}`}>
+                        <span className="font-medium capitalize">{issue.field.replace(/_/g, " ")}</span>: {issue.message}
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* SOAP Draft — editable with AI Draft label */}
               {hasSoap && (
                 <Section title="AI Clinical Summary" icon={Edit3} defaultOpen
                   badge={<Badge variant="outline" className="text-[8px] gap-0.5"><Sparkles className="h-2 w-2" />Draft</Badge>}>
-                  <div className="space-y-1.5 px-0.5">
-                    {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
-                      <div key={section}>
-                        <Label className={`text-[9px] font-semibold ${section === "Safety Warnings" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
-                          {section}
-                        </Label>
-                        <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-[11px] min-h-[32px] resize-y" />
-                      </div>
-                    ))}
+                  <div className="px-0.5">
+                    <div className="mb-1.5 px-2 py-1 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[9px] text-amber-700 dark:text-amber-400 font-medium">
+                      ⚕️ {AI_DRAFT_LABEL}
+                    </div>
+                    <div className="space-y-1.5">
+                      {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
+                        <div key={section}>
+                          <Label className={`text-[9px] font-semibold ${section === "Safety Warnings" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                            {section}
+                          </Label>
+                          <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-[11px] min-h-[32px] resize-y" />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </Section>
               )}
