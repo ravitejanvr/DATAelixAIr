@@ -659,6 +659,7 @@ export type Database = {
           id: string
           patient_id: string
           status: string
+          token_number: number | null
           updated_at: string
           visit_type: string | null
         }
@@ -670,6 +671,7 @@ export type Database = {
           id?: string
           patient_id: string
           status?: string
+          token_number?: number | null
           updated_at?: string
           visit_type?: string | null
         }
@@ -681,6 +683,7 @@ export type Database = {
           id?: string
           patient_id?: string
           status?: string
+          token_number?: number | null
           updated_at?: string
           visit_type?: string | null
         }
