@@ -15,7 +15,7 @@ const Index = () => (
   <div>
     <SEO
       title="DATAelixAIr — AI Clinical Documentation in Under 60 Seconds"
-      description="Convert consultation audio into structured SOAP notes, prescription drafts, and patient summaries — securely and reviewable by clinicians."
+      description="Write or record consultations — get structured SOAP notes, prescriptions, and patient summaries generated instantly and reviewable by clinicians."
     />
     <script
       type="application/ld+json"
