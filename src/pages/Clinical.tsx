@@ -116,10 +116,20 @@ export default function Clinical() {
     supabase.from("profiles").select("clinic_id").eq("user_id", user.id).maybeSingle().then(({ data }) => {
       if (data?.clinic_id) setProfileClinicId(data.clinic_id);
     });
-    // Check navigation state
+    // Check navigation state (from intake or patient detail)
     const state = window.history.state?.usr;
-    if (state?.patient) {
-      setSelectedPatient(state.patient);
+    if (state?.patient) setSelectedPatient(state.patient);
+    if (state?.visitId) setVisitId(state.visitId);
+    if (state?.intakeData) {
+      setIntakeData(state.intakeData as IntakeData);
+      // Pre-fill extracted data from intake
+      const id = state.intakeData as IntakeData;
+      setExtractedData(prev => ({
+        ...prev,
+        chief_complaint: id.chief_complaint || prev.chief_complaint,
+        allergies: id.allergies_noted || prev.allergies,
+        current_medications: id.current_medications || prev.current_medications,
+      }));
     }
   }, [user]);
 
