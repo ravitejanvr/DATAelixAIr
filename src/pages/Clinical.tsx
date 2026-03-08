@@ -945,7 +945,7 @@ export default function Clinical() {
                   <div className="h-10 w-10 rounded-2xl bg-primary/5 flex items-center justify-center mb-2">
                     <Stethoscope className="h-5 w-5 text-primary/20" />
                   </div>
-                  <p className="text-[10px] text-muted-foreground">Select a patient to start.</p>
+                  <p className="text-xs text-muted-foreground">Select a patient to start.</p>
                 </motion.div>
               )}
             </div>
