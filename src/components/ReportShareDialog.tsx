@@ -220,6 +220,7 @@ export default function ReportShareDialog({
     english: "English",
     hindi: "हिन्दी (Hindi)",
     telugu: "తెలుగు (Telugu)",
+    urdu: "اردو (Urdu)",
   };
 
   return (
