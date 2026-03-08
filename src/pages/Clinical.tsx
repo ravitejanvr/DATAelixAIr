@@ -740,9 +740,9 @@ export default function Clinical() {
         </div>
 
         {/* ── Main Content: Three-column no-scroll ── */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(280px,1fr)_minmax(320px,1.2fr)_260px]">
+        <div className={`flex-1 overflow-hidden grid grid-cols-1 ${finalizationResults ? "lg:grid-cols-[1fr_260px]" : "lg:grid-cols-[minmax(280px,1fr)_minmax(320px,1.2fr)_260px]"}`}>
 
-          {/* ═══ LEFT COLUMN ═══ */}
+          {/* ═══ LEFT COLUMN (expands to span left+center when finalized) ═══ */}
           <div className="overflow-y-auto border-r border-border">
 
             {finalizationResults ? (
@@ -937,9 +937,10 @@ export default function Clinical() {
             )}
           </div>
 
-          {/* ═══ CENTER COLUMN: Transcript + Review + Finalize ═══ */}
+          {/* ═══ CENTER COLUMN: Transcript + Review + Finalize (hidden when finalized) ═══ */}
+          {!finalizationResults && (
           <div className="overflow-y-auto border-r border-border">
-            {selectedPatient && !finalizationResults && (
+            {selectedPatient && (
             <div className="p-3 space-y-2.5">
 
               {/* Record / Write */}
@@ -1127,6 +1128,7 @@ export default function Clinical() {
             </div>
             )}
           </div>
+          )}
 
           {/* ═══ RIGHT: AI Copilot Sidebar ═══ */}
           <div className="overflow-y-auto border-l border-border bg-card/30 max-lg:hidden">
