@@ -139,6 +139,29 @@ export default function Auth() {
     finally { setLoading(false); }
   };
 
+  const handleForgotPassword = async () => {
+    if (!emailRegex.test(signInEmail)) {
+      toast({ title: "Enter your email", description: "Type your email address above, then click Forgot Password.", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(signInEmail.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        toast({ title: "Reset failed", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Reset email sent", description: "Check your inbox for a password reset link." });
+        setShowForgotPassword(false);
+      }
+    } catch {
+      toast({ title: "Connection error", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEnter = (e: React.KeyboardEvent, action: "signin" | "signup") => {
     if (e.key !== "Enter") return;
     if (action === "signin") handleSignIn();
