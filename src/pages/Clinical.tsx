@@ -497,13 +497,62 @@ export default function Clinical() {
   const runValidation = async () => {
     setIsValidating(true);
     try {
-      await runSafetyCheck();
+      // Run safety check and wait for results
+      setIsRunningSafety(true);
+      const timer = startPipelineTimer("safety_controller");
+      const medications = [
+        ...(extractedData.current_medications?.split(",").map(s => s.trim()).filter(Boolean) || []),
+        ...pendingRxFromSuggestions.map(r => r.drug_name),
+      ];
+      const allergies = [
+        ...(extractedData.allergies?.split(",").map(s => s.trim()).filter(Boolean) || []),
+        ...(selectedPatient?.allergies || []),
+      ];
+      const vitalsObj: Record<string, number | null> = {
+        bp_systolic: patientVitals?.bp_systolic ?? null,
+        bp_diastolic: patientVitals?.bp_diastolic ?? null,
+        pulse: patientVitals?.pulse ?? null,
+        temperature: patientVitals?.temperature ?? null,
+        spo2: patientVitals?.spo2 ?? null,
+        respiratory_rate: patientVitals?.respiratory_rate ?? null,
+        blood_sugar: patientVitals?.blood_sugar ?? null,
+      };
+      const symptoms = [
+        ...selectedSymptoms,
+        ...(extractedData.chief_complaint ? [extractedData.chief_complaint] : []),
+        ...(extractedData.associated_symptoms ? extractedData.associated_symptoms.split(",").map(s => s.trim()).filter(Boolean) : []),
+      ];
+
+      const { data, error } = await supabase.functions.invoke("clinical-safety", {
+        body: { medications, allergies, vitals: vitalsObj, symptoms },
+      });
+
+      if (error) throw new Error(error.message);
+      const results = data as SafetyResults;
+      setSafetyResults(results);
+      setIsRunningSafety(false);
+      timer.stop(true);
+
+      emitSafetyAlertMetric({
+        interactions: results.interaction_flags?.length || 0,
+        allergies: results.allergy_flags?.length || 0,
+        dose_warnings: results.dose_warnings?.length || 0,
+        vitals_dangers: results.vitals_dangers?.length || 0,
+        emergency_patterns: results.emergency_patterns?.length || 0,
+      });
+
+      const alertCount = (results.interaction_flags?.length || 0) + (results.allergy_flags?.length || 0) +
+        (results.dose_warnings?.length || 0) + (results.vitals_dangers?.length || 0) + (results.emergency_patterns?.length || 0);
+
       setValidationComplete(true);
-      if (safetyAlertCount === 0) {
+      if (alertCount === 0) {
         toast({ title: "✓ Validation passed", description: "No safety concerns detected." });
+      } else {
+        toast({ title: `⚠ ${alertCount} alert(s) found`, description: "Review safety flags before finalizing.", variant: "destructive" });
       }
-    } catch {
-      toast({ title: "Validation error", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Validation error", description: err.message, variant: "destructive" });
+      setIsRunningSafety(false);
     } finally {
       setIsValidating(false);
     }
