@@ -68,9 +68,37 @@ Deno.serve(async (req) => {
     results.stages.push({ stage: "safety_validation", status: "passed" });
 
     // ── Stage 1: Save Prescription ──
-    if (drugs && Array.isArray(drugs) && drugs.length > 0) {
+    let effectiveDrugs = drugs && Array.isArray(drugs) && drugs.length > 0 ? drugs : null;
+    
+    // Auto-generate prescriptions via AI if none provided
+    if (!effectiveDrugs && extracted_data?.chief_complaint) {
       try {
-        const rxRows = drugs.slice(0, 50).filter((d: any) => d.drug_name?.trim()).map((d: any) => ({
+        const genRxResp = await fetch(`${supabaseUrl}/functions/v1/generate-prescription`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: authHeader, apikey: anonKey },
+          body: JSON.stringify({
+            consultation_id,
+            diagnosis: soap_sections?.["Provisional Diagnosis"] || extracted_data?.chief_complaint || "",
+            symptoms: extracted_data?.associated_symptoms || extracted_data?.chief_complaint || "",
+            doctor_id: user.id,
+            clinic_id,
+            patient_allergies: extracted_data?.allergies?.split(",").map((s: string) => s.trim()) || [],
+            current_medications: extracted_data?.current_medications?.split(",").map((s: string) => s.trim()) || [],
+          }),
+        });
+        if (genRxResp.ok) {
+          const genRxData = await genRxResp.json();
+          if (genRxData.prescriptions?.length > 0) {
+            effectiveDrugs = genRxData.prescriptions;
+            results.ai_generated_prescriptions = true;
+          }
+        }
+      } catch (_e) { /* AI generation is best-effort */ }
+    }
+
+    if (effectiveDrugs && effectiveDrugs.length > 0) {
+      try {
+        const rxRows = effectiveDrugs.slice(0, 50).filter((d: any) => d.drug_name?.trim()).map((d: any) => ({
           patient_id,
           consultation_id: consultation_id || null,
           doctor_id: user.id,
