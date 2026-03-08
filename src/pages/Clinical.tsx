@@ -467,12 +467,25 @@ export default function Clinical() {
               <VisitTimeline patientId={selectedPatient?.id || null} />
           </div>
 
-          {/* Intake Summary Banner */}
-          {(intakeData || selectedPatient?.id) && (
-            <div className="px-4 py-1.5 border-t border-border/50">
-              <IntakeSummary patientId={selectedPatient?.id || null} visitId={visitId} intakeData={intakeData} />
-            </div>
-          )}
+          {/* Doctor Intake Review Panel */}
+          <div className="lg:col-span-3 px-4 py-1.5 border-t border-border/50">
+            <DoctorIntakeReview
+              patientId={selectedPatient?.id || null}
+              visitId={visitId}
+              intakeData={intakeData}
+              userId={user?.id || ""}
+              onApproved={(approved) => {
+                setIntakeData(approved);
+                setIntakeApproved(true);
+                setExtractedData(prev => ({
+                  ...prev,
+                  chief_complaint: approved.chief_complaint || prev.chief_complaint,
+                  allergies: approved.allergies_noted || prev.allergies,
+                  current_medications: approved.current_medications || prev.current_medications,
+                }));
+              }}
+            />
+          </div>
         </div>
         </div>
 
