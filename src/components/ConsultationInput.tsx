@@ -111,7 +111,7 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
           onSelect={(e) => {
             cursorRef.current = (e.target as HTMLTextAreaElement).selectionStart;
           }}
-          placeholder="Type notes or click Record…"
+          placeholder="Click Record to start capturing…"
           rows={4}
           className="text-xs pr-3 resize-none min-h-[72px] font-mono bg-background"
           disabled={disabled}

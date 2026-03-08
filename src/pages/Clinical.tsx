@@ -943,14 +943,29 @@ export default function Clinical() {
             {selectedPatient && (
             <div className="p-3 space-y-2.5">
 
-              {/* Record / Write */}
+              {/* Record */}
               <ClinicalCard className="p-3">
                 <ClinicalCardHeader
-                  title="Record / Write"
+                  title="Record"
                   icon={<Mic className="h-3.5 w-3.5" />}
                   badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">Captured</Badge> : undefined}
                 />
                 <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
+
+                {/* Additional Notes */}
+                <div className="mt-2">
+                  <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1 mb-1">
+                    <PenLine className="h-3 w-3" /> Additional Notes
+                  </Label>
+                  <Textarea
+                    value={followUpNotes}
+                    onChange={e => setFollowUpNotes(e.target.value)}
+                    placeholder="Any additional notes for this consultation…"
+                    rows={2}
+                    className="text-xs resize-none min-h-[40px] bg-background/50 rounded-lg"
+                    disabled={pipelineRunning}
+                  />
+                </div>
               </ClinicalCard>
 
               {/* AI Processing */}
@@ -1029,18 +1044,49 @@ export default function Clinical() {
                     </div>
                   )}
 
-                  {/* SOAP from AI pipeline */}
+                  {/* SOAP Visual Blocks */}
                   {pipelineComplete && hasSoap && (
-                    <div className="mt-2 pt-2 border-t border-border space-y-1.5">
+                    <div className="mt-3 pt-3 border-t border-border space-y-2">
                       <p className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                        <Brain className="h-3 w-3 text-primary" /> AI SOAP
+                        <Brain className="h-3 w-3 text-primary" /> AI Clinical Notes
                         <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] ml-1">Draft</Badge>
                       </p>
-                      {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
-                        soapSections[section]?.trim() ? (
-                          <div key={section} className="space-y-0.5">
-                            <Label className="text-[10px] font-semibold text-muted-foreground">{section}</Label>
-                            <Textarea value={soapSections[section]} onChange={e => updateSoapSection(section, e.target.value)} rows={2} className="text-xs min-h-[28px] resize-y rounded-lg bg-background/50" />
+                      {([
+                        { key: "Visit Summary" as keyof SoapSections, label: "Subjective", icon: User, color: "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400" },
+                        { key: "Findings" as keyof SoapSections, label: "Objective", icon: Eye, color: "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400" },
+                        { key: "Provisional Diagnosis" as keyof SoapSections, label: "Assessment", icon: Brain, color: "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400" },
+                        { key: "Treatment Plan" as keyof SoapSections, label: "Plan", icon: ClipboardCheck, color: "bg-purple-500/10 border-purple-500/20 text-purple-700 dark:text-purple-400" },
+                      ]).map(({ key, label, icon: Icon, color }) => (
+                        soapSections[key]?.trim() ? (
+                          <div key={key} className={`rounded-xl border p-3 ${color.split(" ").filter(c => c.startsWith("bg-") || c.startsWith("border-")).join(" ")}`}>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <Icon className={`h-3.5 w-3.5 ${color.split(" ").filter(c => c.startsWith("text-") || c.startsWith("dark:")).join(" ")}`} />
+                              <span className={`text-[11px] font-bold uppercase tracking-wide ${color.split(" ").filter(c => c.startsWith("text-") || c.startsWith("dark:")).join(" ")}`}>{label}</span>
+                            </div>
+                            <Textarea
+                              value={soapSections[key]}
+                              onChange={e => updateSoapSection(key, e.target.value)}
+                              rows={2}
+                              className="text-xs min-h-[28px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
+                            />
+                          </div>
+                        ) : null
+                      ))}
+
+                      {/* Advice & Follow-up blocks */}
+                      {(["Advice", "Follow-up"] as (keyof SoapSections)[]).map(key => (
+                        soapSections[key]?.trim() ? (
+                          <div key={key} className="rounded-xl border border-border bg-muted/30 p-3">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{key}</span>
+                            </div>
+                            <Textarea
+                              value={soapSections[key]}
+                              onChange={e => updateSoapSection(key, e.target.value)}
+                              rows={2}
+                              className="text-xs min-h-[28px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
+                            />
                           </div>
                         ) : null
                       ))}
@@ -1093,6 +1139,49 @@ export default function Clinical() {
                   <div className="mb-2">
                     <FollowUpPanel followUpDate={followUpDate} onFollowUpDateChange={setFollowUpDate} followUpNotes={followUpNotes} onFollowUpNotesChange={setFollowUpNotes} />
                   </div>
+
+                  {/* Clinical Safety Status Indicator */}
+                  {validationComplete && (
+                    <div className={`rounded-xl border p-3 ${safetyAlertCount === 0 ? "bg-emerald-500/5 border-emerald-500/20" : "bg-amber-500/5 border-amber-500/20"}`}>
+                      <p className={`text-[11px] font-bold uppercase tracking-wide mb-2 flex items-center gap-1.5 ${safetyAlertCount === 0 ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
+                        <Shield className="h-3.5 w-3.5" /> Clinical Safety Check
+                      </p>
+                      <div className="space-y-1">
+                        {/* Allergy check */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          {safetyResults && safetyResults.allergy_flags.length > 0 ? (
+                            <><AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" /><span className="text-amber-700 dark:text-amber-400">Allergy conflict detected</span></>
+                          ) : (
+                            <><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No allergy conflicts</span></>
+                          )}
+                        </div>
+                        {/* Dose check */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          {safetyResults && safetyResults.dose_warnings.length > 0 ? (
+                            <><AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" /><span className="text-amber-700 dark:text-amber-400">Dose warning detected</span></>
+                          ) : (
+                            <><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">Dose within limits</span></>
+                          )}
+                        </div>
+                        {/* Vitals check */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          {safetyResults && (safetyResults.vitals_dangers?.length || 0) > 0 ? (
+                            <><AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" /><span className="text-amber-700 dark:text-amber-400">Dangerous vitals flagged</span></>
+                          ) : (
+                            <><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No dangerous vitals</span></>
+                          )}
+                        </div>
+                        {/* Drug interaction check */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          {safetyResults && safetyResults.interaction_flags.length > 0 ? (
+                            <><AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" /><span className="text-amber-700 dark:text-amber-400">Possible drug interaction detected</span></>
+                          ) : (
+                            <><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No drug interactions</span></>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Validate + Finalize */}
                   <div className="pt-2 border-t border-border space-y-2">
