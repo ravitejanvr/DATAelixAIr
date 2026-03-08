@@ -942,6 +942,16 @@ export default function Clinical() {
             {selectedPatient && !finalizationResults && (
             <div className="p-3 space-y-2.5">
 
+              {/* Record / Write */}
+              <ClinicalCard className="p-3">
+                <ClinicalCardHeader
+                  title="Record / Write"
+                  icon={<Mic className="h-3.5 w-3.5" />}
+                  badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">Captured</Badge> : undefined}
+                />
+                <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
+              </ClinicalCard>
+
               {/* AI Processing */}
               <AnimatePresence>
                 {pipelineRunning && (
