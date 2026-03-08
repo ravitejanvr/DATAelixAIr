@@ -346,7 +346,7 @@ export default function PlatformAdmin() {
               <div>
                 <h3 className="text-sm font-semibold text-foreground mb-2">All Users</h3>
                 <div className="space-y-2">
-                  {users.filter((u: any) => (u as any).account_status !== "pending").map((u: any) => (
+                  {nonPendingUsers.map((u: any) => (
                     <Card key={u.id}>
                       <CardContent className="py-3 flex items-center justify-between">
                         <div>
