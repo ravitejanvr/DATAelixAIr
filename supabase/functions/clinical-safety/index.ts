@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,6 +52,12 @@ interface EmergencyPattern {
   matched_indicators: string[];
   message: string;
   action_hint: string;
+}
+
+interface ContextCompletenessIssue {
+  field: string;
+  severity: "blocking" | "warning";
+  message: string;
 }
 
 // --- RxNorm normalization ---
@@ -327,7 +334,139 @@ function checkEmergencyPatterns(
     });
   }
 
+  // Neurological deficit
+  const neuroSymptoms = symptomsLower.some(s =>
+    s.includes("numbness") || s.includes("weakness") || s.includes("paralysis") ||
+    s.includes("slurred speech") || s.includes("confusion") || s.includes("seizure") ||
+    s.includes("loss of consciousness") || s.includes("facial droop")
+  );
+  if (neuroSymptoms) {
+    const matched: string[] = [];
+    if (symptomsLower.some(s => s.includes("weakness") || s.includes("paralysis"))) matched.push("motor deficit");
+    if (symptomsLower.some(s => s.includes("numbness"))) matched.push("sensory deficit");
+    if (symptomsLower.some(s => s.includes("slurred") || s.includes("speech"))) matched.push("speech disturbance");
+    if (symptomsLower.some(s => s.includes("seizure"))) matched.push("seizure");
+    if (symptomsLower.some(s => s.includes("facial droop"))) matched.push("facial droop");
+    patterns.push({
+      pattern: "Neurological Deficit", severity: "critical", matched_indicators: matched,
+      message: "Acute neurological symptoms detected. Requires urgent evaluation.",
+      action_hint: "FAST assessment. CT head if stroke suspected. Neurology referral. Monitor GCS.",
+    });
+  }
+
+  // Severe dehydration
+  const dehydrationSymptoms = symptomsLower.some(s =>
+    s.includes("dehydrat") || s.includes("dry mouth") || s.includes("no urine") ||
+    s.includes("sunken eyes") || s.includes("lethargy")
+  );
+  const vomitDiarrhea = symptomsLower.some(s => s.includes("vomit") || s.includes("diarr"));
+  if (dehydrationSymptoms || (vomitDiarrhea && hr > 100)) {
+    const matched: string[] = [];
+    if (dehydrationSymptoms) matched.push("dehydration signs");
+    if (vomitDiarrhea) matched.push("fluid loss (vomiting/diarrhea)");
+    if (hr > 100) matched.push(`HR ${hr}`);
+    patterns.push({
+      pattern: "Severe Dehydration", severity: hr > 120 ? "critical" : "warning", matched_indicators: matched,
+      message: "Signs of significant dehydration detected.",
+      action_hint: "IV fluid resuscitation. Electrolytes. Monitor urine output. Assess for underlying cause.",
+    });
+  }
+
   return patterns;
+}
+
+// --- Context Completeness Validation ---
+function checkContextCompleteness(clinical_context: any): {
+  issues: ContextCompletenessIssue[];
+  context_complete: boolean;
+  ai_suggestions_blocked: boolean;
+} {
+  const issues: ContextCompletenessIssue[] = [];
+
+  // Blocking checks — these prevent AI from generating suggestions
+  if (!clinical_context?.chief_complaint || clinical_context.chief_complaint.trim() === "") {
+    issues.push({ field: "chief_complaint", severity: "blocking", message: "Chief complaint is required before AI analysis can proceed." });
+  }
+
+  if (clinical_context?.patient_age == null) {
+    issues.push({ field: "patient_age", severity: "blocking", message: "Patient age is required for safe clinical reasoning." });
+  }
+
+  if (!clinical_context?.patient_sex || clinical_context.patient_sex.trim() === "") {
+    issues.push({ field: "patient_sex", severity: "blocking", message: "Patient sex is required for accurate clinical assessment." });
+  }
+
+  // Warning checks — these allow AI but flag missing data
+  const hasAnyVitals = clinical_context?.blood_pressure || clinical_context?.pulse ||
+    clinical_context?.temperature || clinical_context?.oxygen_saturation;
+  if (!hasAnyVitals) {
+    issues.push({ field: "vitals", severity: "warning", message: "No vitals recorded. Consider recording vitals for comprehensive assessment." });
+  }
+
+  if (clinical_context?.oxygen_saturation == null && clinical_context?.respiratory_rate == null) {
+    issues.push({ field: "respiratory_vitals", severity: "warning", message: "SpO₂ and respiratory rate not recorded. Recommended for respiratory complaints." });
+  }
+
+  if (!clinical_context?.allergies || clinical_context.allergies.length === 0) {
+    issues.push({ field: "allergies", severity: "warning", message: "No allergy information recorded. Verify with patient before prescribing." });
+  }
+
+  if (!clinical_context?.current_medications || clinical_context.current_medications.length === 0) {
+    issues.push({ field: "current_medications", severity: "warning", message: "No current medications recorded. Verify to prevent drug interactions." });
+  }
+
+  const blockingIssues = issues.filter(i => i.severity === "blocking");
+  return {
+    issues,
+    context_complete: blockingIssues.length === 0,
+    ai_suggestions_blocked: blockingIssues.length > 0,
+  };
+}
+
+// --- Audit logging helper ---
+async function logSafetyAudit(
+  actor_id: string | null,
+  safetyResults: any,
+  contextCompleteness: any,
+) {
+  try {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const totalFlags = (safetyResults.interaction_flags?.length || 0) +
+      (safetyResults.allergy_flags?.length || 0) +
+      (safetyResults.dose_warnings?.length || 0) +
+      (safetyResults.vitals_dangers?.length || 0) +
+      (safetyResults.emergency_patterns?.length || 0);
+
+    if (totalFlags > 0 || !contextCompleteness.context_complete) {
+      await supabase.from("audit_logs").insert({
+        actor_id: actor_id || "00000000-0000-0000-0000-000000000000",
+        event_type: "safety_controller_flags",
+        target_type: "safety_check",
+        metadata: {
+          total_flags: totalFlags,
+          interaction_count: safetyResults.interaction_flags?.length || 0,
+          allergy_count: safetyResults.allergy_flags?.length || 0,
+          dose_warning_count: safetyResults.dose_warnings?.length || 0,
+          vitals_danger_count: safetyResults.vitals_dangers?.length || 0,
+          emergency_pattern_count: safetyResults.emergency_patterns?.length || 0,
+          emergency_patterns: safetyResults.emergency_patterns?.map((p: any) => p.pattern) || [],
+          context_complete: contextCompleteness.context_complete,
+          context_blocking_fields: contextCompleteness.issues
+            .filter((i: any) => i.severity === "blocking")
+            .map((i: any) => i.field),
+          confidence_level: safetyResults.confidence_level,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+  } catch (e) {
+    console.error("Audit logging failed (non-blocking):", e);
+  }
 }
 
 serve(async (req) => {
@@ -335,7 +474,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { medications, allergies, vitals, symptoms } = body;
+    const { medications, allergies, vitals, symptoms, clinical_context, actor_id } = body;
 
     if (!medications || !Array.isArray(medications)) {
       return new Response(JSON.stringify({ error: "medications array required" }), {
@@ -346,6 +485,9 @@ serve(async (req) => {
     const allergyList: string[] = Array.isArray(allergies) ? allergies : [];
     const vitalsObj: Record<string, number | null | undefined> = vitals && typeof vitals === "object" ? vitals : {};
     const symptomList: string[] = Array.isArray(symptoms) ? symptoms : [];
+
+    // 0. Context completeness validation
+    const context_completeness = checkContextCompleteness(clinical_context || {});
 
     // 1. Normalize drugs
     const normalized_drugs = await Promise.all(medications.map((m: string) => normalizeDrug(m)));
@@ -377,16 +519,33 @@ serve(async (req) => {
     if (hasAllergyConflict || hasSevereInteraction || hasCriticalVitals || hasCriticalEmergency) confidence_level = "low";
     else if (hasUnrecognized || hasDoseIssue || dose_warnings.length > 0 || vitals_dangers.length > 0 || emergency_patterns.length > 0) confidence_level = "moderate";
 
+    // If context is incomplete, lower confidence
+    if (!context_completeness.context_complete) confidence_level = "low";
+
     const requires_manual_review = confidence_level !== "high" ||
       interaction_flags.length > 0 || allergy_flags.length > 0 || dose_warnings.length > 0 ||
-      vitals_dangers.length > 0 || emergency_patterns.length > 0;
+      vitals_dangers.length > 0 || emergency_patterns.length > 0 ||
+      !context_completeness.context_complete;
 
-    return new Response(JSON.stringify({
+    const result = {
       normalized_drugs, interaction_flags, allergy_flags, dose_warnings,
-      vitals_dangers, emergency_patterns,
+      vitals_dangers, emergency_patterns, context_completeness,
       confidence_level, requires_manual_review,
+      ai_suggestions_blocked: context_completeness.ai_suggestions_blocked,
+      output_policy: {
+        label: "AI Draft — Clinician Review Required",
+        conservative_language: true,
+        evidence_required: true,
+      },
       timestamp: new Date().toISOString(),
-    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    };
+
+    // Log safety flags to audit_logs (non-blocking)
+    logSafetyAudit(actor_id || null, result, context_completeness);
+
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (e) {
     console.error("clinical-safety error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
