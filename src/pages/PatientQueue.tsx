@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/table";
 import {
   Users, PhoneCall, Clock, CheckCircle2, Loader2, RefreshCw,
-  Search, UserCheck, Stethoscope,
+  Search, UserCheck, Stethoscope, QrCode,
 } from "lucide-react";
+import ClinicQRCode from "@/components/ClinicQRCode";
 
 interface QueueItem {
   id: string;
@@ -27,6 +28,7 @@ interface QueueItem {
   patient_age: number | null;
   patient_gender: string | null;
   patient_phone: string | null;
+  chief_complaint: string | null;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -49,6 +51,8 @@ export default function PatientQueue() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "waiting" | "active" | "complete">("all");
+  const [clinicId, setClinicId] = useState<string | null>(null);
+  const [showQR, setShowQR] = useState(false);
 
   const loadQueue = async () => {
     if (!user) return;
@@ -64,13 +68,14 @@ export default function PatientQueue() {
       setLoading(false);
       return;
     }
+    setClinicId(profile.clinic_id);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const { data, error } = await supabase
       .from("patient_visits")
-      .select("id, token_number, check_in_time, status, visit_type, patient_id, patients(name, age, gender, phone)")
+      .select("id, token_number, check_in_time, status, visit_type, patient_id, patients(name, age, gender, phone), triage(chief_complaint)")
       .eq("clinic_id", profile.clinic_id)
       .gte("check_in_time", today.toISOString())
       .order("token_number", { ascending: true });
@@ -89,6 +94,7 @@ export default function PatientQueue() {
         patient_age: v.patients?.age,
         patient_gender: v.patients?.gender,
         patient_phone: v.patients?.phone,
+        chief_complaint: v.triage?.[0]?.chief_complaint || v.triage?.chief_complaint || null,
       }));
       setQueue(mapped);
     }
@@ -196,6 +202,9 @@ export default function PatientQueue() {
           <p className="text-sm text-muted-foreground">Today's clinic queue management</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)}>
+            <QrCode className="h-4 w-4 mr-1" /> QR Code
+          </Button>
           <Button variant="outline" size="sm" onClick={loadQueue} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Refresh
           </Button>
@@ -204,6 +213,13 @@ export default function PatientQueue() {
           </Button>
         </div>
       </div>
+
+      {/* QR Code panel */}
+      {showQR && clinicId && (
+        <div className="max-w-xs">
+          <ClinicQRCode clinicId={clinicId} />
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
@@ -283,6 +299,7 @@ export default function PatientQueue() {
               <TableRow>
                 <TableHead className="w-20">Token</TableHead>
                 <TableHead>Patient</TableHead>
+                <TableHead className="hidden md:table-cell">Complaint</TableHead>
                 <TableHead className="hidden sm:table-cell">Type</TableHead>
                 <TableHead>Wait Time</TableHead>
                 <TableHead>Status</TableHead>
@@ -307,6 +324,11 @@ export default function PatientQueue() {
                           {item.patient_phone && ` · ${item.patient_phone}`}
                         </p>
                       </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell max-w-[180px]">
+                      <span className="text-xs text-muted-foreground truncate block">
+                        {item.chief_complaint || "—"}
+                      </span>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       <span className="text-xs text-muted-foreground capitalize">{item.visit_type || "Walk-in"}</span>
