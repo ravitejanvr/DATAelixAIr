@@ -187,6 +187,8 @@ export default function Clinical() {
     );
     setClinicalContext(ctx);
   }, [selectedPatient, patientVitals, intakeData, extractedData]);
+
+  const hasTranscript = transcript.trim().length > 0;
   const hasExtraction = extractedData.chief_complaint.trim().length > 0;
   const hasSoap = Object.values(soapSections).some(v => v.trim().length > 0);
   const isProcessing = isStabilizing || isExtracting || isRunningSafety || isGeneratingSoap;
