@@ -26,12 +26,14 @@ import SmartSuggestionsPanel from "@/components/SmartSuggestionsPanel";
 import ClinicalContextPanel from "@/components/ClinicalContextPanel";
 import CollapsibleSection from "@/components/clinical/CollapsibleSection";
 import FollowUpPanel from "@/components/clinical/FollowUpPanel";
+import ConsultationTimeline from "@/components/ConsultationTimeline";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, Save, FileText,
   Edit3, ShieldCheck, AlertTriangle, XCircle, CheckCircle,
   Languages, HeartPulse, Pill, FlaskConical, User,
   Sparkles, RotateCcw, Clock, ClipboardCheck, Brain, CalendarDays,
-  Zap, Activity, Stethoscope
+  Zap, Activity, Stethoscope, Eye
 } from "lucide-react";
 import type { ExtractedData, SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_EXTRACTED, EMPTY_SOAP } from "@/layers/ai-agents/api";
@@ -52,6 +54,22 @@ import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext } fr
 // Common symptom chips
 const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain"];
 const DURATION_PRESETS = ["Today", "2 days", "3 days", "5 days", "1 week", "2 weeks", "1 month"];
+
+// Dynamic expansion: extra chips when specific symptoms are selected
+const SYMPTOM_EXPANSIONS: Record<string, { label: string; chips: string[]; variant: "symptom" | "neutral" }> = {
+  "Fever": { label: "Temperature", chips: ["99°F", "100°F", "101°F", "102°F", "103°F+"], variant: "neutral" },
+  "Cough": { label: "Cough Type", chips: ["Dry", "Productive", "With blood", "Nocturnal"], variant: "neutral" },
+  "Chest pain": { label: "Character", chips: ["Sharp", "Dull", "Crushing", "Burning", "Radiating"], variant: "neutral" },
+  "Headache": { label: "Pattern", chips: ["Throbbing", "Constant", "One-sided", "Both sides", "With aura"], variant: "neutral" },
+  "Abdominal pain": { label: "Location", chips: ["Upper", "Lower", "Right", "Left", "Diffuse", "Periumbilical"], variant: "neutral" },
+};
+
+const fadeIn = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.2, ease: "easeOut" as const },
+};
 
 export default function Clinical() {
   const { user } = useAuth();
@@ -110,6 +128,7 @@ export default function Clinical() {
   // Symptom chips
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [selectedDuration, setSelectedDuration] = useState<string>("");
+  const [expansionSelections, setExpansionSelections] = useState<Record<string, string[]>>({});
 
   // Clinical Context
   const [clinicalContext, setClinicalContext] = useState<ClinicalContext>(EMPTY_CLINICAL_CONTEXT);
@@ -126,13 +145,18 @@ export default function Clinical() {
     if (selectedSymptoms.length > 0) {
       const complaint = selectedSymptoms[0];
       const associated = selectedSymptoms.slice(1).join(", ");
+      // Include expansion selections in the transcript context
+      const expansionDetails = Object.entries(expansionSelections)
+        .filter(([_, vals]) => vals.length > 0)
+        .map(([symptom, vals]) => `${symptom}: ${vals.join(", ")}`)
+        .join("; ");
       setExtractedData(prev => ({
         ...prev,
         chief_complaint: prev.chief_complaint || complaint,
-        associated_symptoms: associated || prev.associated_symptoms,
+        associated_symptoms: [associated, expansionDetails].filter(Boolean).join(". ") || prev.associated_symptoms,
       }));
     }
-  }, [selectedSymptoms]);
+  }, [selectedSymptoms, expansionSelections]);
 
   useEffect(() => {
     if (selectedDuration) {
@@ -196,12 +220,27 @@ export default function Clinical() {
   const isProcessing = isStabilizing || isExtracting || isRunningSafety || isGeneratingSoap;
   const hasSymptomInput = selectedSymptoms.length > 0 || hasTranscript;
 
+  // Build timeline steps
+  const timelineSteps = [
+    { label: "Patient", status: selectedPatient ? "done" as const : "pending" as const },
+    { label: "Symptoms", status: hasSymptomInput ? "done" as const : "pending" as const },
+    { label: "AI Processing", status: isProcessing ? "active" as const : pipelineComplete ? "done" as const : "pending" as const },
+    { label: "Review", status: pipelineComplete && !savedSessionId ? "active" as const : savedSessionId ? "done" as const : "pending" as const },
+    { label: "Saved", status: savedSessionId ? "done" as const : "pending" as const },
+  ];
+
+  // Active expansions based on selected symptoms
+  const activeExpansions = selectedSymptoms.filter(s => SYMPTOM_EXPANSIONS[s]);
+
   // ── Full AI Pipeline ──
   const runFullPipeline = async () => {
-    // Build transcript from chips if none typed
     let effectiveTranscript = transcript.trim();
     if (!effectiveTranscript && selectedSymptoms.length > 0) {
-      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.`;
+      const expansionDetails = Object.entries(expansionSelections)
+        .filter(([_, vals]) => vals.length > 0)
+        .map(([symptom, vals]) => `${symptom} characteristics: ${vals.join(", ")}`)
+        .join(". ");
+      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${expansionDetails ? ` ${expansionDetails}.` : ""}`;
       setTranscript(effectiveTranscript);
     }
     if (!effectiveTranscript) { toast({ title: "No input", description: "Select symptoms or type notes first.", variant: "destructive" }); return; }
@@ -351,7 +390,7 @@ export default function Clinical() {
     setIntakeData(null); setVisitId(null); setIntakeApproved(false);
     setClinicalContext(EMPTY_CLINICAL_CONTEXT); setPatientVitals(null);
     setFollowUpDate(""); setFollowUpNotes("");
-    setSelectedSymptoms([]); setSelectedDuration("");
+    setSelectedSymptoms([]); setSelectedDuration(""); setExpansionSelections({});
   };
 
   const generatePatientExplanation = async () => {
@@ -372,7 +411,24 @@ export default function Clinical() {
   const safetyAlertCount = safetyResults ? (safetyResults.interaction_flags.length + safetyResults.allergy_flags.length + safetyResults.dose_warnings.length + (safetyResults.vitals_dangers?.length || 0) + (safetyResults.emergency_patterns?.length || 0)) : 0;
 
   const toggleSymptom = (s: string) => {
-    setSelectedSymptoms(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+    setSelectedSymptoms(prev => {
+      const next = prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s];
+      // Clear expansion selections for removed symptoms
+      if (prev.includes(s)) {
+        setExpansionSelections(prev => { const copy = { ...prev }; delete copy[s]; return copy; });
+      }
+      return next;
+    });
+  };
+
+  const toggleExpansionChip = (symptom: string, chip: string) => {
+    setExpansionSelections(prev => {
+      const current = prev[symptom] || [];
+      return {
+        ...prev,
+        [symptom]: current.includes(chip) ? current.filter(c => c !== chip) : [...current, chip],
+      };
+    });
   };
 
   return (
@@ -388,42 +444,47 @@ export default function Clinical() {
               <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Stethoscope className="h-4 w-4 text-primary" />
               </div>
-              <span className="hidden sm:inline">Clinical Workspace</span>
+              <span className="hidden sm:inline">Clinical Cockpit</span>
             </h1>
 
-            {isProcessing && (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/5 border border-primary/10">
-                <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                <span className="text-[11px] text-primary font-medium">
-                  {isStabilizing && "Stabilizing…"}
-                  {isExtracting && "Extracting…"}
-                  {isRunningSafety && "Safety check…"}
-                  {isGeneratingSoap && "Generating care plan…"}
-                </span>
-              </div>
-            )}
-
-            {pipelineComplete && !isProcessing && (
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-chip-medication border border-chip-medication-border">
-                <CheckCircle className="h-3 w-3 text-chip-medication-text" />
-                <span className="text-[11px] text-chip-medication-text font-medium">Care plan ready</span>
-              </div>
-            )}
-
-            {safetyResults && safetyAlertCount > 0 && (
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-chip-alert border border-chip-alert-border">
-                <AlertTriangle className="h-3 w-3 text-chip-alert-text" />
-                <span className="text-[11px] text-chip-alert-text font-medium">{safetyAlertCount} alert{safetyAlertCount > 1 ? "s" : ""}</span>
-              </div>
-            )}
+            {/* Consultation Timeline */}
+            <div className="hidden md:block">
+              <ConsultationTimeline steps={timelineSteps} />
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {isProcessing && (
+              <motion.div {...fadeIn} className="flex items-center gap-2 px-3 py-1 rounded-full bg-primary/5 border border-primary/10">
+                <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                <span className="text-[11px] text-primary font-medium">
+                  {isStabilizing && "Stabilizing…"}
+                  {!isStabilizing && isExtracting && "Extracting…"}
+                  {!isStabilizing && !isExtracting && isRunningSafety && "Safety check…"}
+                  {!isStabilizing && !isExtracting && !isRunningSafety && isGeneratingSoap && "Generating care plan…"}
+                </span>
+              </motion.div>
+            )}
+
+            {pipelineComplete && !isProcessing && (
+              <motion.div {...fadeIn} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-chip-medication border border-chip-medication-border">
+                <CheckCircle className="h-3 w-3 text-chip-medication-text" />
+                <span className="text-[11px] text-chip-medication-text font-medium">Care plan ready</span>
+              </motion.div>
+            )}
+
+            {safetyResults && safetyAlertCount > 0 && (
+              <motion.div {...fadeIn} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-chip-alert border border-chip-alert-border">
+                <AlertTriangle className="h-3 w-3 text-chip-alert-text" />
+                <span className="text-[11px] text-chip-alert-text font-medium">{safetyAlertCount} alert{safetyAlertCount > 1 ? "s" : ""}</span>
+              </motion.div>
+            )}
+
             {savedSessionId && (
               <Button variant="outline" size="sm" className="h-7 text-xs rounded-lg" onClick={() => navigate(`/consultations/${savedSessionId}`)}>View Saved</Button>
             )}
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 rounded-lg" onClick={startNewSession}>
-              <RotateCcw className="h-3 w-3" /> New Session
+              <RotateCcw className="h-3 w-3" /> New
             </Button>
           </div>
         </div>
@@ -443,41 +504,47 @@ export default function Clinical() {
               </div>
 
               {/* Quick Vitals Summary */}
-              {patientVitals && (
-                <ClinicalCard className="p-3">
-                  <ClinicalCardHeader title="Vitals" icon={<Activity className="h-3.5 w-3.5" />} />
-                  <div className="flex flex-wrap gap-1.5">
-                    {patientVitals.bp_systolic && (
-                      <Chip variant="neutral" size="sm">BP {patientVitals.bp_systolic}/{patientVitals.bp_diastolic}</Chip>
-                    )}
-                    {patientVitals.pulse && <Chip variant="neutral" size="sm">HR {patientVitals.pulse}</Chip>}
-                    {patientVitals.temperature && <Chip variant="neutral" size="sm">{patientVitals.temperature}°F</Chip>}
-                    {patientVitals.spo2 && <Chip variant="neutral" size="sm">SpO₂ {patientVitals.spo2}%</Chip>}
-                  </div>
-                </ClinicalCard>
-              )}
+              <AnimatePresence>
+                {patientVitals && (
+                  <motion.div {...fadeIn}>
+                    <ClinicalCard className="p-3">
+                      <ClinicalCardHeader title="Vitals" icon={<Activity className="h-3.5 w-3.5" />} />
+                      <div className="flex flex-wrap gap-1.5">
+                        {patientVitals.bp_systolic && (
+                          <Chip variant="neutral" size="sm">BP {patientVitals.bp_systolic}/{patientVitals.bp_diastolic}</Chip>
+                        )}
+                        {patientVitals.pulse && <Chip variant="neutral" size="sm">HR {patientVitals.pulse}</Chip>}
+                        {patientVitals.temperature && <Chip variant="neutral" size="sm">{patientVitals.temperature}°F</Chip>}
+                        {patientVitals.spo2 && <Chip variant="neutral" size="sm">SpO₂ {patientVitals.spo2}%</Chip>}
+                      </div>
+                    </ClinicalCard>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Medical Context Chips */}
               {selectedPatient && (
-                <ClinicalCard className="p-3">
-                  <ClinicalCardHeader title="Medical Context" icon={<HeartPulse className="h-3.5 w-3.5" />} />
-                  <div className="space-y-2">
-                    {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
-                      <ChipGroup label="Allergies">
-                        {selectedPatient.allergies.map(a => (
-                          <Chip key={a} variant="alert" size="sm">{a}</Chip>
-                        ))}
-                      </ChipGroup>
-                    )}
-                    {selectedPatient.current_medications && selectedPatient.current_medications.length > 0 && (
-                      <ChipGroup label="Medications">
-                        {selectedPatient.current_medications.map(m => (
-                          <Chip key={m} variant="medication" size="sm">{m}</Chip>
-                        ))}
-                      </ChipGroup>
-                    )}
-                  </div>
-                </ClinicalCard>
+                <motion.div {...fadeIn}>
+                  <ClinicalCard className="p-3">
+                    <ClinicalCardHeader title="Medical Context" icon={<HeartPulse className="h-3.5 w-3.5" />} />
+                    <div className="space-y-2">
+                      {selectedPatient.allergies && selectedPatient.allergies.length > 0 && (
+                        <ChipGroup label="Allergies">
+                          {selectedPatient.allergies.map(a => (
+                            <Chip key={a} variant="alert" size="sm">{a}</Chip>
+                          ))}
+                        </ChipGroup>
+                      )}
+                      {selectedPatient.current_medications && selectedPatient.current_medications.length > 0 && (
+                        <ChipGroup label="Medications">
+                          {selectedPatient.current_medications.map(m => (
+                            <Chip key={m} variant="medication" size="sm">{m}</Chip>
+                          ))}
+                        </ChipGroup>
+                      )}
+                    </div>
+                  </ClinicalCard>
+                </motion.div>
               )}
 
               <ClinicalContextPanel
@@ -512,186 +579,248 @@ export default function Clinical() {
           </div>
 
           {/* ═══ CENTER: Smart Clinical Builder ═══ */}
-          <div className="overflow-y-auto flex flex-col">
+          <div className="overflow-y-auto flex flex-col pb-20 lg:pb-16">
             <div className="flex-1 p-4 space-y-4">
 
               {/* Symptom Chip Builder */}
-              <ClinicalCard>
-                <ClinicalCardHeader 
-                  title="Clinical Input" 
-                  icon={<Edit3 className="h-4 w-4" />}
-                  badge={selectedSymptoms.length > 0 ? <Badge variant="outline" className="text-[10px]">{selectedSymptoms.length} selected</Badge> : undefined}
-                />
-
-                {/* Complaint Chips */}
-                <PresetChipGroup
-                  label="Chief Complaint"
-                  options={COMMON_SYMPTOMS}
-                  selected={selectedSymptoms}
-                  onToggle={toggleSymptom}
-                  variant="symptom"
-                  allowCustom
-                />
-
-                {/* Duration Chips */}
-                {selectedSymptoms.length > 0 && (
-                  <div className="mt-3">
-                    <ChipGroup label="Duration">
-                      {DURATION_PRESETS.map(d => (
-                        <Chip
-                          key={d}
-                          variant="neutral"
-                          selected={selectedDuration === d}
-                          onClick={() => setSelectedDuration(selectedDuration === d ? "" : d)}
-                        >
-                          {d}
-                        </Chip>
-                      ))}
-                    </ChipGroup>
-                  </div>
-                )}
-
-                {/* Voice / Text Input */}
-                <div className="mt-4">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Voice / Notes
-                  </p>
-                  <ConsultationInput
-                    transcript={transcript}
-                    onTranscriptChange={setTranscript}
-                    disabled={pipelineRunning}
+              <motion.div {...fadeIn}>
+                <ClinicalCard>
+                  <ClinicalCardHeader 
+                    title="Clinical Input" 
+                    icon={<Edit3 className="h-4 w-4" />}
+                    badge={selectedSymptoms.length > 0 ? <Badge variant="outline" className="text-[10px]">{selectedSymptoms.length} selected</Badge> : undefined}
                   />
-                </div>
-              </ClinicalCard>
+
+                  {/* Complaint Chips */}
+                  <PresetChipGroup
+                    label="Chief Complaint"
+                    options={COMMON_SYMPTOMS}
+                    selected={selectedSymptoms}
+                    onToggle={toggleSymptom}
+                    variant="symptom"
+                    allowCustom
+                  />
+
+                  {/* Dynamic Symptom Expansions */}
+                  <AnimatePresence>
+                    {activeExpansions.map(symptom => {
+                      const expansion = SYMPTOM_EXPANSIONS[symptom];
+                      return (
+                        <motion.div
+                          key={`expansion-${symptom}`}
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden mt-2"
+                        >
+                          <div className="pl-2 border-l-2 border-primary/20">
+                            <ChipGroup label={`${symptom} → ${expansion.label}`}>
+                              {expansion.chips.map(chip => (
+                                <Chip
+                                  key={chip}
+                                  variant={expansion.variant}
+                                  selected={(expansionSelections[symptom] || []).includes(chip)}
+                                  onClick={() => toggleExpansionChip(symptom, chip)}
+                                  size="sm"
+                                >
+                                  {chip}
+                                </Chip>
+                              ))}
+                            </ChipGroup>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+
+                  {/* Duration Chips */}
+                  <AnimatePresence>
+                    {selectedSymptoms.length > 0 && (
+                      <motion.div {...fadeIn} className="mt-3">
+                        <ChipGroup label="Duration">
+                          {DURATION_PRESETS.map(d => (
+                            <Chip
+                              key={d}
+                              variant="neutral"
+                              selected={selectedDuration === d}
+                              onClick={() => setSelectedDuration(selectedDuration === d ? "" : d)}
+                            >
+                              {d}
+                            </Chip>
+                          ))}
+                        </ChipGroup>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Voice / Text Input */}
+                  <div className="mt-4">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      Voice / Notes
+                    </p>
+                    <ConsultationInput
+                      transcript={transcript}
+                      onTranscriptChange={setTranscript}
+                      disabled={pipelineRunning}
+                    />
+                  </div>
+                </ClinicalCard>
+              </motion.div>
 
               {/* Normalization feedback */}
-              {normalizationResults.length > 0 && (
-                <ClinicalCard className="p-3">
-                  {detectedLanguages.length > 1 && (
-                    <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                      <Languages className="h-3 w-3 text-primary" />
-                      <span className="text-[10px] text-muted-foreground">Detected:</span>
-                      {detectedLanguages.map(l => <Chip key={l} variant="neutral" size="sm">{l}</Chip>)}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-1">
-                    {normalizationResults.map((m, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-border bg-background">
-                        <span className="text-muted-foreground">{m.original}</span>→
-                        <span className="font-medium text-foreground">{m.clinical}</span>
-                      </span>
-                    ))}
-                  </div>
-                </ClinicalCard>
-              )}
+              <AnimatePresence>
+                {normalizationResults.length > 0 && (
+                  <motion.div {...fadeIn}>
+                    <ClinicalCard className="p-3">
+                      {detectedLanguages.length > 1 && (
+                        <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                          <Languages className="h-3 w-3 text-primary" />
+                          <span className="text-[10px] text-muted-foreground">Detected:</span>
+                          {detectedLanguages.map(l => <Chip key={l} variant="neutral" size="sm">{l}</Chip>)}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {normalizationResults.map((m, i) => (
+                          <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-border bg-background">
+                            <span className="text-muted-foreground">{m.original}</span>→
+                            <span className="font-medium text-foreground">{m.clinical}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </ClinicalCard>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Generate AI Care Plan */}
-              <Button
-                onClick={runFullPipeline}
-                disabled={!hasSymptomInput || pipelineRunning}
-                className="w-full h-11 rounded-xl text-sm font-semibold gap-2"
-                size="lg"
-              >
-                {pipelineRunning ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />Generating Care Plan…</>
-                ) : (
-                  <><Sparkles className="h-4 w-4" />Generate AI Care Plan</>
-                )}
-              </Button>
+              <motion.div whileTap={{ scale: 0.98 }}>
+                <Button
+                  onClick={runFullPipeline}
+                  disabled={!hasSymptomInput || pipelineRunning}
+                  className="w-full h-11 rounded-xl text-sm font-semibold gap-2"
+                  size="lg"
+                >
+                  {pipelineRunning ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" />Generating Care Plan…</>
+                  ) : (
+                    <><Sparkles className="h-4 w-4" />Generate AI Care Plan</>
+                  )}
+                </Button>
+              </motion.div>
 
               {/* ══ AI Care Plan Review ══ */}
-              {pipelineComplete && hasSoap && (
-                <ClinicalCard className="border-primary/20 bg-primary/[0.02]">
-                  <ClinicalCardHeader
-                    title="AI Care Plan"
-                    icon={<Brain className="h-4 w-4" />}
-                    badge={<Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] gap-1"><Sparkles className="h-2.5 w-2.5" />AI Draft</Badge>}
-                    action={
-                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 rounded-lg" onClick={runSafetyCheck} disabled={isRunningSafety}>
-                        {isRunningSafety ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />} Re-check Safety
-                      </Button>
-                    }
-                  />
+              <AnimatePresence>
+                {pipelineComplete && hasSoap && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <ClinicalCard className="border-primary/20 bg-primary/[0.02]">
+                      <ClinicalCardHeader
+                        title="AI Care Plan"
+                        icon={<Brain className="h-4 w-4" />}
+                        badge={<Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] gap-1"><Sparkles className="h-2.5 w-2.5" />AI Draft</Badge>}
+                        action={
+                          <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 rounded-lg" onClick={runSafetyCheck} disabled={isRunningSafety}>
+                            {isRunningSafety ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />} Re-check Safety
+                          </Button>
+                        }
+                      />
 
-                  {/* Draft Warning */}
-                  <div className="mb-3 px-3 py-2 rounded-lg bg-chip-lab border border-chip-lab-border text-[11px] text-chip-lab-text font-medium flex items-center gap-2">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                    {AI_DRAFT_LABEL}
-                  </div>
-
-                  {/* Safety Alerts */}
-                  {safetyResults && safetyAlertCount > 0 && (
-                    <div className="mb-3 space-y-1.5">
-                      {safetyResults.interaction_flags.map((f, i) => (
-                        <div key={`int-${i}`} className={`p-2 rounded-lg border text-[11px] ${severityColor(f.severity)}`}>
-                          <span className="font-semibold">{f.drug_a} ↔ {f.drug_b}</span>: {f.description}
-                        </div>
-                      ))}
-                      {safetyResults.allergy_flags.map((f, i) => (
-                        <div key={`alg-${i}`} className="p-2 rounded-lg border border-chip-alert-border bg-chip-alert text-[11px] text-chip-alert-text font-medium">{f.message}</div>
-                      ))}
-                      {safetyResults.dose_warnings.map((w, i) => (
-                        <div key={`dose-${i}`} className="p-2 rounded-lg border border-chip-lab-border bg-chip-lab text-[11px] text-chip-lab-text">{w.message}</div>
-                      ))}
-                      {(safetyResults.vitals_dangers || []).map((v, i) => (
-                        <div key={`vit-${i}`} className={`p-2 rounded-lg border text-[11px] ${severityColor(v.severity)}`}>{v.message}</div>
-                      ))}
-                      {(safetyResults.emergency_patterns || []).map((ep, i) => (
-                        <div key={`em-${i}`} className={`p-2 rounded-lg border text-[11px] ${severityColor(ep.severity)}`}>
-                          <span className="font-semibold">{ep.pattern}</span>: {ep.message}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* SOAP Sections as editable cards */}
-                  <div className="space-y-3">
-                    {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
-                      <div key={section} className="space-y-1">
-                        <Label className={`text-[11px] font-semibold ${section === "Safety Warnings" ? "text-chip-alert-text" : "text-muted-foreground"}`}>
-                          {section}
-                        </Label>
-                        <Textarea
-                          value={soapSections[section]}
-                          onChange={e => updateSoapSection(section, e.target.value)}
-                          rows={2}
-                          className="text-xs min-h-[36px] resize-y rounded-lg bg-background/50"
-                        />
+                      {/* Draft Warning */}
+                      <div className="mb-3 px-3 py-2 rounded-lg bg-chip-lab border border-chip-lab-border text-[11px] text-chip-lab-text font-medium flex items-center gap-2">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        {AI_DRAFT_LABEL}
                       </div>
-                    ))}
-                  </div>
 
-                  {/* Approve & Save */}
-                  <div className="mt-4 pt-4 border-t border-border space-y-3">
-                    <div className="flex items-start gap-2">
-                      <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} />
-                      <label htmlFor="final-review" className="text-[11px] text-muted-foreground cursor-pointer select-none leading-relaxed">
-                        I have reviewed the AI care plan, prescriptions, and safety alerts.
-                      </label>
-                    </div>
+                      {/* Safety Alerts */}
+                      <AnimatePresence>
+                        {safetyResults && safetyAlertCount > 0 && (
+                          <motion.div {...fadeIn} className="mb-3 space-y-1.5">
+                            {safetyResults.interaction_flags.map((f, i) => (
+                              <div key={`int-${i}`} className={`p-2 rounded-lg border text-[11px] ${severityColor(f.severity)}`}>
+                                <span className="font-semibold">{f.drug_a} ↔ {f.drug_b}</span>: {f.description}
+                              </div>
+                            ))}
+                            {safetyResults.allergy_flags.map((f, i) => (
+                              <div key={`alg-${i}`} className="p-2 rounded-lg border border-chip-alert-border bg-chip-alert text-[11px] text-chip-alert-text font-medium">{f.message}</div>
+                            ))}
+                            {safetyResults.dose_warnings.map((w, i) => (
+                              <div key={`dose-${i}`} className="p-2 rounded-lg border border-chip-lab-border bg-chip-lab text-[11px] text-chip-lab-text">{w.message}</div>
+                            ))}
+                            {(safetyResults.vitals_dangers || []).map((v, i) => (
+                              <div key={`vit-${i}`} className={`p-2 rounded-lg border text-[11px] ${severityColor(v.severity)}`}>{v.message}</div>
+                            ))}
+                            {(safetyResults.emergency_patterns || []).map((ep, i) => (
+                              <div key={`em-${i}`} className={`p-2 rounded-lg border text-[11px] ${severityColor(ep.severity)}`}>
+                                <span className="font-semibold">{ep.pattern}</span>: {ep.message}
+                              </div>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
-                    <Button
-                      onClick={approveAndSave}
-                      disabled={isSaving || !reviewConfirmed}
-                      className="w-full h-11 rounded-xl text-sm font-semibold gap-2"
-                      size="lg"
-                    >
-                      {isSaving ? (
-                        <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
-                      ) : (
-                        <><CheckCircle className="h-4 w-4" />Approve & Save Consultation</>
-                      )}
-                    </Button>
-
-                    {savedSessionId && (
-                      <div className="flex items-center gap-1.5 text-xs text-primary justify-center">
-                        <CheckCircle className="h-3.5 w-3.5" />
-                        Saved — <button className="underline" onClick={() => navigate(`/consultations/${savedSessionId}`)}>View</button>
+                      {/* SOAP Sections as editable cards */}
+                      <div className="space-y-3">
+                        {(Object.keys(EMPTY_SOAP) as (keyof SoapSections)[]).map((section) => (
+                          <motion.div
+                            key={section}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.05 * Object.keys(EMPTY_SOAP).indexOf(section) }}
+                            className="space-y-1"
+                          >
+                            <Label className={`text-[11px] font-semibold ${section === "Safety Warnings" ? "text-chip-alert-text" : "text-muted-foreground"}`}>
+                              {section}
+                            </Label>
+                            <Textarea
+                              value={soapSections[section]}
+                              onChange={e => updateSoapSection(section, e.target.value)}
+                              rows={2}
+                              className="text-xs min-h-[36px] resize-y rounded-lg bg-background/50"
+                            />
+                          </motion.div>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                </ClinicalCard>
-              )}
+
+                      {/* Approve & Save */}
+                      <div className="mt-4 pt-4 border-t border-border space-y-3">
+                        <div className="flex items-start gap-2">
+                          <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} />
+                          <label htmlFor="final-review" className="text-[11px] text-muted-foreground cursor-pointer select-none leading-relaxed">
+                            I have reviewed the AI care plan, prescriptions, and safety alerts.
+                          </label>
+                        </div>
+
+                        <motion.div whileTap={{ scale: 0.98 }}>
+                          <Button
+                            onClick={approveAndSave}
+                            disabled={isSaving || !reviewConfirmed}
+                            className="w-full h-11 rounded-xl text-sm font-semibold gap-2"
+                            size="lg"
+                          >
+                            {isSaving ? (
+                              <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+                            ) : (
+                              <><CheckCircle className="h-4 w-4" />Approve & Save Consultation</>
+                            )}
+                          </Button>
+                        </motion.div>
+
+                        {savedSessionId && (
+                          <motion.div {...fadeIn} className="flex items-center gap-1.5 text-xs text-primary justify-center">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            Saved — <button className="underline" onClick={() => navigate(`/consultations/${savedSessionId}`)}>View</button>
+                          </motion.div>
+                        )}
+                      </div>
+                    </ClinicalCard>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Extracted Data (collapsed when care plan is visible) */}
               {hasExtraction && !pipelineComplete && (
@@ -737,7 +866,11 @@ export default function Clinical() {
 
               {/* Empty state */}
               {!hasSoap && !pipelineRunning && !hasExtraction && selectedSymptoms.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center py-16 text-center"
+                >
                   <div className="h-16 w-16 rounded-2xl bg-primary/5 flex items-center justify-center mb-4">
                     <Sparkles className="h-8 w-8 text-primary/20" />
                   </div>
@@ -745,9 +878,9 @@ export default function Clinical() {
                     Select symptoms above or record notes, then generate an AI care plan.
                   </p>
                   <p className="text-[11px] text-muted-foreground/60 mt-1">
-                    Most consultations complete in 10–20 seconds
+                    Press <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono mx-0.5">⌘K</kbd> to search patients & medications
                   </p>
-                </div>
+                </motion.div>
               )}
             </div>
           </div>
@@ -762,6 +895,7 @@ export default function Clinical() {
                   <Zap className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <span className="text-xs font-semibold text-foreground">AI Copilot</span>
+                <Badge variant="outline" className="text-[9px] ml-auto">Live</Badge>
               </div>
 
               {/* Smart Suggestions */}
@@ -849,6 +983,58 @@ export default function Clinical() {
           </div>
 
         </div>
+
+        {/* ═══ FLOATING BOTTOM ACTION BAR ═══ */}
+        <AnimatePresence>
+          {(hasSymptomInput || pipelineComplete) && !savedSessionId && (
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="fixed bottom-0 left-0 lg:left-56 right-0 z-30 bg-card/95 backdrop-blur-md border-t border-border px-4 py-3 flex items-center justify-center gap-3"
+            >
+              {!pipelineComplete ? (
+                <Button
+                  onClick={runFullPipeline}
+                  disabled={!hasSymptomInput || pipelineRunning}
+                  className="h-10 rounded-xl text-sm font-semibold gap-2 px-8"
+                  size="lg"
+                >
+                  {pipelineRunning ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" />Processing…</>
+                  ) : (
+                    <><Sparkles className="h-4 w-4" />Generate AI Care Plan</>
+                  )}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      document.querySelector('[data-care-plan]')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="h-10 rounded-xl text-sm gap-2"
+                  >
+                    <Eye className="h-4 w-4" /> Review Plan
+                  </Button>
+                  <Button
+                    onClick={approveAndSave}
+                    disabled={isSaving || !reviewConfirmed}
+                    className="h-10 rounded-xl text-sm font-semibold gap-2 px-8"
+                    size="lg"
+                  >
+                    {isSaving ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+                    ) : (
+                      <><CheckCircle className="h-4 w-4" />Finalize Consultation</>
+                    )}
+                  </Button>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </>
   );
