@@ -32,3 +32,9 @@ verify_jwt = false
 
 [functions.patient-explanation]
 verify_jwt = false
+
+[functions.smart-suggestions]
+verify_jwt = false
+
+[functions.clinical-safety]
+verify_jwt = false
