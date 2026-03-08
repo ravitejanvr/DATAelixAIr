@@ -79,6 +79,7 @@ interface SmartSuggestionsPanelProps {
   conditions: string;
   userId: string;
   transcriptExcerpt?: string;
+  clinicalContext?: ClinicalContext;
   onAddPrescription: (rx: PrescriptionSuggestion) => void;
   onAddLabTest: (test: string) => void;
   onInsertText: (text: string) => void;
