@@ -243,13 +243,13 @@ export default function PlatformAdmin() {
           <Card><CardContent className="pt-4 pb-3"><p className="text-[10px] text-muted-foreground">Registered Users</p><p className="text-2xl font-bold">{users.length}</p></CardContent></Card>
         </div>
 
-        <Tabs defaultValue="pilots">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="flex-wrap">
             <TabsTrigger value="pilots"><Building2 className="h-3.5 w-3.5 mr-1" /> Pilots</TabsTrigger>
             <TabsTrigger value="clinics"><ShieldAlert className="h-3.5 w-3.5 mr-1" /> Clinics</TabsTrigger>
             <TabsTrigger value="users"><Users className="h-3.5 w-3.5 mr-1" /> Users</TabsTrigger>
-            <TabsTrigger value="governance" onClick={loadGovernanceAudit}><Shield className="h-3.5 w-3.5 mr-1" /> Governance</TabsTrigger>
-            <TabsTrigger value="monitoring" onClick={loadMonitoring}><Activity className="h-3.5 w-3.5 mr-1" /> Monitoring</TabsTrigger>
+            <TabsTrigger value="governance"><Shield className="h-3.5 w-3.5 mr-1" /> Governance</TabsTrigger>
+            <TabsTrigger value="monitoring"><Activity className="h-3.5 w-3.5 mr-1" /> Monitoring</TabsTrigger>
             <TabsTrigger value="audit"><FileText className="h-3.5 w-3.5 mr-1" /> Audit</TabsTrigger>
           </TabsList>
 
