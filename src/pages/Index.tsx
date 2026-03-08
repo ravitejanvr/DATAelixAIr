@@ -130,7 +130,7 @@ const Index = () => (
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
           {[
-            { step: "01", icon: Mic, title: "Record Consultation", desc: "Voice input during patient visit — speak naturally, we handle the rest." },
+            { step: "01", icon: Mic, title: "Write or Record", desc: "Type notes or use voice input during the consultation — both merge into one clinical notebook." },
             { step: "02", icon: FileText, title: "AI Generates Notes", desc: "Structured SOAP notes, risk flags, and clinical summaries created automatically." },
             { step: "03", icon: UserCheck, title: "Clinician Reviews", desc: "Every AI output is presented as a draft — you review, edit, and approve." },
             { step: "04", icon: Share2, title: "Export & Share", desc: "Generate bilingual PDFs, share via WhatsApp, or save to patient records." },
