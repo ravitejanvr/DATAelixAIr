@@ -31,7 +31,7 @@ import {
 import type { ExtractedData, SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_EXTRACTED, EMPTY_SOAP } from "@/layers/ai-agents/api";
 import type { SafetyResults } from "@/layers/safety/api";
-import { severityColor } from "@/layers/safety/api";
+import { severityColor, AI_DRAFT_LABEL } from "@/layers/safety/api";
 import type { NormalizationMatch } from "@/layers/multilingual/api";
 import {
   captureTranscriptEditSignal,
