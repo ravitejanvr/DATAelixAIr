@@ -873,7 +873,7 @@ export default function Clinical() {
 
               {/* Symptoms & Duration */}
               {selectedPatient && (
-                <ClinicalCard className="p-2">
+                <ClinicalCard className="p-1.5">
                   <ClinicalCardHeader
                     title="Symptoms & Duration"
                     icon={<ClipboardCheck className="h-3 w-3" />}
