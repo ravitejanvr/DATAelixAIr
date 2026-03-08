@@ -99,31 +99,6 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
 
   return (
     <div className="space-y-1.5">
-      {/* Textarea */}
-      <div className="relative">
-        <Textarea
-          ref={textareaRef}
-          value={transcript}
-          onChange={(e) => {
-            onTranscriptChange(e.target.value);
-            cursorRef.current = e.target.selectionStart;
-          }}
-          onSelect={(e) => {
-            cursorRef.current = (e.target as HTMLTextAreaElement).selectionStart;
-          }}
-          placeholder="Click Record to start capturing…"
-          rows={4}
-          className="text-xs pr-3 resize-none min-h-[72px] font-mono bg-background"
-          disabled={disabled}
-        />
-
-        {isRecording && scribe.partialTranscript && (
-          <div className="absolute bottom-1.5 left-2 right-2 rounded-md bg-primary/10 border border-primary/20 px-2 py-1 text-[11px] text-primary italic truncate">
-            {scribe.partialTranscript}
-          </div>
-        )}
-      </div>
-
       {/* Controls row */}
       <div className="flex items-center gap-2">
         {!isRecording ? (
@@ -162,6 +137,31 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
               Live
             </Badge>
           </>
+        )}
+      </div>
+
+      {/* Textarea */}
+      <div className="relative">
+        <Textarea
+          ref={textareaRef}
+          value={transcript}
+          onChange={(e) => {
+            onTranscriptChange(e.target.value);
+            cursorRef.current = e.target.selectionStart;
+          }}
+          onSelect={(e) => {
+            cursorRef.current = (e.target as HTMLTextAreaElement).selectionStart;
+          }}
+          placeholder="Click Record to start capturing…"
+          rows={4}
+          className="text-xs pr-3 resize-none min-h-[72px] font-mono bg-background"
+          disabled={disabled}
+        />
+
+        {isRecording && scribe.partialTranscript && (
+          <div className="absolute bottom-1.5 left-2 right-2 rounded-md bg-primary/10 border border-primary/20 px-2 py-1 text-[11px] text-primary italic truncate">
+            {scribe.partialTranscript}
+          </div>
         )}
       </div>
     </div>

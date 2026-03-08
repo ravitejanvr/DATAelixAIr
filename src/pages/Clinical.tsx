@@ -500,9 +500,10 @@ export default function Clinical() {
       // Run safety check and wait for results
       setIsRunningSafety(true);
       const timer = startPipelineTimer("safety_controller");
+      // Format medications with dose and frequency for accurate validation
       const medications = [
         ...(extractedData.current_medications?.split(",").map(s => s.trim()).filter(Boolean) || []),
-        ...pendingRxFromSuggestions.map(r => r.drug_name),
+        ...pendingRxFromSuggestions.map(r => `${r.drug_name} ${r.dose} ${r.frequency}`),
       ];
       const allergies = [
         ...(extractedData.allergies?.split(",").map(s => s.trim()).filter(Boolean) || []),
@@ -951,21 +952,6 @@ export default function Clinical() {
                   badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">Captured</Badge> : undefined}
                 />
                 <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
-
-                {/* Additional Notes */}
-                <div className="mt-2">
-                  <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1 mb-1">
-                    <PenLine className="h-3 w-3" /> Additional Notes
-                  </Label>
-                  <Textarea
-                    value={followUpNotes}
-                    onChange={e => setFollowUpNotes(e.target.value)}
-                    placeholder="Any additional notes for this consultation…"
-                    rows={2}
-                    className="text-xs resize-none min-h-[40px] bg-background/50 rounded-lg"
-                    disabled={pipelineRunning}
-                  />
-                </div>
               </ClinicalCard>
 
               {/* AI Processing */}
@@ -1073,13 +1059,15 @@ export default function Clinical() {
                         ) : null
                       ))}
 
-                      {/* Advice & Follow-up blocks */}
+                      {/* Instructions for Patient & Follow-up blocks */}
                       {(["Advice", "Follow-up"] as (keyof SoapSections)[]).map(key => (
                         soapSections[key]?.trim() ? (
                           <div key={key} className="rounded-xl border border-border bg-muted/30 p-3">
                             <div className="flex items-center gap-1.5 mb-1.5">
                               <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{key}</span>
+                              <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                                {key === "Advice" ? "Instructions for Patient" : key}
+                              </span>
                             </div>
                             <Textarea
                               value={soapSections[key]}

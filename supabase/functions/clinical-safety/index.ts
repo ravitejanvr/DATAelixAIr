@@ -172,25 +172,25 @@ function checkDoseSanity(medications: string[]): DoseWarning[] {
     if (!medLower) continue;
     const baseName = medLower.split(/\s+/)[0];
     if (seen.has(baseName)) {
-      warnings.push({ medication: med, issue: "duplicate", message: `Duplicate medication detected: "${med}". Please verify.` });
+      warnings.push({ medication: med, issue: "duplicate", message: `Duplicate entry for "${baseName}". Verify if intentional.` });
     }
     seen.add(baseName);
     const hasUnit = /\d+\s*(mg|ml|mcg|g|iu|unit|%|tablet|cap)/i.test(med);
     const hasNumber = /\d/.test(med);
     if (hasNumber && !hasUnit) {
-      warnings.push({ medication: med, issue: "missing_unit", message: `Please verify dosage and frequency for "${med}" — unit (mg/ml) not detected.` });
+      warnings.push({ medication: med, issue: "missing_unit", message: `Dosage unit not clearly specified in "${med}". Consider adding mg/ml/mcg.` });
     }
     const doseMatch = med.match(/(\d+)\s*(mg|g)/i);
     if (doseMatch) {
       const value = parseInt(doseMatch[1]);
       const unit = doseMatch[2].toLowerCase();
       if ((unit === "mg" && value > 2000) || (unit === "g" && value > 5)) {
-        warnings.push({ medication: med, issue: "high_dosage", message: `Please verify dosage for "${med}" — ${value}${unit} appears unusually high.` });
+        warnings.push({ medication: med, issue: "high_dosage", message: `Unusually high dose detected: ${value}${unit} for "${med}". Verify if correct.` });
       }
     }
     const hasFrequency = /(once|twice|thrice|daily|bid|tid|qid|od|bd|hs|prn|stat|sos|q\d+h|every|morning|night|evening)/i.test(med);
     if (!hasFrequency && medLower.length > 3) {
-      warnings.push({ medication: med, issue: "missing_frequency", message: `Please verify dosage and frequency for "${med}" — frequency not specified.` });
+      warnings.push({ medication: med, issue: "missing_frequency", message: `Frequency not specified in "${med}". Consider adding OD/BD/TID or timing.` });
     }
   }
   return warnings;
