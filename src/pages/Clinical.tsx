@@ -830,38 +830,38 @@ export default function Clinical() {
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
                     <Activity className="h-3 w-3" /> Vitals
                   </p>
-                  <div className="grid grid-cols-4 gap-1 mb-1">
+                  <div className="grid grid-cols-4 gap-1.5 mb-1.5">
                     {[
                       { field: "bp_systolic", label: "SYS", icon: Heart, iconClass: "text-chip-alert-text", isBp: true },
                       { field: "pulse", label: "HR", icon: Activity, iconClass: "text-primary" },
                       { field: "spo2", label: "SpO₂%", icon: Droplets, iconClass: "text-primary", alert: patientVitals?.spo2 && Number(patientVitals.spo2) < 95 },
                       { field: "respiratory_rate", label: "RR", icon: Wind, iconClass: "text-muted-foreground" },
                     ].map(v => (
-                      <div key={v.field} className={`text-center p-1 rounded border cursor-text ${v.alert ? "bg-chip-alert border-chip-alert-border" : "bg-muted/40 border-border"}`}>
-                        <v.icon className={`h-2.5 w-2.5 mx-auto mb-0.5 ${v.iconClass}`} />
+                      <div key={v.field} className={`text-center p-1.5 rounded-lg border cursor-text ${v.alert ? "bg-chip-alert border-chip-alert-border" : "bg-muted/40 border-border"}`}>
+                        <v.icon className={`h-3 w-3 mx-auto mb-0.5 ${v.iconClass}`} />
                         {v.isBp ? (
                           <div className="flex items-center justify-center gap-0.5">
-                            <input type="number" value={patientVitals?.bp_systolic ?? ""} onChange={e => updateVital("bp_systolic", e.target.value)} className="w-6 text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
-                            <span className="text-[8px] text-muted-foreground">/</span>
-                            <input type="number" value={patientVitals?.bp_diastolic ?? ""} onChange={e => updateVital("bp_diastolic", e.target.value)} className="w-6 text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                            <input type="number" value={patientVitals?.bp_systolic ?? ""} onChange={e => updateVital("bp_systolic", e.target.value)} className="w-7 text-center text-xs font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                            <span className="text-[10px] text-muted-foreground">/</span>
+                            <input type="number" value={patientVitals?.bp_diastolic ?? ""} onChange={e => updateVital("bp_diastolic", e.target.value)} className="w-7 text-center text-xs font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
                           </div>
                         ) : (
-                          <input type="number" value={patientVitals?.[v.field] ?? ""} onChange={e => updateVital(v.field, e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                          <input type="number" value={patientVitals?.[v.field] ?? ""} onChange={e => updateVital(v.field, e.target.value)} className="w-full text-center text-xs font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
                         )}
-                        <p className="text-[6px] text-muted-foreground">{v.isBp ? "BP" : v.label}</p>
+                        <p className="text-[8px] text-muted-foreground mt-0.5">{v.isBp ? "BP" : v.label}</p>
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-4 gap-1">
+                  <div className="grid grid-cols-4 gap-1.5">
                     {[
                       { field: "temperature", label: "Temp °F", step: "0.1" },
                       { field: "weight_kg", label: "Wt kg" },
                       { field: "blood_sugar", label: "BS(F)" },
                       { field: "hba1c", label: "HbA1c", step: "0.1" },
                     ].map(v => (
-                      <div key={v.field} className={`text-center p-1 rounded border cursor-text ${v.field === "temperature" && patientVitals?.temperature && Number(patientVitals.temperature) > 99 ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800" : "bg-muted/40 border-border"}`}>
-                        <input type="number" step={v.step || "1"} value={patientVitals?.[v.field] ?? ""} onChange={e => updateVital(v.field, e.target.value)} className="w-full text-center text-[9px] font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
-                        <p className="text-[6px] text-muted-foreground">{v.label}</p>
+                      <div key={v.field} className={`text-center p-1.5 rounded-lg border cursor-text ${v.field === "temperature" && patientVitals?.temperature && Number(patientVitals.temperature) > 99 ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800" : "bg-muted/40 border-border"}`}>
+                        <input type="number" step={v.step || "1"} value={patientVitals?.[v.field] ?? ""} onChange={e => updateVital(v.field, e.target.value)} className="w-full text-center text-xs font-semibold bg-transparent border-none outline-none text-foreground [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                        <p className="text-[8px] text-muted-foreground mt-0.5">{v.label}</p>
                       </div>
                     ))}
                   </div>
