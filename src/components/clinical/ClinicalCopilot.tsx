@@ -30,8 +30,10 @@ interface ClinicalCopilotProps {
   // Safety
   safetyResults: SafetyResults | null;
   
-  // Evidence citations (optional)
-  evidenceSources?: Array<{ source: string; title: string; url?: string }>;
+  // Evidence retrieval inputs
+  patientAge?: number;
+  allergies?: string[];
+  diagnosis?: string;
 }
 
 const fadeIn = {
