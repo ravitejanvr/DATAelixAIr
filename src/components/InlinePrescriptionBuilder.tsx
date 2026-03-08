@@ -187,6 +187,12 @@ export default function InlinePrescriptionBuilder({ patientId, consultationId, p
                   <X className="h-3 w-3" />
                 </Button>
               </div>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <Select value={d.frequency} onValueChange={v => updateDrug(i, "frequency", v)}>
+                <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{FREQUENCIES.map(f => <SelectItem key={f} value={f} className="text-xs">{f}</SelectItem>)}</SelectContent>
+              </Select>
               <Input value={d.duration} onChange={e => updateDrug(i, "duration", e.target.value)} placeholder="Duration" className="h-7 text-[10px]" />
               <Select value={d.route} onValueChange={v => updateDrug(i, "route", v)}>
                 <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
