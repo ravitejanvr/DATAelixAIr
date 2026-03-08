@@ -23,18 +23,27 @@ const EMPTY_DRUG: DrugEntry = { drug_name: "", dosage: "", frequency: "Once dail
 const FREQUENCIES = ["Once daily", "Twice daily", "Three times daily", "Every 6 hours", "Every 8 hours", "Every 12 hours", "At bedtime", "As needed"];
 const ROUTES = ["Oral", "Topical", "Intravenous", "Intramuscular", "Sublingual", "Inhaled", "Rectal"];
 
+interface ExternalDrug {
+  drug_name: string;
+  dose: string;
+  frequency: string;
+  duration: string;
+}
+
 interface InlinePrescriptionBuilderProps {
   patientId: string | null;
   consultationId: string | null;
   patientAllergies: string[];
+  externalDrugs?: ExternalDrug[];
 }
 
-export default function InlinePrescriptionBuilder({ patientId, consultationId, patientAllergies }: InlinePrescriptionBuilderProps) {
+export default function InlinePrescriptionBuilder({ patientId, consultationId, patientAllergies, externalDrugs }: InlinePrescriptionBuilderProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [drugs, setDrugs] = useState<DrugEntry[]>([]);
   const [favorites, setFavorites] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [addedExternal, setAddedExternal] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -42,6 +51,31 @@ export default function InlinePrescriptionBuilder({ patientId, consultationId, p
       if (data) setFavorites(data);
     });
   }, [user]);
+
+  // Auto-add drugs from Smart Suggestions panel
+  useEffect(() => {
+    if (!externalDrugs?.length) return;
+    const newDrugs: DrugEntry[] = [];
+    const newKeys = new Set(addedExternal);
+    for (const ext of externalDrugs) {
+      const key = `${ext.drug_name}|${ext.dose}`;
+      if (!newKeys.has(key)) {
+        newKeys.add(key);
+        newDrugs.push({
+          drug_name: ext.drug_name,
+          dosage: ext.dose,
+          frequency: ext.frequency || "Once daily",
+          duration: ext.duration || "5 days",
+          route: "Oral",
+          instructions: "",
+        });
+      }
+    }
+    if (newDrugs.length > 0) {
+      setAddedExternal(newKeys);
+      setDrugs(prev => [...prev, ...newDrugs]);
+    }
+  }, [externalDrugs]);
 
   const addDrug = (template?: Partial<DrugEntry>) => {
     setDrugs(prev => [...prev, { ...EMPTY_DRUG, ...template }]);
