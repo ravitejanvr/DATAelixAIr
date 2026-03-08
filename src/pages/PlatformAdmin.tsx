@@ -118,32 +118,25 @@ export default function PlatformAdmin() {
   };
 
   const updatePilotStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from("pilot_requests").update({ status } as any).eq("id", id);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    if (status === "approved") {
-      const pilot = pilots.find(p => p.id === id);
-      if (pilot) {
-        await supabase.from("clinics").insert({
-          name: pilot.clinic_name, location: pilot.location, specialty: pilot.speciality,
-          email: pilot.contact_email, phone: pilot.contact_phone || null, status: "active",
-        });
-      }
-    }
-    await supabase.from("audit_logs").insert({
-      actor_id: user!.id, event_type: `pilot_${status}`,
-      target_type: "pilot_request", target_id: id, metadata: { status },
+    const { data: result, error } = await supabase.functions.invoke("admin-action", {
+      body: { action_type: "update_pilot_status", pilot_id: id, status },
     });
+    if (error || result?.error) {
+      toast({ title: "Error", description: error?.message || result?.error, variant: "destructive" });
+      return;
+    }
     toast({ title: `Pilot ${status}` });
     loadAll();
   };
 
   const suspendClinic = async (clinicId: string) => {
-    const { error } = await supabase.from("clinics").update({ status: "suspended" } as any).eq("id", clinicId);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    await supabase.from("audit_logs").insert({
-      actor_id: user!.id, event_type: "clinic_suspended",
-      target_type: "clinic", target_id: clinicId,
+    const { data: result, error } = await supabase.functions.invoke("admin-action", {
+      body: { action_type: "suspend_clinic", clinic_id: clinicId },
     });
+    if (error || result?.error) {
+      toast({ title: "Error", description: error?.message || result?.error, variant: "destructive" });
+      return;
+    }
     toast({ title: "Clinic suspended" });
     loadAll();
   };
@@ -256,17 +249,19 @@ export default function PlatformAdmin() {
                   <div className="space-y-2">
                     {users.filter((u: any) => (u as any).account_status === "pending").map((u: any) => (
                       <UserApprovalCard key={u.id} user={u} clinics={clinics} onAction={async (userId, action, clinicId) => {
-                        if (action === "approve" && clinicId) {
-                          await supabase.from("profiles").update({ account_status: "approved", clinic_id: clinicId } as any).eq("user_id", userId);
-                          // Also add to clinic_members
-                          const role = (u.user_roles as any[])?.[0]?.role || "staff";
-                          await supabase.from("clinic_members").insert({ user_id: userId, clinic_id: clinicId, role, is_primary: true });
-                          await supabase.from("audit_logs").insert({ actor_id: user!.id, event_type: "user_approved", target_type: "profile", target_id: userId, metadata: { clinic_id: clinicId, role } });
-                          toast({ title: "User approved", description: `${u.full_name} has been approved and assigned to a clinic.` });
-                        } else if (action === "reject") {
-                          await supabase.from("profiles").update({ account_status: "rejected" } as any).eq("user_id", userId);
-                          await supabase.from("audit_logs").insert({ actor_id: user!.id, event_type: "user_rejected", target_type: "profile", target_id: userId });
-                          toast({ title: "User rejected", description: `${u.full_name}'s registration has been rejected.` });
+                        const role = (u.user_roles as any[])?.[0]?.role || "staff";
+                        const { data: result, error } = await supabase.functions.invoke("approve-user", {
+                          body: { target_user_id: userId, action, clinic_id: clinicId, role },
+                        });
+                        if (error || result?.error) {
+                          toast({ title: "Error", description: error?.message || result?.error, variant: "destructive" });
+                        } else {
+                          toast({
+                            title: action === "approve" ? "User approved" : "User rejected",
+                            description: action === "approve"
+                              ? `${u.full_name} has been approved and assigned to a clinic.`
+                              : `${u.full_name}'s registration has been rejected.`,
+                          });
                         }
                         loadAll();
                       }} />

@@ -55,3 +55,9 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.run-ai-pipeline]
     verify_jwt = false
+  [functions.approve-user]
+    verify_jwt = false
+  [functions.admin-action]
+    verify_jwt = false
+  [functions.send-report]
+    verify_jwt = false

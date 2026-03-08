@@ -126,14 +126,13 @@ export default function PatientQueue() {
       return;
     }
 
-    // Update visit status to "doctor"
-    const { error } = await supabase
-      .from("patient_visits")
-      .update({ status: "doctor", assigned_to: user!.id })
-      .eq("id", waiting.id);
+    // Update visit status via edge function
+    const { data: result, error } = await supabase.functions.invoke("update-visit-status", {
+      body: { visit_id: waiting.id, target_status: "with_doctor" },
+    });
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    if (error || result?.error) {
+      toast({ title: "Error", description: error?.message || result?.error, variant: "destructive" });
       return;
     }
 
@@ -155,13 +154,12 @@ export default function PatientQueue() {
   };
 
   const markComplete = async (visitId: string) => {
-    const { error } = await supabase
-      .from("patient_visits")
-      .update({ status: "complete" })
-      .eq("id", visitId);
+    const { data: result, error } = await supabase.functions.invoke("update-visit-status", {
+      body: { visit_id: visitId, target_status: "completed" },
+    });
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    if (error || result?.error) {
+      toast({ title: "Error", description: error?.message || result?.error, variant: "destructive" });
     } else {
       loadQueue();
     }
@@ -369,27 +367,24 @@ export default function PatientQueue() {
                       ) : ["registered", "intake", "triage", "vitals"].includes(item.status) ? (
                         <Button
                           size="sm"
-                          onClick={() => {
-                            supabase
-                              .from("patient_visits")
-                              .update({ status: "doctor", assigned_to: user!.id })
-                              .eq("id", item.id)
-                              .then(({ error }) => {
-                                if (!error) {
-                                  navigate("/clinical", {
-                                    state: {
-                                      queuePatient: {
-                                        id: item.patient_id,
-                                        name: item.patient_name,
-                                        age: item.patient_age,
-                                        gender: item.patient_gender,
-                                        phone: item.patient_phone,
-                                      },
-                                      visitId: item.id,
-                                    },
-                                  });
-                                }
+                          onClick={async () => {
+                            const { data: result, error } = await supabase.functions.invoke("update-visit-status", {
+                              body: { visit_id: item.id, target_status: "with_doctor" },
+                            });
+                            if (!error && !result?.error) {
+                              navigate("/clinical", {
+                                state: {
+                                  queuePatient: {
+                                    id: item.patient_id,
+                                    name: item.patient_name,
+                                    age: item.patient_age,
+                                    gender: item.patient_gender,
+                                    phone: item.patient_phone,
+                                  },
+                                  visitId: item.id,
+                                },
                               });
+                            }
                           }}
                         >
                           <UserCheck className="h-3.5 w-3.5 mr-1" /> Call In
