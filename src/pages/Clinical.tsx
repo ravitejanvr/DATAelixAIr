@@ -167,106 +167,77 @@ export default function Clinical() {
   const hasSoap = Object.values(soapSections).some(v => v.trim().length > 0);
   const isProcessing = isStabilizing || isExtracting || isRunningSafety || isGeneratingSoap;
 
-  // ── Full AI Pipeline ──
+  // ── Full AI Pipeline (server-side orchestration) ──
   const runFullPipeline = async () => {
     if (!transcript.trim()) { toast({ title: "Empty input", description: "Record or type consultation notes first.", variant: "destructive" }); return; }
     setPipelineRunning(true); setPipelineComplete(false);
+    setIsStabilizing(true); setIsExtracting(true); setIsRunningSafety(true); setIsGeneratingSoap(true);
 
-    // 1. Stabilize
-    setIsStabilizing(true);
-    let stableText = transcript;
-    const t1 = startPipelineTimer("stabilizer");
+    const timer = startPipelineTimer("full_pipeline");
     try {
-      const { data, error } = await supabase.functions.invoke("stabilize-transcript", { body: { transcript: transcript.trim() } });
-      if (!error && data?.stabilized_transcript) {
-        stableText = data.stabilized_transcript;
-        setNormalizationResults(data.normalization_results || []); setDetectedLanguages(data.detected_languages || []);
-        t1.stop(true, { match_count: data.match_count || 0 });
-      } else { t1.stop(false); }
-    } catch { t1.stop(false); }
-    setStabilizedTranscript(stableText); setTranscript(stableText); setIsStabilizing(false);
-
-    // 2. Extract
-    setIsExtracting(true);
-    const t2 = startPipelineTimer("extraction");
-    try {
-      const { data, error } = await supabase.functions.invoke("extract-patient-data", { body: { transcript: stableText.trim() } });
-      if (error) throw new Error(error.message);
-      const extracted = {
-        chief_complaint: data.chief_complaint || "", duration: data.duration || "",
-        associated_symptoms: data.associated_symptoms || "", vitals: data.vitals || "",
-        chronic_conditions: data.chronic_conditions || "", current_medications: data.current_medications || "",
-        allergies: data.allergies || "",
-      };
-      setExtractedData(extracted); setAiExtractedBaseline({ ...extracted }); t2.stop(true);
-    } catch (err: any) {
-      toast({ title: "Extraction failed", description: err.message, variant: "destructive" }); t2.stop(false);
-      setPipelineRunning(false); return;
-    }
-    setIsExtracting(false);
-
-    // 3. Safety — with clinical context
-    setIsRunningSafety(true);
-    const t3 = startPipelineTimer("safety_controller");
-    try {
-      const { data: safetyData } = await supabase.functions.invoke("clinical-safety", {
+      const { data, error } = await supabase.functions.invoke("run-ai-pipeline", {
         body: {
-          medications: clinicalContext.current_medications, allergies: clinicalContext.allergies,
-          vitals: {
-            bp_systolic: clinicalContext.blood_pressure ? parseInt(clinicalContext.blood_pressure.split("/")[0]) : null,
-            bp_diastolic: clinicalContext.blood_pressure ? parseInt(clinicalContext.blood_pressure.split("/")[1]) : null,
-            pulse: clinicalContext.pulse, temperature: clinicalContext.temperature,
-            spo2: clinicalContext.oxygen_saturation, respiratory_rate: clinicalContext.respiratory_rate,
-          },
-          symptoms: [clinicalContext.chief_complaint, extractedData.associated_symptoms].filter(Boolean).join(", ").split(",").map(s => s.trim()).filter(Boolean),
+          transcript: transcript.trim(),
+          clinic_id: profileClinicId,
           clinical_context: clinicalContext,
-          actor_id: user?.id,
+          intake_data: intakeData,
         },
       });
-      const safetyResult = safetyData as SafetyResults || EMPTY_SAFETY;
-      setSafetyResults(safetyResult);
-      t3.stop(true);
-      emitSafetyAlertMetric({ interactions: safetyData?.interaction_flags?.length || 0, allergies: safetyData?.allergy_flags?.length || 0, dose_warnings: safetyData?.dose_warnings?.length || 0, vitals_dangers: safetyData?.vitals_dangers?.length || 0, emergency_patterns: safetyData?.emergency_patterns?.length || 0 });
 
-      if (safetyResult.ai_suggestions_blocked) {
-        toast({ title: "Incomplete Clinical Context", description: "Please fill required fields (age, sex, chief complaint) before generating AI notes.", variant: "destructive" });
-        setPipelineRunning(false); setIsRunningSafety(false); return;
-      }
-    } catch {
-      setSafetyResults({ ...EMPTY_SAFETY, confidence_level: "moderate", requires_manual_review: true });
-      t3.stop(false);
-    }
-    setIsRunningSafety(false);
-
-    // 4. Generate SOAP
-    setIsGeneratingSoap(true);
-    const t4 = startPipelineTimer("documentation");
-    try {
-      const intakeContext: Record<string, string> = {};
-      if (intakeData) {
-        intakeContext.chief_complaint = intakeData.chief_complaint || "";
-        intakeContext.symptom_duration = intakeData.symptom_duration || "";
-        intakeContext.pain_score = intakeData.pain_score != null ? `${intakeData.pain_score}/10` : "";
-        intakeContext.allergies = intakeData.allergies_noted || "";
-        intakeContext.medications = intakeData.current_medications || "";
-        intakeContext.pregnancy_status = intakeData.pregnancy_status || "";
-      }
-      const { data, error } = await supabase.functions.invoke("clinical-soap", { body: { transcript: stableText.trim(), extractedData: intakeContext, clinical_context: clinicalContext } });
       if (error) throw new Error(error.message);
-      const sections = {
-        "Visit Summary": data.sections?.["Visit Summary"] || "", "Findings": data.sections?.["Findings"] || "",
-        "Provisional Diagnosis": data.sections?.["Provisional Diagnosis"] || "",
-        "Safety Warnings": data.sections?.["Safety Warnings"] || "No safety concerns identified.",
-        "Treatment Plan": data.sections?.["Treatment Plan"] || "", "Advice": data.sections?.["Advice"] || "",
-        "Follow-up": data.sections?.["Follow-up"] || "",
-      };
-      setSoapSections(sections); setAiSoapBaseline({ ...sections }); t4.stop(true);
-      // Auto-populate follow-up notes from AI
-      if (sections["Follow-up"]) setFollowUpNotes(prev => prev || sections["Follow-up"]);
+      if (data?.error) throw new Error(data.error);
+
+      // Update stabilization outputs
+      if (data.stabilized_transcript) {
+        setStabilizedTranscript(data.stabilized_transcript);
+        setTranscript(data.stabilized_transcript);
+      }
+      setNormalizationResults(data.normalization_results || []);
+      setDetectedLanguages(data.detected_languages || []);
+      setIsStabilizing(false);
+
+      // Update extraction outputs
+      if (data.extracted_data) {
+        setExtractedData(data.extracted_data);
+        setAiExtractedBaseline({ ...data.extracted_data });
+      }
+      setIsExtracting(false);
+
+      // Update safety outputs
+      if (data.safety_results) {
+        setSafetyResults(data.safety_results as SafetyResults);
+        emitSafetyAlertMetric({
+          interactions: data.safety_results.interaction_flags?.length || 0,
+          allergies: data.safety_results.allergy_flags?.length || 0,
+          dose_warnings: data.safety_results.dose_warnings?.length || 0,
+          vitals_dangers: data.safety_results.vitals_dangers?.length || 0,
+          emergency_patterns: data.safety_results.emergency_patterns?.length || 0,
+        });
+      }
+      setIsRunningSafety(false);
+
+      if (data.ai_suggestions_blocked) {
+        toast({ title: "Incomplete Clinical Context", description: "Please fill required fields (age, sex, chief complaint) before generating AI notes.", variant: "destructive" });
+        setPipelineRunning(false); setIsGeneratingSoap(false); return;
+      }
+
+      // Update SOAP outputs
+      if (data.soap_sections) {
+        setSoapSections(data.soap_sections);
+        setAiSoapBaseline({ ...data.soap_sections });
+        if (data.soap_sections["Follow-up"]) setFollowUpNotes(prev => prev || data.soap_sections["Follow-up"]);
+      }
+      setIsGeneratingSoap(false);
+
+      timer.stop(true, { total_duration_ms: data.total_duration_ms, stage_timings: data.stage_timings });
+      setPipelineComplete(true);
     } catch (err: any) {
-      toast({ title: "Summary generation failed", description: err.message, variant: "destructive" }); t4.stop(false);
+      toast({ title: "AI Pipeline failed", description: err.message, variant: "destructive" });
+      timer.stop(false);
+    } finally {
+      setPipelineRunning(false);
+      setIsStabilizing(false); setIsExtracting(false); setIsRunningSafety(false); setIsGeneratingSoap(false);
     }
-    setIsGeneratingSoap(false); setPipelineRunning(false); setPipelineComplete(true);
   };
 
   // ── Safety re-run ──
