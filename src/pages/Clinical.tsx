@@ -924,18 +924,6 @@ export default function Clinical() {
                 </ClinicalCard>
               )}
 
-              {/* Record / Write */}
-              {selectedPatient && (
-                <ClinicalCard className="p-3">
-                  <ClinicalCardHeader
-                    title="Record / Write"
-                    icon={<Mic className="h-3.5 w-3.5" />}
-                    badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">Captured</Badge> : undefined}
-                  />
-                  <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
-                </ClinicalCard>
-              )}
-
               {/* Empty state */}
               {!selectedPatient && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-12 text-center">
