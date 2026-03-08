@@ -25,6 +25,7 @@ import SmartSuggestionsPanel from "@/components/SmartSuggestionsPanel";
 import CollapsibleSection from "@/components/clinical/CollapsibleSection";
 import FollowUpPanel from "@/components/clinical/FollowUpPanel";
 import ConsultationTimeline from "@/components/ConsultationTimeline";
+import ConsultationComplete from "@/components/ConsultationComplete";
 import VisitTimeline from "@/components/VisitTimeline";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -138,6 +139,8 @@ export default function Clinical() {
   const [pipelineComplete, setPipelineComplete] = useState(false);
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [intakeApproved, setIntakeApproved] = useState(false);
+  const [finalizationResults, setFinalizationResults] = useState<any>(null);
+  const [isFinalizingConsultation, setIsFinalizingConsultation] = useState(false);
 
   // Symptom chips
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
@@ -263,7 +266,8 @@ export default function Clinical() {
     { label: "Symptoms", status: hasSymptomInput ? "done" as const : "pending" as const },
     { label: "AI Plan", status: isProcessing ? "active" as const : pipelineComplete ? "done" as const : "pending" as const },
     { label: "Review", status: pipelineComplete && !savedSessionId ? "active" as const : savedSessionId ? "done" as const : "pending" as const },
-    { label: "Saved", status: savedSessionId ? "done" as const : "pending" as const },
+    { label: "Finalize", status: isFinalizingConsultation ? "active" as const : finalizationResults ? "done" as const : "pending" as const },
+    { label: "Complete", status: finalizationResults ? "done" as const : "pending" as const },
   ];
 
   const activeExpansions = selectedSymptoms.filter(s => SYMPTOM_EXPANSIONS[s]);
@@ -383,7 +387,8 @@ export default function Clinical() {
     if (!reviewConfirmed) { toast({ title: "Confirmation required", description: "Please confirm you have reviewed the AI care plan.", variant: "destructive" }); return; }
     setIsSaving(true);
     try {
-      const { data, error } = await supabase.functions.invoke("save-consultation", {
+      // Step 1: Save consultation first
+      const { data: saveData, error: saveError } = await supabase.functions.invoke("save-consultation", {
         body: {
           patient_id: selectedPatient?.id || null,
           clinic_id: profileClinicId,
@@ -401,25 +406,45 @@ export default function Clinical() {
           session_duration_ms: Math.round(performance.now() - sessionStartTime),
         },
       });
-      if (error) throw new Error(error.message);
-      setSavedSessionId(data.consultation_id);
+      if (saveError) throw new Error(saveError.message);
+      const consultationId = saveData.consultation_id;
+      setSavedSessionId(consultationId);
 
-      if (visitId) {
-        await supabase.functions.invoke("finalize-visit", {
-          body: {
-            visit_id: visitId,
-            consultation_id: data.consultation_id,
-            clinic_id: profileClinicId,
-            target_status: "consultation_complete",
-            billing_enabled: true,
-          },
-        });
+      // Step 2: Run finalization pipeline (prescriptions, labs, invoice, report)
+      setIsFinalizingConsultation(true);
+      const { data: finalizeData, error: finalizeError } = await supabase.functions.invoke("finalize-consultation", {
+        body: {
+          consultation_id: consultationId,
+          patient_id: selectedPatient?.id || saveData.patient_id,
+          clinic_id: profileClinicId,
+          visit_id: visitId,
+          extracted_data: extractedData,
+          soap_sections: soapSections,
+          safety_results: safetyResults,
+          drugs: pendingRxFromSuggestions.map(d => ({
+            drug_name: d.drug_name,
+            dosage: d.dose,
+            frequency: d.frequency,
+            duration: d.duration,
+          })),
+          lab_orders: [], // Lab orders from inline builder are saved separately
+          billing_enabled: true,
+          safety_override: reviewConfirmed,
+        },
+      });
+      if (finalizeError) throw new Error(finalizeError.message);
+      
+      if (finalizeData?.error === "safety_block") {
+        toast({ title: "Safety Block", description: finalizeData.message, variant: "destructive" });
+        setIsFinalizingConsultation(false);
+        return;
       }
 
-      toast({ title: "✓ Consultation saved", description: "Care plan approved. Prescriptions, lab orders, and report generated." });
+      setFinalizationResults({ ...finalizeData, consultation_id: consultationId });
+      toast({ title: "✓ Consultation finalized", description: "Prescription, labs, invoice, and report generated." });
     } catch (err: any) {
-      toast({ title: "Save failed", description: err.message, variant: "destructive" });
-    } finally { setIsSaving(false); }
+      toast({ title: "Finalization failed", description: err.message, variant: "destructive" });
+    } finally { setIsSaving(false); setIsFinalizingConsultation(false); }
   };
 
   const startNewSession = () => {
@@ -432,6 +457,7 @@ export default function Clinical() {
     setFollowUpDate(""); setFollowUpNotes("");
     setSelectedSymptoms([]); setSelectedDuration(""); setExpansionSelections({});
     setPriorMeds([]); setAutoGenerateTriggered(false); setSymptomSearch("");
+    setFinalizationResults(null); setIsFinalizingConsultation(false);
   };
 
   const generatePatientExplanation = async () => {
@@ -688,8 +714,19 @@ export default function Clinical() {
             </div>
           </div>
 
-          {/* ═══ CENTER: Structured Clinical Builder ═══ */}
+          {/* ═══ CENTER: Structured Clinical Builder / Finalization ═══ */}
           <div className="overflow-y-auto flex flex-col pb-20 lg:pb-16">
+            {/* ── Post-Finalization Complete Screen ── */}
+            {finalizationResults ? (
+              <ConsultationComplete
+                results={finalizationResults}
+                patientId={selectedPatient?.id || ""}
+                clinicId={profileClinicId || ""}
+                visitId={visitId}
+                patientName={selectedPatient?.name || "Patient"}
+                onNewSession={startNewSession}
+              />
+            ) : (
             <div className="flex-1 p-4 space-y-4 max-w-3xl mx-auto w-full">
 
               {/* ── Structured Sentence Builder ── */}
@@ -1127,6 +1164,7 @@ export default function Clinical() {
                 </motion.div>
               )}
             </div>
+            )}
           </div>
 
           {/* ═══ RIGHT: AI Copilot (Active Thinking Assistant) ═══ */}
@@ -1300,7 +1338,7 @@ export default function Clinical() {
 
         {/* ═══ FLOATING BOTTOM ACTION BAR ═══ */}
         <AnimatePresence>
-          {(hasSymptomInput && !pipelineComplete && !pipelineRunning && !savedSessionId) && (
+          {!finalizationResults && (hasSymptomInput && !pipelineComplete && !pipelineRunning && !savedSessionId) && (
             <motion.div
               initial={{ y: 80, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -1319,7 +1357,7 @@ export default function Clinical() {
             </motion.div>
           )}
 
-          {pipelineComplete && !savedSessionId && (
+          {!finalizationResults && pipelineComplete && !savedSessionId && (
             <motion.div
               initial={{ y: 80, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -1336,12 +1374,12 @@ export default function Clinical() {
               </Button>
               <Button
                 onClick={approveAndSave}
-                disabled={isSaving || !reviewConfirmed}
+                disabled={isSaving || isFinalizingConsultation || !reviewConfirmed}
                 className="h-10 rounded-xl text-sm font-semibold gap-2 px-8"
                 size="lg"
               >
-                {isSaving ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+                {(isSaving || isFinalizingConsultation) ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />{isFinalizingConsultation ? "Finalizing…" : "Saving…"}</>
                 ) : (
                   <><CheckCircle className="h-4 w-4" />Finalize Consultation</>
                 )}
