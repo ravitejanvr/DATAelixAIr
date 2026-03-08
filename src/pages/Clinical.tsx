@@ -626,7 +626,8 @@ export default function Clinical() {
               userId={user?.id || ""}
               transcriptExcerpt={stabilizedTranscript || transcript}
               onAddPrescription={(rx) => {
-                toast({ title: `Added: ${rx.drug_name}`, description: `${rx.dose} · ${rx.frequency} · ${rx.duration}` });
+                setPendingRxFromSuggestions(prev => [...prev, { drug_name: rx.drug_name, dose: rx.dose, frequency: rx.frequency, duration: rx.duration }]);
+                toast({ title: `Added to Rx: ${rx.drug_name}`, description: `${rx.dose} · ${rx.frequency} · ${rx.duration}` });
               }}
               onAddLabTest={(testName) => {
                 toast({ title: `Lab test queued: ${testName}`, description: "Add via Lab Orders below." });
