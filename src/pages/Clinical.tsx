@@ -867,6 +867,7 @@ export default function Clinical() {
                         <p className="text-[6px] text-muted-foreground">{v.label}</p>
                       </div>
                     ))}
+                  </div>
                 </ClinicalCard>
               )}
 
