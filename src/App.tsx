@@ -41,6 +41,7 @@ import VisitTracker from "./pages/VisitTracker";
 import Triage from "./pages/Triage";
 import Intake from "./pages/Intake";
 import PatientQueue from "./pages/PatientQueue";
+import PatientSelfIntake from "./pages/PatientSelfIntake";
 
 // Platform admin
 import PlatformAdmin from "./pages/PlatformAdmin";
@@ -129,6 +130,9 @@ const App = () => (
               <Route path="/onboard" element={<Onboard />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
               <Route path="/awaiting-approval" element={<AwaitingApproval />} />
+
+              {/* Patient self-intake (public, no auth) */}
+              <Route path="/patient-intake/:visitId" element={<PatientSelfIntake />} />
 
               {/* Layer 2: Clinical App — wrapped in ClinicalLayout */}
               <Route path="/dashboard" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><Dashboard /></ClinicalLayout></ProtectedRoute>} />
