@@ -17,6 +17,7 @@ export type Database = {
       audit_logs: {
         Row: {
           actor_id: string
+          clinic_id: string | null
           created_at: string
           event_type: string
           id: string
@@ -26,6 +27,7 @@ export type Database = {
         }
         Insert: {
           actor_id: string
+          clinic_id?: string | null
           created_at?: string
           event_type: string
           id?: string
@@ -35,6 +37,7 @@ export type Database = {
         }
         Update: {
           actor_id?: string
+          clinic_id?: string | null
           created_at?: string
           event_type?: string
           id?: string
@@ -42,7 +45,53 @@ export type Database = {
           target_id?: string | null
           target_type?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinic_members: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          is_primary: boolean
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          role?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_members_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clinic_workflow_config: {
         Row: {
@@ -1242,6 +1291,10 @@ export type Database = {
         Returns: boolean
       }
       increment_lexicon_usage: { Args: { ids: string[] }; Returns: undefined }
+      is_clinic_member: {
+        Args: { _clinic_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_doctor_for_patient: {
         Args: { p_patient_id: string }
         Returns: boolean

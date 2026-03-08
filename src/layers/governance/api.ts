@@ -84,6 +84,7 @@ export const GOVERNANCE_EVENT_TYPES = [
 export type GovernanceEventType = typeof GOVERNANCE_EVENT_TYPES[number];
 
 /** Data isolation check: returns roles that have access to a given resource type */
+/** Data isolation check: returns roles that have access to a given resource type */
 export const DATA_ACCESS_MATRIX: Record<string, AppRole[]> = {
   consultations: ["doctor", "nurse", "allied_health", "pharmacist", "lab", "care_coordinator", "clinic_admin"],
   patients: ["doctor", "nurse", "allied_health", "pharmacist", "lab", "care_coordinator", "clinic_admin", "receptionist", "front_desk"],
@@ -96,4 +97,19 @@ export const DATA_ACCESS_MATRIX: Record<string, AppRole[]> = {
   monitoring_events: ["platform_admin"],
   pilot_requests: ["platform_admin"],
   clinics: ["platform_admin"],
+  clinic_members: ["clinic_admin", "platform_admin"],
 };
+
+/**
+ * Multi-tenancy isolation model:
+ * - All clinical tables include clinic_id
+ * - RLS policies enforce tenant isolation via is_clinic_member()
+ * - clinic_members table supports multi-clinic user membership
+ * - profiles.clinic_id remains as primary/default clinic shortcut
+ */
+export const TENANT_ISOLATED_TABLES = [
+  "patients", "patient_visits", "consultations", "prescriptions",
+  "lab_orders", "lab_results", "vitals", "triage", "invoices",
+  "doctor_favorites", "doctor_learning_signals", "doctor_preferences",
+  "clinic_workflow_config", "audit_logs", "clinic_members",
+] as const;
