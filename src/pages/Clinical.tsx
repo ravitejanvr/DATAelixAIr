@@ -698,7 +698,7 @@ export default function Clinical() {
 
   return (
     <>
-      <SEO title="Clinical Workspace — DATAelixAIr" description="AI clinical consultation workspace" />
+      <SEO title="Clinical Cockpit — DATAelixAIr" description="AI clinical consultation workspace" />
 
       <div className="h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden bg-background">
 
