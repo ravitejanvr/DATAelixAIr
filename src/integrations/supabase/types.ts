@@ -151,6 +151,7 @@ export type Database = {
       }
       clinics: {
         Row: {
+          country: string | null
           created_at: string
           email: string | null
           id: string
@@ -159,9 +160,11 @@ export type Database = {
           phone: string | null
           specialty: string | null
           status: string
+          timezone: string | null
           updated_at: string
         }
         Insert: {
+          country?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -170,9 +173,11 @@ export type Database = {
           phone?: string | null
           specialty?: string | null
           status?: string
+          timezone?: string | null
           updated_at?: string
         }
         Update: {
+          country?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -181,6 +186,7 @@ export type Database = {
           phone?: string | null
           specialty?: string | null
           status?: string
+          timezone?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -515,6 +521,7 @@ export type Database = {
           category: string | null
           clinic_id: string
           completed_at: string | null
+          consultation_id: string | null
           created_at: string
           doctor_id: string
           id: string
@@ -533,6 +540,7 @@ export type Database = {
           category?: string | null
           clinic_id: string
           completed_at?: string | null
+          consultation_id?: string | null
           created_at?: string
           doctor_id: string
           id?: string
@@ -551,6 +559,7 @@ export type Database = {
           category?: string | null
           clinic_id?: string
           completed_at?: string | null
+          consultation_id?: string | null
           created_at?: string
           doctor_id?: string
           id?: string
@@ -571,6 +580,13 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_orders_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "consultations"
             referencedColumns: ["id"]
           },
           {
@@ -600,6 +616,7 @@ export type Database = {
           parameter_name: string
           patient_id: string
           reference_range: string | null
+          reported_at: string | null
           unit: string | null
           value: string
           verified_at: string | null
@@ -616,6 +633,7 @@ export type Database = {
           parameter_name: string
           patient_id: string
           reference_range?: string | null
+          reported_at?: string | null
           unit?: string | null
           value: string
           verified_at?: string | null
@@ -632,6 +650,7 @@ export type Database = {
           parameter_name?: string
           patient_id?: string
           reference_range?: string | null
+          reported_at?: string | null
           unit?: string | null
           value?: string
           verified_at?: string | null
@@ -672,6 +691,7 @@ export type Database = {
       monitoring_events: {
         Row: {
           agent_name: string | null
+          clinic_id: string | null
           created_at: string
           duration_ms: number | null
           event_type: string
@@ -681,6 +701,7 @@ export type Database = {
         }
         Insert: {
           agent_name?: string | null
+          clinic_id?: string | null
           created_at?: string
           duration_ms?: number | null
           event_type: string
@@ -690,6 +711,7 @@ export type Database = {
         }
         Update: {
           agent_name?: string | null
+          clinic_id?: string | null
           created_at?: string
           duration_ms?: number | null
           event_type?: string
@@ -697,43 +719,60 @@ export type Database = {
           metadata?: Json
           success?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_events_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       patient_visits: {
         Row: {
           assigned_to: string | null
           check_in_time: string
+          chief_complaint: string | null
           clinic_id: string
           consultation_id: string | null
+          created_by: string | null
           id: string
           patient_id: string
           status: string
           token_number: number | null
           updated_at: string
+          visit_date: string | null
           visit_type: string | null
         }
         Insert: {
           assigned_to?: string | null
           check_in_time?: string
+          chief_complaint?: string | null
           clinic_id: string
           consultation_id?: string | null
+          created_by?: string | null
           id?: string
           patient_id: string
           status?: string
           token_number?: number | null
           updated_at?: string
+          visit_date?: string | null
           visit_type?: string | null
         }
         Update: {
           assigned_to?: string | null
           check_in_time?: string
+          chief_complaint?: string | null
           clinic_id?: string
           consultation_id?: string | null
+          created_by?: string | null
           id?: string
           patient_id?: string
           status?: string
           token_number?: number | null
           updated_at?: string
+          visit_date?: string | null
           visit_type?: string | null
         }
         Relationships: [
@@ -764,6 +803,7 @@ export type Database = {
         Row: {
           aadhaar_hash: string | null
           abha_id: string | null
+          address: string | null
           age: number | null
           alcohol_use: string | null
           allergies: string[] | null
@@ -772,6 +812,7 @@ export type Database = {
           clinic_id: string | null
           created_at: string
           current_medications: string[] | null
+          date_of_birth: string | null
           dietary_preference: string | null
           doctor_id: string
           email: string | null
@@ -794,6 +835,7 @@ export type Database = {
         Insert: {
           aadhaar_hash?: string | null
           abha_id?: string | null
+          address?: string | null
           age?: number | null
           alcohol_use?: string | null
           allergies?: string[] | null
@@ -802,6 +844,7 @@ export type Database = {
           clinic_id?: string | null
           created_at?: string
           current_medications?: string[] | null
+          date_of_birth?: string | null
           dietary_preference?: string | null
           doctor_id: string
           email?: string | null
@@ -824,6 +867,7 @@ export type Database = {
         Update: {
           aadhaar_hash?: string | null
           abha_id?: string | null
+          address?: string | null
           age?: number | null
           alcohol_use?: string | null
           allergies?: string[] | null
@@ -832,6 +876,7 @@ export type Database = {
           clinic_id?: string | null
           created_at?: string
           current_medications?: string[] | null
+          date_of_birth?: string | null
           dietary_preference?: string | null
           doctor_id?: string
           email?: string | null
