@@ -139,6 +139,8 @@ export default function Clinical() {
   const [pipelineComplete, setPipelineComplete] = useState(false);
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [intakeApproved, setIntakeApproved] = useState(false);
+  const [finalizationResults, setFinalizationResults] = useState<any>(null);
+  const [isFinalizingConsultation, setIsFinalizingConsultation] = useState(false);
 
   // Symptom chips
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
