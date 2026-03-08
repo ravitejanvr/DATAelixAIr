@@ -42,8 +42,8 @@ const Index = () => (
       <div className="container mx-auto px-4 py-20 relative z-10">
         <motion.div initial="hidden" animate="visible" className="text-center max-w-3xl mx-auto">
           <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 mb-8 px-4 py-1.5 rounded-full border border-border bg-card text-xs font-medium text-muted-foreground">
-            <Mic className="w-3.5 h-3.5 text-primary" />
-            AI-Powered Clinical Documentation
+            <FileText className="w-3.5 h-3.5 text-primary" />
+            Clinical Documentation Workspace
           </motion.div>
 
           <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.4rem,5vw,3.8rem)] font-extrabold leading-[1.08] tracking-tight text-foreground">
