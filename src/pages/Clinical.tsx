@@ -612,7 +612,7 @@ export default function Clinical() {
           {/* ══ RIGHT COLUMN: AI Notes + Rx + Labs + Review ══ */}
           <div className="overflow-y-auto p-4 space-y-3">
 
-            {/* Smart Suggestions Panel */}
+            {/* Smart Suggestions Panel — Clinical Knowledge Layer */}
             <SmartSuggestionsPanel
               chiefComplaint={extractedData.chief_complaint}
               duration={extractedData.duration || ""}
@@ -624,8 +624,8 @@ export default function Clinical() {
               medications={extractedData.current_medications || ""}
               conditions={extractedData.chronic_conditions || ""}
               userId={user?.id || ""}
+              transcriptExcerpt={stabilizedTranscript || transcript}
               onAddPrescription={(rx) => {
-                // Prescription builder will pick up from toast notification pattern
                 toast({ title: `Added: ${rx.drug_name}`, description: `${rx.dose} · ${rx.frequency} · ${rx.duration}` });
               }}
               onAddLabTest={(testName) => {
