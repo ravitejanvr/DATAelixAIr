@@ -24,7 +24,7 @@ interface ReportShareDialogProps {
   autoTranslateLanguage?: "hindi" | "telugu";
 }
 
-type ReportLanguage = "english" | "hindi" | "telugu";
+type ReportLanguage = "english" | "hindi" | "telugu" | "urdu";
 
 export default function ReportShareDialog({
   open,
