@@ -54,9 +54,13 @@ export default function ClinicalCopilot({
   selectedMedications,
   onToggleMedication,
   safetyResults,
-  evidenceSources = [],
+  patientAge,
+  allergies,
+  diagnosis,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
+  const [evidence, setEvidence] = useState<EvidenceData | null>(null);
+  const [loadingEvidence, setLoadingEvidence] = useState(false);
 
   const safetyAlertCount = safetyResults
     ? (safetyResults.allergy_flags?.length || 0) +
