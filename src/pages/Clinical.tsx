@@ -559,6 +559,12 @@ export default function Clinical() {
               disabled={pipelineRunning}
             />
 
+            {/* Clinical Context Panel */}
+            <ClinicalContextPanel
+              context={clinicalContext}
+              onUpdate={(field, value) => setClinicalContext(prev => ({ ...prev, [field]: value }))}
+            />
+
             {/* Normalization results */}
             {normalizationResults.length > 0 && (
               <div className="rounded-md border border-primary/20 bg-primary/5 p-2.5 space-y-1.5">
