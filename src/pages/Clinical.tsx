@@ -687,6 +687,7 @@ export default function Clinical() {
               conditions={extractedData.chronic_conditions || ""}
               userId={user?.id || ""}
               transcriptExcerpt={stabilizedTranscript || transcript}
+              clinicalContext={clinicalContext}
               onAddPrescription={(rx) => {
                 setPendingRxFromSuggestions(prev => [...prev, { drug_name: rx.drug_name, dose: rx.dose, frequency: rx.frequency, duration: rx.duration }]);
                 toast({ title: `Added to Rx: ${rx.drug_name}`, description: `${rx.dose} · ${rx.frequency} · ${rx.duration}` });
