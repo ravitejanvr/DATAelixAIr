@@ -224,6 +224,7 @@ interface PatientContext {
   conditions?: string;
   vitals?: string;
   transcript_excerpt?: string;
+  clinical_context?: Record<string, any>;
 }
 
 interface EvidenceBackedSuggestion {
