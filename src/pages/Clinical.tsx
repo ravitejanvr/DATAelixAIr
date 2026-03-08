@@ -1338,7 +1338,7 @@ export default function Clinical() {
 
         {/* ═══ FLOATING BOTTOM ACTION BAR ═══ */}
         <AnimatePresence>
-          {(hasSymptomInput && !pipelineComplete && !pipelineRunning && !savedSessionId) && (
+          {!finalizationResults && (hasSymptomInput && !pipelineComplete && !pipelineRunning && !savedSessionId) && (
             <motion.div
               initial={{ y: 80, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -1357,7 +1357,7 @@ export default function Clinical() {
             </motion.div>
           )}
 
-          {pipelineComplete && !savedSessionId && (
+          {!finalizationResults && pipelineComplete && !savedSessionId && (
             <motion.div
               initial={{ y: 80, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -1374,12 +1374,12 @@ export default function Clinical() {
               </Button>
               <Button
                 onClick={approveAndSave}
-                disabled={isSaving || !reviewConfirmed}
+                disabled={isSaving || isFinalizingConsultation || !reviewConfirmed}
                 className="h-10 rounded-xl text-sm font-semibold gap-2 px-8"
                 size="lg"
               >
-                {isSaving ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+                {(isSaving || isFinalizingConsultation) ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />{isFinalizingConsultation ? "Finalizing…" : "Saving…"}</>
                 ) : (
                   <><CheckCircle className="h-4 w-4" />Finalize Consultation</>
                 )}
