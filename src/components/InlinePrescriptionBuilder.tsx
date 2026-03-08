@@ -126,20 +126,18 @@ export default function InlinePrescriptionBuilder({ patientId, consultationId, p
     if (valid.length === 0) return;
     setSaving(true);
     try {
-      const rows = valid.map(d => ({
-        patient_id: patientId,
-        doctor_id: user.id,
-        consultation_id: consultationId,
-        drug_name: d.drug_name,
-        dosage: d.dosage,
-        frequency: d.frequency,
-        duration: d.duration,
-        route: d.route,
-        instructions: d.instructions,
-      }));
-      const { error } = await supabase.from("prescriptions").insert(rows);
-      if (error) throw new Error(error.message);
-      toast({ title: "Prescriptions saved" });
+      const { data, error } = await supabase.functions.invoke("save-prescription", {
+        body: {
+          patient_id: patientId,
+          consultation_id: consultationId,
+          drugs: valid,
+          patient_allergies: patientAllergies,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const warnMsg = data?.allergy_warnings?.length ? ` (${data.allergy_warnings.length} allergy warning(s))` : "";
+      toast({ title: `Prescriptions saved${warnMsg}` });
       setDrugs([]);
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
