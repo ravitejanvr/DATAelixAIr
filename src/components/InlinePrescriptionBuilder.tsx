@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Pill, Plus, X, AlertTriangle, Star, Loader2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface DrugEntry {
   drug_name: string;
@@ -87,6 +88,24 @@ export default function InlinePrescriptionBuilder({ patientId, consultationId, p
 
   const removeDrug = (i: number) => setDrugs(prev => prev.filter((_, idx) => idx !== i));
 
+  const saveToFavorites = async (d: DrugEntry) => {
+    if (!user || !d.drug_name.trim()) return;
+    const { error } = await supabase.from("doctor_favorites").insert({
+      doctor_id: user.id,
+      generic_name: d.drug_name,
+      default_dose: d.dosage,
+      frequency: d.frequency,
+      duration: d.duration,
+      route: d.route,
+      instructions: d.instructions,
+    });
+    if (error) {
+      toast({ title: "Already in favorites", variant: "destructive" });
+    } else {
+      toast({ title: `★ ${d.drug_name} saved to favorites` });
+    }
+  };
+
   // Simple allergy check
   const checkAllergyConflict = (drugName: string): string | null => {
     const lower = drugName.toLowerCase();
@@ -130,21 +149,6 @@ export default function InlinePrescriptionBuilder({ patientId, consultationId, p
 
   return (
     <div className="space-y-2">
-      {/* Favorites quick-add */}
-      {favorites.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {favorites.slice(0, 6).map(f => (
-            <button
-              key={f.id}
-              onClick={() => addDrug({ drug_name: f.generic_name, dosage: f.default_dose || "", frequency: f.frequency || "Once daily", duration: f.duration || "5 days", route: f.route || "Oral", instructions: f.instructions || "" })}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border bg-background hover:border-primary/30 transition-colors text-[9px]"
-            >
-              <Star className="h-2 w-2 text-primary" />{f.generic_name}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Drug cards */}
       {drugs.map((d, i) => {
         const allergyWarning = checkAllergyConflict(d.drug_name);
@@ -155,9 +159,19 @@ export default function InlinePrescriptionBuilder({ patientId, consultationId, p
                 <Input value={d.drug_name} onChange={e => updateDrug(i, "drug_name", e.target.value)} placeholder="Medication name" className="h-7 text-[11px]" />
                 <Input value={d.dosage} onChange={e => updateDrug(i, "dosage", e.target.value)} placeholder="Dose (e.g. 500mg)" className="h-7 text-[11px]" />
               </div>
-              <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 shrink-0" onClick={() => removeDrug(i)}>
-                <X className="h-3 w-3" />
-              </Button>
+              <div className="flex items-center gap-0.5 ml-1 shrink-0">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveToFavorites(d)}>
+                      <Star className="h-3 w-3 text-amber-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-[10px]">Save to favorites</TooltipContent>
+                </Tooltip>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeDrug(i)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-1.5">
               <Select value={d.frequency} onValueChange={v => updateDrug(i, "frequency", v)}>
