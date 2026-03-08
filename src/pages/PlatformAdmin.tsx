@@ -67,6 +67,22 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
+type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit";
+
+const getTabFromPath = (pathname: string): AdminTab => {
+  const tabSegment = pathname.split("/")[2];
+  if (tabSegment === "clinics") return "clinics";
+  if (tabSegment === "users") return "users";
+  if (tabSegment === "governance") return "governance";
+  if (tabSegment === "monitoring") return "monitoring";
+  if (tabSegment === "audit") return "audit";
+  return "pilots";
+};
+
+const getPathFromTab = (tab: AdminTab): string => (
+  tab === "pilots" ? "/platform-admin" : `/platform-admin/${tab}`
+);
+
 export default function PlatformAdmin() {
   const { user } = useAuth();
   const { toast } = useToast();
