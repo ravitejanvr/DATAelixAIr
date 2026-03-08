@@ -23,6 +23,7 @@ export type VisitStatus = typeof VISIT_STATUSES[number];
 
 export const VISIT_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   registered: { label: "Registered", color: "bg-blue-100 text-blue-800 border-blue-200" },
+  arrived:    { label: "Arrived", color: "bg-teal-100 text-teal-800 border-teal-200" },
   triage:     { label: "Triage", color: "bg-pink-100 text-pink-800 border-pink-200" },
   vitals:     { label: "Vitals", color: "bg-purple-100 text-purple-800 border-purple-200" },
   doctor:     { label: "Doctor", color: "bg-primary/10 text-primary border-primary/20" },
