@@ -190,6 +190,9 @@ export default function Auth() {
                 <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input type="email" value={signInEmail} onChange={e => setSignInEmail(e.target.value)} onKeyDown={e => handleEnter(e, "signin")} placeholder="you@clinic.com" className="pl-10 h-11" autoFocus autoComplete="email" /></div>
                 <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input type="password" value={signInPassword} onChange={e => setSignInPassword(e.target.value)} onKeyDown={e => handleEnter(e, "signin")} placeholder="Password" className="pl-10 h-11" autoComplete="current-password" /></div>
                 <Button className="w-full h-11" onClick={handleSignIn} disabled={!canSignIn}>{loading ? "Signing in…" : <>Sign In <LogIn className="h-4 w-4 ml-2" /></>}</Button>
+                <button type="button" onClick={handleForgotPassword} className="w-full text-xs text-muted-foreground hover:text-primary transition-colors" disabled={loading}>
+                  Forgot password?
+                </button>
               </>
             ) : (
               <>
