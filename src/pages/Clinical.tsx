@@ -929,11 +929,11 @@ export default function Clinical() {
 
               {/* Record / Write */}
               {selectedPatient && (
-                <ClinicalCard className="p-1.5">
+                <ClinicalCard className="p-3">
                   <ClinicalCardHeader
                     title="Record / Write"
-                    icon={<Mic className="h-3 w-3" />}
-                    badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-[7px]">Captured</Badge> : undefined}
+                    icon={<Mic className="h-3.5 w-3.5" />}
+                    badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">Captured</Badge> : undefined}
                   />
                   <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
                 </ClinicalCard>
