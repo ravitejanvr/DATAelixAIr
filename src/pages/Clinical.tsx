@@ -761,10 +761,10 @@ export default function Clinical() {
                 onNewSession={startNewSession}
               />
             ) : (
-            <div className="p-2 space-y-1.5">
+            <div className="p-1.5 space-y-1">
 
               {/* Patient Header */}
-              <ClinicalCard className="p-2">
+              <ClinicalCard className="p-1.5">
                 {!selectedPatient ? (
                   <div>
                     <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1">
