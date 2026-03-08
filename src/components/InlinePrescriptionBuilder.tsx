@@ -174,15 +174,19 @@ export default function InlinePrescriptionBuilder({ patientId, consultationId, p
                 <Input value={d.drug_name} onChange={e => updateDrug(i, "drug_name", e.target.value)} placeholder="Medication name" className="h-7 text-[11px]" />
                 <Input value={d.dosage} onChange={e => updateDrug(i, "dosage", e.target.value)} placeholder="Dose (e.g. 500mg)" className="h-7 text-[11px]" />
               </div>
-              <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 shrink-0" onClick={() => removeDrug(i)}>
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              <Select value={d.frequency} onValueChange={v => updateDrug(i, "frequency", v)}>
-                <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-                <SelectContent>{FREQUENCIES.map(f => <SelectItem key={f} value={f} className="text-xs">{f}</SelectItem>)}</SelectContent>
-              </Select>
+              <div className="flex items-center gap-0.5 ml-1 shrink-0">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveToFavorites(d)}>
+                      <Star className="h-3 w-3 text-amber-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-[10px]">Save to favorites</TooltipContent>
+                </Tooltip>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeDrug(i)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
               <Input value={d.duration} onChange={e => updateDrug(i, "duration", e.target.value)} placeholder="Duration" className="h-7 text-[10px]" />
               <Select value={d.route} onValueChange={v => updateDrug(i, "route", v)}>
                 <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
