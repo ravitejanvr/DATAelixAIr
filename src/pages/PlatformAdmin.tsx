@@ -313,13 +313,13 @@ export default function PlatformAdmin() {
           <TabsContent value="users" className="mt-4">
             <div className="space-y-4">
               {/* Pending approvals first */}
-              {users.filter((u: any) => (u as any).account_status === "pending").length > 0 && (
+              {pendingUsers.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1.5">
-                    <Clock className="h-4 w-4" /> Pending Approval ({users.filter((u: any) => (u as any).account_status === "pending").length})
+                    <Clock className="h-4 w-4" /> Pending Approval ({pendingUsers.length})
                   </h3>
                   <div className="space-y-2">
-                    {users.filter((u: any) => (u as any).account_status === "pending").map((u: any) => (
+                    {pendingUsers.map((u: any) => (
                       <UserApprovalCard key={u.id} user={u} clinics={clinics} onAction={async (userId, action, clinicId) => {
                         const role = (u.user_roles as any[])?.[0]?.role || "staff";
                         const { data: result, error } = await supabase.functions.invoke("approve-user", {
