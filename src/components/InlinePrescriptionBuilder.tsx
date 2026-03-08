@@ -149,21 +149,6 @@ export default function InlinePrescriptionBuilder({ patientId, consultationId, p
 
   return (
     <div className="space-y-2">
-      {/* Favorites quick-add */}
-      {favorites.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {favorites.slice(0, 6).map(f => (
-            <button
-              key={f.id}
-              onClick={() => addDrug({ drug_name: f.generic_name, dosage: f.default_dose || "", frequency: f.frequency || "Once daily", duration: f.duration || "5 days", route: f.route || "Oral", instructions: f.instructions || "" })}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-border bg-background hover:border-primary/30 transition-colors text-[9px]"
-            >
-              <Star className="h-2 w-2 text-primary" />{f.generic_name}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Drug cards */}
       {drugs.map((d, i) => {
         const allergyWarning = checkAllergyConflict(d.drug_name);
