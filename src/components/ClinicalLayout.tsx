@@ -2,10 +2,12 @@ import { ReactNode, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import CommandPalette from "@/components/CommandPalette";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   LayoutDashboard, Stethoscope, Users, Pill, Activity,
-  Receipt, LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput, ListOrdered
+  Receipt, LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput, ListOrdered,
+  Search
 } from "lucide-react";
 
 const navItems = [
@@ -29,6 +31,9 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-background">
+      {/* Global Command Palette */}
+      <CommandPalette />
+
       {/* Sidebar - Desktop */}
       <aside className="hidden lg:flex flex-col w-56 border-r border-border bg-card shrink-0">
         <div className="p-4 border-b border-border">
@@ -40,14 +45,30 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+
+        {/* Search trigger */}
+        <div className="px-3 pt-3">
+          <button
+            onClick={() => {
+              const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true });
+              window.dispatchEvent(event);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground bg-muted/50 hover:bg-muted border border-border/50 transition-colors"
+          >
+            <Search className="h-3.5 w-3.5" />
+            <span className="text-xs">Search…</span>
+            <kbd className="ml-auto text-[10px] bg-background px-1.5 py-0.5 rounded border border-border font-mono">⌘K</kbd>
+          </button>
+        </div>
+
+        <nav className="flex-1 p-3 space-y-0.5">
           {navItems.map((item) => (
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
                 location.pathname === item.path
-                  ? "bg-primary/10 text-primary font-medium"
+                  ? "bg-primary/10 text-primary font-medium shadow-sm"
                   : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
               }`}
             >
@@ -73,15 +94,26 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
           <img src={brainLogo} alt="DATAelixAIr" className="h-6 w-6" />
           <span className="text-sm font-bold text-foreground">DATAelixAIr</span>
         </div>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-foreground">
-          {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true });
+              window.dispatchEvent(event);
+            }}
+            className="p-2 rounded-lg text-muted-foreground hover:bg-muted/50"
+          >
+            <Search className="h-4 w-4" />
+          </button>
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-foreground">
+            {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-background/80" onClick={() => setSidebarOpen(false)}>
-          <div className="w-64 h-full bg-card border-r border-border p-4 pt-16" onClick={(e) => e.stopPropagation()}>
+        <div className="lg:hidden fixed inset-0 z-40 bg-background/80 backdrop-blur-sm" onClick={() => setSidebarOpen(false)}>
+          <div className="w-64 h-full bg-card border-r border-border p-4 pt-16 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <nav className="space-y-1">
               {navItems.map((item) => (
                 <button
