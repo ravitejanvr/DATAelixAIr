@@ -21,6 +21,7 @@ import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import SmartSuggestionsPanel from "@/components/SmartSuggestionsPanel";
 import CollapsibleSection from "@/components/clinical/CollapsibleSection";
 import FollowUpPanel from "@/components/clinical/FollowUpPanel";
+import TemperatureSlider from "@/components/clinical/TemperatureSlider";
 import ConsultationTimeline from "@/components/ConsultationTimeline";
 import ConsultationComplete from "@/components/ConsultationComplete";
 import { motion, AnimatePresence } from "framer-motion";
