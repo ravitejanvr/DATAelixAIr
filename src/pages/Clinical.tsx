@@ -101,6 +101,7 @@ export default function Clinical() {
 
   // Session management
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
+  const [pendingRxFromSuggestions, setPendingRxFromSuggestions] = useState<{ drug_name: string; dose: string; frequency: string; duration: string }[]>([]);
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [pipelineComplete, setPipelineComplete] = useState(false);
   const [pipelineRunning, setPipelineRunning] = useState(false);
