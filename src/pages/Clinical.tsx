@@ -538,37 +538,57 @@ export default function Clinical() {
       const consultationId = saveData.consultation_id;
       setSavedSessionId(consultationId);
 
-      setIsFinalizingConsultation(true);
-      const { data: finalizeData, error: finalizeError } = await supabase.functions.invoke("finalize-consultation", {
-        body: {
-          consultation_id: consultationId,
-          patient_id: selectedPatient?.id || saveData.patient_id,
-          clinic_id: profileClinicId,
-          visit_id: visitId,
-          extracted_data: extractedData,
-          soap_sections: soapSections,
-          safety_results: safetyResults,
-          drugs: pendingRxFromSuggestions.map(d => ({
-            drug_name: d.drug_name,
-            dosage: d.dose,
-            frequency: d.frequency,
-            duration: d.duration,
-          })),
-          lab_orders: selectedTests.map(t => ({ test_name: t, priority: "routine" })),
-          billing_enabled: true,
-          safety_override: reviewConfirmed,
-        },
-      });
-      if (finalizeError) throw new Error(finalizeError.message);
-      
-      if (finalizeData?.error === "safety_block") {
-        toast({ title: "Safety Block", description: finalizeData.message, variant: "destructive" });
-        setIsFinalizingConsultation(false);
-        return;
+      // Check workflow mode - if doctor_plus_admin, send to frontdesk instead of full finalize
+      let workflowMode = "doctor_only";
+      if (profileClinicId) {
+        const { data: wfConfig } = await supabase.from("clinic_workflow_config").select("workflow_mode").eq("clinic_id", profileClinicId).maybeSingle();
+        if (wfConfig?.workflow_mode) workflowMode = wfConfig.workflow_mode;
       }
 
-      setFinalizationResults({ ...finalizeData, consultation_id: consultationId });
-      toast({ title: "✓ Consultation finalized", description: "Prescription, labs, invoice, and report generated." });
+      if (workflowMode === "doctor_plus_admin") {
+        // Just mark as awaiting_frontdesk — frontdesk handles report/invoice
+        await supabase.from("consultations").update({ status: "awaiting_frontdesk" }).eq("id", consultationId);
+        // Send notification
+        try {
+          await supabase.functions.invoke("send-patient-update", {
+            body: { patient_id: selectedPatient?.id || saveData.patient_id, visit_id: visitId, clinic_id: profileClinicId, trigger_event: "consultation_complete" },
+          });
+        } catch { /* non-blocking */ }
+        setFinalizationResults({ consultation_id: consultationId, stages: [{ stage: "save", status: "saved" }, { stage: "status", status: "awaiting_frontdesk" }], sent_to_frontdesk: true });
+        toast({ title: "✓ Sent to Front Desk", description: "Consultation saved. Front desk will process report and billing." });
+      } else {
+        // Doctor-only mode: full finalization pipeline
+        setIsFinalizingConsultation(true);
+        const { data: finalizeData, error: finalizeError } = await supabase.functions.invoke("finalize-consultation", {
+          body: {
+            consultation_id: consultationId,
+            patient_id: selectedPatient?.id || saveData.patient_id,
+            clinic_id: profileClinicId,
+            visit_id: visitId,
+            extracted_data: extractedData,
+            soap_sections: soapSections,
+            safety_results: safetyResults,
+            drugs: pendingRxFromSuggestions.map(d => ({ drug_name: d.drug_name, dosage: d.dose, frequency: d.frequency, duration: d.duration })),
+            lab_orders: selectedTests.map(t => ({ test_name: t, priority: "routine" })),
+            billing_enabled: true,
+            safety_override: reviewConfirmed,
+          },
+        });
+        if (finalizeError) throw new Error(finalizeError.message);
+        if (finalizeData?.error === "safety_block") {
+          toast({ title: "Safety Block", description: finalizeData.message, variant: "destructive" });
+          setIsFinalizingConsultation(false);
+          return;
+        }
+        // Send notification
+        try {
+          await supabase.functions.invoke("send-patient-update", {
+            body: { patient_id: selectedPatient?.id || saveData.patient_id, visit_id: visitId, clinic_id: profileClinicId, trigger_event: "consultation_complete" },
+          });
+        } catch { /* non-blocking */ }
+        setFinalizationResults({ ...finalizeData, consultation_id: consultationId });
+        toast({ title: "✓ Consultation finalized", description: "Prescription, labs, invoice, and report generated." });
+      }
     } catch (err: any) {
       toast({ title: "Finalization failed", description: err.message, variant: "destructive" });
     } finally { setIsSaving(false); setIsFinalizingConsultation(false); }
