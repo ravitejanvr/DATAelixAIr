@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/table";
 import {
   Users, PhoneCall, Clock, CheckCircle2, Loader2, RefreshCw,
-  Search, UserCheck, Stethoscope,
+  Search, UserCheck, Stethoscope, QrCode,
 } from "lucide-react";
+import ClinicQRCode from "@/components/ClinicQRCode";
 
 interface QueueItem {
   id: string;
