@@ -119,6 +119,10 @@ export default function Clinical() {
     // Check navigation state (from intake or patient detail)
     const state = window.history.state?.usr;
     if (state?.patient) setSelectedPatient(state.patient);
+    if (state?.queuePatient) {
+      const qp = state.queuePatient;
+      setSelectedPatient({ id: qp.id, name: qp.name, age: qp.age, gender: qp.gender, phone: qp.phone, allergies: null, current_medications: null, medical_history: null, created_at: "" });
+    }
     if (state?.visitId) setVisitId(state.visitId);
     if (state?.intakeData) {
       setIntakeData(state.intakeData as IntakeData);
