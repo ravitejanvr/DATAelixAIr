@@ -740,9 +740,9 @@ export default function Clinical() {
         </div>
 
         {/* ── Main Content: Three-column no-scroll ── */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(280px,1fr)_minmax(320px,1.2fr)_260px]">
+        <div className={`flex-1 overflow-hidden grid grid-cols-1 ${finalizationResults ? "lg:grid-cols-[1fr_260px]" : "lg:grid-cols-[minmax(280px,1fr)_minmax(320px,1.2fr)_260px]"}`}>
 
-          {/* ═══ LEFT COLUMN ═══ */}
+          {/* ═══ LEFT COLUMN (expands to span left+center when finalized) ═══ */}
           <div className="overflow-y-auto border-r border-border">
 
             {finalizationResults ? (
