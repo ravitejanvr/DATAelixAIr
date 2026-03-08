@@ -68,9 +68,37 @@ Deno.serve(async (req) => {
     results.stages.push({ stage: "safety_validation", status: "passed" });
 
     // ── Stage 1: Save Prescription ──
-    if (drugs && Array.isArray(drugs) && drugs.length > 0) {
+    let effectiveDrugs = drugs && Array.isArray(drugs) && drugs.length > 0 ? drugs : null;
+    
+    // Auto-generate prescriptions via AI if none provided
+    if (!effectiveDrugs && extracted_data?.chief_complaint) {
       try {
-        const rxRows = drugs.slice(0, 50).filter((d: any) => d.drug_name?.trim()).map((d: any) => ({
+        const genRxResp = await fetch(`${supabaseUrl}/functions/v1/generate-prescription`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: authHeader, apikey: anonKey },
+          body: JSON.stringify({
+            consultation_id,
+            diagnosis: soap_sections?.["Provisional Diagnosis"] || extracted_data?.chief_complaint || "",
+            symptoms: extracted_data?.associated_symptoms || extracted_data?.chief_complaint || "",
+            doctor_id: user.id,
+            clinic_id,
+            patient_allergies: extracted_data?.allergies?.split(",").map((s: string) => s.trim()) || [],
+            current_medications: extracted_data?.current_medications?.split(",").map((s: string) => s.trim()) || [],
+          }),
+        });
+        if (genRxResp.ok) {
+          const genRxData = await genRxResp.json();
+          if (genRxData.prescriptions?.length > 0) {
+            effectiveDrugs = genRxData.prescriptions;
+            results.ai_generated_prescriptions = true;
+          }
+        }
+      } catch (_e) { /* AI generation is best-effort */ }
+    }
+
+    if (effectiveDrugs && effectiveDrugs.length > 0) {
+      try {
+        const rxRows = effectiveDrugs.slice(0, 50).filter((d: any) => d.drug_name?.trim()).map((d: any) => ({
           patient_id,
           consultation_id: consultation_id || null,
           doctor_id: user.id,
@@ -97,16 +125,41 @@ Deno.serve(async (req) => {
     }
 
     // ── Stage 2: Save Lab Orders ──
-    if (lab_orders && Array.isArray(lab_orders) && lab_orders.length > 0 && visit_id) {
+    let effectiveLabOrders = lab_orders && Array.isArray(lab_orders) && lab_orders.length > 0 ? lab_orders : null;
+
+    // Auto-generate lab orders via AI if none provided
+    if (!effectiveLabOrders && extracted_data?.chief_complaint && visit_id) {
       try {
-        const labRows = lab_orders.slice(0, 30).filter((o: any) => o.test_name?.trim()).map((o: any) => ({
+        const genLabResp = await fetch(`${supabaseUrl}/functions/v1/generate-lab-orders`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: authHeader, apikey: anonKey },
+          body: JSON.stringify({
+            consultation_id,
+            diagnosis: soap_sections?.["Provisional Diagnosis"] || extracted_data?.chief_complaint || "",
+            symptoms: extracted_data?.associated_symptoms || extracted_data?.chief_complaint || "",
+            clinic_id,
+          }),
+        });
+        if (genLabResp.ok) {
+          const genLabData = await genLabResp.json();
+          if (genLabData.lab_orders?.length > 0) {
+            effectiveLabOrders = genLabData.lab_orders;
+            results.ai_generated_lab_orders = true;
+          }
+        }
+      } catch (_e) { /* AI generation is best-effort */ }
+    }
+
+    if (effectiveLabOrders && effectiveLabOrders.length > 0 && visit_id) {
+      try {
+        const labRows = effectiveLabOrders.slice(0, 30).filter((o: any) => o.test_name?.trim()).map((o: any) => ({
           patient_id,
           doctor_id: user.id,
           clinic_id,
           visit_id,
           consultation_id: consultation_id || null,
           test_name: String(o.test_name).substring(0, 200),
-          priority: ["urgent", "routine"].includes(o.priority) ? o.priority : "routine",
+          priority: ["urgent", "routine", "stat"].includes(o.priority) ? o.priority : "routine",
           notes: String(o.notes || o.reason || "").substring(0, 500),
         }));
 

@@ -65,3 +65,7 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.deliver-consultation-outputs]
     verify_jwt = false
+  [functions.generate-prescription]
+    verify_jwt = false
+  [functions.generate-lab-orders]
+    verify_jwt = false
