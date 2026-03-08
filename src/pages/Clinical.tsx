@@ -109,6 +109,10 @@ export default function Clinical() {
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [intakeApproved, setIntakeApproved] = useState(false);
 
+  // Clinical Context Layer
+  const [clinicalContext, setClinicalContext] = useState<ClinicalContext>(EMPTY_CLINICAL_CONTEXT);
+  const [patientVitals, setPatientVitals] = useState<any>(null);
+
   // Learning baselines
   const [aiExtractedBaseline, setAiExtractedBaseline] = useState<ExtractedData>(EMPTY_EXTRACTED);
   const [aiSoapBaseline, setAiSoapBaseline] = useState<SoapSections>(EMPTY_SOAP);
