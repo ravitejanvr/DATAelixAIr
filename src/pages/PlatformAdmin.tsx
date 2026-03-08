@@ -340,6 +340,7 @@ export default function PlatformAdmin() {
                     ))}
                   </div>
                 </div>
+              )}
               {pendingUsers.length === 0 && (
                 <p className="text-xs text-muted-foreground">No pending approval requests right now.</p>
               )}
