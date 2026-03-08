@@ -943,14 +943,29 @@ export default function Clinical() {
             {selectedPatient && (
             <div className="p-3 space-y-2.5">
 
-              {/* Record / Write */}
+              {/* Record */}
               <ClinicalCard className="p-3">
                 <ClinicalCardHeader
-                  title="Record / Write"
+                  title="Record"
                   icon={<Mic className="h-3.5 w-3.5" />}
                   badge={hasTranscript ? <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">Captured</Badge> : undefined}
                 />
                 <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
+
+                {/* Additional Notes */}
+                <div className="mt-2">
+                  <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1 mb-1">
+                    <PenLine className="h-3 w-3" /> Additional Notes
+                  </Label>
+                  <Textarea
+                    value={followUpNotes}
+                    onChange={e => setFollowUpNotes(e.target.value)}
+                    placeholder="Any additional notes for this consultation…"
+                    rows={2}
+                    className="text-xs resize-none min-h-[40px] bg-background/50 rounded-lg"
+                    disabled={pipelineRunning}
+                  />
+                </div>
               </ClinicalCard>
 
               {/* AI Processing */}
