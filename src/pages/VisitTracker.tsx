@@ -1,18 +1,18 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Chip } from "@/components/ui/chip";
+import { ClinicalCard, ClinicalCardHeader } from "@/components/ui/clinical-card";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
-import { Users, Clock, RefreshCw } from "lucide-react";
+import { Users, Clock, RefreshCw, ArrowRight } from "lucide-react";
 import { VISIT_STATUSES, VISIT_STATUS_CONFIG } from "@/layers/workflow/api";
 
 const STATUSES = VISIT_STATUSES;
 const statusConfig = VISIT_STATUS_CONFIG;
-
 
 export default function VisitTracker() {
   const { user } = useAuth();
@@ -23,15 +23,10 @@ export default function VisitTracker() {
   useEffect(() => {
     if (!user) return;
     loadVisits();
-
-    // Realtime subscription
     const channel = supabase
       .channel("visit-tracker")
-      .on("postgres_changes", { event: "*", schema: "public", table: "patient_visits" }, () => {
-        loadVisits();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "patient_visits" }, () => loadVisits())
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
@@ -64,64 +59,76 @@ export default function VisitTracker() {
   return (
     <>
       <SEO title="Visit Tracker — DATAelixAIr" description="Live patient visit tracking" />
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-4 lg:p-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <h1 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" /> Live Visit Tracker
             </h1>
-            <p className="text-sm text-muted-foreground">Real-time patient journey through the clinic</p>
+            <p className="text-sm text-muted-foreground">Kanban view of patient journey through the clinic</p>
           </div>
-          <Button variant="outline" size="sm" onClick={loadVisits} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Refresh
+          <Button variant="outline" size="sm" className="rounded-lg" onClick={loadVisits} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${loading ? "animate-spin" : ""}`} /> Refresh
           </Button>
         </div>
 
-        {/* Status columns */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          {STATUSES.map(status => {
+        {/* Kanban Columns */}
+        <div className="flex gap-3 overflow-x-auto pb-4">
+          {STATUSES.map((status, idx) => {
             const config = statusConfig[status];
             const statusVisits = visits.filter(v => v.status === status);
             return (
-              <div key={status} className="space-y-2">
-                <div className={`text-center py-1.5 rounded-lg text-xs font-medium border ${config.color}`}>
-                  {config.label} ({statusVisits.length})
+              <div key={status} className="min-w-[200px] flex-shrink-0">
+                {/* Column Header */}
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <div className="flex items-center gap-2">
+                    <div className={`h-2.5 w-2.5 rounded-full ${
+                      status === "complete" ? "bg-chip-medication-text" : 
+                      status === "doctor" ? "bg-primary" : "bg-muted-foreground/40"
+                    }`} />
+                    <span className="text-xs font-semibold text-foreground">{config.label}</span>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] h-5 min-w-[20px] justify-center">
+                    {statusVisits.length}
+                  </Badge>
                 </div>
-                <div className="space-y-2 min-h-[100px]">
+
+                {/* Arrow between columns */}
+                <div className="space-y-2 min-h-[120px]">
                   {statusVisits.map(visit => (
-                    <Card key={visit.id} className="border-border">
-                      <CardContent className="p-3 space-y-2">
-                        <p className="text-sm font-medium truncate">
-                          {(visit.patients as any)?.name || "Unknown"}
-                        </p>
-                        <div className="text-[10px] text-muted-foreground space-y-0.5">
-                          {(visit.patients as any)?.age && (
-                            <p>{(visit.patients as any).age}y · {(visit.patients as any).gender || ""}</p>
-                          )}
-                          <p className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {waitingTime(visit.check_in_time)}
-                          </p>
-                        </div>
-                        {status !== "complete" && (
-                          <Select
-                            value={visit.status}
-                            onValueChange={(val) => updateStatus(visit.id, val)}
-                          >
-                            <SelectTrigger className="h-7 text-[10px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {STATUSES.map(s => (
-                                <SelectItem key={s} value={s} className="text-xs">
-                                  {statusConfig[s].label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                    <ClinicalCard key={visit.id} className="p-3">
+                      <p className="text-sm font-semibold text-foreground truncate mb-1">
+                        {(visit.patients as any)?.name || "Unknown"}
+                      </p>
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {(visit.patients as any)?.age && (
+                          <Chip variant="neutral" size="sm">
+                            {(visit.patients as any).age}y · {(visit.patients as any).gender || ""}
+                          </Chip>
                         )}
-                      </CardContent>
-                    </Card>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mb-2">
+                        <Clock className="h-3 w-3" />
+                        {waitingTime(visit.check_in_time)}
+                      </div>
+                      {status !== "complete" && (
+                        <Select
+                          value={visit.status}
+                          onValueChange={(val) => updateStatus(visit.id, val)}
+                        >
+                          <SelectTrigger className="h-7 text-[10px] rounded-lg">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUSES.map(s => (
+                              <SelectItem key={s} value={s} className="text-xs">
+                                {statusConfig[s].label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </ClinicalCard>
                   ))}
                 </div>
               </div>
@@ -130,12 +137,10 @@ export default function VisitTracker() {
         </div>
 
         {visits.length === 0 && !loading && (
-          <Card className="mt-6">
-            <CardContent className="py-12 text-center">
-              <Users className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">No active visits. Register a patient to begin tracking.</p>
-            </CardContent>
-          </Card>
+          <ClinicalCard className="mt-6 py-16 text-center">
+            <Users className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">No active visits. Register a patient to begin tracking.</p>
+          </ClinicalCard>
         )}
       </div>
     </>
