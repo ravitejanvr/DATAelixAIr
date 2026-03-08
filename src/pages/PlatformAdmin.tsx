@@ -173,6 +173,19 @@ export default function PlatformAdmin() {
     setGovernanceAudit(data || []);
   };
 
+  const handleTabChange = (tabValue: string) => {
+    const nextTab = tabValue as AdminTab;
+    setActiveTab(nextTab);
+    navigate(getPathFromTab(nextTab));
+
+    if (nextTab === "monitoring" && !monitoringData && !monitoringLoading) {
+      loadMonitoring();
+    }
+    if (nextTab === "governance" && governanceAudit.length === 0) {
+      loadGovernanceAudit();
+    }
+  };
+
   const updatePilotStatus = async (id: string, status: string) => {
     const { data: result, error } = await supabase.functions.invoke("admin-action", {
       body: { action_type: "update_pilot_status", pilot_id: id, status },
