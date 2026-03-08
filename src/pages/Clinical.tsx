@@ -240,11 +240,19 @@ export default function Clinical() {
           },
           symptoms: [clinicalContext.chief_complaint, extractedData.associated_symptoms].filter(Boolean).join(", ").split(",").map(s => s.trim()).filter(Boolean),
           clinical_context: clinicalContext,
+          actor_id: user?.id,
         },
       });
-      setSafetyResults(safetyData as SafetyResults || EMPTY_SAFETY);
+      const safetyResult = safetyData as SafetyResults || EMPTY_SAFETY;
+      setSafetyResults(safetyResult);
       t3.stop(true);
       emitSafetyAlertMetric({ interactions: safetyData?.interaction_flags?.length || 0, allergies: safetyData?.allergy_flags?.length || 0, dose_warnings: safetyData?.dose_warnings?.length || 0, vitals_dangers: safetyData?.vitals_dangers?.length || 0, emergency_patterns: safetyData?.emergency_patterns?.length || 0 });
+
+      // Context gate: block SOAP if safety says context incomplete
+      if (safetyResult.ai_suggestions_blocked) {
+        toast({ title: "Incomplete Clinical Context", description: "Please fill required fields (age, sex, chief complaint) before generating AI notes.", variant: "destructive" });
+        setPipelineRunning(false); setIsRunningSafety(false); return;
+      }
     } catch {
       setSafetyResults({ ...EMPTY_SAFETY, confidence_level: "moderate", requires_manual_review: true });
       t3.stop(false);
