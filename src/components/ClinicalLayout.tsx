@@ -15,7 +15,7 @@ const navItems = [
   { label: "Queue", path: "/queue", icon: ListOrdered },
   { label: "Write / Record", path: "/clinical", icon: Stethoscope },
   { label: "Patients", path: "/patients", icon: Users },
-  { label: "Visit Tracker", path: "/visit-tracker", icon: ClipboardList },
+  
   { label: "Triage", path: "/triage", icon: ClipboardCheck },
   { label: "Intake", path: "/intake", icon: FileInput },
   { label: "Vitals", path: "/vitals", icon: Activity },
