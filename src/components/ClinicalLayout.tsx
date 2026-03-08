@@ -42,7 +42,6 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
             <img src={brainLogo} alt="DATAelixAIr" className="h-7 w-7" />
             <div>
               <p className="text-sm font-bold text-foreground leading-none">DATAelixAIr</p>
-              <p className="text-[10px] text-muted-foreground">Clinical Cockpit</p>
             </div>
           </div>
         </div>
