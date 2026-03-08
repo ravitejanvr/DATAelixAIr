@@ -44,6 +44,8 @@ import {
   emitSafetyAlertMetric,
   emitSessionCompletedMetric,
 } from "@/layers/monitoring/api";
+import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext } from "@/lib/clinical-context";
+import ClinicalContextPanel from "@/components/ClinicalContextPanel";
 
 // Compact collapsible section wrapper
 function Section({ title, icon: Icon, badge, defaultOpen = false, children, className = "" }: {
