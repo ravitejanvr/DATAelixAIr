@@ -18,6 +18,7 @@ import InlineVitals from "@/components/InlineVitals";
 import VisitTimeline from "@/components/VisitTimeline";
 import InlinePrescriptionBuilder from "@/components/InlinePrescriptionBuilder";
 import InlineLabOrders from "@/components/InlineLabOrders";
+import DoctorFavoritesPanel from "@/components/DoctorFavoritesPanel";
 import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import DoctorIntakeReview from "@/components/DoctorIntakeReview";
 import SmartSuggestionsPanel from "@/components/SmartSuggestionsPanel";
