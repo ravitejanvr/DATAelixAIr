@@ -26,6 +26,7 @@ import Auth from "./pages/Auth";
 import Onboard from "./pages/Onboard";
 import Unauthorized from "./pages/Unauthorized";
 import AwaitingApproval from "./pages/AwaitingApproval";
+import ResetPassword from "./pages/ResetPassword";
 
 // Clinical app pages
 import Dashboard from "./pages/Dashboard";
