@@ -1043,6 +1043,7 @@ export type Database = {
           clinic_id: string | null
           clinic_name: string | null
           created_at: string
+          email: string | null
           full_name: string
           id: string
           license_number: string | null
@@ -1057,6 +1058,7 @@ export type Database = {
           clinic_id?: string | null
           clinic_name?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string
           id?: string
           license_number?: string | null
@@ -1071,6 +1073,7 @@ export type Database = {
           clinic_id?: string | null
           clinic_name?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string
           id?: string
           license_number?: string | null
