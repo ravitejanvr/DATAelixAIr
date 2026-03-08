@@ -43,3 +43,9 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.record-triage]
     verify_jwt = false
+  [functions.record-vitals]
+    verify_jwt = false
+  [functions.save-prescription]
+    verify_jwt = false
+  [functions.order-lab-tests]
+    verify_jwt = false
