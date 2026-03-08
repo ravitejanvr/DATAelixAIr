@@ -102,7 +102,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
 }
 
 function AuthRedirect() {
-  const { role, loading, user } = useUserRole();
+  const { role, accountStatus, loading, user } = useUserRole();
 
   if (loading) {
     return (
@@ -114,7 +114,12 @@ function AuthRedirect() {
 
   if (!user) return <Auth />;
 
-  // Role-based redirect using governance layer
+  // Platform admins bypass approval
+  if (role === "platform_admin") return <Navigate to="/platform-admin" replace />;
+
+  // Non-approved users go to waiting page
+  if (accountStatus !== "approved") return <Navigate to="/awaiting-approval" replace />;
+
   const targetRoute = getDefaultRouteForRole(role as AppRole | null);
   return <Navigate to={targetRoute} replace />;
 }
