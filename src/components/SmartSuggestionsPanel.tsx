@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
+import type { ClinicalContext } from "@/lib/clinical-context";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
@@ -78,6 +79,7 @@ interface SmartSuggestionsPanelProps {
   conditions: string;
   userId: string;
   transcriptExcerpt?: string;
+  clinicalContext?: ClinicalContext;
   onAddPrescription: (rx: PrescriptionSuggestion) => void;
   onAddLabTest: (test: string) => void;
   onInsertText: (text: string) => void;
@@ -92,7 +94,7 @@ const confidenceColor = (c: string) => {
 export default function SmartSuggestionsPanel({
   chiefComplaint, duration, symptoms, vitals,
   patientAge, patientGender, allergies, medications, conditions,
-  userId, transcriptExcerpt, onAddPrescription, onAddLabTest, onInsertText,
+  userId, transcriptExcerpt, clinicalContext, onAddPrescription, onAddLabTest, onInsertText,
 }: SmartSuggestionsPanelProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -120,6 +122,7 @@ export default function SmartSuggestionsPanel({
           age: patientAge, gender: patientGender,
           allergies, medications, conditions,
           transcript_excerpt: transcriptExcerpt?.slice(0, 500),
+          clinical_context: clinicalContext,
         },
       });
       if (error) throw new Error(error.message);

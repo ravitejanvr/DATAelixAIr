@@ -44,6 +44,8 @@ import {
   emitSafetyAlertMetric,
   emitSessionCompletedMetric,
 } from "@/layers/monitoring/api";
+import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext } from "@/lib/clinical-context";
+import ClinicalContextPanel from "@/components/ClinicalContextPanel";
 
 // Compact collapsible section wrapper
 function Section({ title, icon: Icon, badge, defaultOpen = false, children, className = "" }: {
@@ -107,6 +109,10 @@ export default function Clinical() {
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [intakeApproved, setIntakeApproved] = useState(false);
 
+  // Clinical Context Layer
+  const [clinicalContext, setClinicalContext] = useState<ClinicalContext>(EMPTY_CLINICAL_CONTEXT);
+  const [patientVitals, setPatientVitals] = useState<any>(null);
+
   // Learning baselines
   const [aiExtractedBaseline, setAiExtractedBaseline] = useState<ExtractedData>(EMPTY_EXTRACTED);
   const [aiSoapBaseline, setAiSoapBaseline] = useState<SoapSections>(EMPTY_SOAP);
@@ -152,6 +158,35 @@ export default function Clinical() {
       }
     }
   }, [selectedPatient]);
+
+  // Fetch vitals for clinical context
+  useEffect(() => {
+    if (!selectedPatient?.id) { setPatientVitals(null); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("vitals")
+        .select("bp_systolic, bp_diastolic, pulse, temperature, spo2, respiratory_rate, weight_kg, height_cm")
+        .eq("patient_id", selectedPatient.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setPatientVitals(data);
+    })();
+  }, [selectedPatient?.id]);
+
+  // Rebuild clinical context whenever source data changes
+  useEffect(() => {
+    const ctx = buildClinicalContext(
+      selectedPatient ? { age: selectedPatient.age, gender: selectedPatient.gender, medical_history: selectedPatient.medical_history, allergies: selectedPatient.allergies, current_medications: selectedPatient.current_medications } : null,
+      patientVitals,
+      intakeData ? { chief_complaint: intakeData.chief_complaint, symptom_duration: intakeData.symptom_duration, allergies_noted: intakeData.allergies_noted, current_medications: intakeData.current_medications } : null,
+      extractedData.chief_complaint,
+      extractedData.duration,
+      extractedData.current_medications,
+      extractedData.allergies,
+    );
+    setClinicalContext(ctx);
+  }, [selectedPatient, patientVitals, intakeData, extractedData]);
 
   const hasTranscript = transcript.trim().length > 0;
   const hasExtraction = extractedData.chief_complaint.trim().length > 0;
@@ -211,12 +246,25 @@ export default function Clinical() {
     }
     setIsExtracting(false);
 
-    // 3. Safety Check
+    // 3. Safety Check — pass clinical context
     setIsRunningSafety(true);
     const t3 = startPipelineTimer("safety_controller");
     try {
       const { data: safetyData } = await supabase.functions.invoke("clinical-safety", {
-        body: { medications: [], allergies: [], vitals: {}, symptoms: [] },
+        body: {
+          medications: clinicalContext.current_medications,
+          allergies: clinicalContext.allergies,
+          vitals: {
+            bp_systolic: clinicalContext.blood_pressure ? parseInt(clinicalContext.blood_pressure.split("/")[0]) : null,
+            bp_diastolic: clinicalContext.blood_pressure ? parseInt(clinicalContext.blood_pressure.split("/")[1]) : null,
+            pulse: clinicalContext.pulse,
+            temperature: clinicalContext.temperature,
+            spo2: clinicalContext.oxygen_saturation,
+            respiratory_rate: clinicalContext.respiratory_rate,
+          },
+          symptoms: [clinicalContext.chief_complaint, extractedData.associated_symptoms].filter(Boolean).join(", ").split(",").map(s => s.trim()).filter(Boolean),
+          clinical_context: clinicalContext,
+        },
       });
       setSafetyResults(safetyData as SafetyResults || {
         normalized_drugs: [], interaction_flags: [], allergy_flags: [],
@@ -224,7 +272,13 @@ export default function Clinical() {
         confidence_level: "high", requires_manual_review: false, timestamp: new Date().toISOString(),
       });
       t3.stop(true);
-      emitSafetyAlertMetric({ interactions: 0, allergies: 0, dose_warnings: 0, vitals_dangers: 0, emergency_patterns: 0 });
+      emitSafetyAlertMetric({
+        interactions: safetyData?.interaction_flags?.length || 0,
+        allergies: safetyData?.allergy_flags?.length || 0,
+        dose_warnings: safetyData?.dose_warnings?.length || 0,
+        vitals_dangers: safetyData?.vitals_dangers?.length || 0,
+        emergency_patterns: safetyData?.emergency_patterns?.length || 0,
+      });
     } catch {
       setSafetyResults({
         normalized_drugs: [], interaction_flags: [], allergy_flags: [],
@@ -250,7 +304,7 @@ export default function Clinical() {
         intakeContext.pregnancy_status = intakeData.pregnancy_status || "";
       }
       const { data, error } = await supabase.functions.invoke("clinical-soap", {
-        body: { transcript: stableText.trim(), extractedData: intakeContext },
+        body: { transcript: stableText.trim(), extractedData: intakeContext, clinical_context: clinicalContext },
       });
       if (error) throw new Error(error.message);
       const sections = {
@@ -378,6 +432,7 @@ export default function Clinical() {
     setPatientExplanation(""); setReviewConfirmed(false); setPipelineComplete(false);
     setNormalizationResults([]); setDetectedLanguages([]); setSelectedPatient(null);
     setIntakeData(null); setVisitId(null); setIntakeApproved(false);
+    setClinicalContext(EMPTY_CLINICAL_CONTEXT); setPatientVitals(null);
   };
 
   const generatePatientExplanation = async () => {
@@ -504,6 +559,12 @@ export default function Clinical() {
               disabled={pipelineRunning}
             />
 
+            {/* Clinical Context Panel */}
+            <ClinicalContextPanel
+              context={clinicalContext}
+              onUpdate={(field, value) => setClinicalContext(prev => ({ ...prev, [field]: value }))}
+            />
+
             {/* Normalization results */}
             {normalizationResults.length > 0 && (
               <div className="rounded-md border border-primary/20 bg-primary/5 p-2.5 space-y-1.5">
@@ -626,6 +687,7 @@ export default function Clinical() {
               conditions={extractedData.chronic_conditions || ""}
               userId={user?.id || ""}
               transcriptExcerpt={stabilizedTranscript || transcript}
+              clinicalContext={clinicalContext}
               onAddPrescription={(rx) => {
                 setPendingRxFromSuggestions(prev => [...prev, { drug_name: rx.drug_name, dose: rx.dose, frequency: rx.frequency, duration: rx.duration }]);
                 toast({ title: `Added to Rx: ${rx.drug_name}`, description: `${rx.dose} · ${rx.frequency} · ${rx.duration}` });
