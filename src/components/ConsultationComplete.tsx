@@ -248,7 +248,7 @@ export default function ConsultationComplete({
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4 }}
-      className="max-w-3xl mx-auto w-full space-y-4 p-4"
+      className="max-w-4xl mx-auto w-full space-y-4 p-4"
     >
       {/* Branded Header */}
       <ClinicalCard className="border-primary/20 bg-gradient-to-br from-primary/[0.04] to-transparent">
