@@ -202,6 +202,9 @@ export default function PatientQueue() {
           <p className="text-sm text-muted-foreground">Today's clinic queue management</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowQR(!showQR)}>
+            <QrCode className="h-4 w-4 mr-1" /> QR Code
+          </Button>
           <Button variant="outline" size="sm" onClick={loadQueue} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Refresh
           </Button>
@@ -210,6 +213,13 @@ export default function PatientQueue() {
           </Button>
         </div>
       </div>
+
+      {/* QR Code panel */}
+      {showQR && clinicId && (
+        <div className="max-w-xs">
+          <ClinicQRCode clinicId={clinicId} />
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
