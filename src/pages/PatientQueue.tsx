@@ -154,13 +154,12 @@ export default function PatientQueue() {
   };
 
   const markComplete = async (visitId: string) => {
-    const { error } = await supabase
-      .from("patient_visits")
-      .update({ status: "complete" })
-      .eq("id", visitId);
+    const { data: result, error } = await supabase.functions.invoke("update-visit-status", {
+      body: { visit_id: visitId, target_status: "completed" },
+    });
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    if (error || result?.error) {
+      toast({ title: "Error", description: error?.message || result?.error, variant: "destructive" });
     } else {
       loadQueue();
     }
