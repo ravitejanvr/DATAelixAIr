@@ -95,6 +95,10 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
     return <Navigate to="/awaiting-approval" replace />;
   }
 
+  if (allowedRoles && !role) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
   if (allowedRoles && role && !allowedRoles.includes(role)) {
     return <Navigate to="/unauthorized" replace />;
   }

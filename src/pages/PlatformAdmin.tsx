@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,9 +67,27 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
+type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit";
+
+const getTabFromPath = (pathname: string): AdminTab => {
+  const tabSegment = pathname.split("/")[2];
+  if (tabSegment === "clinics") return "clinics";
+  if (tabSegment === "users") return "users";
+  if (tabSegment === "governance") return "governance";
+  if (tabSegment === "monitoring") return "monitoring";
+  if (tabSegment === "audit") return "audit";
+  return "pilots";
+};
+
+const getPathFromTab = (tab: AdminTab): string => (
+  tab === "pilots" ? "/platform-admin" : `/platform-admin/${tab}`
+);
+
 export default function PlatformAdmin() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [pilots, setPilots] = useState<any[]>([]);
   const [clinics, setClinics] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -77,29 +96,59 @@ export default function PlatformAdmin() {
   const [monitoringData, setMonitoringData] = useState<MonitoringDashboardData | null>(null);
   const [monitoringLoading, setMonitoringLoading] = useState(false);
   const [governanceAudit, setGovernanceAudit] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => getTabFromPath(location.pathname));
 
   useEffect(() => { if (user) loadAll(); }, [user]);
+  useEffect(() => { setActiveTab(getTabFromPath(location.pathname)); }, [location.pathname]);
 
   const loadAll = async () => {
     setLoading(true);
-    const [pilotRes, clinicRes, profileRes, rolesRes, auditRes] = await Promise.all([
-      supabase.from("pilot_requests").select("*").order("created_at", { ascending: false }),
-      supabase.from("clinics").select("*").order("created_at", { ascending: false }),
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.from("user_roles").select("*"),
-      supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(50),
-    ]);
-    // Merge roles into profiles
-    const roles = rolesRes.data || [];
-    const profilesWithRoles = (profileRes.data || []).map((p: any) => {
-      const userRole = roles.find((r: any) => r.user_id === p.user_id);
-      return { ...p, user_roles: userRole ? [{ role: userRole.role }] : [] };
-    });
-    setPilots(pilotRes.data || []);
-    setClinics(clinicRes.data || []);
-    setUsers(profilesWithRoles);
-    setAuditLogs(auditRes.data || []);
-    setLoading(false);
+    try {
+      const [pilotRes, clinicRes, profileRes, rolesRes, auditRes] = await Promise.all([
+        supabase.from("pilot_requests").select("*").order("created_at", { ascending: false }),
+        supabase.from("clinics").select("*").order("created_at", { ascending: false }),
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("user_roles").select("user_id, role"),
+        supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(50),
+      ]);
+
+      if (pilotRes.error || clinicRes.error || profileRes.error || rolesRes.error || auditRes.error) {
+        throw new Error(
+          pilotRes.error?.message ||
+          clinicRes.error?.message ||
+          profileRes.error?.message ||
+          rolesRes.error?.message ||
+          auditRes.error?.message ||
+          "Failed to load admin data"
+        );
+      }
+
+      const rolesByUserId = new Map<string, { role: string }[]>();
+      (rolesRes.data || []).forEach((roleRow: any) => {
+        const existing = rolesByUserId.get(roleRow.user_id) || [];
+        existing.push({ role: roleRow.role });
+        rolesByUserId.set(roleRow.user_id, existing);
+      });
+
+      const profilesWithRoles = (profileRes.data || []).map((p: any) => ({
+        ...p,
+        user_roles: rolesByUserId.get(p.user_id) || [],
+      }));
+
+      setPilots(pilotRes.data || []);
+      setClinics(clinicRes.data || []);
+      setUsers(profilesWithRoles);
+      setAuditLogs(auditRes.data || []);
+    } catch (error) {
+      console.error("Platform admin loadAll error:", error);
+      toast({
+        title: "Failed to load admin data",
+        description: error instanceof Error ? error.message : "Please refresh and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadMonitoring = async () => {
@@ -122,6 +171,19 @@ export default function PlatformAdmin() {
       .order("created_at", { ascending: false })
       .limit(100);
     setGovernanceAudit(data || []);
+  };
+
+  const handleTabChange = (tabValue: string) => {
+    const nextTab = tabValue as AdminTab;
+    setActiveTab(nextTab);
+    navigate(getPathFromTab(nextTab));
+
+    if (nextTab === "monitoring" && !monitoringData && !monitoringLoading) {
+      loadMonitoring();
+    }
+    if (nextTab === "governance" && governanceAudit.length === 0) {
+      loadGovernanceAudit();
+    }
   };
 
   const updatePilotStatus = async (id: string, status: string) => {
@@ -162,6 +224,9 @@ export default function PlatformAdmin() {
     });
   });
 
+  const pendingUsers = users.filter((u: any) => u.account_status === "pending");
+  const nonPendingUsers = users.filter((u: any) => u.account_status !== "pending");
+
   if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
@@ -178,13 +243,13 @@ export default function PlatformAdmin() {
           <Card><CardContent className="pt-4 pb-3"><p className="text-[10px] text-muted-foreground">Registered Users</p><p className="text-2xl font-bold">{users.length}</p></CardContent></Card>
         </div>
 
-        <Tabs defaultValue="pilots">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="flex-wrap">
             <TabsTrigger value="pilots"><Building2 className="h-3.5 w-3.5 mr-1" /> Pilots</TabsTrigger>
             <TabsTrigger value="clinics"><ShieldAlert className="h-3.5 w-3.5 mr-1" /> Clinics</TabsTrigger>
             <TabsTrigger value="users"><Users className="h-3.5 w-3.5 mr-1" /> Users</TabsTrigger>
-            <TabsTrigger value="governance" onClick={loadGovernanceAudit}><Shield className="h-3.5 w-3.5 mr-1" /> Governance</TabsTrigger>
-            <TabsTrigger value="monitoring" onClick={loadMonitoring}><Activity className="h-3.5 w-3.5 mr-1" /> Monitoring</TabsTrigger>
+            <TabsTrigger value="governance"><Shield className="h-3.5 w-3.5 mr-1" /> Governance</TabsTrigger>
+            <TabsTrigger value="monitoring"><Activity className="h-3.5 w-3.5 mr-1" /> Monitoring</TabsTrigger>
             <TabsTrigger value="audit"><FileText className="h-3.5 w-3.5 mr-1" /> Audit</TabsTrigger>
           </TabsList>
 
@@ -248,13 +313,13 @@ export default function PlatformAdmin() {
           <TabsContent value="users" className="mt-4">
             <div className="space-y-4">
               {/* Pending approvals first */}
-              {users.filter((u: any) => (u as any).account_status === "pending").length > 0 && (
+              {pendingUsers.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1.5">
-                    <Clock className="h-4 w-4" /> Pending Approval ({users.filter((u: any) => (u as any).account_status === "pending").length})
+                    <Clock className="h-4 w-4" /> Pending Approval ({pendingUsers.length})
                   </h3>
                   <div className="space-y-2">
-                    {users.filter((u: any) => (u as any).account_status === "pending").map((u: any) => (
+                    {pendingUsers.map((u: any) => (
                       <UserApprovalCard key={u.id} user={u} clinics={clinics} onAction={async (userId, action, clinicId) => {
                         const role = (u.user_roles as any[])?.[0]?.role || "staff";
                         const { data: result, error } = await supabase.functions.invoke("approve-user", {
@@ -276,12 +341,15 @@ export default function PlatformAdmin() {
                   </div>
                 </div>
               )}
+              {pendingUsers.length === 0 && (
+                <p className="text-xs text-muted-foreground">No pending approval requests right now.</p>
+              )}
 
               {/* Approved users */}
               <div>
                 <h3 className="text-sm font-semibold text-foreground mb-2">All Users</h3>
                 <div className="space-y-2">
-                  {users.filter((u: any) => (u as any).account_status !== "pending").map((u: any) => (
+                  {nonPendingUsers.map((u: any) => (
                     <Card key={u.id}>
                       <CardContent className="py-3 flex items-center justify-between">
                         <div>
@@ -305,9 +373,12 @@ export default function PlatformAdmin() {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                    ))}
+                    {nonPendingUsers.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4">No approved or rejected users yet.</p>
+                    )}
+                  </div>
                 </div>
-              </div>
             </div>
           </TabsContent>
 
