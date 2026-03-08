@@ -2,48 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap');
-
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
-
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import url("https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap");
-
 @import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap");
 
 @layer base {
   :root {
-    --background: 209 40% 96%;
-    --foreground: 222 47% 11%;
+    --background: 210 20% 98%;
+    --foreground: 220 20% 10%;
 
-    --card: 210 40% 98%;
-    --card-foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 10%;
 
-    --popover: 214 31% 91%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 10%;
 
     --primary: 200 98% 39%;
-    --primary-foreground: 204 100% 97%;
+    --primary-foreground: 0 0% 100%;
     --primary-light: 162 100% 45%;
 
-    --secondary: 215 24% 26%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 20% 25%;
 
-    --muted: 215 20% 65%;
-    --muted-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 46%;
 
-    --accent: 210 40% 98%;
-    --accent-foreground: 215 19% 34%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 220 20% 25%;
 
     --destructive: 0 72% 50%;
-    --destructive-foreground: 0 85% 97%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 212 26% 83%;
-    --input: 212 26% 83%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
     --ring: 200 98% 39%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    /* Custom tokens */
+    /* Semantic chip colors */
+    --chip-symptom: 214 100% 95%;
+    --chip-symptom-text: 214 80% 40%;
+    --chip-symptom-border: 214 60% 85%;
+
+    --chip-diagnosis: 270 100% 96%;
+    --chip-diagnosis-text: 270 60% 45%;
+    --chip-diagnosis-border: 270 50% 85%;
+
+    --chip-medication: 152 70% 94%;
+    --chip-medication-text: 152 60% 30%;
+    --chip-medication-border: 152 50% 80%;
+
+    --chip-lab: 32 100% 95%;
+    --chip-lab-text: 32 80% 35%;
+    --chip-lab-border: 32 60% 82%;
+
+    --chip-alert: 0 100% 96%;
+    --chip-alert-text: 0 72% 45%;
+    --chip-alert-border: 0 60% 85%;
+
+    --chip-neutral: 220 14% 96%;
+    --chip-neutral-text: 220 10% 40%;
+    --chip-neutral-border: 220 13% 88%;
+
+    /* Clinical semantic */
     --teal: 162 100% 35%;
     --teal-light: 162 100% 45%;
     --teal-muted: 162 100% 35%;
@@ -51,87 +72,111 @@
     --gray-light: 150 14% 90%;
     --gray-mid: 150 8% 71%;
 
-    /* Dark sections */
     --dark-bg: 150 25% 4%;
     --dark-foreground: 140 10% 97.5%;
     --dark-muted: 150 8% 71%;
 
-    --shadow-card: 0 8px 40px hsl(0 0% 0% / 0.06);
-    --shadow-card-hover: 0 16px 40px hsl(162 100% 35% / 0.12);
+    --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.04), 0 4px 12px hsl(0 0% 0% / 0.03);
+    --shadow-card-hover: 0 4px 16px hsl(200 98% 39% / 0.08), 0 1px 3px hsl(0 0% 0% / 0.04);
     --shadow-teal: 0 4px 20px hsl(162 100% 35% / 0.3);
     --shadow-teal-hover: 0 8px 28px hsl(162 100% 35% / 0.4);
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 222 47% 11%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 20% 10%;
     --sidebar-primary: 200 98% 39%;
-    --sidebar-primary-foreground: 204 100% 97%;
-    --sidebar-accent: 215 24% 26%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 212 26% 83%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 96%;
+    --sidebar-accent-foreground: 220 20% 25%;
+    --sidebar-border: 220 13% 91%;
     --sidebar-ring: 200 98% 39%;
     --chart-1: 198 93% 59%;
     --chart-2: 213 93% 67%;
     --chart-3: 215 20% 65%;
     --chart-4: 215 16% 46%;
     --chart-5: 215 19% 34%;
-    --sidebar: 210 40% 98%;
+    --sidebar: 0 0% 100%;
     --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
     --font-serif: 'Lora', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
     --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+    --shadow-2xs: 0 1px 2px 0px hsl(0 0% 0% / 0.03);
+    --shadow-xs: 0 1px 2px 0px hsl(0 0% 0% / 0.05);
+    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.06), 0 1px 2px -1px hsl(0 0% 0% / 0.06);
+    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.08), 0 1px 2px -1px hsl(0 0% 0% / 0.06);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.06), 0 2px 4px -2px hsl(0 0% 0% / 0.04);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.06), 0 4px 6px -4px hsl(0 0% 0% / 0.04);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.06), 0 8px 10px -6px hsl(0 0% 0% / 0.04);
+    --shadow-2xl: 0 25px 50px -12px hsl(0 0% 0% / 0.15);
     --tracking-normal: 0em;
     --spacing: 0.25rem;
   }
 
   .dark {
-    --background: 222 47% 11%;
+    --background: 224 20% 8%;
     --foreground: 210 40% 98%;
-    --card: 217 32% 17%;
+    --card: 224 18% 12%;
     --card-foreground: 210 40% 98%;
-    --popover: 215 24% 26%;
+    --popover: 224 18% 12%;
     --popover-foreground: 210 40% 98%;
     --primary: 198 93% 59%;
-    --primary-foreground: 204 80% 15%;
-    --secondary: 212 26% 83%;
-    --secondary-foreground: 228 84% 4%;
-    --muted: 215 16% 46%;
-    --muted-foreground: 210 40% 98%;
-    --accent: 228 84% 4%;
-    --accent-foreground: 215 20% 65%;
+    --primary-foreground: 224 20% 8%;
+    --secondary: 224 14% 18%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 224 14% 18%;
+    --muted-foreground: 220 10% 60%;
+    --accent: 224 14% 18%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 84% 60%;
-    --destructive-foreground: 0 85% 97%;
-    --border: 215 19% 34%;
-    --input: 215 19% 34%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 14% 20%;
+    --input: 224 14% 20%;
     --ring: 198 93% 59%;
-    --sidebar-background: 240 5.9% 10%;
+
+    --chip-symptom: 214 60% 20%;
+    --chip-symptom-text: 214 80% 75%;
+    --chip-symptom-border: 214 40% 30%;
+
+    --chip-diagnosis: 270 50% 20%;
+    --chip-diagnosis-text: 270 60% 75%;
+    --chip-diagnosis-border: 270 40% 30%;
+
+    --chip-medication: 152 40% 18%;
+    --chip-medication-text: 152 60% 70%;
+    --chip-medication-border: 152 30% 28%;
+
+    --chip-lab: 32 50% 18%;
+    --chip-lab-text: 32 70% 70%;
+    --chip-lab-border: 32 40% 28%;
+
+    --chip-alert: 0 50% 18%;
+    --chip-alert-text: 0 70% 70%;
+    --chip-alert-border: 0 40% 28%;
+
+    --chip-neutral: 224 14% 18%;
+    --chip-neutral-text: 220 10% 65%;
+    --chip-neutral-border: 224 14% 25%;
+
+    --sidebar-background: 224 20% 8%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 198 93% 59%;
-    --sidebar-primary-foreground: 204 80% 15%;
-    --sidebar-accent: 215 20% 65%;
-    --sidebar-accent-foreground: 228 84% 4%;
-    --sidebar-border: 215 19% 34%;
+    --sidebar-primary-foreground: 224 20% 8%;
+    --sidebar-accent: 224 14% 18%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 224 14% 20%;
     --sidebar-ring: 198 93% 59%;
     --chart-1: 199 95% 73%;
     --chart-2: 211 96% 78%;
     --chart-3: 215 20% 65%;
     --chart-4: 215 16% 46%;
     --chart-5: 215 19% 34%;
-    --sidebar: 217 32% 17%;
-    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+    --sidebar: 224 18% 12%;
+    --shadow-2xs: 0 1px 2px 0px hsl(0 0% 0% / 0.1);
+    --shadow-xs: 0 1px 2px 0px hsl(0 0% 0% / 0.15);
+    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.2), 0 1px 2px -1px hsl(0 0% 0% / 0.15);
+    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.2), 0 1px 2px -1px hsl(0 0% 0% / 0.15);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.2), 0 2px 4px -2px hsl(0 0% 0% / 0.15);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.2), 0 4px 6px -4px hsl(0 0% 0% / 0.15);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.2), 0 8px 10px -6px hsl(0 0% 0% / 0.15);
+    --shadow-2xl: 0 25px 50px -12px hsl(0 0% 0% / 0.3);
   }
 }
 
@@ -142,11 +187,15 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Syne', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -215,5 +264,69 @@
       linear-gradient(90deg, hsl(var(--teal) / 0.06) 1px, transparent 1px);
     background-size: 60px 60px;
     mask-image: radial-gradient(ellipse 80% 80% at 80% 40%, black 30%, transparent 80%);
+  }
+
+  /* Chip styles */
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium 
+           cursor-pointer select-none transition-all duration-150 
+           border shadow-2xs;
+  }
+
+  .chip:hover {
+    @apply shadow-xs scale-[1.02];
+  }
+
+  .chip:active {
+    @apply scale-[0.98];
+  }
+
+  .chip-symptom {
+    background: hsl(var(--chip-symptom));
+    color: hsl(var(--chip-symptom-text));
+    border-color: hsl(var(--chip-symptom-border));
+  }
+
+  .chip-diagnosis {
+    background: hsl(var(--chip-diagnosis));
+    color: hsl(var(--chip-diagnosis-text));
+    border-color: hsl(var(--chip-diagnosis-border));
+  }
+
+  .chip-medication {
+    background: hsl(var(--chip-medication));
+    color: hsl(var(--chip-medication-text));
+    border-color: hsl(var(--chip-medication-border));
+  }
+
+  .chip-lab {
+    background: hsl(var(--chip-lab));
+    color: hsl(var(--chip-lab-text));
+    border-color: hsl(var(--chip-lab-border));
+  }
+
+  .chip-alert {
+    background: hsl(var(--chip-alert));
+    color: hsl(var(--chip-alert-text));
+    border-color: hsl(var(--chip-alert-border));
+  }
+
+  .chip-neutral {
+    background: hsl(var(--chip-neutral));
+    color: hsl(var(--chip-neutral-text));
+    border-color: hsl(var(--chip-neutral-border));
+  }
+
+  .chip-selected {
+    @apply ring-2 ring-primary/30 shadow-sm;
+  }
+
+  /* Clinical card */
+  .clinical-card {
+    @apply bg-card rounded-xl border border-border shadow-card p-4 transition-shadow duration-200;
+  }
+
+  .clinical-card:hover {
+    @apply shadow-card-hover;
   }
 }

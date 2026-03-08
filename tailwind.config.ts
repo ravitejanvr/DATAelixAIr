@@ -28,7 +28,7 @@ export default {
   				'sans-serif'
   			],
   			display: [
-  				'Syne',
+  				'Inter',
   				'system-ui',
   				'sans-serif'
   			],
@@ -100,6 +100,38 @@ export default {
   			gray: {
   				mid: 'hsl(var(--gray-mid))'
   			},
+  			chip: {
+  				symptom: {
+  					DEFAULT: 'hsl(var(--chip-symptom))',
+  					text: 'hsl(var(--chip-symptom-text))',
+  					border: 'hsl(var(--chip-symptom-border))',
+  				},
+  				diagnosis: {
+  					DEFAULT: 'hsl(var(--chip-diagnosis))',
+  					text: 'hsl(var(--chip-diagnosis-text))',
+  					border: 'hsl(var(--chip-diagnosis-border))',
+  				},
+  				medication: {
+  					DEFAULT: 'hsl(var(--chip-medication))',
+  					text: 'hsl(var(--chip-medication-text))',
+  					border: 'hsl(var(--chip-medication-border))',
+  				},
+  				lab: {
+  					DEFAULT: 'hsl(var(--chip-lab))',
+  					text: 'hsl(var(--chip-lab-text))',
+  					border: 'hsl(var(--chip-lab-border))',
+  				},
+  				alert: {
+  					DEFAULT: 'hsl(var(--chip-alert))',
+  					text: 'hsl(var(--chip-alert-text))',
+  					border: 'hsl(var(--chip-alert-border))',
+  				},
+  				neutral: {
+  					DEFAULT: 'hsl(var(--chip-neutral))',
+  					text: 'hsl(var(--chip-neutral-text))',
+  					border: 'hsl(var(--chip-neutral-border))',
+  				},
+  			},
   			sidebar: {
   				DEFAULT: 'hsl(var(--sidebar-background))',
   				foreground: 'hsl(var(--sidebar-foreground))',
@@ -114,72 +146,56 @@ export default {
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			sm: 'calc(var(--radius) - 4px)',
+  			xl: 'calc(var(--radius) + 4px)',
+  			'2xl': 'calc(var(--radius) + 8px)',
   		},
   		keyframes: {
   			'accordion-down': {
-  				from: {
-  					height: '0'
-  				},
-  				to: {
-  					height: 'var(--radix-accordion-content-height)'
-  				}
+  				from: { height: '0' },
+  				to: { height: 'var(--radix-accordion-content-height)' }
   			},
   			'accordion-up': {
-  				from: {
-  					height: 'var(--radix-accordion-content-height)'
-  				},
-  				to: {
-  					height: '0'
-  				}
+  				from: { height: 'var(--radix-accordion-content-height)' },
+  				to: { height: '0' }
   			},
   			'fade-up': {
-  				from: {
-  					opacity: '0',
-  					transform: 'translateY(28px)'
-  				},
-  				to: {
-  					opacity: '1',
-  					transform: 'translateY(0)'
-  				}
+  				from: { opacity: '0', transform: 'translateY(16px)' },
+  				to: { opacity: '1', transform: 'translateY(0)' }
   			},
   			'fade-in': {
-  				from: {
-  					opacity: '0'
-  				},
-  				to: {
-  					opacity: '1'
-  				}
+  				from: { opacity: '0' },
+  				to: { opacity: '1' }
+  			},
+  			'slide-in-right': {
+  				from: { opacity: '0', transform: 'translateX(8px)' },
+  				to: { opacity: '1', transform: 'translateX(0)' }
   			},
   			pulse: {
-  				'0%, 100%': {
-  					opacity: '1',
-  					transform: 'scale(1)'
-  				},
-  				'50%': {
-  					opacity: '0.5',
-  					transform: 'scale(0.85)'
-  				}
+  				'0%, 100%': { opacity: '1', transform: 'scale(1)' },
+  				'50%': { opacity: '0.5', transform: 'scale(0.85)' }
   			},
   			spin: {
-  				to: {
-  					transform: 'rotate(360deg)'
-  				}
+  				to: { transform: 'rotate(360deg)' }
   			},
   			'spin-rev': {
-  				to: {
-  					transform: 'rotate(-360deg)'
-  				}
+  				to: { transform: 'rotate(-360deg)' }
+  			},
+  			'shimmer': {
+  				'0%': { backgroundPosition: '-200% 0' },
+  				'100%': { backgroundPosition: '200% 0' }
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
-  			'fade-up': 'fade-up 0.8s ease-out forwards',
-  			'fade-in': 'fade-in 1.2s ease-out forwards',
+  			'fade-up': 'fade-up 0.4s ease-out forwards',
+  			'fade-in': 'fade-in 0.3s ease-out forwards',
+  			'slide-in-right': 'slide-in-right 0.3s ease-out forwards',
   			pulse: 'pulse 2s infinite',
   			spin: 'spin 20s linear infinite',
-  			'spin-rev': 'spin-rev 20s linear infinite'
+  			'spin-rev': 'spin-rev 20s linear infinite',
+  			'shimmer': 'shimmer 2s linear infinite',
   		},
   		boxShadow: {
   			'2xs': 'var(--shadow-2xs)',
