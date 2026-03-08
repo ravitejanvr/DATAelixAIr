@@ -937,9 +937,10 @@ export default function Clinical() {
             )}
           </div>
 
-          {/* ═══ CENTER COLUMN: Transcript + Review + Finalize ═══ */}
+          {/* ═══ CENTER COLUMN: Transcript + Review + Finalize (hidden when finalized) ═══ */}
+          {!finalizationResults && (
           <div className="overflow-y-auto border-r border-border">
-            {selectedPatient && !finalizationResults && (
+            {selectedPatient && (
             <div className="p-3 space-y-2.5">
 
               {/* Record / Write */}
