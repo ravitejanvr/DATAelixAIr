@@ -1239,7 +1239,9 @@ export default function Clinical() {
                     }
                   }}
                   safetyResults={safetyResults}
-                  evidenceSources={[]}
+                  patientAge={selectedPatient?.age}
+                  allergies={selectedPatient?.allergies || []}
+                  diagnosis={selectedDiagnoses[0]}
                 />
               )}
             </div>
