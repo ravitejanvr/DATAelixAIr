@@ -1140,6 +1140,49 @@ export default function Clinical() {
                     <FollowUpPanel followUpDate={followUpDate} onFollowUpDateChange={setFollowUpDate} followUpNotes={followUpNotes} onFollowUpNotesChange={setFollowUpNotes} />
                   </div>
 
+                  {/* Clinical Safety Status Indicator */}
+                  {validationComplete && (
+                    <div className={`rounded-xl border p-3 ${safetyAlertCount === 0 ? "bg-emerald-500/5 border-emerald-500/20" : "bg-amber-500/5 border-amber-500/20"}`}>
+                      <p className={`text-[11px] font-bold uppercase tracking-wide mb-2 flex items-center gap-1.5 ${safetyAlertCount === 0 ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
+                        <Shield className="h-3.5 w-3.5" /> Clinical Safety Check
+                      </p>
+                      <div className="space-y-1">
+                        {/* Allergy check */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          {safetyResults && safetyResults.allergy_flags.length > 0 ? (
+                            <><AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" /><span className="text-amber-700 dark:text-amber-400">Allergy conflict detected</span></>
+                          ) : (
+                            <><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No allergy conflicts</span></>
+                          )}
+                        </div>
+                        {/* Dose check */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          {safetyResults && safetyResults.dose_warnings.length > 0 ? (
+                            <><AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" /><span className="text-amber-700 dark:text-amber-400">Dose warning detected</span></>
+                          ) : (
+                            <><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">Dose within limits</span></>
+                          )}
+                        </div>
+                        {/* Vitals check */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          {safetyResults && (safetyResults.vitals_dangers?.length || 0) > 0 ? (
+                            <><AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" /><span className="text-amber-700 dark:text-amber-400">Dangerous vitals flagged</span></>
+                          ) : (
+                            <><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No dangerous vitals</span></>
+                          )}
+                        </div>
+                        {/* Drug interaction check */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          {safetyResults && safetyResults.interaction_flags.length > 0 ? (
+                            <><AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" /><span className="text-amber-700 dark:text-amber-400">Possible drug interaction detected</span></>
+                          ) : (
+                            <><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No drug interactions</span></>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Validate + Finalize */}
                   <div className="pt-2 border-t border-border space-y-2">
                     <Button
