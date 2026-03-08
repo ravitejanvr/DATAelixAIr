@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   LayoutDashboard, Stethoscope, Users, Pill, Activity,
-  Receipt, LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput
+  Receipt, LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput, ListOrdered
 } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+  { label: "Queue", path: "/queue", icon: ListOrdered },
   { label: "Write / Record", path: "/clinical", icon: Stethoscope },
   { label: "Patients", path: "/patients", icon: Users },
   { label: "Visit Tracker", path: "/visit-tracker", icon: ClipboardList },
