@@ -47,12 +47,11 @@ export default function VisitTracker() {
   };
 
   const updateStatus = async (visitId: string, newStatus: string) => {
-    const { error } = await supabase
-      .from("patient_visits")
-      .update({ status: newStatus } as any)
-      .eq("id", visitId);
-    if (error) {
-      toast({ title: "Error updating status", description: error.message, variant: "destructive" });
+    const { data: result, error } = await supabase.functions.invoke("update-visit-status", {
+      body: { visit_id: visitId, target_status: newStatus },
+    });
+    if (error || result?.error) {
+      toast({ title: "Error updating status", description: error?.message || result?.error, variant: "destructive" });
     }
   };
 
