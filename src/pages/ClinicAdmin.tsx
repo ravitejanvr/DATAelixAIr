@@ -136,10 +136,10 @@ export default function ClinicAdmin() {
         consultation_fee: settings.consultation_fee,
         followup_fee: settings.followup_fee,
         currency: settings.currency,
-        payment_methods: settings.payment_methods,
+        payment_methods: settings.payment_methods as unknown as import("@/integrations/supabase/types").Json,
         lab_margin: settings.lab_margin,
-        default_prescription_templates: settings.default_prescription_templates,
-        doctor_templates: settings.doctor_templates,
+        default_prescription_templates: settings.default_prescription_templates as unknown as import("@/integrations/supabase/types").Json,
+        doctor_templates: settings.doctor_templates as unknown as import("@/integrations/supabase/types").Json,
         updated_at: new Date().toISOString(),
       };
 
