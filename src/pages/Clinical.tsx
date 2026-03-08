@@ -25,6 +25,7 @@ import SmartSuggestionsPanel from "@/components/SmartSuggestionsPanel";
 import CollapsibleSection from "@/components/clinical/CollapsibleSection";
 import FollowUpPanel from "@/components/clinical/FollowUpPanel";
 import ConsultationTimeline from "@/components/ConsultationTimeline";
+import ConsultationComplete from "@/components/ConsultationComplete";
 import VisitTimeline from "@/components/VisitTimeline";
 import { motion, AnimatePresence } from "framer-motion";
 import {
