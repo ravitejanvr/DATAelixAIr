@@ -1219,107 +1219,27 @@ export default function Clinical() {
                 <Badge className="bg-chip-medication border-chip-medication-border text-chip-medication-text text-[10px] ml-auto">Active</Badge>
               </div>
 
-              {/* AI Suggestions — Diagnosis */}
-              {selectedSymptoms.length > 0 && copilotDiagnoses.length > 0 && (
-                <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-2.5 border-primary/10">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                      <Brain className="h-3 w-3 text-primary" /> Diagnosis
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {copilotDiagnoses.map(d => (
-                        <Chip key={d} variant="diagnosis" size="sm" selected={selectedDiagnoses.includes(d)} onClick={() => toggleDiagnosis(d)}>{d}</Chip>
-                      ))}
-                    </div>
-                  </ClinicalCard>
-                </motion.div>
-              )}
-
-              {/* AI Suggestions — Tests */}
-              {selectedSymptoms.length > 0 && copilotTests.length > 0 && (
-                <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-2.5 border-primary/10">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                      <FlaskConical className="h-3 w-3 text-chip-lab-text" /> Tests
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {copilotTests.map(t => (
-                        <Chip key={t} variant="lab" size="sm" selected={selectedTests.includes(t)} onClick={() => toggleTest(t)}>{t}</Chip>
-                      ))}
-                    </div>
-                  </ClinicalCard>
-                </motion.div>
-              )}
-
-              {/* AI Suggestions — Medications */}
-              {contextualRx.length > 0 && (
-                <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-2.5 border-primary/10">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                      <Pill className="h-3 w-3 text-chip-medication-text" /> Medications
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {contextualRx.map((rx, i) => (
-                        <Chip
-                          key={i} variant="medication" size="sm" addable
-                          selected={pendingRxFromSuggestions.some(p => p.drug_name === rx.drug)}
-                          onClick={() => {
-                            if (pendingRxFromSuggestions.some(p => p.drug_name === rx.drug)) {
-                              setPendingRxFromSuggestions(prev => prev.filter(p => p.drug_name !== rx.drug));
-                            } else {
-                              setPendingRxFromSuggestions(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur }]);
-                            }
-                          }}
-                        >
-                          {rx.drug} {rx.dose}
-                        </Chip>
-                      ))}
-                    </div>
-                  </ClinicalCard>
-                </motion.div>
-              )}
-
-              {/* Doctor Favorites */}
-              <CollapsibleSection title="Quick Rx" icon={Pill} defaultOpen>
-                <div className="px-0.5">
-                  <DoctorFavoritesPanel
-                    onSelectDrug={(drug) => {
-                      setPendingRxFromSuggestions(prev => [...prev, { drug_name: drug.drug_name, dose: drug.dosage, frequency: drug.frequency, duration: drug.duration }]);
-                      toast({ title: `+ ${drug.drug_name}`, description: `${drug.dosage} · ${drug.frequency}` });
-                    }}
-                  />
-                </div>
-              </CollapsibleSection>
-
-              {/* Smart Suggestions */}
-              <SmartSuggestionsPanel
-                chiefComplaint={extractedData.chief_complaint}
-                duration={extractedData.duration || ""}
-                symptoms={extractedData.associated_symptoms || ""}
-                vitals={extractedData.vitals || ""}
-                patientAge={selectedPatient?.age ?? null}
-                patientGender={selectedPatient?.gender ?? null}
-                allergies={extractedData.allergies || ""}
-                medications={extractedData.current_medications || ""}
-                conditions={extractedData.chronic_conditions || ""}
-                userId={user?.id || ""}
-                transcriptExcerpt={stabilizedTranscript || transcript}
-                clinicalContext={clinicalContext}
-                onAddPrescription={(rx) => {
-                  setPendingRxFromSuggestions(prev => [...prev, { drug_name: rx.drug_name, dose: rx.dose, frequency: rx.frequency, duration: rx.duration }]);
-                  toast({ title: `+ ${rx.drug_name}` });
-                }}
-                onAddLabTest={(testName) => { toggleTest(testName); toast({ title: `+ ${testName}` }); }}
-                onInsertText={(text) => { setTranscript(prev => prev ? `${prev}\n${text}` : text); toast({ title: "Inserted" }); }}
-              />
-
-              {/* Evidence */}
-              {hasSoap && (
-                <EvidencePanel
-                  medications={extractedData.current_medications ? extractedData.current_medications.split(",").map(s => s.trim()).filter(Boolean) : []}
-                  diagnosis={soapSections["Provisional Diagnosis"] || extractedData.chief_complaint}
-                  allergies={extractedData.allergies ? extractedData.allergies.split(",").map(s => s.trim()).filter(Boolean) : []}
-                  confidenceLevel={safetyResults?.confidence_level || "moderate"}
+              {/* Clinical Copilot Component */}
+              {selectedPatient && (
+                <ClinicalCopilot
+                  diagnoses={copilotDiagnoses}
+                  selectedDiagnoses={selectedDiagnoses}
+                  onToggleDiagnosis={toggleDiagnosis}
+                  tests={copilotTests}
+                  selectedTests={selectedTests}
+                  onToggleTest={toggleTest}
+                  medications={contextualRx}
+                  selectedMedications={pendingRxFromSuggestions}
+                  onToggleMedication={(rx) => {
+                    if (pendingRxFromSuggestions.some(p => p.drug_name === rx.drug)) {
+                      setPendingRxFromSuggestions(prev => prev.filter(p => p.drug_name !== rx.drug));
+                    } else {
+                      setPendingRxFromSuggestions(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur }]);
+                      toast({ title: `+ ${rx.drug}` });
+                    }
+                  }}
+                  safetyResults={safetyResults}
+                  evidenceSources={[]}
                 />
               )}
             </div>
