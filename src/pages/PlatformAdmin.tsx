@@ -354,7 +354,7 @@ export default function PlatformAdmin() {
                       <CardContent className="py-3 flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium">{u.full_name || "—"}</p>
-                          <p className="text-[10px] text-muted-foreground">{u.clinic_name || "No clinic"} · {u.specialization || ""}</p>
+                          <p className="text-[10px] text-muted-foreground">{u.email || "No email"} · {u.clinic_name || "No clinic"} · Registered {new Date(u.created_at).toLocaleDateString()}</p>
                         </div>
                         <div className="flex items-center gap-1.5">
                           {(u as any).account_status === "approved" && (
