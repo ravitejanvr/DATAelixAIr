@@ -369,6 +369,7 @@ export default function Clinical() {
     setSoapSections(EMPTY_SOAP); setSavedSessionId(null); setSafetyResults(null);
     setPatientExplanation(""); setReviewConfirmed(false); setPipelineComplete(false);
     setNormalizationResults([]); setDetectedLanguages([]); setSelectedPatient(null);
+    setIntakeData(null); setVisitId(null);
   };
 
   const generatePatientExplanation = async () => {
