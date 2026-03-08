@@ -432,6 +432,7 @@ export default function Clinical() {
     setPatientExplanation(""); setReviewConfirmed(false); setPipelineComplete(false);
     setNormalizationResults([]); setDetectedLanguages([]); setSelectedPatient(null);
     setIntakeData(null); setVisitId(null); setIntakeApproved(false);
+    setClinicalContext(EMPTY_CLINICAL_CONTEXT); setPatientVitals(null);
   };
 
   const generatePatientExplanation = async () => {
