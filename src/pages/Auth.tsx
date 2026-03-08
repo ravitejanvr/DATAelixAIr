@@ -51,15 +51,26 @@ export default function Auth() {
     return data?.[0]?.role;
   };
 
+  // Designated platform admin emails — auto-promoted on registration
+  const PLATFORM_ADMIN_EMAILS = ["raviteja@elixair.uk", "raviteja.nvr@elixair.uk"];
+
   const ensureProfileAndRole = async (userId: string) => {
+    const isPlatformAdmin = PLATFORM_ADMIN_EMAILS.includes(signUpEmail.trim().toLowerCase());
+    const assignedRole: AppRole = isPlatformAdmin ? "platform_admin" : signUpRole;
+    const assignedStatus = isPlatformAdmin ? "approved" : "pending";
+
     const { data: existingRole } = await supabase.from("user_roles").select("id").eq("user_id", userId).limit(1);
-    if (!existingRole?.length) await supabase.from("user_roles").insert({ user_id: userId, role: signUpRole });
+    if (!existingRole?.length) {
+      await supabase.from("user_roles").insert({ user_id: userId, role: assignedRole });
+    } else if (isPlatformAdmin) {
+      await supabase.from("user_roles").update({ role: assignedRole }).eq("user_id", userId);
+    }
 
     const { data: existingProfile } = await supabase.from("profiles").select("id").eq("user_id", userId).limit(1);
     if (!existingProfile?.length) {
-      await supabase.from("profiles").insert({ user_id: userId, full_name: signUpName, phone: signUpPhone || "", account_status: "pending" });
+      await supabase.from("profiles").insert({ user_id: userId, full_name: signUpName, phone: signUpPhone || "", account_status: assignedStatus });
     } else {
-      await supabase.from("profiles").update({ full_name: signUpName, phone: signUpPhone || "" }).eq("user_id", userId);
+      await supabase.from("profiles").update({ full_name: signUpName, phone: signUpPhone || "", account_status: isPlatformAdmin ? "approved" : undefined }).eq("user_id", userId);
     }
   };
 
