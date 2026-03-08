@@ -130,12 +130,13 @@ export default function PlatformAdmin() {
   };
 
   const suspendClinic = async (clinicId: string) => {
-    const { error } = await supabase.from("clinics").update({ status: "suspended" } as any).eq("id", clinicId);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    await supabase.from("audit_logs").insert({
-      actor_id: user!.id, event_type: "clinic_suspended",
-      target_type: "clinic", target_id: clinicId,
+    const { data: result, error } = await supabase.functions.invoke("admin-action", {
+      body: { action_type: "suspend_clinic", clinic_id: clinicId },
     });
+    if (error || result?.error) {
+      toast({ title: "Error", description: error?.message || result?.error, variant: "destructive" });
+      return;
+    }
     toast({ title: "Clinic suspended" });
     loadAll();
   };
