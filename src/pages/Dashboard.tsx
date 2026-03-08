@@ -360,6 +360,10 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             )}
+            {/* QR Code for patient registration */}
+            {clinicId && (
+              <ClinicQRCode clinicId={clinicId} clinicName={clinicName} />
+            )}
           </div>
         </div>
       </div>
