@@ -154,6 +154,7 @@ const App = () => (
               {/* Patient self-intake & QR registration (public, no auth) */}
               <Route path="/patient-intake/:visitId" element={<PatientSelfIntake />} />
               <Route path="/register" element={<QRVisitRegistration />} />
+              <Route path="/visit-journey/:visitId" element={<VisitJourney />} />
 
               {/* Layer 2: Clinical App — wrapped in ClinicalLayout */}
               <Route path="/dashboard" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><Dashboard /></ClinicalLayout></ProtectedRoute>} />
