@@ -1135,24 +1135,24 @@ export default function Clinical() {
 
           {/* ═══ RIGHT: AI Copilot Sidebar ═══ */}
           <div className="overflow-y-auto border-l border-border bg-card/30 max-lg:hidden">
-            <div className="p-2.5 space-y-2">
+            <div className="p-3 space-y-2.5">
 
               {/* Copilot Header */}
-              <div className="flex items-center gap-1.5 px-0.5">
-                <div className="h-5 w-5 rounded-lg bg-primary/10 flex items-center justify-center relative">
-                  <Zap className="h-3 w-3 text-primary" />
-                  <div className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-chip-medication-text animate-pulse" />
+              <div className="flex items-center gap-2 px-0.5">
+                <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center relative">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                  <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-chip-medication-text animate-pulse" />
                 </div>
-                <span className="text-[11px] font-semibold text-foreground">AI Copilot</span>
-                <Badge className="bg-chip-medication border-chip-medication-border text-chip-medication-text text-[8px] ml-auto">Active</Badge>
+                <span className="text-sm font-semibold text-foreground">AI Copilot</span>
+                <Badge className="bg-chip-medication border-chip-medication-border text-chip-medication-text text-[10px] ml-auto">Active</Badge>
               </div>
 
               {/* AI Suggestions — Diagnosis */}
               {selectedSymptoms.length > 0 && copilotDiagnoses.length > 0 && (
                 <motion.div {...fadeIn}>
-                  <ClinicalCard className="p-2 border-primary/10">
-                    <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                      <Brain className="h-2.5 w-2.5 text-primary" /> Diagnosis
+                  <ClinicalCard className="p-2.5 border-primary/10">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                      <Brain className="h-3 w-3 text-primary" /> Diagnosis
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {copilotDiagnoses.map(d => (
