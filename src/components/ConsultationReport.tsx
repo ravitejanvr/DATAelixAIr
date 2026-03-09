@@ -253,11 +253,11 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
           </div>
 
           {/* ═══ 6. PRESCRIPTION TABLE ═══ */}
-          {data.prescriptions && data.prescriptions.length > 0 && (
-            <div className="mb-4">
-              <h2 className="text-[11px] font-bold text-[#0077b6] mb-2 flex items-center gap-1.5">
-                <span className="text-[18px] font-serif italic leading-none">℞</span> {h.prescription}
-              </h2>
+          <div className="mb-4">
+            <h2 className="text-[11px] font-bold text-[#0077b6] mb-2 flex items-center gap-1.5">
+              <span className="text-[18px] font-serif italic leading-none">℞</span> {h.prescription}
+            </h2>
+            {data.prescriptions && data.prescriptions.length > 0 ? (
               <table className="w-full border-collapse text-[10px]">
                 <thead>
                   <tr className="bg-[#0077b6] text-white">
@@ -284,8 +284,10 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
+            ) : (
+              <p className="text-[11px] text-gray-400 italic border border-dashed border-gray-200 rounded p-3 text-center">No medications prescribed.</p>
+            )}
+          </div>
 
           {/* ═══ 7. INVESTIGATIONS ═══ */}
           {data.labOrders && data.labOrders.length > 0 && (
