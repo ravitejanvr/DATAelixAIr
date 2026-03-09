@@ -406,41 +406,57 @@ export default function AdminArticleEditor() {
         </Select>
       </div>
 
-      <div className="space-y-2">
-        {filteredArticles.map((a) => (
-          <Card key={a.id}>
-            <CardContent className="py-3 flex items-center justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-sm font-medium truncate">{a.title}</p>
-                  {statusBadge(a.status)}
-                </div>
-                <p className="text-[10px] text-muted-foreground truncate">
-                  {a.category} · {a.author || "—"} · {a.source_type}
-                  {a.publish_date && ` · ${new Date(a.publish_date).toLocaleDateString()}`}
-                </p>
-              </div>
-              <div className="flex gap-1 shrink-0">
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditing(a)}>
-                  <Pencil className="h-3 w-3" />
-                </Button>
-                {a.status === "draft" && (
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-emerald-600" onClick={() => approve(a.id)}>
-                    <Eye className="h-3 w-3" />
-                  </Button>
-                )}
-                {a.status === "published" && (
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => archive(a.id)}>
-                    <Archive className="h-3 w-3" />
-                  </Button>
-                )}
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => deleteArticle(a.id)}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="rounded-lg border border-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Title</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs hidden md:table-cell">Category</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Status</th>
+              <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs hidden sm:table-cell">Publish Date</th>
+              <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredArticles.map((a) => (
+              <tr key={a.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                <td className="px-4 py-3">
+                  <p className="font-medium text-sm truncate max-w-[280px]">{a.title}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{a.author || "—"}</p>
+                </td>
+                <td className="px-4 py-3 hidden md:table-cell">
+                  <span className="text-xs text-muted-foreground">{a.category}</span>
+                </td>
+                <td className="px-4 py-3">{statusBadge(a.status)}</td>
+                <td className="px-4 py-3 hidden sm:table-cell">
+                  <span className="text-xs text-muted-foreground">
+                    {a.publish_date ? new Date(a.publish_date).toLocaleDateString() : "—"}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-1 justify-end">
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Edit" onClick={() => setEditing(a)}>
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    {a.status === "draft" && (
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-emerald-600" title="Publish" onClick={() => approve(a.id)}>
+                        <Eye className="h-3 w-3" />
+                      </Button>
+                    )}
+                    {a.status === "published" && (
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Archive" onClick={() => archive(a.id)}>
+                        <Archive className="h-3 w-3" />
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" title="Delete" onClick={() => deleteArticle(a.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
         {filteredArticles.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">No articles found.</p>
         )}
