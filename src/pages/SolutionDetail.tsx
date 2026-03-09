@@ -7,6 +7,7 @@ import {
   Users, Settings, BarChart3, ShieldCheck, Workflow, TrendingUp, Clock,
   BrainCircuit, type LucideIcon,
 } from "lucide-react";
+import ClinicalEvidenceSection from "@/components/ClinicalEvidenceSection";
 
 interface SolutionData {
   slug: string;
@@ -247,6 +248,9 @@ const SolutionDetail = () => {
           </div>
         </div>
       </section>
+
+      {/* Clinical Evidence */}
+      <ClinicalEvidenceSection feature={solution.slug} />
 
       {/* CTA */}
       <section className="bg-dark py-16">
