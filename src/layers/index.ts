@@ -120,3 +120,39 @@ export {
   getCategoryLabel,
   validateIntegrationConfig,
 } from './integration/api';
+
+// Infrastructure Layer
+export {
+  SECURITY_STANDARDS,
+  DEFAULT_BACKUP_CONFIG,
+  DEFAULT_AVAILABILITY,
+  OFFLINE_CAPABILITIES,
+  saveConsultationFallback,
+  loadConsultationFallback,
+  clearConsultationFallback,
+  checkPlatformHealth,
+  type BackupConfig,
+  type AvailabilityConfig,
+  type OfflineCapability,
+  type ServiceHealth,
+  type PlatformHealth,
+} from './infrastructure/api';
+
+// Ethics & Compliance Layer
+export {
+  AI_TRANSPARENCY_RULES,
+  DATA_PROTECTION_POLICY,
+  BIAS_MONITORING_DIMENSIONS,
+  REGULATORY_REFERENCES,
+  ACCESS_CONTROL_RULES,
+  RESPONSIBLE_AI_CHECKLIST,
+  hasAccess,
+  getAccessibleResources,
+  type AITransparencyIndicator,
+  type BiasMonitoringMetric,
+  type BiasReport,
+  type ComplianceEvent,
+  type ComplianceEventType,
+  type AccessControlRule,
+  type ResponsibleAICheck,
+} from './ethics/api';
