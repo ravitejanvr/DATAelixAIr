@@ -156,6 +156,9 @@ serve(async (req) => {
     const labOrders = labOrdersRes.data || [];
     const invoice = invoiceRes.data || null;
 
+    // ── Debug logging ──
+    console.log(`[generate-patient-report] Data assembly: prescriptions=${prescriptions.length}, labOrders=${labOrders.length}, hasVitals=${!!vitalsRes.data}, hasTriage=${!!triageRes.data}, hasDoctor=${!!doctorRes.data}`);
+
     // ── Calculate age if date_of_birth exists ──
     let patientAge = patient.age;
     if (!patientAge && patient.date_of_birth) {
