@@ -48,6 +48,7 @@ import PatientSelfIntake from "./pages/PatientSelfIntake";
 import QRVisitRegistration from "./pages/QRVisitRegistration";
 import FrontDesk from "./pages/FrontDesk";
 import VisitJourney from "./pages/VisitJourney";
+import VisitStatus from "./pages/VisitStatus";
 
 // Platform admin
 import PlatformAdmin from "./pages/PlatformAdmin";
@@ -156,6 +157,7 @@ const App = () => (
               <Route path="/patient-intake/:visitId" element={<PatientSelfIntake />} />
               <Route path="/register" element={<QRVisitRegistration />} />
               <Route path="/visit-journey/:visitId" element={<VisitJourney />} />
+              <Route path="/visit-status/:visitId" element={<VisitStatus />} />
 
               {/* Layer 2: Clinical App — wrapped in ClinicalLayout */}
               <Route path="/dashboard" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><Dashboard /></ClinicalLayout></ProtectedRoute>} />

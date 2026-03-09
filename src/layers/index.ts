@@ -4,7 +4,7 @@
  * Layer 1:  User Interface (UI)
  * Layer 2:  Clinical Workflow
  * Layer 3:  Multilingual Processing
- * Layer 4:  AI Agent Layer
+ * Layer 4:  Clinical Intelligence (AI Agents)
  * Layer 5:  Safety Controller
  * Layer 6:  Evidence Retrieval (RAG)
  * Layer 7:  Learning Layer
@@ -15,15 +15,52 @@
  * See ARCHITECTURE.md for full documentation.
  */
 
-// Re-export layer APIs for cross-layer consumption
-// Note: NormalizationMatch is defined in multilingual and re-exported from ai-agents
-// Import from specific layer modules to avoid ambiguity
+// Layer 2: Clinical Workflow
 export * from './workflow/api';
-export * from './safety/api';
-export * from './evidence/api';
-export { type ExtractedData, type SoapSections, type PipelineStep, type TranscriptionAgentOutput, type StabilizerAgentOutput, type PatientContextAgentOutput, EMPTY_EXTRACTED, EMPTY_SOAP, PIPELINE_STEPS, AGENT_REGISTRY, runClinicalAgent, searchPubMed } from './ai-agents/api';
-export type { PatientData, ClinicalAssessment, ClinicalAgentResponse } from './ai-agents/api';
+
+// Layer 3: Multilingual Processing
 export * from './multilingual/api';
+
+// Layer 4: Clinical Intelligence (AI Agents)
+export * from './intelligence/api';
+export { 
+  type ExtractedData, 
+  type SoapSections, 
+  type PipelineStep, 
+  type TranscriptionAgentOutput, 
+  type StabilizerAgentOutput, 
+  type PatientContextAgentOutput, 
+  EMPTY_EXTRACTED, 
+  EMPTY_SOAP, 
+  PIPELINE_STEPS, 
+  AGENT_REGISTRY, 
+  runClinicalAgent, 
+  searchPubMed 
+} from './ai-agents/api';
+export type { PatientData, ClinicalAssessment, ClinicalAgentResponse } from './ai-agents/api';
+
+// Layer 5: Clinical Safety
+export * from './safety/api';
+
+// Layer 6: Evidence/RAG
+export * from './evidence/api';
+
+// Layer 7: Learning
+export { 
+  type DoctorFavorite, 
+  type RegionalLexiconEntry, 
+  type DoctorPreferences, 
+  type LearningSignal, 
+  type LearningSignalType, 
+  captureTranscriptEditSignal, 
+  captureExtractionCorrectionSignal, 
+  captureDocumentationStyleSignal, 
+  loadDoctorPreferences, 
+  saveDoctorPreferences 
+} from './learning/api';
+
+// Layer 8: Monitoring
 export * from './monitoring/api';
+
+// Layer 9: Governance
 export * from './governance/api';
-export { type DoctorFavorite, type RegionalLexiconEntry, type DoctorPreferences, type LearningSignal, type LearningSignalType, captureTranscriptEditSignal, captureExtractionCorrectionSignal, captureDocumentationStyleSignal, loadDoctorPreferences, saveDoctorPreferences } from './learning/api';
