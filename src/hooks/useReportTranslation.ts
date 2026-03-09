@@ -61,6 +61,7 @@ export function useReportTranslation() {
 
   const getFieldsHash = (fields: TranslatableFields): string => {
     return JSON.stringify({
+      vs: fields.visitSummary || "",
       cc: fields.chiefComplaint || "",
       sy: fields.symptoms || "",
       fi: fields.findings || "",
