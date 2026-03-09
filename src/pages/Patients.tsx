@@ -5,14 +5,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Chip } from "@/components/ui/chip";
+import { ClinicalCard, SkeletonCard } from "@/components/ui/clinical-card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import {
-  Users, Plus, Search, User, Phone, Mail, Calendar, Loader2, ChevronRight
+  Users, Plus, Search, User, Phone, Calendar, Loader2, ChevronRight, AlertTriangle
 } from "lucide-react";
 
 interface Patient {
@@ -36,8 +37,6 @@ export default function Patients() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  // Minimal intake form
   const [newName, setNewName] = useState("");
   const [newAge, setNewAge] = useState("");
   const [newGender, setNewGender] = useState("male");
@@ -57,7 +56,6 @@ export default function Patients() {
     setLoading(false);
   };
 
-  // Auto-fetch returning patient by phone
   const handlePhoneChange = async (phone: string) => {
     setNewPhone(phone);
     if (phone.length >= 10) {
@@ -75,15 +73,10 @@ export default function Patients() {
     e.preventDefault();
     if (!newName.trim()) return;
     setSaving(true);
-
     const { error } = await supabase.from("patients").insert({
-      doctor_id: user!.id,
-      name: newName.trim(),
-      age: newAge ? parseInt(newAge) : null,
-      gender: newGender,
-      phone: newPhone || null,
+      doctor_id: user!.id, name: newName.trim(),
+      age: newAge ? parseInt(newAge) : null, gender: newGender, phone: newPhone || null,
     } as any);
-
     setSaving(false);
     if (error) {
       toast({ title: "Failed to add patient", description: error.message, variant: "destructive" });
@@ -96,47 +89,43 @@ export default function Patients() {
   };
 
   const filtered = patients.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.phone?.includes(search)
+    p.name.toLowerCase().includes(search.toLowerCase()) || p.phone?.includes(search)
   );
 
   return (
     <>
       <SEO title="Patients — DATAelixAIr" description="Patient registry" />
-      <div className="p-6 max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Users className="h-6 w-6 text-primary" />
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">Patients</h2>
-              <p className="text-sm text-muted-foreground">{patients.length} total patients</p>
-            </div>
+      <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">Patients</h1>
+            <p className="text-xs text-muted-foreground">{patients.length} registered</p>
           </div>
-
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-1" /> Register Patient</Button>
+              <Button size="sm" className="gap-1.5 rounded-xl"><Plus className="h-3.5 w-3.5" /> Register</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-sm">
               <DialogHeader><DialogTitle>Register Patient</DialogTitle></DialogHeader>
-              <form onSubmit={handleAddPatient} className="space-y-4">
+              <form onSubmit={handleAddPatient} className="space-y-3">
                 <div>
-                  <Label>Phone (for returning patient lookup)</Label>
-                  <Input value={newPhone} onChange={e => handlePhoneChange(e.target.value)} placeholder="+91..." />
+                  <Label className="text-xs">Phone (returning patient lookup)</Label>
+                  <Input value={newPhone} onChange={e => handlePhoneChange(e.target.value)} placeholder="+91..." className="mt-1 rounded-xl" />
                 </div>
                 <div>
-                  <Label>Full Name *</Label>
-                  <Input value={newName} onChange={e => setNewName(e.target.value)} required placeholder="Patient name" />
+                  <Label className="text-xs">Full Name *</Label>
+                  <Input value={newName} onChange={e => setNewName(e.target.value)} required placeholder="Patient name" className="mt-1 rounded-xl" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>Age</Label>
-                    <Input type="number" value={newAge} onChange={e => setNewAge(e.target.value)} placeholder="Age" />
+                    <Label className="text-xs">Age</Label>
+                    <Input type="number" value={newAge} onChange={e => setNewAge(e.target.value)} placeholder="Age" className="mt-1 rounded-xl" />
                   </div>
                   <div>
-                    <Label>Gender</Label>
+                    <Label className="text-xs">Gender</Label>
                     <Select value={newGender} onValueChange={setNewGender}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="male">Male</SelectItem>
                         <SelectItem value="female">Female</SelectItem>
@@ -146,18 +135,16 @@ export default function Patients() {
                   </div>
                 </div>
                 <div>
-                  <Label>Visit Type</Label>
-                  <Select value={newVisitType} onValueChange={setNewVisitType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="walk-in">Walk-in</SelectItem>
-                      <SelectItem value="appointment">Appointment</SelectItem>
-                      <SelectItem value="follow-up">Follow-up</SelectItem>
-                      <SelectItem value="emergency">Emergency</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs">Visit Type</Label>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {["walk-in", "appointment", "follow-up", "emergency"].map(vt => (
+                      <Chip key={vt} variant={newVisitType === vt ? "action" : "neutral"} selected={newVisitType === vt} onClick={() => setNewVisitType(vt)} size="sm" className="capitalize">
+                        {vt}
+                      </Chip>
+                    ))}
+                  </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={saving}>
+                <Button type="submit" className="w-full rounded-xl" disabled={saving}>
                   {saving ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Saving...</> : "Register Patient"}
                 </Button>
               </form>
@@ -165,51 +152,74 @@ export default function Patients() {
           </Dialog>
         </div>
 
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-10" placeholder="Search by name or phone..." value={search} onChange={e => setSearch(e.target.value)} />
+        {/* Search Bar — prominent */}
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-10 h-11 text-sm rounded-2xl bg-muted/50 border-border focus:bg-background"
+            placeholder="Search by name or phone…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            autoFocus
+          />
         </div>
 
+        {/* Patient Cards */}
         {loading ? (
-          <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6].map(i => <SkeletonCard key={i} lines={3} />)}
+          </div>
         ) : filtered.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center">
-              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-40" />
-              <p className="text-lg font-medium text-foreground">{search ? "No patients match" : "No patients yet"}</p>
-              <p className="text-sm text-muted-foreground mt-1">{search ? "Try a different search" : "Click 'Register Patient' to add your first patient"}</p>
-            </CardContent>
-          </Card>
+          <ClinicalCard className="py-16 text-center">
+            <Users className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+            <p className="text-sm font-medium text-foreground">{search ? "No patients match" : "No patients yet"}</p>
+            <p className="text-xs text-muted-foreground mt-1">{search ? "Try a different search" : "Register your first patient"}</p>
+          </ClinicalCard>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filtered.map(patient => (
-              <Card key={patient.id} className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => navigate(`/patients/${patient.id}`)}>
-                <CardContent className="flex items-center justify-between py-4 px-5">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-foreground">{patient.name}</p>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                        {patient.age && <span>{patient.age}y</span>}
-                        {patient.gender && <span className="capitalize">{patient.gender}</span>}
-                        {patient.phone && <span className="flex items-center gap-0.5"><Phone className="h-3 w-3" /> {patient.phone}</span>}
-                      </div>
-                    </div>
+              <ClinicalCard
+                key={patient.id}
+                className="cursor-pointer hover:shadow-md transition-all group"
+                onClick={() => navigate(`/patients/${patient.id}`)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <User className="h-5 w-5 text-primary" />
                   </div>
-                  <div className="flex items-center gap-3">
-                    {patient.allergies && patient.allergies.length > 0 && (
-                      <Badge variant="destructive" className="text-[10px]">⚠️ Allergies</Badge>
-                    )}
-                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {new Date(patient.created_at).toLocaleDateString()}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold text-sm text-foreground truncate">{patient.name}</p>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                      {patient.age && <span>{patient.age}y</span>}
+                      {patient.gender && <span className="capitalize">{patient.gender}</span>}
+                      {patient.phone && (
+                        <span className="flex items-center gap-0.5"><Phone className="h-3 w-3" /> {patient.phone}</span>
+                      )}
+                    </div>
+
+                    {/* Allergy & Medication chips */}
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {patient.allergies && patient.allergies.length > 0 && (
+                        <Chip variant="alert" size="sm">
+                          <AlertTriangle className="h-3 w-3 mr-0.5" /> Allergies
+                        </Chip>
+                      )}
+                      {patient.current_medications && patient.current_medications.length > 0 && (
+                        <Chip variant="medication" size="sm">
+                          {patient.current_medications.length} meds
+                        </Chip>
+                      )}
+                    </div>
+
+                    <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+                      <Calendar className="h-3 w-3" /> {new Date(patient.created_at).toLocaleDateString()}
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </ClinicalCard>
             ))}
           </div>
         )}
