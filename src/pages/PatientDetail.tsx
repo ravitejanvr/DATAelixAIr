@@ -50,6 +50,7 @@ interface Consultation {
   created_at: string;
   follow_up_date: string | null;
   tests_ordered: string[] | null;
+  report_data: Json | null;
 }
 
 export default function PatientDetail() {
