@@ -8,6 +8,11 @@ import {
   FileText, LogOut, Shield
 } from "lucide-react";
 
+import {
+  LayoutDashboard, Building2, Users, BarChart3, ShieldAlert,
+  FileText, LogOut, Shield, Lightbulb
+} from "lucide-react";
+
 const navItems = [
   { label: "Overview", path: "/platform-admin", icon: LayoutDashboard },
   { label: "Pilot Requests", path: "/platform-admin/pilots", icon: Building2 },
@@ -15,6 +20,7 @@ const navItems = [
   { label: "Clinics", path: "/platform-admin/clinics", icon: Building2 },
   { label: "Risk Flags", path: "/platform-admin/safety", icon: ShieldAlert },
   { label: "Governance", path: "/platform-admin/governance", icon: Shield },
+  { label: "Innovation", path: "/platform-admin/innovation", icon: Lightbulb },
   { label: "Metrics", path: "/platform-admin/metrics", icon: BarChart3 },
   { label: "Audit Trail", path: "/platform-admin/audit", icon: FileText },
 ];
