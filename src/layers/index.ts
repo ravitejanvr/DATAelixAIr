@@ -52,6 +52,7 @@ export {
   type DoctorPreferences, 
   type LearningSignal, 
   type LearningSignalType, 
+  type LearningMetrics,
   captureTranscriptEditSignal, 
   captureExtractionCorrectionSignal, 
   captureDocumentationStyleSignal, 
@@ -62,8 +63,28 @@ export {
 // Layer 8: Monitoring
 export * from './monitoring/api';
 
-// Layer 9: Governance
-export * from './governance/api';
+// Layer 9: Governance (use named exports to avoid conflict with monitoring's logAuditEvent)
+export {
+  type AppRole,
+  CLINICAL_ROLES,
+  ROLE_LABELS,
+  getDefaultRouteForRole,
+  PILOT_STATUSES,
+  type PilotStatus,
+  type ModelVersion,
+  MODEL_REGISTRY,
+  GOVERNANCE_EVENT_TYPES,
+  type GovernanceEventType,
+  type AuditLogEntry,
+  logGovernanceEvent,
+  logSafetyOverride,
+  logAIPipelineInvocation,
+  logAIOutputEdit,
+  type ComplianceCheck,
+  runComplianceChecks,
+  DATA_ACCESS_MATRIX,
+  TENANT_ISOLATED_TABLES,
+} from './governance/api';
 
 // Communication Layer
 export {
@@ -81,3 +102,21 @@ export {
   type SendNotificationParams,
   type NotificationResult,
 } from './communication/api';
+
+// Integration Layer
+export {
+  INTEGRATION_CATEGORIES,
+  INTEGRATION_PROVIDERS,
+  type IntegrationCategory,
+  type IntegrationProvider,
+  type IntegrationStatus,
+  type ClinicIntegration,
+  type ExternalLabOrder,
+  type ExternalLabResult,
+  type ExternalPrescription,
+  type WearableHealthData,
+  getProvidersForCategory,
+  isProviderAvailable,
+  getCategoryLabel,
+  validateIntegrationConfig,
+} from './integration/api';
