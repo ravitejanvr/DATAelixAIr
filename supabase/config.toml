@@ -81,3 +81,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.research-radar]
     verify_jwt = false
+  [functions.guideline-compliance]
+    verify_jwt = false
