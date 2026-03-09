@@ -815,6 +815,66 @@ export type Database = {
         }
         Relationships: []
       }
+      innovation_insights: {
+        Row: {
+          category: string
+          clinical_impact: string
+          created_at: string
+          evidence_source: string
+          id: string
+          keywords: string[]
+          metadata: Json
+          priority: string
+          problem_detected: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          roadmap_task: string | null
+          source_urls: string[]
+          status: string
+          suggested_improvement: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          clinical_impact?: string
+          created_at?: string
+          evidence_source?: string
+          id?: string
+          keywords?: string[]
+          metadata?: Json
+          priority?: string
+          problem_detected?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          roadmap_task?: string | null
+          source_urls?: string[]
+          status?: string
+          suggested_improvement?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          clinical_impact?: string
+          created_at?: string
+          evidence_source?: string
+          id?: string
+          keywords?: string[]
+          metadata?: Json
+          priority?: string
+          problem_detected?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          roadmap_task?: string | null
+          source_urls?: string[]
+          status?: string
+          suggested_improvement?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           clinic_id: string
