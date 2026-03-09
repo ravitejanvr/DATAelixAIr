@@ -952,6 +952,124 @@ export type Database = {
         }
         Relationships: []
       }
+      guideline_registry: {
+        Row: {
+          applicable_drugs: string[]
+          applicable_tests: string[]
+          condition: string
+          country: string
+          created_at: string
+          guideline_url: string | null
+          id: string
+          is_active: boolean
+          keywords: string[]
+          organization: string
+          publication_date: string | null
+          recommendation_text: string
+          specialty: string
+          summary: string
+          tier: number
+          title: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          applicable_drugs?: string[]
+          applicable_tests?: string[]
+          condition?: string
+          country?: string
+          created_at?: string
+          guideline_url?: string | null
+          id?: string
+          is_active?: boolean
+          keywords?: string[]
+          organization: string
+          publication_date?: string | null
+          recommendation_text?: string
+          specialty?: string
+          summary?: string
+          tier?: number
+          title: string
+          updated_at?: string
+          version?: string
+        }
+        Update: {
+          applicable_drugs?: string[]
+          applicable_tests?: string[]
+          condition?: string
+          country?: string
+          created_at?: string
+          guideline_url?: string | null
+          id?: string
+          is_active?: boolean
+          keywords?: string[]
+          organization?: string
+          publication_date?: string | null
+          recommendation_text?: string
+          specialty?: string
+          summary?: string
+          tier?: number
+          title?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      guideline_usage_logs: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          guideline_id: string
+          id: string
+          matched_condition: string | null
+          recommendation_used: string | null
+          tier: number
+          visit_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          guideline_id: string
+          id?: string
+          matched_condition?: string | null
+          recommendation_used?: string | null
+          tier: number
+          visit_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          guideline_id?: string
+          id?: string
+          matched_condition?: string | null
+          recommendation_used?: string | null
+          tier?: number
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guideline_usage_logs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guideline_usage_logs_guideline_id_fkey"
+            columns: ["guideline_id"]
+            isOneToOne: false
+            referencedRelation: "guideline_registry"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guideline_usage_logs_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       innovation_insights: {
         Row: {
           category: string
