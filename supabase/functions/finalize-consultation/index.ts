@@ -357,6 +357,24 @@ Deno.serve(async (req) => {
       }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ── Performance Monitoring ──
+    const finalizeDuration = Date.now() - (performance.now ? 0 : 0); // approximate
+    admin.from("monitoring_events").insert({
+      event_type: "consultation_finalized",
+      agent_name: "finalize-consultation",
+      clinic_id,
+      success: errors.length === 0,
+      duration_ms: null,
+      metadata: {
+        user_id: user.id,
+        consultation_id,
+        prescription_count: results.prescriptions?.length || 0,
+        lab_order_count: results.lab_orders?.length || 0,
+        invoice_generated: !!results.invoice?.id,
+        error_count: errors.length,
+      },
+    }).then(() => {});
+
     // ── Audit Log ──
     admin.from("audit_logs").insert({
       actor_id: user.id,
