@@ -16,6 +16,7 @@ import ScrollToTop from "./components/ScrollToTop";
 import Index from "./pages/Index";
 import Vision from "./pages/Vision";
 import Blog from "./pages/Blog";
+import ArticleDetail from "./pages/ArticleDetail";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
@@ -190,6 +191,7 @@ const App = () => (
               <Route path="/" element={<Layout><Index /></Layout>} />
               <Route path="/vision" element={<Layout><Vision /></Layout>} />
               <Route path="/blog" element={<Layout><Blog /></Layout>} />
+              <Route path="/blog/:slug" element={<Layout><ArticleDetail /></Layout>} />
               <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
               <Route path="/terms" element={<Layout><Terms /></Layout>} />
               <Route path="/contact" element={<Layout><Contact /></Layout>} />

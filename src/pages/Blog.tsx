@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,24 +8,69 @@ import SEO from "@/components/SEO";
 import TrendingResearch from "@/components/blog/TrendingResearch";
 import ArticleCard from "@/components/blog/ArticleCard";
 import {
-  articles,
+  staticArticles,
   categories,
   categoryMeta,
   trendingResearch,
+  type Article,
   type ArticleCategory,
 } from "@/lib/blog-data";
+import { supabase } from "@/integrations/supabase/client";
 
 type Filter = "All" | ArticleCategory;
 
 const Blog = () => {
   const [activeFilter, setActiveFilter] = useState<Filter>("All");
+  const [allArticles, setAllArticles] = useState<Article[]>(staticArticles);
+
+  useEffect(() => {
+    loadArticles();
+  }, []);
+
+  const loadArticles = async () => {
+    try {
+      const { data } = await supabase
+        .from("blog_articles")
+        .select("*")
+        .eq("status", "published")
+        .order("publish_date", { ascending: false }) as any;
+
+      if (data?.length) {
+        const dbArticles: Article[] = data.map((a: any) => ({
+          ...a,
+          publish_date: a.publish_date || a.created_at,
+          source_name: a.source_name || "",
+          source_url: a.source_url || "",
+        }));
+        // Merge: DB articles take priority, static as fallback
+        const merged = [
+          ...dbArticles,
+          ...staticArticles.filter((s) => !dbArticles.some((d) => d.slug === s.slug)),
+        ];
+        setAllArticles(merged);
+      }
+    } catch {
+      // Keep static articles as fallback
+    }
+  };
 
   const filtered =
     activeFilter === "All"
-      ? [...articles].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime())
-      : articles
+      ? [...allArticles].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime())
+      : allArticles
           .filter((a) => a.category === activeFilter)
           .sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
+
+  const activeCategoryDesc =
+    activeFilter !== "All" ? categoryMeta[activeFilter]?.description : null;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Research & Insights — DATAelixAIr",
+    description: "Evidence-driven perspectives on clinical AI, patient safety, and healthcare innovation.",
+    publisher: { "@type": "Organization", name: "DATAelixAIr" },
+  };
 
   return (
     <div>
@@ -33,6 +78,7 @@ const Blog = () => {
         title="Research & Insights — DATAelixAIr"
         description="Evidence-driven perspectives on clinical AI, patient safety, and healthcare innovation. Curated research from McKinsey, Nature, and WHO."
       />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       {/* Hero */}
       <section className="pt-32 pb-14 bg-background">
@@ -75,6 +121,18 @@ const Blog = () => {
                 );
               })}
             </ChipGroup>
+
+            {/* Category description for SEO */}
+            {activeCategoryDesc && (
+              <motion.p
+                key={activeFilter}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 text-sm text-muted-foreground/70 max-w-xl"
+              >
+                {activeCategoryDesc}
+              </motion.p>
+            )}
           </motion.div>
         </div>
       </section>
@@ -96,7 +154,7 @@ const Blog = () => {
             >
               {filtered.map((article, i) => (
                 <ArticleCard
-                  key={article.title}
+                  key={article.slug}
                   article={article}
                   index={i}
                   onCategoryClick={(cat) => setActiveFilter(cat)}
