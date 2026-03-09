@@ -30,19 +30,19 @@ export interface TranslatedReport {
 // Default English section headings
 export const ENGLISH_HEADINGS: Record<string, string> = {
   patientInformation: "Patient Information",
+  visitSummary: "Visit Summary",
   vitals: "Vitals",
-  consultationSummary: "Consultation Summary",
-  chiefComplaintLabel: "Chief Complaint",
-  symptomsLabel: "Symptoms",
-  clinicalFindings: "Clinical Findings",
-  provisionalDiagnosis: "Provisional Diagnosis",
-  planLabel: "Plan",
+  consultationSummary: "Clinical Notes (SOAP)",
+  subjective: "S — Subjective",
+  objective: "O — Objective",
+  assessment: "A — Assessment / Provisional Diagnosis",
+  planLabel: "P — Plan",
   prescription: "Prescription",
-  investigations: "Investigations",
-  adviceLabel: "Advice / Patient Instructions",
+  investigations: "Investigations Ordered",
+  adviceLabel: "Patient Instructions",
   followUp: "Follow-Up",
   nextVisit: "Next visit",
-  doctorSignature: "Doctor Signature",
+  doctorSignature: "Consulting Physician",
   demoWatermark: "Demo Report – Not for clinical use",
 };
 
