@@ -95,6 +95,7 @@ export function useReportTranslation() {
       const { data, error } = await supabase.functions.invoke("translate-report", {
         body: {
           fields: {
+            visitSummary: fields.visitSummary || undefined,
             chiefComplaint: fields.chiefComplaint || undefined,
             symptoms: fields.symptoms || undefined,
             findings: fields.findings || undefined,
