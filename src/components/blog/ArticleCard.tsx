@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { ExternalLink, Clock } from "lucide-react";
+import { Link } from "react-router-dom";
 import { categoryMeta, type Article } from "@/lib/blog-data";
 
 interface Props {
@@ -11,17 +12,43 @@ interface Props {
 export default function ArticleCard({ article, index, onCategoryClick }: Props) {
   const meta = categoryMeta[article.category];
   const Icon = meta.icon;
+  const isExternal = !article.content && article.source_url;
+  const linkTarget = isExternal ? article.source_url : `/blog/${article.slug}`;
+
+  const CardWrapper = ({ children }: { children: React.ReactNode }) => {
+    if (isExternal) {
+      return (
+        <motion.a
+          href={linkTarget}
+          target="_blank"
+          rel="noopener noreferrer"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.04 }}
+          className="group border border-border rounded-2xl p-7 bg-card hover:border-primary/40 hover:-translate-y-1 hover:shadow-card-hover transition-all flex flex-col cursor-pointer"
+        >
+          {children}
+        </motion.a>
+      );
+    }
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.04 }}
+      >
+        <Link
+          to={linkTarget}
+          className="group border border-border rounded-2xl p-7 bg-card hover:border-primary/40 hover:-translate-y-1 hover:shadow-card-hover transition-all flex flex-col cursor-pointer block"
+        >
+          {children}
+        </Link>
+      </motion.div>
+    );
+  };
 
   return (
-    <motion.a
-      href={article.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04 }}
-      className="group border border-border rounded-2xl p-7 bg-card hover:border-primary/40 hover:-translate-y-1 hover:shadow-card-hover transition-all flex flex-col cursor-pointer"
-    >
+    <CardWrapper>
       {/* Category chip */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <button
@@ -39,7 +66,7 @@ export default function ArticleCard({ article, index, onCategoryClick }: Props) 
 
         {article.source_type === "Research" && (
           <span className="text-[0.6rem] font-medium uppercase tracking-wider px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
-            {article.source}
+            {article.source_name}
           </span>
         )}
 
@@ -70,6 +97,6 @@ export default function ArticleCard({ article, index, onCategoryClick }: Props) 
           Read Article <ExternalLink size={13} className="group-hover:translate-x-0.5 transition-transform" />
         </span>
       </div>
-    </motion.a>
+    </CardWrapper>
   );
 }
