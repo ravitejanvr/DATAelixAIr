@@ -313,7 +313,7 @@ export default function ConsultationComplete({
           >
             <img src={brainLogo} alt="DATAelixAIr" className="h-12 w-12" />
             <div className="text-left">
-              <h1 className="text-lg font-bold text-foreground tracking-tight">DATAelixAIr</h1>
+              <h1 className="text-lg font-bold text-foreground tracking-tight">DATAelixAIr<sup className="text-[0.5em] text-muted-foreground">™</sup></h1>
               
             </div>
           </motion.div>
