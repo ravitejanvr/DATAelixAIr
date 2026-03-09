@@ -214,8 +214,7 @@ export default function Onboard() {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="font-display text-2xl font-bold text-foreground">I am a healthcare professional</h2>
-              <p className="text-sm text-muted-foreground mt-2">Select your role to get started</p>
+              <p className="text-sm text-muted-foreground">Select your role to get started</p>
             </div>
             <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
               {ROLES.map((r) => (
