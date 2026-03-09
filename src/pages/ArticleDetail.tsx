@@ -23,6 +23,8 @@ import {
 } from "@/lib/blog-data";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
+import ProductInsightBlock from "@/components/blog/ProductInsightBlock";
+import KeywordLinker from "@/components/blog/KeywordLinker";
 
 // Safe accessor for article fields with defaults
 function safe(article: Article) {
@@ -263,7 +265,7 @@ function ArticleDetailInner() {
                     <h2 className="font-display text-base font-bold text-foreground">The Problem</h2>
                   </div>
                   <p className="text-[0.95rem] text-muted-foreground font-light leading-relaxed border-l-2 border-primary/30 pl-4">
-                    {s.summary}
+                    <KeywordLinker text={s.summary} />
                   </p>
                 </div>
               )}
@@ -305,6 +307,9 @@ function ArticleDetailInner() {
                 </div>
               )}
 
+              {/* Product Insight Block */}
+              <ProductInsightBlock category={s.category} />
+
               {/* Section 4: Clinical Implications */}
               {s.clinical_implications && (
                 <div className="mb-8 p-5 rounded-xl bg-primary/5 border border-primary/10">
@@ -312,7 +317,9 @@ function ArticleDetailInner() {
                     <ShieldCheck className="h-4 w-4 text-primary" />
                     <h2 className="font-display text-base font-bold text-foreground">Clinical Implication</h2>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{s.clinical_implications}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    <KeywordLinker text={s.clinical_implications} />
+                  </p>
                 </div>
               )}
 
