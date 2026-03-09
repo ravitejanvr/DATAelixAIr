@@ -499,7 +499,7 @@ const Index = () => (
     {/* ════════════════════════════════════════════
         SAFETY
     ════════════════════════════════════════════ */}
-    <section className="py-24 bg-card border-y border-border">
+    <section id="security" className="py-24 bg-card border-y border-border">
       <div className="container mx-auto px-4">
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Patient Safety</p>
