@@ -35,7 +35,11 @@ export type LearningSignalType =
   | "terminology_update"
   | "prescription_template"
   | "documentation_style"
-  | "extraction_correction";
+  | "extraction_correction"
+  | "safety_alert_override"
+  | "treatment_outcome"
+  | "diagnostic_accuracy"
+  | "ai_suggestion_feedback";
 
 export interface LearningSignal {
   id: string;
@@ -44,6 +48,16 @@ export interface LearningSignal {
   signal_type: LearningSignalType;
   signal_data: Record<string, unknown>;
   created_at: string;
+}
+
+// ─── Learning Analytics Types ───────────────────────────────
+
+export interface LearningMetrics {
+  totalSignals: number;
+  signalsByType: Record<LearningSignalType, number>;
+  averageEditRatio: number;
+  safetyOverrideRate: number;
+  aiAcceptanceRate: number;
 }
 
 // ─── Existing types (kept for backward compat) ─────────────
