@@ -142,8 +142,25 @@ export default function PlatformAdmin() {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => getTabFromPath(location.pathname));
   const [smsConfigured, setSmsConfigured] = useState<boolean | null>(null);
 
-  useEffect(() => { if (user) loadAll(); }, [user]);
+  useEffect(() => { if (user) { loadAll(); checkSmsConfig(); } }, [user]);
   useEffect(() => { setActiveTab(getTabFromPath(location.pathname)); }, [location.pathname]);
+
+  const checkSmsConfig = async () => {
+    // Check if any SMS notifications were sent in mock mode
+    const { data } = await supabase
+      .from("notification_logs")
+      .select("delivery_status")
+      .eq("delivery_status", "mock_delivered")
+      .limit(1);
+    // If mock deliveries exist OR no SMS logs at all, SMS may not be configured
+    const { data: anyLogs } = await supabase
+      .from("notification_logs")
+      .select("id")
+      .eq("message_type", "sms")
+      .eq("delivery_status", "delivered")
+      .limit(1);
+    setSmsConfigured(anyLogs && anyLogs.length > 0);
+  };
 
   const loadAll = async () => {
     setLoading(true);
