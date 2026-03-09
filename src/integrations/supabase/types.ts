@@ -1659,6 +1659,35 @@ export type Database = {
           },
         ]
       }
+      patient_context_snapshots: {
+        Row: {
+          context_json: Json
+          created_at: string
+          id: string
+          visit_id: string
+        }
+        Insert: {
+          context_json?: Json
+          created_at?: string
+          id?: string
+          visit_id: string
+        }
+        Update: {
+          context_json?: Json
+          created_at?: string
+          id?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_context_snapshots_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_visits: {
         Row: {
           assigned_to: string | null
