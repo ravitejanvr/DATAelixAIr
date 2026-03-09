@@ -55,6 +55,137 @@ export type Database = {
           },
         ]
       }
+      blog_article_index: {
+        Row: {
+          article_id: string
+          category: string
+          full_text: string
+          id: string
+          indexed_at: string
+          keywords: string[]
+          summary: string
+          title: string
+        }
+        Insert: {
+          article_id: string
+          category?: string
+          full_text?: string
+          id?: string
+          indexed_at?: string
+          keywords?: string[]
+          summary?: string
+          title: string
+        }
+        Update: {
+          article_id?: string
+          category?: string
+          full_text?: string
+          id?: string
+          indexed_at?: string
+          keywords?: string[]
+          summary?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_article_index_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "blog_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_articles: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          author: string
+          category: string
+          clinical_implications: string | null
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          key_findings: string[]
+          keywords: string[]
+          meta_description: string | null
+          meta_title: string | null
+          og_image_url: string | null
+          publish_date: string | null
+          reading_time_min: number
+          related_platform_features: string[]
+          slug: string
+          source_journal: string | null
+          source_name: string | null
+          source_type: string
+          source_url: string | null
+          source_year: number | null
+          status: string
+          summary: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          author?: string
+          category?: string
+          clinical_implications?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          key_findings?: string[]
+          keywords?: string[]
+          meta_description?: string | null
+          meta_title?: string | null
+          og_image_url?: string | null
+          publish_date?: string | null
+          reading_time_min?: number
+          related_platform_features?: string[]
+          slug: string
+          source_journal?: string | null
+          source_name?: string | null
+          source_type?: string
+          source_url?: string | null
+          source_year?: number | null
+          status?: string
+          summary?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          author?: string
+          category?: string
+          clinical_implications?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          key_findings?: string[]
+          keywords?: string[]
+          meta_description?: string | null
+          meta_title?: string | null
+          og_image_url?: string | null
+          publish_date?: string | null
+          reading_time_min?: number
+          related_platform_features?: string[]
+          slug?: string
+          source_journal?: string | null
+          source_name?: string | null
+          source_type?: string
+          source_url?: string | null
+          source_year?: number | null
+          status?: string
+          summary?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clinic_members: {
         Row: {
           clinic_id: string
