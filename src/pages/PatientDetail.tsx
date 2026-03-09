@@ -373,7 +373,7 @@ export default function PatientDetail() {
                                 <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Follow-up:</span>
                                 <span className="text-foreground flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
-                                  {new Date(c.report_data?.consultation?.follow_up_date || c.follow_up_date).toLocaleDateString()}
+                                  {new Date(reportData?.consultation?.follow_up_date || c.follow_up_date).toLocaleDateString()}
                                 </span>
                               </div>
                             )}
