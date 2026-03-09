@@ -325,10 +325,10 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
           </div>
 
           {/* ═══ 8. PATIENT INSTRUCTIONS ═══ */}
-          {((t.advice && t.advice.length > 0) || (data.advice && data.advice.length > 0)) && (
-            <div className="mb-4">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.adviceLabel}</h2>
-              <div className="bg-[#fffbeb] border border-[#fde68a] rounded p-3">
+          <div className="mb-4">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.adviceLabel}</h2>
+            <div className="bg-[#fffbeb] border border-[#fde68a] rounded p-3">
+              {(t.advice || data.advice || []).length > 0 ? (
                 <ul className="list-none space-y-1 text-[11px]">
                   {(t.advice || data.advice || []).map((a, i) => (
                     <li key={i} className="flex items-start gap-2">
@@ -337,24 +337,26 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                     </li>
                   ))}
                 </ul>
-              </div>
+              ) : (
+                <p className="text-[11px] text-gray-400 italic text-center">Follow doctor's verbal advice. Contact clinic if symptoms persist.</p>
+              )}
             </div>
-          )}
+          </div>
 
           {/* ═══ 9. FOLLOW-UP ═══ */}
-          {(data.followUpDate || t.followUpInstructions || data.followUpInstructions) && (
-            <div className="mb-4 p-3 bg-[#eff6ff] border border-[#bfdbfe] rounded">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#2563eb] mb-1.5">{h.followUp}</h2>
-              {data.followUpDate && (
-                <p className="text-[12px] font-bold text-[#1e40af]">
-                  {h.nextVisit}: {new Date(data.followUpDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                </p>
-              )}
-              {(t.followUpInstructions || data.followUpInstructions) && (
-                <p className="text-[11px] text-[#3b82f6] mt-1">{t.followUpInstructions || data.followUpInstructions}</p>
-              )}
-            </div>
-          )}
+          <div className="mb-4 p-3 bg-[#eff6ff] border border-[#bfdbfe] rounded">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#2563eb] mb-1.5">{h.followUp}</h2>
+            {data.followUpDate ? (
+              <p className="text-[12px] font-bold text-[#1e40af]">
+                {h.nextVisit}: {new Date(data.followUpDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+              </p>
+            ) : (
+              <p className="text-[11px] text-gray-500">Follow-up as needed. Contact clinic if symptoms persist or worsen.</p>
+            )}
+            {(t.followUpInstructions || data.followUpInstructions) && (
+              <p className="text-[11px] text-[#3b82f6] mt-1">{t.followUpInstructions || data.followUpInstructions}</p>
+            )}
+          </div>
 
           {/* ═══ 10. DOCTOR SIGNATURE ═══ */}
           <div className="mt-6 flex justify-between items-end">
