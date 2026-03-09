@@ -60,7 +60,7 @@ export default function InnovationDashboard() {
   const load = async () => {
     setLoading(true);
     const { data, error } = await (supabase
-      .from("innovation_insights")
+      .from("innovation_insights" as any)
       .select("*")
       .order("created_at", { ascending: false }) as any);
     if (error) toast({ title: "Failed to load insights", variant: "destructive" });
