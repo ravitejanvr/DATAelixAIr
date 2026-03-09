@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 export type ReportLanguage = "english" | "telugu" | "hindi";
 
 export interface TranslatableFields {
+  visitSummary?: string | null;
   chiefComplaint?: string | null;
   symptoms?: string | null;
   findings?: string | null;
@@ -15,6 +16,7 @@ export interface TranslatableFields {
 }
 
 export interface TranslatedReport {
+  visitSummary?: string;
   chiefComplaint?: string;
   symptoms?: string;
   findings?: string;
@@ -28,19 +30,19 @@ export interface TranslatedReport {
 // Default English section headings
 export const ENGLISH_HEADINGS: Record<string, string> = {
   patientInformation: "Patient Information",
+  visitSummary: "Visit Summary",
   vitals: "Vitals",
-  consultationSummary: "Consultation Summary",
-  chiefComplaintLabel: "Chief Complaint",
-  symptomsLabel: "Symptoms",
-  clinicalFindings: "Clinical Findings",
-  provisionalDiagnosis: "Provisional Diagnosis",
-  planLabel: "Plan",
+  consultationSummary: "Clinical Notes (SOAP)",
+  subjective: "S — Subjective",
+  objective: "O — Objective",
+  assessment: "A — Assessment / Provisional Diagnosis",
+  planLabel: "P — Plan",
   prescription: "Prescription",
-  investigations: "Investigations",
-  adviceLabel: "Advice / Patient Instructions",
+  investigations: "Investigations Ordered",
+  adviceLabel: "Patient Instructions",
   followUp: "Follow-Up",
   nextVisit: "Next visit",
-  doctorSignature: "Doctor Signature",
+  doctorSignature: "Consulting Physician",
   demoWatermark: "Demo Report – Not for clinical use",
 };
 
@@ -59,6 +61,7 @@ export function useReportTranslation() {
 
   const getFieldsHash = (fields: TranslatableFields): string => {
     return JSON.stringify({
+      vs: fields.visitSummary || "",
       cc: fields.chiefComplaint || "",
       sy: fields.symptoms || "",
       fi: fields.findings || "",
@@ -92,6 +95,7 @@ export function useReportTranslation() {
       const { data, error } = await supabase.functions.invoke("translate-report", {
         body: {
           fields: {
+            visitSummary: fields.visitSummary || undefined,
             chiefComplaint: fields.chiefComplaint || undefined,
             symptoms: fields.symptoms || undefined,
             findings: fields.findings || undefined,
@@ -136,6 +140,7 @@ export function useReportTranslation() {
   ): TranslatedReport & { sectionHeadings: Record<string, string> } => {
     if (language === "english") {
       return {
+        visitSummary: fields.visitSummary || undefined,
         chiefComplaint: fields.chiefComplaint || undefined,
         symptoms: fields.symptoms || undefined,
         findings: fields.findings || undefined,
@@ -153,6 +158,7 @@ export function useReportTranslation() {
 
     if (!cached) {
       return {
+        visitSummary: fields.visitSummary || undefined,
         chiefComplaint: fields.chiefComplaint || undefined,
         symptoms: fields.symptoms || undefined,
         findings: fields.findings || undefined,
@@ -165,6 +171,7 @@ export function useReportTranslation() {
     }
 
     return {
+      visitSummary: cached.visitSummary || fields.visitSummary || undefined,
       chiefComplaint: cached.chiefComplaint || fields.chiefComplaint || undefined,
       symptoms: cached.symptoms || fields.symptoms || undefined,
       findings: cached.findings || fields.findings || undefined,
