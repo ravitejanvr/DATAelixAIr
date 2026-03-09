@@ -176,7 +176,7 @@ export default function Auth() {
           <div className="text-center mb-7">
             <div className="flex items-center justify-center gap-3 mb-3">
               <img src={brainLogo} alt="DATAelixAIr Logo" className="h-10" />
-              <span className="font-display text-xl font-bold tracking-tight text-foreground">DATAelixAIr</span>
+              <span className="font-display text-xl font-bold tracking-tight text-foreground">DATAelixAIr<sup className="text-[0.5em] text-muted-foreground">™</sup></span>
             </div>
             <h1 className="font-display text-2xl font-bold text-foreground">{mode === "signin" ? "Welcome back" : "Create your account"}</h1>
             <p className="text-sm text-muted-foreground mt-1">Clinical Writing & Workflow Workspace</p>

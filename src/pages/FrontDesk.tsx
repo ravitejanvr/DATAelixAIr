@@ -251,7 +251,7 @@ export default function FrontDesk() {
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
-      doc.text("DATAelixAIr", 15, 15);
+      doc.text("DATAelixAIr\u2122", 15, 15);
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
       

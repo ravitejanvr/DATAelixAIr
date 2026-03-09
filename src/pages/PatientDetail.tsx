@@ -113,7 +113,7 @@ export default function PatientDetail() {
         <div className="flex items-center gap-3">
           <img src={brainLogo} alt="Logo" className="h-8" />
           <div>
-            <h1 className="text-sm font-bold text-foreground">DATAelixAIr CDSS</h1>
+            <h1 className="text-sm font-bold text-foreground">DATAelixAIr<sup className="text-[0.5em] text-muted-foreground">™</sup> CDSS</h1>
             <p className="text-xs text-muted-foreground">Clinical Decision Support System</p>
           </div>
         </div>
