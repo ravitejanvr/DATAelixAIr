@@ -6,6 +6,7 @@ const KEYWORD_LINKS: Record<string, { label: string; path: string }> = {
   "ai documentation": { label: "AI Documentation", path: "/clinical" },
   "clinical documentation": { label: "Clinical Documentation", path: "/clinical" },
   "clinical decision support": { label: "Clinical Decision Support", path: "/vision" },
+  "ai decision support": { label: "AI Decision Support", path: "/vision" },
   "patient safety": { label: "Patient Safety", path: "/vision" },
   "drug interaction": { label: "Drug Interaction Detection", path: "/vision" },
   "drug interactions": { label: "Drug Interaction Detection", path: "/vision" },
@@ -18,6 +19,10 @@ const KEYWORD_LINKS: Record<string, { label: string; path: string }> = {
   "workflow automation": { label: "Workflow Automation", path: "/vision" },
   "medical records": { label: "Medical Records", path: "/clinical" },
   "clinical notes": { label: "Clinical Notes", path: "/clinical" },
+  "clinical safety": { label: "Clinical Safety", path: "/vision" },
+  "guardrail engine": { label: "Guardrail Engine", path: "/vision" },
+  "trust layer": { label: "Trust Layer", path: "/vision" },
+  "clinical workspace": { label: "Clinical Workspace", path: "/clinical" },
 };
 
 /**
