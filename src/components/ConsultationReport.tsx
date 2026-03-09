@@ -241,22 +241,14 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
           <div className="mb-4">
             <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2 border-b border-[#0077b6]/20 pb-1">{h.consultationSummary}</h2>
             <div className="space-y-2.5">
-              {(t.symptoms || data.symptoms || t.chiefComplaint || data.chiefComplaint) && (
-                <SoapSection
-                  label={h.subjective}
-                  content={`${t.chiefComplaint || data.chiefComplaint || ""}\n${t.symptoms || data.symptoms || ""}`.trim()}
-                  color="#2563eb"
-                />
-              )}
-              {(t.findings || data.findings) && (
-                <SoapSection label={h.objective} content={t.findings || data.findings!} color="#059669" />
-              )}
-              {(t.diagnosis || data.diagnosis) && (
-                <SoapSection label={h.assessment} content={t.diagnosis || data.diagnosis!} color="#d97706" highlight />
-              )}
-              {(t.plan || data.plan) && (
-                <SoapSection label={h.planLabel} content={t.plan || data.plan!} color="#7c3aed" />
-              )}
+              <SoapSection
+                label={h.subjective}
+                content={`${t.chiefComplaint || data.chiefComplaint || ""}\n${t.symptoms || data.symptoms || ""}`.trim() || "Not documented"}
+                color="#2563eb"
+              />
+              <SoapSection label={h.objective} content={t.findings || data.findings || "Not documented"} color="#059669" />
+              <SoapSection label={h.assessment} content={t.diagnosis || data.diagnosis || "Not documented"} color="#d97706" highlight />
+              <SoapSection label={h.planLabel} content={t.plan || data.plan || "Not documented"} color="#7c3aed" />
             </div>
           </div>
 
