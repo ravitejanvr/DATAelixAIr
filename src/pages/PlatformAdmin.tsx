@@ -13,7 +13,7 @@ import {
   Building2, Users, FileText, Check, X, Loader2, ShieldAlert, Ban,
   Activity, TrendingUp, Clock, AlertTriangle, CheckCircle, XCircle, Zap,
   Shield, Cpu, Lock, Eye, UserCheck, UserX, MessageSquare, Flag,
-  BarChart3, Mail, Phone, MapPin, BookOpen
+  BarChart3, Mail, Phone, MapPin, BookOpen, Lightbulb
 } from "lucide-react";
 import AdminArticleEditor from "@/components/blog/AdminArticleEditor";
 import InnovationDashboard from "@/components/admin/InnovationDashboard";
