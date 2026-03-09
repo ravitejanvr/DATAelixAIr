@@ -1790,54 +1790,75 @@ export type Database = {
       profiles: {
         Row: {
           account_status: string
+          city: string | null
           clinic_id: string | null
           clinic_name: string | null
+          clinic_phone: string | null
           created_at: string
           designation: string | null
           email: string | null
+          email_domain_type: string | null
+          email_verified: boolean | null
           full_name: string
           id: string
           license_number: string | null
           phone: string | null
+          phone_verified: boolean | null
           role_subtype: string | null
           signature_text: string | null
           specialization: string | null
+          trust_score: number | null
           updated_at: string
           user_id: string
+          verification_status: string
         }
         Insert: {
           account_status?: string
+          city?: string | null
           clinic_id?: string | null
           clinic_name?: string | null
+          clinic_phone?: string | null
           created_at?: string
           designation?: string | null
           email?: string | null
+          email_domain_type?: string | null
+          email_verified?: boolean | null
           full_name?: string
           id?: string
           license_number?: string | null
           phone?: string | null
+          phone_verified?: boolean | null
           role_subtype?: string | null
           signature_text?: string | null
           specialization?: string | null
+          trust_score?: number | null
           updated_at?: string
           user_id: string
+          verification_status?: string
         }
         Update: {
           account_status?: string
+          city?: string | null
           clinic_id?: string | null
           clinic_name?: string | null
+          clinic_phone?: string | null
           created_at?: string
           designation?: string | null
           email?: string | null
+          email_domain_type?: string | null
+          email_verified?: boolean | null
           full_name?: string
           id?: string
           license_number?: string | null
           phone?: string | null
+          phone_verified?: boolean | null
           role_subtype?: string | null
           signature_text?: string | null
           specialization?: string | null
+          trust_score?: number | null
           updated_at?: string
           user_id?: string
+          verification_status?: string
         }
         Relationships: [
           {
@@ -1885,6 +1906,45 @@ export type Database = {
           source_language?: string | null
           updated_at?: string | null
           usage_count?: number | null
+        }
+        Relationships: []
+      }
+      risk_flags: {
+        Row: {
+          created_at: string
+          description: string
+          flag_type: string
+          id: string
+          metadata: Json | null
+          resolved: boolean | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          flag_type?: string
+          id?: string
+          metadata?: Json | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          flag_type?: string
+          id?: string
+          metadata?: Json | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          user_id?: string
         }
         Relationships: []
       }
