@@ -12,6 +12,7 @@ import {
   Thermometer, HeadsetIcon, Frown, Meh, Smile,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import PatientTrustBanner from "@/components/PatientTrustBanner";
 
 /* ─── Multilingual labels ─── */
 type Lang = "en" | "te" | "hi" | "ur";
