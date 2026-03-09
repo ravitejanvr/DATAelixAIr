@@ -1,13 +1,14 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import CommandPalette from "@/components/CommandPalette";
 import brainLogo from "@/assets/brain-logo-nobg.png";
+import { supabase } from "@/integrations/supabase/client";
 import {
-  LayoutDashboard, Stethoscope, Users, Pill, Activity,
-  LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput, ListOrdered,
-  Search, Settings, IndianRupee
+  LayoutDashboard, Stethoscope, Users, FileText, Activity,
+  LogOut, Menu, X, Globe, ListOrdered, Plus,
+  Search, Settings, IndianRupee, Building2, BarChart3, Shield
 } from "lucide-react";
 
 const navItems = [
