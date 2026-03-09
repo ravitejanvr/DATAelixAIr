@@ -654,16 +654,13 @@ export default function Clinical() {
       const consultationId = saveData.consultation_id;
       setSavedSessionId(consultationId);
 
-      // Explicitly update visit status via finalize-visit edge function
+      // Update visit status via update-visit-status edge function
       if (visitId) {
         try {
-          await supabase.functions.invoke("finalize-visit", {
+          await supabase.functions.invoke("update-visit-status", {
             body: {
               visit_id: visitId,
-              consultation_id: consultationId,
-              clinic_id: profileClinicId,
               target_status: "consultation_complete",
-              billing_enabled: true,
             },
           });
         } catch { /* non-blocking — finalize-consultation also handles status */ }
