@@ -171,6 +171,8 @@ const App = () => (
               <Route path="/billing" element={<ProtectedRoute allowedRoles={["doctor", "receptionist", "clinic_admin"]}><ClinicalLayout><Billing /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/clinic-settings" element={<ProtectedRoute allowedRoles={["doctor", "clinic_admin"]}><ClinicalLayout><ClinicAdmin /></ClinicalLayout></ProtectedRoute>} />
               
+              {/* Queue route aliases (prevents 404 from older navigation paths) */}
+              <Route path="/patient-queue" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><PatientQueue /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/queue" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><PatientQueue /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/front-desk" element={<ProtectedRoute allowedRoles={["front_desk", "receptionist", "clinic_admin", "doctor"]}><ClinicalLayout><FrontDesk /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/patient-portal" element={<ProtectedRoute allowedRoles={["patient"]}><PatientPortal /></ProtectedRoute>} />
