@@ -368,7 +368,7 @@ export default function PatientDetail() {
                             )}
 
                             {/* Follow-up */}
-                            {(c.follow_up_date || c.report_data?.consultation?.follow_up_date) && (
+                            {(c.follow_up_date || reportData?.consultation?.follow_up_date) && (
                               <div className="flex items-start gap-2">
                                 <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Follow-up:</span>
                                 <span className="text-foreground flex items-center gap-1">
