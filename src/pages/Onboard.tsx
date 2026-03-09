@@ -543,8 +543,8 @@ export default function Onboard() {
               </p>
             </div>
 
-            <div className="mx-auto max-w-sm rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 p-3">
-              <p className="text-xs text-amber-800 dark:text-amber-300 text-center">
+            <div className="mx-auto max-w-sm rounded-lg border border-border bg-muted p-3">
+              <p className="text-xs text-muted-foreground text-center">
                 🧪 SMS verification is currently in pilot mode.<br/>
                 <span className="font-semibold">Use code: 123456</span>
               </p>
