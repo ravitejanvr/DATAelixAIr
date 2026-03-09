@@ -13,7 +13,8 @@ const corsHeaders = {
  * Handles patient registration for QR walk-ins and admin intake:
  * 1. Detects returning patients by phone + clinic_id
  * 2. Creates or updates patient record
- * 3. Returns patient_id and whether this is a returning patient
+ * 3. Allows walk-ins without phone (generates TEMP placeholder)
+ * 4. Returns patient_id and whether this is a returning patient
  * 
  * Public endpoint (no JWT required) for QR self-intake
  */
@@ -41,12 +42,6 @@ serve(async (req) => {
       });
     }
 
-    if (!phone || typeof phone !== "string" || phone.trim().length < 10) {
-      return new Response(JSON.stringify({ error: "Valid phone number is required (10+ digits)" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const parsedAge = parseInt(age);
     if (isNaN(parsedAge) || parsedAge < 0 || parsedAge > 150) {
       return new Response(JSON.stringify({ error: "Valid age is required (0-150)" }), {
@@ -59,6 +54,13 @@ serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // ── Phone handling: allow walk-ins without phone ──
+    const hasPhone = phone && typeof phone === "string" && phone.trim().length >= 10;
+    const effectivePhone = hasPhone
+      ? phone.trim().slice(0, 15)
+      : `TEMP-${clinic_id.slice(0, 8)}-${Date.now()}`;
+    const phoneVerified = hasPhone;
 
     // ── Verify clinic exists ──
     const { data: clinic, error: clinicError } = await supabase
@@ -73,50 +75,77 @@ serve(async (req) => {
       });
     }
 
-    // ── Check for returning patient ──
-    const { data: existingPatients } = await supabase
-      .from("patients")
-      .select("id, doctor_id")
-      .eq("phone", phone.trim())
+    // ── Find a clinic doctor (REQUIRED) ──
+    const { data: clinicDoctor } = await supabase
+      .from("profiles")
+      .select("user_id")
       .eq("clinic_id", clinic_id)
       .limit(1);
 
+    const assignedDoctorId = clinicDoctor?.[0]?.user_id;
+    if (!assignedDoctorId) {
+      return new Response(JSON.stringify({ error: "Clinic has no assigned doctors. Please contact clinic administration." }), {
+        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Check for returning patient (only if real phone) ──
     let patientId: string;
-    let doctorId: string;
     let isReturning = false;
 
     const safeAllergies = Array.isArray(allergies) ? allergies.filter((a: any) => typeof a === "string").slice(0, 50) : [];
     const safeConditions = Array.isArray(conditions) ? conditions.filter((c: any) => typeof c === "string").slice(0, 50) : [];
 
-    if (existingPatients && existingPatients.length > 0) {
-      // Returning patient — update demographics
-      patientId = existingPatients[0].id;
-      doctorId = existingPatients[0].doctor_id;
-      isReturning = true;
-
-      await supabase.from("patients").update({
-        age: parsedAge,
-        gender: gender.toLowerCase(),
-        ...(safeAllergies.length > 0 ? { allergies: safeAllergies } : {}),
-      }).eq("id", patientId);
-    } else {
-      // New patient — find a clinic doctor for the required doctor_id
-      const { data: clinicDoctor } = await supabase
-        .from("profiles")
-        .select("user_id")
+    if (hasPhone) {
+      const { data: existingPatients } = await supabase
+        .from("patients")
+        .select("id, doctor_id")
+        .eq("phone", effectivePhone)
         .eq("clinic_id", clinic_id)
         .limit(1);
 
-      doctorId = clinicDoctor?.[0]?.user_id || clinic_id;
+      if (existingPatients && existingPatients.length > 0) {
+        // Returning patient — update demographics
+        patientId = existingPatients[0].id;
+        isReturning = true;
 
+        await supabase.from("patients").update({
+          age: parsedAge,
+          gender: gender.toLowerCase(),
+          ...(safeAllergies.length > 0 ? { allergies: safeAllergies } : {}),
+        }).eq("id", patientId);
+      } else {
+        // New patient with phone
+        const { data: newPatient, error: pErr } = await supabase
+          .from("patients")
+          .insert({
+            name: name.trim().slice(0, 200),
+            age: parsedAge,
+            gender: gender.toLowerCase(),
+            phone: effectivePhone,
+            doctor_id: assignedDoctorId,
+            clinic_id,
+            allergies: safeAllergies,
+            medical_history: safeConditions.length > 0
+              ? safeConditions.map((c: string) => ({ condition: c }))
+              : [],
+          })
+          .select("id")
+          .single();
+
+        if (pErr) throw new Error(`Patient creation failed: ${pErr.message}`);
+        patientId = newPatient.id;
+      }
+    } else {
+      // Walk-in without phone — always create new record
       const { data: newPatient, error: pErr } = await supabase
         .from("patients")
         .insert({
           name: name.trim().slice(0, 200),
           age: parsedAge,
           gender: gender.toLowerCase(),
-          phone: phone.trim().slice(0, 15),
-          doctor_id: doctorId,
+          phone: effectivePhone,
+          doctor_id: assignedDoctorId,
           clinic_id,
           allergies: safeAllergies,
           medical_history: safeConditions.length > 0
@@ -132,18 +161,23 @@ serve(async (req) => {
 
     // ── Audit log ──
     supabase.from("audit_logs").insert({
-      actor_id: doctorId,
+      actor_id: assignedDoctorId,
       clinic_id,
       event_type: isReturning ? "returning_patient_detected" : "patient_created",
       target_type: "patient",
       target_id: patientId,
-      metadata: { source: "qr_registration", is_returning: isReturning },
+      metadata: {
+        source: "qr_registration",
+        is_returning: isReturning,
+        phone_verified: phoneVerified,
+      },
     }).then(() => {});
 
     return new Response(JSON.stringify({
       patient_id: patientId,
       is_returning: isReturning,
       clinic_name: clinic.name,
+      phone_verified: phoneVerified,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
