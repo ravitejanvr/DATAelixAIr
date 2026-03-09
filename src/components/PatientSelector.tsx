@@ -99,7 +99,7 @@ export default function PatientSelector({ onSelect, selected }: PatientSelectorP
   }
 
   return (
-    <div className="relative">
+    <div className="relative" data-patient-selector>
       <div className="relative">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
         <Input
