@@ -140,6 +140,7 @@ export default function PlatformAdmin() {
   const [monitoringLoading, setMonitoringLoading] = useState(false);
   const [governanceAudit, setGovernanceAudit] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<AdminTab>(() => getTabFromPath(location.pathname));
+  const [smsConfigured, setSmsConfigured] = useState<boolean | null>(null);
 
   useEffect(() => { if (user) loadAll(); }, [user]);
   useEffect(() => { setActiveTab(getTabFromPath(location.pathname)); }, [location.pathname]);
