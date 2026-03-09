@@ -19,29 +19,73 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const { consultation_id, visit_id, target_language, bilingual } = await req.json();
+
+    let consultation_id: string | null = null;
+    let visit_id: string | null = null;
+    let target_language: string | null = null;
+    let bilingual = false;
+    let isTokenAccess = false;
+
+    // Support both GET (token-based) and POST (authenticated) access
+    if (req.method === "GET") {
+      const url = new URL(req.url);
+      const token = url.searchParams.get("token");
+      if (!token) {
+        return new Response(JSON.stringify({ error: "Token required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Validate token
+      const { data: tokenRecord, error: tokenErr } = await supabase
+        .from("report_tokens")
+        .select("consultation_id, expires_at")
+        .eq("token", token)
+        .single();
+
+      if (tokenErr || !tokenRecord) {
+        return new Response(JSON.stringify({ error: "Invalid or expired report token" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (new Date(tokenRecord.expires_at) < new Date()) {
+        return new Response(JSON.stringify({ error: "Report token has expired" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      consultation_id = tokenRecord.consultation_id;
+      isTokenAccess = true;
+    } else {
+      // POST: require auth
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user }, error: authError } = await userClient.auth.getUser();
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const body = await req.json();
+      consultation_id = body.consultation_id;
+      visit_id = body.visit_id;
+      target_language = body.target_language;
+      bilingual = body.bilingual || false;
+    }
 
     if (!consultation_id && !visit_id) {
       return new Response(JSON.stringify({ error: "consultation_id or visit_id required" }), {
@@ -367,19 +411,22 @@ serve(async (req) => {
       }
     }
 
-    // ── Audit log ──
-    supabase.from("audit_logs").insert({
-      actor_id: user.id,
-      clinic_id: clinicId,
-      event_type: "report_generated",
-      target_type: "consultation",
-      target_id: consultation.id,
-      metadata: {
-        target_language: target_language || "english",
-        bilingual: !!bilingual,
-        sections_included: Object.keys(report).filter(k => k !== "metadata" && k !== "disclaimer"),
-      },
-    }).then(() => {});
+    // ── Audit log (skip for token-based access) ──
+    if (!isTokenAccess) {
+      supabase.from("audit_logs").insert({
+        actor_id: doctorId,
+        clinic_id: clinicId,
+        event_type: "report_generated",
+        target_type: "consultation",
+        target_id: consultation.id,
+        metadata: {
+          target_language: target_language || "english",
+          bilingual: !!bilingual,
+          sections_included: Object.keys(report).filter(k => k !== "metadata" && k !== "disclaimer"),
+          token_access: isTokenAccess,
+        },
+      }).then(() => {});
+    }
 
     return new Response(JSON.stringify({
       report,
