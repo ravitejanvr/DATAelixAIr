@@ -251,11 +251,13 @@ export default function ConsultationDetail() {
               </div>
             )}
 
-            {/* AI Summary */}
-            {consultation.ai_summary && (
+            {/* Consultation Summary */}
+            {(consultation.ai_summary || reportData?.consultation?.visit_summary) && (
               <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
-                <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">AI Summary</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{consultation.ai_summary}</p>
+                <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">Consultation Summary</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">
+                  {reportData?.consultation?.visit_summary || consultation.ai_summary}
+                </p>
               </div>
             )}
 
