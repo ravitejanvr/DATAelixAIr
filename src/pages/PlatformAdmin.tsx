@@ -626,6 +626,11 @@ export default function PlatformAdmin() {
           <TabsContent value="articles" className="mt-4">
             <AdminArticleEditor />
           </TabsContent>
+
+          {/* Innovation Tab */}
+          <TabsContent value="innovation" className="mt-4">
+            <InnovationDashboard />
+          </TabsContent>
         </Tabs>
       </div>
     </>
