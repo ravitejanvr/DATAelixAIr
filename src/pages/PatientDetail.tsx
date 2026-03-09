@@ -329,7 +329,7 @@ export default function PatientDetail() {
                             )}
 
                             {/* Prescriptions */}
-                            {c.report_data?.prescriptions && c.report_data.prescriptions.length > 0 && (
+                            {reportData?.prescriptions && reportData.prescriptions.length > 0 && (
                               <div className="flex items-start gap-2">
                                 <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Rx:</span>
                                 <div className="flex flex-wrap gap-1">
