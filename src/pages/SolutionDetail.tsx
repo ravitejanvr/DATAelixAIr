@@ -248,6 +248,9 @@ const SolutionDetail = () => {
         </div>
       </section>
 
+      {/* Clinical Evidence */}
+      <ClinicalEvidenceSection feature={solution.slug} />
+
       {/* CTA */}
       <section className="bg-dark py-16">
         <div className="container mx-auto px-4 text-center">
