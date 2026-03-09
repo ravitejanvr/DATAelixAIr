@@ -333,6 +333,7 @@ export default function PlatformAdmin() {
             <TabsTrigger value="governance"><Shield className="h-3.5 w-3.5 mr-1" /> Governance</TabsTrigger>
             <TabsTrigger value="monitoring"><Activity className="h-3.5 w-3.5 mr-1" /> Monitoring</TabsTrigger>
             <TabsTrigger value="audit"><FileText className="h-3.5 w-3.5 mr-1" /> Audit</TabsTrigger>
+            <TabsTrigger value="articles"><BookOpen className="h-3.5 w-3.5 mr-1" /> Articles</TabsTrigger>
           </TabsList>
 
           {/* Pilots Tab */}
