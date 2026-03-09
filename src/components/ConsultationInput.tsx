@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Mic, Square, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import VoiceRecordingConsent, { hasVoiceConsent, setVoiceConsent } from "@/components/VoiceRecordingConsent";
 
 interface ConsultationInputProps {
   transcript: string;
