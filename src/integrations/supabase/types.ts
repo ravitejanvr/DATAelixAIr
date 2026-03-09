@@ -2627,6 +2627,79 @@ export type Database = {
         }
         Relationships: []
       }
+      vital_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          action_hint: string | null
+          clinic_id: string
+          created_at: string
+          doctor_id: string
+          id: string
+          message: string
+          override_reason: string | null
+          parameter: string
+          patient_id: string
+          severity: string
+          value: number
+          visit_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          action_hint?: string | null
+          clinic_id: string
+          created_at?: string
+          doctor_id: string
+          id?: string
+          message: string
+          override_reason?: string | null
+          parameter: string
+          patient_id: string
+          severity?: string
+          value: number
+          visit_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          action_hint?: string | null
+          clinic_id?: string
+          created_at?: string
+          doctor_id?: string
+          id?: string
+          message?: string
+          override_reason?: string | null
+          parameter?: string
+          patient_id?: string
+          severity?: string
+          value?: number
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vital_alerts_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vital_alerts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vital_alerts_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vitals: {
         Row: {
           blood_sugar: number | null
