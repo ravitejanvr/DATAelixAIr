@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -262,7 +263,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { medications, diagnosis, patient_age, allergies } = await req.json();
+    const { medications, diagnosis, patient_age, allergies, related_features } = await req.json();
 
     if (!medications || !Array.isArray(medications) || medications.length === 0) {
       return new Response(JSON.stringify({ error: "medications array required" }), {
@@ -355,10 +356,31 @@ serve(async (req) => {
     if (hasHighConfCitations && hasGuidelines) retrieval_confidence = "high";
     else if (hasCitations || hasGuidelines) retrieval_confidence = "moderate";
 
+    // 5. Query evidence_sources table for curated platform evidence
+    let platform_evidence: any[] = [];
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const sb = createClient(supabaseUrl, supabaseKey);
+
+      // Search by diagnosis keyword or related features
+      const searchTerms = [diagnosisText, ...medications.slice(0, 3)];
+      const { data: evidenceRows } = await sb
+        .from("evidence_sources")
+        .select("id, title, authors, journal, year, source_link, summary, related_feature, evidence_strength")
+        .or(searchTerms.map(t => `summary.ilike.%${t}%`).join(","))
+        .order("year", { ascending: false })
+        .limit(4);
+      platform_evidence = evidenceRows || [];
+    } catch (e) {
+      console.error("evidence_sources query failed:", e);
+    }
+
     return new Response(JSON.stringify({
       medication_evidence,
       guidelines,
       drug_safety,
+      platform_evidence,
       total_citations: totalCitations,
       retrieval_confidence,
       sources_queried: Array.from(sourcesQueried),

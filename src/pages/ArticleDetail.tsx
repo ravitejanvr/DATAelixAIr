@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 import ProductInsightBlock from "@/components/blog/ProductInsightBlock";
 import KeywordLinker from "@/components/blog/KeywordLinker";
+import ArticleEvidenceSources from "@/components/blog/ArticleEvidenceSources";
 
 // Safe accessor for article fields with defaults
 function safe(article: Article) {
@@ -388,6 +389,9 @@ function ArticleDetailInner() {
                   </Link>
                 </Button>
               </div>
+
+              {/* Database evidence sources */}
+              <ArticleEvidenceSources relatedFeatures={s.related_platform_features} />
 
               {/* Evidence panel */}
               <EvidenceSourcesPanel article={article} />
