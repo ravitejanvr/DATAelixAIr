@@ -156,7 +156,7 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Patient self-intake & QR registration (public, no auth) */}
-              <Route path="/patient-intake/:visitId" element={<PatientSelfIntake />} />
+              <Route path="/patient-intake" element={<PatientSelfIntake />} />
               <Route path="/register" element={<QRVisitRegistration />} />
               <Route path="/visit-journey/:visitId" element={<VisitJourney />} />
               <Route path="/visit-status/:visitId" element={<VisitStatus />} />
