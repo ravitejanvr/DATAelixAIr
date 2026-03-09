@@ -1,8 +1,9 @@
 import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, Download } from "lucide-react";
+import { ArrowLeft, Printer, Download, Loader2, Globe } from "lucide-react";
 import ConsultationReport, { type ReportData } from "@/components/ConsultationReport";
+import { useReportTranslation, type ReportLanguage } from "@/hooks/useReportTranslation";
 import SEO from "@/components/SEO";
 
 const DEMO_DATA: ReportData = {
@@ -61,18 +62,6 @@ const DEMO_DATA: ReportData = {
     "Ensure 7-8 hours of sleep",
     "Return immediately if severe headache, blurred vision, or chest pain occurs",
   ],
-  adviceTelugu: [
-    "రోజుకు 5 గ్రాములకు తక్కువగా ఉప్పు తీసుకోండి",
-    "రోజూ 30 నిమిషాలు నడవండి (ఉదయం మంచిది)",
-    "ఇంట్లో రోజుకు రెండుసార్లు BP చెక్ చేసుకోండి",
-    "తీవ్రమైన తలనొప్పి, మసకబారిన దృష్టి లేదా ఛాతీ నొప్పి వస్తే వెంటనే రండి",
-  ],
-  adviceHindi: [
-    "रोज़ाना 5 ग्राम से कम नमक लें",
-    "रोज़ 30 मिनट पैदल चलें (सुबह बेहतर)",
-    "घर पर दिन में दो बार BP जाँचें और रिकॉर्ड रखें",
-    "तेज सिरदर्द, धुंधली दृष्टि या सीने में दर्द हो तो तुरंत आएं",
-  ],
 
   followUpDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   followUpInstructions: "Review with BP log and lab reports. Bring all previous reports if available.",
@@ -82,9 +71,29 @@ const DEMO_DATA: ReportData = {
   consultationId: "DEMO-RPT-001",
 };
 
+const LANG_OPTIONS: { key: ReportLanguage; label: string; nativeLabel: string }[] = [
+  { key: "english", label: "English", nativeLabel: "English" },
+  { key: "telugu", label: "Telugu", nativeLabel: "తెలుగు" },
+  { key: "hindi", label: "Hindi", nativeLabel: "हिंदी" },
+];
+
 export default function ReportPreview() {
   const navigate = useNavigate();
   const reportRef = useRef<HTMLDivElement>(null);
+  const { language, setLanguage, translating, getTranslatedFields } = useReportTranslation();
+
+  const translatableFields = {
+    chiefComplaint: DEMO_DATA.chiefComplaint,
+    symptoms: DEMO_DATA.symptoms,
+    findings: DEMO_DATA.findings,
+    diagnosis: DEMO_DATA.diagnosis,
+    plan: DEMO_DATA.plan,
+    advice: DEMO_DATA.advice,
+    followUpInstructions: DEMO_DATA.followUpInstructions,
+  };
+
+  const translated = getTranslatedFields(translatableFields);
+  const currentLangOption = LANG_OPTIONS.find(l => l.key === language);
 
   const handlePrint = () => window.print();
 
@@ -107,7 +116,8 @@ export default function ReportPreview() {
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`DATAelixAIr_Demo_Report_${DEMO_DATA.patientName.replace(/\s/g, "_")}.pdf`);
+      const langSuffix = language !== "english" ? `_${language}` : "";
+      pdf.save(`DATAelixAIr_Report_${DEMO_DATA.patientName.replace(/\s/g, "_")}${langSuffix}.pdf`);
     } catch (err) {
       console.error("PDF generation failed:", err);
     }
@@ -118,23 +128,51 @@ export default function ReportPreview() {
       <SEO title="Report Preview — DATAelixAIr" description="Consultation report preview" />
 
       {/* Action bar — hidden during print */}
-      <div className="print:hidden sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back
-        </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-1" /> Print
+      <div className="print:hidden sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
+        <div className="max-w-[210mm] mx-auto flex items-center justify-between gap-3">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Back
           </Button>
-          <Button size="sm" onClick={handleDownloadPDF}>
-            <Download className="h-4 w-4 mr-1" /> Download PDF
-          </Button>
+
+          {/* Language Toggle */}
+          <div className="flex items-center gap-1.5">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground mr-1 hidden sm:inline">Language:</span>
+            {LANG_OPTIONS.map((opt) => (
+              <Button
+                key={opt.key}
+                variant={language === opt.key ? "default" : "outline"}
+                size="sm"
+                className="h-8 text-xs px-3 rounded-full"
+                disabled={translating}
+                onClick={() => setLanguage(opt.key, translatableFields)}
+              >
+                {translating && language !== opt.key && opt.key !== "english" ? null : null}
+                {opt.nativeLabel}
+              </Button>
+            ))}
+            {translating && <Loader2 className="h-4 w-4 animate-spin text-primary ml-1" />}
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handlePrint}>
+              <Printer className="h-4 w-4 mr-1" /> Print
+            </Button>
+            <Button size="sm" onClick={handleDownloadPDF}>
+              <Download className="h-4 w-4 mr-1" /> PDF
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Report */}
       <div className="bg-muted/30 py-8 print:py-0 print:bg-white min-h-screen">
-        <ConsultationReport ref={reportRef} data={DEMO_DATA} />
+        <ConsultationReport
+          ref={reportRef}
+          data={DEMO_DATA}
+          translated={language !== "english" ? translated : undefined}
+          languageLabel={currentLangOption?.label}
+        />
       </div>
     </>
   );
