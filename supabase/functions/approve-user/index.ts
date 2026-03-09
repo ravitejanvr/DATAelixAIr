@@ -60,7 +60,11 @@ serve(async (req) => {
       // Update profile
       const { error: profileErr } = await admin
         .from("profiles")
-        .update({ account_status: "approved", clinic_id })
+        .update({ 
+          account_status: "approved", 
+          verification_status: "approved",
+          clinic_id 
+        })
         .eq("user_id", target_user_id);
       if (profileErr) throw new Error(`Profile update failed: ${profileErr.message}`);
 
