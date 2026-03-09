@@ -20,6 +20,7 @@ const navItemsByRole = {
     { label: "Patients", path: "/patients", icon: Users },
     { label: "Reports", path: "/reports", icon: FileText },
     { label: "Billing", path: "/billing", icon: IndianRupee },
+    { label: "Clinic Settings", path: "/clinic-settings", icon: Settings },
   ],
   front_desk: [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
