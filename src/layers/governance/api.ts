@@ -184,7 +184,7 @@ export async function logAIOutputEdit(
   editMetrics: { originalLength: number; editedLength: number; significantChange: boolean },
   consultationId?: string
 ): Promise<void> {
-  await logAuditEvent({
+  await logGovernanceEvent({
     event_type: "ai_output_edited",
     actor_id: actorId,
     target_type: "consultation",
