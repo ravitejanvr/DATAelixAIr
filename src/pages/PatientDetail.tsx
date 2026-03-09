@@ -11,7 +11,7 @@ import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   ArrowLeft, User, Phone, Mail, Pill, AlertTriangle,
   Calendar, FileText, Stethoscope, Activity, Clock,
-  LogOut, Loader2, ChevronRight, BookOpen
+  LogOut, Loader2, ChevronRight, BookOpen, Beaker
 } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -50,6 +50,7 @@ interface Consultation {
   created_at: string;
   follow_up_date: string | null;
   tests_ordered: string[] | null;
+  report_data: Json | null;
 }
 
 export default function PatientDetail() {
@@ -71,7 +72,7 @@ export default function PatientDetail() {
       supabase.from("patients").select("*").eq("id", id!).single(),
       supabase
         .from("consultations")
-        .select("id, chief_complaint, ai_summary, status, soap_subjective, soap_assessment, soap_plan, created_at, follow_up_date, tests_ordered")
+        .select("id, chief_complaint, ai_summary, status, soap_subjective, soap_assessment, soap_plan, created_at, follow_up_date, tests_ordered, report_data")
         .eq("patient_id", id!)
         .order("created_at", { ascending: false }),
     ]);
@@ -245,7 +246,7 @@ export default function PatientDetail() {
 
               {/* Run analysis button */}
               <Button className="w-full mt-2" onClick={() => navigate("/clinical", { state: { patient } })}>
-                <Stethoscope className="h-4 w-4 mr-1" /> Run CDSS Analysis
+                <Stethoscope className="h-4 w-4 mr-1" /> Clinical Insights
               </Button>
             </CardContent>
           </Card>
@@ -275,7 +276,9 @@ export default function PatientDetail() {
                 <div className="absolute left-5 top-0 bottom-0 w-px bg-border" />
 
                 <div className="space-y-4">
-                  {consultations.map((c, idx) => (
+                  {consultations.map((c, idx) => {
+                    const reportData = c.report_data as any;
+                    return (
                     <div key={c.id} className="relative pl-12">
                       {/* Timeline dot */}
                       <div className={`absolute left-3.5 top-4 h-3 w-3 rounded-full border-2 border-card ${
@@ -286,8 +289,8 @@ export default function PatientDetail() {
 
                       <Card className="hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate(`/consultations/${c.id}`)}>
                         <CardContent className="py-4 px-5">
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-sm font-semibold text-foreground">
                                   {c.chief_complaint || "Clinical Assessment"}
@@ -298,60 +301,88 @@ export default function PatientDetail() {
                                   {c.status || "draft"}
                                 </span>
                               </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                 <Clock className="h-3 w-3" />
-                                {new Date(c.created_at).toLocaleString()}
-                                {c.follow_up_date && (
-                                  <span className="ml-2 flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" />
-                                    Follow-up: {new Date(c.follow_up_date).toLocaleDateString()}
-                                  </span>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="ml-auto text-xs h-6 px-2"
-                                  onClick={(e) => { e.stopPropagation(); navigate(`/prescriptions?consultation=${c.id}&patient=${patient.id}`); }}
-                                >
-                                  <Pill className="h-3 w-3 mr-1" /> Rx
-                                </Button>
+                                {new Date(c.created_at).toLocaleDateString()}
                               </div>
                             </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs h-7 px-2"
+                              onClick={(e) => { e.stopPropagation(); navigate(`/prescriptions?consultation=${c.id}&patient=${patient.id}`); }}
+                            >
+                              <Pill className="h-3 w-3 mr-1" /> Rx
+                            </Button>
                           </div>
 
-                          {/* AI Summary preview */}
-                          {c.ai_summary && (
-                            <p className="text-sm text-muted-foreground line-clamp-2 mt-2 border-l-2 border-primary/30 pl-3">
-                              {c.ai_summary.substring(0, 200)}...
-                            </p>
-                          )}
+                          {/* Structured Preview */}
+                          <div className="space-y-2 text-sm">
+                            {/* Diagnosis */}
+                            {(reportData?.consultation?.diagnosis || c.soap_assessment) && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Diagnosis:</span>
+                                <span className="text-foreground line-clamp-1">
+                                  {reportData?.consultation?.diagnosis || c.soap_assessment}
+                                </span>
+                              </div>
+                            )}
 
-                          {/* SOAP preview */}
-                          {!c.ai_summary && c.soap_assessment && (
-                            <p className="text-sm text-muted-foreground line-clamp-2 mt-2 border-l-2 border-primary/30 pl-3">
-                              {c.soap_assessment.substring(0, 200)}...
-                            </p>
-                          )}
+                            {/* Prescriptions */}
+                            {reportData?.prescriptions && reportData.prescriptions.length > 0 && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Rx:</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {reportData.prescriptions.slice(0, 2).map((rx: any, i: number) => (
+                                    <Badge key={i} variant="outline" className="text-[10px]">
+                                      {rx.drug_name}
+                                    </Badge>
+                                  ))}
+                                  {reportData.prescriptions.length > 2 && (
+                                    <Badge variant="outline" className="text-[10px]">
+                                      +{reportData.prescriptions.length - 2}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            )}
 
-                          {/* Tests ordered */}
-                          {c.tests_ordered && c.tests_ordered.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {c.tests_ordered.slice(0, 3).map((t, i) => (
-                                <Badge key={i} variant="outline" className="text-[10px]">
-                                  <BookOpen className="h-2.5 w-2.5 mr-0.5" /> {t}
-                                </Badge>
-                              ))}
-                              {c.tests_ordered.length > 3 && (
-                                <Badge variant="outline" className="text-[10px]">
-                                  +{c.tests_ordered.length - 3} more
-                                </Badge>
-                              )}
-                            </div>
-                          )}
+                            {/* Lab Orders */}
+                            {(reportData?.lab_orders && reportData.lab_orders.length > 0) || (c.tests_ordered && c.tests_ordered.length > 0) && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Tests:</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {(reportData?.lab_orders || c.tests_ordered || []).slice(0, 2).map((test: any, i: number) => (
+                                    <Badge key={i} variant="secondary" className="text-[10px]">
+                                      <Beaker className="h-2.5 w-2.5 mr-0.5" />
+                                      {typeof test === 'string' ? test : test.test_name}
+                                    </Badge>
+                                  ))}
+                                  {(reportData?.lab_orders || c.tests_ordered || []).length > 2 && (
+                                    <Badge variant="secondary" className="text-[10px]">
+                                      +{(reportData?.lab_orders || c.tests_ordered || []).length - 2}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Follow-up */}
+                            {(c.follow_up_date || reportData?.consultation?.follow_up_date) && (
+                              <div className="flex items-start gap-2">
+                                <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Follow-up:</span>
+                                <span className="text-foreground flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {new Date(reportData?.consultation?.follow_up_date || c.follow_up_date).toLocaleDateString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </CardContent>
                       </Card>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
             )}

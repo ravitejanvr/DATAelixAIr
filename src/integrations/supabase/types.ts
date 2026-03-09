@@ -289,6 +289,7 @@ export type Database = {
           patient_id: string
           pubmed_citations: Json | null
           raw_transcript: string | null
+          report_data: Json | null
           review_confirmed: boolean | null
           risk_assessment: Json | null
           safety_flags: Json | null
@@ -322,6 +323,7 @@ export type Database = {
           patient_id: string
           pubmed_citations?: Json | null
           raw_transcript?: string | null
+          report_data?: Json | null
           review_confirmed?: boolean | null
           risk_assessment?: Json | null
           safety_flags?: Json | null
@@ -355,6 +357,7 @@ export type Database = {
           patient_id?: string
           pubmed_citations?: Json | null
           raw_transcript?: string | null
+          report_data?: Json | null
           review_confirmed?: boolean | null
           risk_assessment?: Json | null
           safety_flags?: Json | null
