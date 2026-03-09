@@ -411,19 +411,22 @@ serve(async (req) => {
       }
     }
 
-    // ── Audit log ──
-    supabase.from("audit_logs").insert({
-      actor_id: user.id,
-      clinic_id: clinicId,
-      event_type: "report_generated",
-      target_type: "consultation",
-      target_id: consultation.id,
-      metadata: {
-        target_language: target_language || "english",
-        bilingual: !!bilingual,
-        sections_included: Object.keys(report).filter(k => k !== "metadata" && k !== "disclaimer"),
-      },
-    }).then(() => {});
+    // ── Audit log (skip for token-based access) ──
+    if (!isTokenAccess) {
+      supabase.from("audit_logs").insert({
+        actor_id: doctorId,
+        clinic_id: clinicId,
+        event_type: "report_generated",
+        target_type: "consultation",
+        target_id: consultation.id,
+        metadata: {
+          target_language: target_language || "english",
+          bilingual: !!bilingual,
+          sections_included: Object.keys(report).filter(k => k !== "metadata" && k !== "disclaimer"),
+          token_access: isTokenAccess,
+        },
+      }).then(() => {});
+    }
 
     return new Response(JSON.stringify({
       report,
