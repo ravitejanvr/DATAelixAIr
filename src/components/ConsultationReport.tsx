@@ -290,9 +290,9 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
           </div>
 
           {/* ═══ 7. INVESTIGATIONS ═══ */}
-          {data.labOrders && data.labOrders.length > 0 && (
-            <div className="mb-4">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.investigations}</h2>
+          <div className="mb-4">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.investigations}</h2>
+            {data.labOrders && data.labOrders.length > 0 ? (
               <table className="w-full border-collapse text-[10px]">
                 <thead>
                   <tr className="bg-gray-100">
@@ -319,8 +319,10 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
+            ) : (
+              <p className="text-[11px] text-gray-400 italic border border-dashed border-gray-200 rounded p-3 text-center">No investigations ordered.</p>
+            )}
+          </div>
 
           {/* ═══ 8. PATIENT INSTRUCTIONS ═══ */}
           {((t.advice && t.advice.length > 0) || (data.advice && data.advice.length > 0)) && (
