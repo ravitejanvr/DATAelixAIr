@@ -5,7 +5,8 @@ import {
   Mic, FileText, Stethoscope, ShieldCheck, Lock, Globe, ArrowRight,
   UserCheck, ClipboardCheck, Share2, PenLine, BrainCircuit, MessageSquare,
   AlertTriangle, Layers, Clock, HeartPulse, Eye, FlaskConical, Pill,
-  Users, CheckCircle2, XCircle, Sparkles
+  Users, CheckCircle2, XCircle, Sparkles, Activity, Receipt, Send,
+  Monitor, BookOpen
 } from "lucide-react";
 import SEO from "@/components/SEO";
 
@@ -23,7 +24,7 @@ const sectionIn = {
 const workflowSteps = [
   { icon: ClipboardCheck, label: "Patient Intake" },
   { icon: PenLine, label: "Write / Record" },
-  { icon: BrainCircuit, label: "AI Clinical Assistant" },
+  { icon: BrainCircuit, label: "AI Clinical Copilot" },
   { icon: UserCheck, label: "Doctor Review" },
   { icon: Pill, label: "Rx & Lab Orders" },
   { icon: Share2, label: "Report + SMS" },
@@ -33,13 +34,13 @@ const workflowSteps = [
 const problems = [
   { icon: Clock, title: "Excessive Documentation", desc: "Doctors spend more time typing than treating — clinical notes, prescriptions, and reports eat into every consultation." },
   { icon: Layers, title: "Fragmented Systems", desc: "Patient intake, prescriptions, lab orders, and billing live in different tools that don't talk to each other." },
-  { icon: MessageSquare, title: "Unclear Patient Communication", desc: "Patients leave without understanding their diagnosis, medications, or follow-up plan." },
+  { icon: MessageSquare, title: "Patients Leave Without Clear Instructions", desc: "Patients walk out of consultations without understanding their diagnosis, medications, or follow-up plan." },
 ];
 
 /* ─── Solution Steps ─── */
 const solutionSteps = [
   { num: "1", icon: PenLine, title: "Write or Record", desc: "Type your notes naturally or record the consultation. Both inputs feed the same clinical workspace." },
-  { num: "2", icon: BrainCircuit, title: "AI Organises the Care Plan", desc: "Clinical notes, prescriptions, lab orders, and patient summaries are structured automatically." },
+  { num: "2", icon: BrainCircuit, title: "AI Structures the Clinical Note", desc: "SOAP notes, prescriptions, lab orders, and patient summaries are structured automatically from your input." },
   { num: "3", icon: UserCheck, title: "Doctor Reviews & Finalises", desc: "Every AI output is a draft. You review, edit, and approve before anything reaches the patient." },
 ];
 
@@ -47,9 +48,9 @@ const solutionSteps = [
 const productSteps = [
   { icon: ClipboardCheck, title: "Patient Intake", desc: "Front desk registers the patient, records vitals, and captures chief complaint." },
   { icon: Mic, title: "Consultation", desc: "Doctor writes or records the consultation in a clinical workspace built for speed." },
-  { icon: BrainCircuit, title: "AI Clinical Assistant", desc: "SOAP notes, prescriptions, lab orders, and safety checks generated in seconds." },
+  { icon: BrainCircuit, title: "AI Clinical Copilot", desc: "SOAP notes, prescriptions, lab orders, and safety checks generated in seconds." },
   { icon: UserCheck, title: "Doctor Review", desc: "Clinician reviews every AI output, edits if needed, and approves with one click." },
-  { icon: Share2, title: "Patient Report", desc: "Multilingual patient summary sent via SMS or WhatsApp — diagnosis, medications, and follow-up." },
+  { icon: Share2, title: "Patient Summary & Instructions", desc: "Multilingual patient summary sent via SMS or WhatsApp — diagnosis, medications, and follow-up instructions." },
 ];
 
 /* ─── Benefits ─── */
@@ -65,6 +66,17 @@ const safetyItems = [
   { icon: HeartPulse, title: "Clinical Safety Checks", desc: "Drug interactions, allergy conflicts, and diagnostic inconsistencies are flagged automatically." },
   { icon: Eye, title: "Transparent AI Outputs", desc: "Every AI-generated note includes confidence indicators and source reasoning for clinician review." },
   { icon: Lock, title: "Secure Data Handling", desc: "End-to-end encryption, role-based access, and compliance with HIPAA, GDPR & India DPDP 2023." },
+  { icon: BookOpen, title: "Evidence-Linked Suggestions", desc: "Clinical recommendations are supported by guideline references where applicable." },
+];
+
+/* ─── Clinic Operations ─── */
+const clinicOps = [
+  { icon: Stethoscope, title: "Consultation", desc: "AI-assisted clinical documentation with SOAP notes and structured outputs." },
+  { icon: Pill, title: "Prescription", desc: "Auto-generated prescriptions with drug interaction and allergy safety checks." },
+  { icon: FlaskConical, title: "Lab Orders", desc: "One-click lab orders linked to diagnosis with result tracking." },
+  { icon: FileText, title: "Reports", desc: "Multilingual patient reports with diagnosis, medications, and follow-up." },
+  { icon: Receipt, title: "Billing", desc: "Automatic invoice generation tied to consultation and lab charges." },
+  { icon: Send, title: "Patient Messaging", desc: "SMS and WhatsApp delivery of reports, instructions, and follow-up reminders." },
 ];
 
 const Index = () => (
@@ -123,6 +135,7 @@ const Index = () => (
               { icon: FileText, text: "AI-assisted documentation" },
               { icon: UserCheck, text: "Doctor-controlled decisions" },
               { icon: Globe, text: "Multilingual patient reports" },
+              { icon: ShieldCheck, text: "Built with clinical safety guardrails" },
             ].map((t) => (
               <span key={t.text} className="flex items-center gap-1.5">
                 <t.icon className="w-3.5 h-3.5 text-primary" />
@@ -244,9 +257,140 @@ const Index = () => (
     </section>
 
     {/* ════════════════════════════════════════════
-        PRODUCT WORKFLOW
+        CLINICAL WORKSPACE (NEW)
     ════════════════════════════════════════════ */}
     <section className="py-24 bg-card border-y border-border">
+      <div className="container mx-auto px-4">
+        <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
+          <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Workspace</p>
+          <h2 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
+            The Consultation{" "}
+            <em className="not-italic text-primary">Cockpit</em>
+          </h2>
+          <p className="mt-5 text-muted-foreground font-light leading-relaxed max-w-lg mx-auto">
+            Vitals, symptoms, transcript, AI suggestions, and safety checks — all in one workspace. No tab-switching, no context loss.
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7 }}
+          className="max-w-4xl mx-auto"
+        >
+          <div className="border border-border rounded-2xl bg-background overflow-hidden shadow-card">
+            <div className="h-[3px] gradient-teal" />
+            <div className="p-6">
+              {/* Mock cockpit layout */}
+              <div className="grid grid-cols-12 gap-3">
+                {/* Left panel */}
+                <div className="col-span-12 md:col-span-3 space-y-2">
+                  <div className="border border-border rounded-xl p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Activity className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-[0.6rem] font-semibold text-foreground uppercase tracking-wide">Patient Context</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="h-2 rounded-full bg-muted w-full" />
+                      <div className="h-2 rounded-full bg-muted w-3/4" />
+                      <div className="h-2 rounded-full bg-muted w-5/6" />
+                    </div>
+                    <div className="mt-3 flex gap-1 flex-wrap">
+                      {["BP: 130/85", "Pulse: 78", "SpO₂: 98%"].map(v => (
+                        <span key={v} className="text-[0.5rem] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">{v}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="border border-border rounded-xl p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <HeartPulse className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-[0.6rem] font-semibold text-foreground uppercase tracking-wide">Symptoms</span>
+                    </div>
+                    <div className="flex gap-1 flex-wrap">
+                      {["Fever", "Cough", "Fatigue"].map(s => (
+                        <span key={s} className="text-[0.5rem] px-1.5 py-0.5 rounded-full border border-primary/30 text-primary font-medium">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Center panel */}
+                <div className="col-span-12 md:col-span-6 space-y-2">
+                  <div className="border border-border rounded-xl p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <PenLine className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-[0.6rem] font-semibold text-foreground uppercase tracking-wide">Clinical Builder</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="h-2 rounded-full bg-muted w-full" />
+                      <div className="h-2 rounded-full bg-muted w-5/6" />
+                      <div className="h-2 rounded-full bg-muted w-full" />
+                      <div className="h-2 rounded-full bg-muted w-2/3" />
+                    </div>
+                  </div>
+                  <div className="border border-border rounded-xl p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <BrainCircuit className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-[0.6rem] font-semibold text-foreground uppercase tracking-wide">AI Care Plan</span>
+                      <span className="ml-auto text-[0.45rem] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold uppercase">Draft</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {["SOAP Notes", "Prescription", "Lab Orders", "Follow-up"].map(item => (
+                        <div key={item} className="border border-primary/20 rounded-lg p-2 bg-primary/5">
+                          <span className="text-[0.5rem] font-semibold text-primary">{item}</span>
+                          <div className="mt-1 h-1.5 rounded-full bg-primary/20 w-full" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right panel */}
+                <div className="col-span-12 md:col-span-3 space-y-2">
+                  <div className="border border-border rounded-xl p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-[0.6rem] font-semibold text-foreground uppercase tracking-wide">Safety</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-[0.5rem]">
+                        <CheckCircle2 className="w-3 h-3 text-green-500" />
+                        <span className="text-muted-foreground">No drug interactions</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[0.5rem]">
+                        <CheckCircle2 className="w-3 h-3 text-green-500" />
+                        <span className="text-muted-foreground">No allergy conflicts</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[0.5rem]">
+                        <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                        <span className="text-muted-foreground">Monitor renal function</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border border-border rounded-xl p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-[0.6rem] font-semibold text-foreground uppercase tracking-wide">AI Copilot</span>
+                    </div>
+                    <div className="space-y-1">
+                      {["Consider CBC", "Add Paracetamol 500mg", "Schedule follow-up 5d"].map(s => (
+                        <div key={s} className="text-[0.5rem] px-1.5 py-1 rounded bg-muted text-muted-foreground">{s}</div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </section>
+
+    {/* ════════════════════════════════════════════
+        PRODUCT WORKFLOW
+    ════════════════════════════════════════════ */}
+    <section className="py-24 bg-background">
       <div className="container mx-auto px-4">
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Product</p>
@@ -264,7 +408,7 @@ const Index = () => (
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.08 }}
-              className="relative border border-border rounded-2xl p-6 bg-background hover:border-primary/30 hover:shadow-card-hover transition-all text-center"
+              className="relative border border-border rounded-2xl p-6 bg-card hover:border-primary/30 hover:shadow-card-hover transition-all text-center"
             >
               <span className="text-[0.55rem] font-mono font-bold text-primary/40 uppercase tracking-widest">{String(i + 1).padStart(2, "0")}</span>
               <div className="w-11 h-11 rounded-xl teal-muted-bg border teal-muted-border flex items-center justify-center mx-auto mt-2 mb-3">
@@ -275,6 +419,43 @@ const Index = () => (
               {i < productSteps.length - 1 && (
                 <ArrowRight className="hidden lg:block absolute -right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/20 z-10" />
               )}
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    {/* ════════════════════════════════════════════
+        CLINIC OPERATIONS (NEW)
+    ════════════════════════════════════════════ */}
+    <section className="py-24 bg-card border-y border-border">
+      <div className="container mx-auto px-4">
+        <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
+          <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Platform</p>
+          <h2 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
+            Designed for the{" "}
+            <em className="not-italic text-primary">Entire Patient Visit</em>
+          </h2>
+          <p className="mt-5 text-muted-foreground font-light leading-relaxed max-w-lg mx-auto">
+            Beyond documentation — DATAelixAIr covers every operational step from consultation to patient messaging.
+          </p>
+        </motion.div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-4xl mx-auto">
+          {clinicOps.map((op, i) => (
+            <motion.div
+              key={op.title}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.08 }}
+              className="border border-border rounded-2xl p-6 bg-background hover:border-primary/30 transition-all"
+            >
+              <div className="w-10 h-10 rounded-xl teal-muted-bg border teal-muted-border flex items-center justify-center mb-4">
+                <op.icon className="text-primary" size={18} />
+              </div>
+              <h3 className="font-display text-sm font-bold text-foreground mb-1.5">{op.title}</h3>
+              <p className="text-xs text-muted-foreground font-light leading-relaxed">{op.desc}</p>
             </motion.div>
           ))}
         </div>
@@ -328,7 +509,7 @@ const Index = () => (
           </h2>
         </motion.div>
 
-        <div className="grid sm:grid-cols-2 gap-5 max-w-3xl mx-auto">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-4xl mx-auto">
           {safetyItems.map((s, i) => (
             <motion.div
               key={s.title}
