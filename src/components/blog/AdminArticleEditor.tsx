@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Plus, Pencil, Check, Trash2, Loader2, BookOpen, Eye, Archive,
-  FileText, Search, Sparkles
+  FileText, Search, Sparkles, Radar
 } from "lucide-react";
 import { categories, generateSlug, type ArticleCategory, type ArticleStatus, type SourceType } from "@/lib/blog-data";
 

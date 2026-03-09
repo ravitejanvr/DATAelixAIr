@@ -138,6 +138,9 @@ const Blog = () => {
         </div>
       </section>
 
+      {/* Research Radar */}
+      {activeFilter === "All" && <ResearchRadar />}
+
       {/* Trending Research */}
       {activeFilter === "All" && <TrendingResearch items={trendingResearch} />}
 
