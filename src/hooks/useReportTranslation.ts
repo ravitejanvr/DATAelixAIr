@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 export type ReportLanguage = "english" | "telugu" | "hindi";
 
 export interface TranslatableFields {
+  visitSummary?: string | null;
   chiefComplaint?: string | null;
   symptoms?: string | null;
   findings?: string | null;
