@@ -449,6 +449,66 @@ export type Database = {
           },
         ]
       }
+      clinical_guidelines: {
+        Row: {
+          applicable_drugs: string[]
+          applicable_tests: string[]
+          clinical_topic: string
+          condition: string
+          created_at: string
+          evidence_grade: string
+          guideline_url: string | null
+          id: string
+          is_active: boolean
+          keywords: string[]
+          recommendation_text: string
+          source: string
+          source_organization: string
+          summary: string
+          title: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          applicable_drugs?: string[]
+          applicable_tests?: string[]
+          clinical_topic?: string
+          condition?: string
+          created_at?: string
+          evidence_grade?: string
+          guideline_url?: string | null
+          id?: string
+          is_active?: boolean
+          keywords?: string[]
+          recommendation_text?: string
+          source?: string
+          source_organization?: string
+          summary?: string
+          title: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          applicable_drugs?: string[]
+          applicable_tests?: string[]
+          clinical_topic?: string
+          condition?: string
+          created_at?: string
+          evidence_grade?: string
+          guideline_url?: string | null
+          id?: string
+          is_active?: boolean
+          keywords?: string[]
+          recommendation_text?: string
+          source?: string
+          source_organization?: string
+          summary?: string
+          title?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
       clinics: {
         Row: {
           country: string | null
