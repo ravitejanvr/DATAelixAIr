@@ -37,7 +37,7 @@ export const MagicLinkEmail = ({
         />
         <Heading style={h1}>Your login link</Heading>
         <Text style={text}>
-          Click below to log in to DATAelixAIr. This link will expire shortly.
+          Click below to log in to DATAelixAIr™. This link will expire shortly.
         </Text>
         <Button style={button} href={confirmationUrl}>
           Log In →
