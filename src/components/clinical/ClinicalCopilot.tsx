@@ -333,6 +333,29 @@ export default function ClinicalCopilot({
                     </div>
                   )}
 
+                  {/* Platform evidence from evidence_sources table */}
+                  {(evidence as any).platform_evidence?.length > 0 && (
+                    <div className="space-y-1.5 pt-2 border-t border-border">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+                        Platform Research
+                      </p>
+                      {(evidence as any).platform_evidence.map((pe: any, i: number) => (
+                        <div key={i} className="text-xs">
+                          <p className="font-semibold text-foreground">{pe.title}</p>
+                          <p className="text-muted-foreground text-[11px]">
+                            {pe.journal} · {pe.year}
+                          </p>
+                          <p className="text-muted-foreground text-[10px] mt-0.5">{pe.summary}</p>
+                          {pe.source_link && (
+                            <a href={pe.source_link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-[10px]">
+                              View source →
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <p className="text-[9px] text-muted-foreground italic pt-1 border-t border-border">
                     Evidence is advisory only. Clinical judgment required.
                   </p>
