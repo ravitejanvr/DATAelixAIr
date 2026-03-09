@@ -274,13 +274,8 @@ export default function PatientPortal() {
               </CardContent>
             </Card>
 
-            {/* Security footer */}
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10">
-              <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-              <p className="text-xs text-muted-foreground">
-                Your health records are encrypted and protected under HIPAA, UK GDPR & India DPDP Act. Only your treating doctor and you can access this data.
-              </p>
-            </div>
+            {/* Trust & Privacy banner */}
+            <PatientTrustBanner />
           </>
         )}
       </main>
