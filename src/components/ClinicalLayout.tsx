@@ -210,7 +210,7 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
             <nav className="space-y-1">
               {navItems.map((item) => (
                 <button
-                  key={item.path}
+                  key={`${item.path}:${item.label}`}
                   onClick={() => { navigate(item.path); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm ${
                     location.pathname === item.path ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"

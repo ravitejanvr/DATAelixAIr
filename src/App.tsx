@@ -161,6 +161,7 @@ const App = () => (
               <Route path="/dashboard" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><Dashboard /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/clinical" element={<ProtectedRoute allowedRoles={["doctor", "clinic_admin"]}><ClinicalLayout><Clinical /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/patients" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><Patients /></ClinicalLayout></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><Reports /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/patients/:id" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><PatientDetail /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/prescriptions" element={<ProtectedRoute allowedRoles={["doctor", "pharmacist", "clinic_admin"]}><ClinicalLayout><Prescriptions /></ClinicalLayout></ProtectedRoute>} />
               <Route path="/consultations/:id" element={<ProtectedRoute allowedRoles={clinicalRoles}><ClinicalLayout><ConsultationDetail /></ClinicalLayout></ProtectedRoute>} />
