@@ -206,12 +206,10 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
           </div>
 
           {/* ═══ 3. VISIT SUMMARY ═══ */}
-          {(t.visitSummary || data.visitSummary) && (
-            <div className="mb-4 p-3 bg-[#f0f9ff] border border-[#bae6fd] rounded">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-1.5">{h.visitSummary}</h2>
-              <p className="text-[11px] text-gray-800 leading-relaxed">{t.visitSummary || data.visitSummary}</p>
-            </div>
-          )}
+          <div className="mb-4 p-3 bg-[#f0f9ff] border border-[#bae6fd] rounded">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-1.5">{h.visitSummary}</h2>
+            <p className="text-[11px] text-gray-800 leading-relaxed">{t.visitSummary || data.visitSummary || "No visit summary recorded."}</p>
+          </div>
 
           {/* ═══ 4. VITALS ═══ */}
           {data.vitals && (
