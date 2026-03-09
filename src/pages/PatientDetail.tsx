@@ -348,7 +348,7 @@ export default function PatientDetail() {
                             )}
 
                             {/* Lab Orders */}
-                            {(c.report_data?.lab_orders && c.report_data.lab_orders.length > 0) || (c.tests_ordered && c.tests_ordered.length > 0) && (
+                            {(reportData?.lab_orders && reportData.lab_orders.length > 0) || (c.tests_ordered && c.tests_ordered.length > 0) && (
                               <div className="flex items-start gap-2">
                                 <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Tests:</span>
                                 <div className="flex flex-wrap gap-1">
