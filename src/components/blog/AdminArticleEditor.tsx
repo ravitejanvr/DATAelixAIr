@@ -92,8 +92,29 @@ export default function AdminArticleEditor() {
     setLoading(false);
   };
 
+  const validateForPublish = (article: Partial<DbArticle>): string[] => {
+    const errors: string[] = [];
+    if (!article.title?.trim()) errors.push("Title is required");
+    if (!article.slug?.trim()) errors.push("Slug is required");
+    if (!article.category?.trim()) errors.push("Category is required");
+    if (!article.summary?.trim()) errors.push("Summary is required");
+    if (!article.content?.trim()) errors.push("Content is required");
+    if (!article.publish_date) errors.push("Publish date is required");
+    return errors;
+  };
+
   const save = async () => {
     if (!editing?.title) { toast({ title: "Title required", variant: "destructive" }); return; }
+
+    // If publishing, validate required fields
+    if (editing.status === "published") {
+      const errors = validateForPublish(editing);
+      if (errors.length > 0) {
+        toast({ title: "Cannot publish", description: errors.join(", "), variant: "destructive" });
+        return;
+      }
+    }
+
     setSaving(true);
     const slug = editing.slug || generateSlug(editing.title);
     const payload = {
