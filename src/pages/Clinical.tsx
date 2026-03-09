@@ -1224,11 +1224,9 @@ export default function Clinical() {
           </div>
           )}
 
-          {/* ═══ RIGHT: AI Copilot Sidebar ═══ */}
-          <div className="overflow-y-auto border-l border-border bg-card/30 max-lg:hidden">
+          {/* ═══ RIGHT: AI Copilot Sidebar — desktop ═══ */}
+          <div className="overflow-y-auto border-l border-border bg-card/30 hidden lg:block">
             <div className="p-3 space-y-2.5">
-
-              {/* Copilot Header */}
               <div className="flex items-center gap-2 px-0.5">
                 <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center relative">
                   <Zap className="h-3.5 w-3.5 text-primary" />
@@ -1237,8 +1235,6 @@ export default function Clinical() {
                 <span className="text-sm font-semibold text-foreground">AI Copilot</span>
                 <Badge className="bg-chip-medication border-chip-medication-border text-chip-medication-text text-[10px] ml-auto">Active</Badge>
               </div>
-
-              {/* Clinical Copilot Component */}
               {selectedPatient && (
                 <ClinicalCopilot
                   diagnoses={copilotDiagnoses}
@@ -1265,6 +1261,62 @@ export default function Clinical() {
               )}
             </div>
           </div>
+
+          {/* ═══ MOBILE: AI Copilot Floating Drawer ═══ */}
+          {selectedPatient && (
+            <div className="lg:hidden fixed bottom-4 right-4 z-50">
+              {!copilotDrawerOpen ? (
+                <Button
+                  onClick={() => setCopilotDrawerOpen(true)}
+                  className="h-12 w-12 rounded-full shadow-lg p-0"
+                >
+                  <Zap className="h-5 w-5" />
+                </Button>
+              ) : (
+                <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" onClick={() => setCopilotDrawerOpen(false)}>
+                  <div
+                    className="absolute bottom-0 left-0 right-0 max-h-[75vh] bg-card border-t border-border rounded-t-2xl overflow-y-auto shadow-2xl"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <div className="sticky top-0 bg-card border-b border-border p-3 flex items-center justify-between z-10">
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-semibold">AI Copilot</span>
+                        <Badge className="bg-chip-medication border-chip-medication-border text-chip-medication-text text-[10px]">Active</Badge>
+                      </div>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setCopilotDrawerOpen(false)}>
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="p-3">
+                      <ClinicalCopilot
+                        diagnoses={copilotDiagnoses}
+                        selectedDiagnoses={selectedDiagnoses}
+                        onToggleDiagnosis={toggleDiagnosis}
+                        tests={copilotTests}
+                        selectedTests={selectedTests}
+                        onToggleTest={toggleTest}
+                        medications={contextualRx}
+                        selectedMedications={pendingRxFromSuggestions}
+                        onToggleMedication={(rx) => {
+                          if (pendingRxFromSuggestions.some(p => p.drug_name === rx.drug)) {
+                            setPendingRxFromSuggestions(prev => prev.filter(p => p.drug_name !== rx.drug));
+                          } else {
+                            setPendingRxFromSuggestions(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur }]);
+                            toast({ title: `+ ${rx.drug}` });
+                          }
+                        }}
+                        safetyResults={safetyResults}
+                        patientAge={selectedPatient?.age}
+                        allergies={selectedPatient?.allergies || []}
+                        diagnosis={selectedDiagnoses[0]}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>

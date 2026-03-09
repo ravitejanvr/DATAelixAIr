@@ -186,7 +186,7 @@ export default function Billing() {
                     <div>
                       <label className="text-[10px] text-muted-foreground font-medium">Payment Mode</label>
                       <div className="flex flex-wrap gap-1.5 mt-1">
-                        {["cash", "upi", "card"].map(m => (
+                        {["cash", "upi", "card", "netbanking", "online_link"].map(m => (
                           <Chip key={m} variant={paymentMode === m ? "action" : "neutral"} selected={paymentMode === m} onClick={() => setPaymentMode(m)} size="sm" className="capitalize">{m}</Chip>
                         ))}
                       </div>
