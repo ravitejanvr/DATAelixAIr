@@ -12,6 +12,7 @@ import {
   LogOut, Loader2, FileText, Pill, Calendar, Activity,
   User, Clock, ShieldCheck, ChevronRight
 } from "lucide-react";
+import PatientTrustBanner from "@/components/PatientTrustBanner";
 
 interface PatientRecord {
   id: string;
