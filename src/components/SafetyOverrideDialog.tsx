@@ -44,9 +44,9 @@ interface SafetyOverrideDialogProps {
 
 const alertIcons: Record<SafetyAlert["type"], React.ReactNode> = {
   allergy: <ShieldAlert className="h-5 w-5 text-destructive" />,
-  interaction: <Pill className="h-5 w-5 text-amber-500" />,
+  interaction: <Pill className="h-5 w-5 text-warning" />,
   vitals: <Activity className="h-5 w-5 text-destructive" />,
-  dose: <AlertCircle className="h-5 w-5 text-amber-500" />,
+  dose: <AlertCircle className="h-5 w-5 text-warning" />,
   emergency: <Heart className="h-5 w-5 text-destructive" />,
   context: <AlertTriangle className="h-5 w-5 text-muted-foreground" />,
 };
