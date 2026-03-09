@@ -255,16 +255,38 @@ export default function Billing() {
               <div>
                 <h3 className="text-sm font-semibold text-foreground mb-2">Recent Invoices</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {recentInvoices.map((inv: any) => (
+                {recentInvoices.map((inv: any) => (
                     <ClinicalCard key={inv.id} className="p-3">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-foreground">{(inv.patients as any)?.name || "Patient"}</p>
                           <p className="text-[10px] text-muted-foreground">{inv.invoice_number} · {new Date(inv.created_at).toLocaleDateString()}</p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-primary">₹{inv.total}</p>
-                          <Chip variant={inv.status === "paid" ? "medication" : "lab"} size="sm">{inv.status || "pending"}</Chip>
+                        <div className="text-right flex items-center gap-2">
+                          <div>
+                            <p className="text-sm font-bold text-primary">₹{inv.total}</p>
+                            <Chip variant={inv.status === "paid" ? "medication" : "lab"} size="sm">{inv.status || "pending"}</Chip>
+                          </div>
+                          {inv.status === "pending" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[10px] rounded-lg"
+                              onClick={async () => {
+                                const { error } = await supabase.functions.invoke("mark-invoice-paid", {
+                                  body: { invoice_id: inv.id, payment_method: inv.payment_mode || "cash" },
+                                });
+                                if (!error) {
+                                  toast({ title: "Payment recorded", description: `${inv.invoice_number} marked as paid` });
+                                  loadRecentInvoices();
+                                } else {
+                                  toast({ title: "Error", description: "Failed to mark as paid", variant: "destructive" });
+                                }
+                              }}
+                            >
+                              <CheckCircle2 className="h-3 w-3 mr-1" /> Paid
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </ClinicalCard>
