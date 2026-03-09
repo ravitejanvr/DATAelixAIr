@@ -815,6 +815,48 @@ export type Database = {
         }
         Relationships: []
       }
+      evidence_sources: {
+        Row: {
+          authors: string
+          created_at: string
+          evidence_strength: string
+          id: string
+          journal: string
+          related_feature: string
+          source_link: string
+          summary: string
+          title: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          authors?: string
+          created_at?: string
+          evidence_strength?: string
+          id?: string
+          journal?: string
+          related_feature?: string
+          source_link?: string
+          summary?: string
+          title: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          authors?: string
+          created_at?: string
+          evidence_strength?: string
+          id?: string
+          journal?: string
+          related_feature?: string
+          source_link?: string
+          summary?: string
+          title?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
       innovation_insights: {
         Row: {
           category: string
