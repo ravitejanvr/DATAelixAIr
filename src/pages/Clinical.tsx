@@ -274,7 +274,7 @@ export default function Clinical() {
     }
   }, [generatedSummary, summaryManuallyEdited]);
 
-  // ── Auto-save consultation draft every 10 seconds ──
+  // ── Auto-save consultation draft every 15 seconds ──
   const DRAFT_KEY = "dataelixair_consultation_draft";
 
   useEffect(() => {
@@ -304,7 +304,7 @@ export default function Clinical() {
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       } catch { /* storage full — ignore */ }
-    }, 10000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [selectedPatient, savedSessionId, visitId, transcript, stabilizedTranscript, selectedSymptoms, selectedDuration, expansionSelections, priorMeds, extractedData, soapSections, pendingRxFromSuggestions, selectedDiagnoses, selectedTests, selectedAdvice, followUpDate, followUpNotes, consultationSummary]);
 
@@ -673,7 +673,9 @@ export default function Clinical() {
       }
 
       if (workflowMode === "doctor_plus_admin") {
-        await supabase.from("consultations").update({ status: "awaiting_frontdesk" }).eq("id", consultationId);
+        await supabase.functions.invoke("save-consultation", {
+          body: { consultation_id: consultationId, status_override: "awaiting_frontdesk" },
+        });
         try {
           await supabase.functions.invoke("send-patient-update", {
             body: { patient_id: selectedPatient?.id || saveData.patient_id, visit_id: visitId, clinic_id: profileClinicId, trigger_event: "consultation_complete" },

@@ -73,18 +73,34 @@ export default function Patients() {
     e.preventDefault();
     if (!newName.trim()) return;
     setSaving(true);
-    const { error } = await supabase.from("patients").insert({
-      doctor_id: user!.id, name: newName.trim(),
-      age: newAge ? parseInt(newAge) : null, gender: newGender, phone: newPhone || null,
-    } as any);
-    setSaving(false);
-    if (error) {
-      toast({ title: "Failed to add patient", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      // Get user's clinic_id
+      const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("user_id", user!.id).maybeSingle();
+      const clinicId = profile?.clinic_id;
+      if (!clinicId) {
+        toast({ title: "No clinic assigned", description: "Please complete onboarding first.", variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke("register-patient", {
+        body: {
+          name: newName.trim(),
+          age: newAge ? parseInt(newAge) : 0,
+          gender: newGender,
+          phone: newPhone || null,
+          clinic_id: clinicId,
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
       toast({ title: "Patient registered" });
       setDialogOpen(false);
       setNewName(""); setNewAge(""); setNewGender("male"); setNewPhone(""); setNewVisitType("walk-in");
       fetchPatients();
+    } catch (err: any) {
+      toast({ title: "Failed to add patient", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
   };
 
