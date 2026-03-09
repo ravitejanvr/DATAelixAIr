@@ -42,7 +42,7 @@ export const EmailChangeEmail = ({
         />
         <Heading style={h1}>Confirm your email change</Heading>
         <Text style={text}>
-          You requested to change your DATAelixAIr email from{' '}
+          You requested to change your DATAelixAIr™ email from{' '}
           <Link href={`mailto:${email}`} style={link}>
             {email}
           </Link>{' '}

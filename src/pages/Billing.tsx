@@ -258,7 +258,7 @@ export default function Billing() {
         <div ref={printRef} className="hidden">
           {selectedPatient && (
             <div>
-              <h2>DATAelixAIr — Invoice</h2>
+              <h2>DATAelixAIr™ — Invoice</h2>
               <p>Patient: {selectedPatient.name}</p>
               <p>Date: {new Date().toLocaleDateString()}</p>
               <table>
