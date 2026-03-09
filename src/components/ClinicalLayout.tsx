@@ -15,35 +15,34 @@ import {
 const navItemsByRole = {
   doctor: [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { label: "Queue", path: "/queue", icon: ListOrdered },
+    { label: "Queue", path: "/patient-queue", icon: ListOrdered },
     { label: "Consultations", path: "/clinical", icon: Stethoscope },
     { label: "Patients", path: "/patients", icon: Users },
-    { label: "Reports", path: "/reports", icon: FileText },
+    { label: "Reports", path: "/patients", icon: FileText },
+    { label: "Billing", path: "/billing", icon: IndianRupee },
   ],
   front_desk: [
-    { label: "Queue", path: "/queue", icon: ListOrdered },
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Queue", path: "/patient-queue", icon: ListOrdered },
     { label: "Patients", path: "/patients", icon: Users },
-    { label: "Reports", path: "/reports", icon: FileText },
+    { label: "Reports", path: "/patients", icon: FileText },
     { label: "Billing", path: "/billing", icon: IndianRupee },
   ],
   clinic_admin: [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { label: "Patients", path: "/patients", icon: Users },
-    { label: "Reports", path: "/reports", icon: FileText },
+    { label: "Reports", path: "/patients", icon: FileText },
     { label: "Billing", path: "/billing", icon: IndianRupee },
-    { label: "Clinic Settings", path: "/clinic-settings", icon: Settings },
+    { label: "Clinic Settings", path: "/clinic-admin", icon: Settings },
   ],
   platform_admin: [
-    { label: "Platform Dashboard", path: "/platform-admin", icon: LayoutDashboard },
-    { label: "Clinics", path: "/platform-admin?tab=clinics", icon: Building2 },
-    { label: "Users", path: "/platform-admin?tab=users", icon: Users },
-    { label: "Usage Metrics", path: "/platform-admin?tab=monitoring", icon: BarChart3 },
-    { label: "Audit Logs", path: "/platform-admin?tab=governance", icon: Shield },
+    { label: "Platform Admin", path: "/platform-admin", icon: Shield },
   ],
   // Fallback for other roles
   default: [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-    { label: "Queue", path: "/queue", icon: ListOrdered },
+    { label: "Queue", path: "/patient-queue", icon: ListOrdered },
+    { label: "Consultations", path: "/clinical", icon: Stethoscope },
     { label: "Patients", path: "/patients", icon: Users },
   ],
 };
