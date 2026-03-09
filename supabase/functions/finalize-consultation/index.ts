@@ -150,14 +150,13 @@ Deno.serve(async (req) => {
       } catch (_e) { /* AI generation is best-effort */ }
     }
 
-    if (effectiveLabOrders && effectiveLabOrders.length > 0) {
-      // visit_id may be null for doctor-only workflows — still persist with consultation_id
+    if (effectiveLabOrders && effectiveLabOrders.length > 0 && visit_id) {
       try {
         const labRows = effectiveLabOrders.slice(0, 30).filter((o: any) => o.test_name?.trim()).map((o: any) => ({
           patient_id,
           doctor_id: user.id,
           clinic_id,
-          visit_id: visit_id || null,
+          visit_id,
           consultation_id: consultation_id || null,
           test_name: String(o.test_name).substring(0, 200),
           priority: ["urgent", "routine", "stat"].includes(o.priority) ? o.priority : "routine",
@@ -176,8 +175,9 @@ Deno.serve(async (req) => {
         results.stages.push({ stage: "lab_orders", status: "error", error: e.message });
       }
     } else {
-      console.log(`[finalize-consultation] No lab orders to save (lab_orders input: ${JSON.stringify(lab_orders?.length || 0)})`);
-      results.stages.push({ stage: "lab_orders", status: "skipped" });
+      const reason = !visit_id ? "no_visit_id" : "no_lab_orders";
+      console.log(`[finalize-consultation] Lab orders skipped: ${reason} (effectiveLabOrders=${effectiveLabOrders?.length || 0}, visit_id=${visit_id})`);
+      results.stages.push({ stage: "lab_orders", status: "skipped", reason });
     }
 
     // ── Stage 3: Generate Invoice ──
