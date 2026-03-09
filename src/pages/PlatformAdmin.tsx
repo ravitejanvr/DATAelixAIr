@@ -108,7 +108,7 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
-type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety";
+type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles";
 
 const getTabFromPath = (pathname: string): AdminTab => {
   const tabSegment = pathname.split("/")[2];
@@ -118,6 +118,7 @@ const getTabFromPath = (pathname: string): AdminTab => {
   if (tabSegment === "monitoring") return "monitoring";
   if (tabSegment === "audit") return "audit";
   if (tabSegment === "safety") return "safety";
+  if (tabSegment === "articles") return "articles";
   return "pilots";
 };
 
