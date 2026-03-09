@@ -78,3 +78,109 @@ export function evidenceConfidenceColor(confidence: string): string {
   if (confidence === "moderate") return "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800";
   return "text-muted-foreground bg-muted/50 border-border";
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Evidence Retrieval Functions
+// ────────────────────────────────────────────────────────────────────────────
+
+import { supabase } from "@/integrations/supabase/client";
+
+export interface EvidenceQuery {
+  diagnosis?: string;
+  medications?: string[];
+  symptoms?: string[];
+  patientAge?: number;
+  patientSex?: string;
+}
+
+export interface EvidenceResponse {
+  evidence: EvidenceData;
+  error?: string;
+}
+
+/**
+ * Fetch clinical evidence from the evidence-agents edge function.
+ * Returns medication evidence, guidelines, and drug safety data.
+ */
+export async function fetchClinicalEvidence(
+  query: EvidenceQuery
+): Promise<EvidenceResponse> {
+  const { data, error } = await supabase.functions.invoke("evidence-agents", {
+    body: {
+      diagnosis: query.diagnosis,
+      medications: query.medications || [],
+      symptoms: query.symptoms || [],
+      patient_age: query.patientAge,
+      patient_sex: query.patientSex,
+    },
+  });
+
+  if (error) {
+    console.error("Evidence retrieval error:", error);
+    return {
+      evidence: {
+        medication_evidence: [],
+        guidelines: [],
+        drug_safety: [],
+        total_citations: 0,
+        retrieval_confidence: "low",
+        sources_queried: [],
+        timestamp: new Date().toISOString(),
+      },
+      error: error.message,
+    };
+  }
+
+  return {
+    evidence: data || {
+      medication_evidence: [],
+      guidelines: [],
+      drug_safety: [],
+      total_citations: 0,
+      retrieval_confidence: "low",
+      sources_queried: [],
+      timestamp: new Date().toISOString(),
+    },
+  };
+}
+
+/**
+ * Format a citation for display.
+ */
+export function formatCitation(citation: Citation): string {
+  const parts: string[] = [];
+  if (citation.title) parts.push(citation.title);
+  if (citation.source) parts.push(`(${citation.source})`);
+  if (citation.year) parts.push(citation.year);
+  if (citation.pmid) parts.push(`PMID: ${citation.pmid}`);
+  return parts.join(" ");
+}
+
+/**
+ * Get the URL for a citation (PubMed or DOI).
+ */
+export function getCitationUrl(citation: Citation): string | null {
+  if (citation.url) return citation.url;
+  if (citation.pmid) return `https://pubmed.ncbi.nlm.nih.gov/${citation.pmid}/`;
+  if (citation.doi) return `https://doi.org/${citation.doi}`;
+  return null;
+}
+
+/**
+ * Check if evidence data has any safety concerns.
+ */
+export function hasEvidenceSafetyAlerts(evidence: EvidenceData): boolean {
+  return evidence.drug_safety.some(
+    (ds) => ds.black_box_warning || ds.high_risk_flags.length > 0
+  );
+}
+
+/**
+ * Get a summary of evidence sources queried.
+ */
+export function getEvidenceSourcesSummary(evidence: EvidenceData): string {
+  const sources = evidence.sources_queried;
+  if (sources.length === 0) return "No sources queried";
+  if (sources.length <= 3) return sources.join(", ");
+  return `${sources.slice(0, 3).join(", ")} +${sources.length - 3} more`;
+}
