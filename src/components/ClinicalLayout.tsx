@@ -108,7 +108,7 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
         <div className="px-3 py-2.5 border-b border-border">
           <div className="flex items-center gap-1.5">
             <img src={brainLogo} alt="DATAelixAIr" className="h-6 w-6" />
-            <p className="text-xs font-bold text-foreground leading-none">DATAelixAIr</p>
+            <p className="text-xs font-bold text-foreground leading-none">DATAelixAIr<sup className="text-[0.5em] text-muted-foreground">™</sup></p>
           </div>
         </div>
 
@@ -172,7 +172,7 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b border-border px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <img src={brainLogo} alt="DATAelixAIr" className="h-6 w-6" />
-          <span className="text-sm font-bold text-foreground">DATAelixAIr</span>
+          <span className="text-sm font-bold text-foreground">DATAelixAIr<sup className="text-[0.5em] text-muted-foreground">™</sup></span>
         </div>
         <div className="flex items-center gap-2">
           <button
