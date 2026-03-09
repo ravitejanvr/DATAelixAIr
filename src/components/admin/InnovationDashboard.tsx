@@ -99,7 +99,7 @@ export default function InnovationDashboard() {
   };
 
   const dismissInsight = async (id: string) => {
-    await (supabase.from("innovation_insights").update({
+    await (supabase.from("innovation_insights" as any).update({
       status: "dismissed",
       reviewed_at: new Date().toISOString(),
     }).eq("id", id) as any);
