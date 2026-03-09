@@ -135,23 +135,22 @@ export default function PatientSelfIntake() {
 
   const t = useCallback((key: string) => T[key]?.[lang] || T[key]?.en || key, [lang]);
 
-  // Validate visit
+  // Validate visit via edge function (token-based, no direct DB access)
   useEffect(() => {
-    if (!visitId) { setVisitValid(false); return; }
+    if (!visitToken) { setVisitValid(false); return; }
     (async () => {
-      const { data } = await supabase
-        .from("patient_visits")
-        .select("id, patient_id, patients(name)")
-        .eq("id", visitId)
-        .maybeSingle();
-      if (data) {
-        setVisitValid(true);
-        setPatientName((data.patients as any)?.name || "");
-      } else {
+      const { data, error } = await supabase.functions.invoke("validate-intake", {
+        body: { visit_token: visitToken },
+      });
+      if (error || !data?.visit_id) {
         setVisitValid(false);
+      } else {
+        setVisitValid(true);
+        setVisitId(data.visit_id);
+        setPatientName(data.patient_name || "");
       }
     })();
-  }, [visitId]);
+  }, [visitToken]);
 
   // Autocomplete: symptoms
   const filteredSuggestions = useMemo(() => {
