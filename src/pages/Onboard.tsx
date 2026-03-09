@@ -255,7 +255,10 @@ export default function Onboard() {
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-8">
-            <img src={brainLogo} alt="DATAelixAIr" className="h-12 mx-auto mb-4" />
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <img src={brainLogo} alt="DATAelixAIr Logo" className="h-12" />
+              <span className="font-display text-2xl font-bold tracking-tight text-foreground">DATAelixAIr</span>
+            </div>
             <h1 className="font-display text-2xl font-bold text-foreground">Start Your First Consultation</h1>
           </div>
 

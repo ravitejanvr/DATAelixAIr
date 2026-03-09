@@ -174,7 +174,10 @@ export default function Auth() {
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="max-w-md w-full">
           <div className="text-center mb-7">
-            <img src={brainLogo} alt="DATAelixAIr" className="h-10 mx-auto mb-3" />
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <img src={brainLogo} alt="DATAelixAIr Logo" className="h-10" />
+              <span className="font-display text-xl font-bold tracking-tight text-foreground">DATAelixAIr</span>
+            </div>
             <h1 className="font-display text-2xl font-bold text-foreground">{mode === "signin" ? "Welcome back" : "Create your account"}</h1>
             <p className="text-sm text-muted-foreground mt-1">Clinical Writing & Workflow Workspace</p>
           </div>
