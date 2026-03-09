@@ -317,7 +317,9 @@ function ArticleDetailInner() {
                     <ShieldCheck className="h-4 w-4 text-primary" />
                     <h2 className="font-display text-base font-bold text-foreground">Clinical Implication</h2>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{s.clinical_implications}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    <KeywordLinker text={s.clinical_implications} />
+                  </p>
                 </div>
               )}
 
