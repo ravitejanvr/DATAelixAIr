@@ -73,3 +73,11 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.mark-invoice-paid]
     verify_jwt = false
+  [functions.product-innovation]
+    verify_jwt = false
+  [functions.daily-innovation-summary]
+    verify_jwt = false
+  [functions.fetch-research]
+    verify_jwt = false
+  [functions.research-radar]
+    verify_jwt = false

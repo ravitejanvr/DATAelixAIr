@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Lightbulb, Loader2, Sparkles, Check, Search, ExternalLink,
-  Shield, Workflow, Cpu, Scale, ArrowUpRight, Clock, AlertTriangle
+  Shield, Workflow, Cpu, Scale, ArrowUpRight, Clock, AlertTriangle,
+  FileText, Globe, Newspaper
 } from "lucide-react";
 
 interface Insight {
@@ -44,16 +45,27 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
+const SOURCE_ICONS: Record<string, { icon: typeof Globe; label: string }> = {
+  PubMed: { icon: FileText, label: "PubMed" },
+  "Europe PMC": { icon: Globe, label: "Europe PMC" },
+  "FDA FAERS": { icon: Shield, label: "FDA Safety" },
+  "WHO Guidelines": { icon: Globe, label: "WHO" },
+  "NHS AI Lab": { icon: Newspaper, label: "NHS AI" },
+};
+
 export default function InnovationDashboard() {
   const { toast } = useToast();
   const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generatingDigest, setGeneratingDigest] = useState(false);
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [roadmapInput, setRoadmapInput] = useState("");
+  const [lastRunSources, setLastRunSources] = useState<Record<string, number> | null>(null);
+  const [dailySummary, setDailySummary] = useState<string | null>(null);
 
   useEffect(() => { load(); }, []);
 
@@ -72,21 +84,41 @@ export default function InnovationDashboard() {
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("product-innovation", {
-        body: {},
+        body: { generate_summary: true },
       });
       if (error || !data?.success) {
         toast({ title: "Innovation agent failed", description: data?.error || error?.message, variant: "destructive" });
       } else {
         toast({
           title: "Innovation analysis complete",
-          description: `${data.insights_saved} insights generated from ${data.papers_analyzed} papers.`,
+          description: `${data.insights_saved} insights from ${data.sources?.total || 0} sources (PubMed, Europe PMC, FDA, WHO, NHS).`,
         });
+        if (data.sources) setLastRunSources(data.sources);
+        if (data.daily_summary) setDailySummary(data.daily_summary);
         load();
       }
     } catch {
       toast({ title: "Error running agent", variant: "destructive" });
     }
     setGenerating(false);
+  };
+
+  const runDailyDigest = async () => {
+    setGeneratingDigest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("daily-innovation-summary", { body: {} });
+      if (error || !data?.success) {
+        toast({ title: "Digest generation failed", description: data?.error || error?.message, variant: "destructive" });
+      } else {
+        toast({ title: "Daily digest generated", description: `${data.insights_generated} insights analyzed.` });
+        if (data.daily_summary) setDailySummary(data.daily_summary);
+        if (data.sources) setLastRunSources(data.sources);
+        load();
+      }
+    } catch {
+      toast({ title: "Error generating digest", variant: "destructive" });
+    }
+    setGeneratingDigest(false);
   };
 
   const approveInsight = async (id: string) => {
@@ -133,6 +165,15 @@ export default function InnovationDashboard() {
     roadmap: insights.filter((i) => i.status === "roadmap").length,
   };
 
+  // Count unique evidence sources
+  const sourceCounts = insights.reduce((acc, i) => {
+    const src = i.evidence_source || "Unknown";
+    Object.keys(SOURCE_ICONS).forEach(key => {
+      if (src.includes(key)) acc[key] = (acc[key] || 0) + 1;
+    });
+    return acc;
+  }, {} as Record<string, number>);
+
   if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
@@ -141,17 +182,48 @@ export default function InnovationDashboard() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-primary" /> Product Innovation
+            <Lightbulb className="h-4 w-4 text-primary" /> Innovation Intelligence
           </h3>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            AI-generated insights from research analysis and platform telemetry
+            AI-generated insights from PubMed, Europe PMC, FDA, WHO &amp; NHS AI Lab
           </p>
         </div>
-        <Button size="sm" onClick={runAgent} disabled={generating}>
-          {generating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
-          Run Innovation Agent
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={runDailyDigest} disabled={generatingDigest}>
+            {generatingDigest ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Newspaper className="h-3 w-3 mr-1" />}
+            Daily Digest
+          </Button>
+          <Button size="sm" onClick={runAgent} disabled={generating}>
+            {generating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
+            Run Agent
+          </Button>
+        </div>
       </div>
+
+      {/* Source badges */}
+      {lastRunSources && (
+        <div className="flex flex-wrap gap-1.5">
+          {Object.entries(lastRunSources).filter(([k]) => k !== "total").map(([source, count]) => {
+            const config = SOURCE_ICONS[source === "pubmed" ? "PubMed" : source === "europepmc" ? "Europe PMC" : source === "fda" ? "FDA FAERS" : source === "who" ? "WHO Guidelines" : source === "nhs" ? "NHS AI Lab" : source];
+            return (
+              <Badge key={source} variant="outline" className="text-[9px] gap-1">
+                {config ? <config.icon className="h-2.5 w-2.5" /> : null}
+                {config?.label || source}: {count}
+              </Badge>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Daily summary */}
+      {dailySummary && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="py-3">
+            <p className="text-[9px] font-semibold text-primary uppercase mb-1.5">AI Daily Summary</p>
+            <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{dailySummary}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
@@ -321,7 +393,7 @@ export default function InnovationDashboard() {
           <div className="text-center py-12">
             <Lightbulb className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
-              {insights.length === 0 ? "No insights yet. Run the Innovation Agent to analyze research and platform data." : "No insights match your filters."}
+              {insights.length === 0 ? "No insights yet. Run the Innovation Agent to scan PubMed, FDA, WHO, and NHS sources." : "No insights match your filters."}
             </p>
           </div>
         )}

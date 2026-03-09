@@ -3,9 +3,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import brainLogo from "@/assets/brain-logo-nobg.png";
+
 import {
   LayoutDashboard, Building2, Users, BarChart3, ShieldAlert,
-  FileText, LogOut, Shield
+  FileText, LogOut, Shield, Lightbulb
 } from "lucide-react";
 
 const navItems = [
@@ -15,6 +16,7 @@ const navItems = [
   { label: "Clinics", path: "/platform-admin/clinics", icon: Building2 },
   { label: "Risk Flags", path: "/platform-admin/safety", icon: ShieldAlert },
   { label: "Governance", path: "/platform-admin/governance", icon: Shield },
+  { label: "Innovation", path: "/platform-admin/innovation", icon: Lightbulb },
   { label: "Metrics", path: "/platform-admin/metrics", icon: BarChart3 },
   { label: "Audit Trail", path: "/platform-admin/audit", icon: FileText },
 ];
