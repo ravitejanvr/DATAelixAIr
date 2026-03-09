@@ -109,7 +109,7 @@ export default function InnovationDashboard() {
 
   const convertToRoadmap = async (id: string) => {
     if (!roadmapInput.trim()) return;
-    await (supabase.from("innovation_insights").update({
+    await (supabase.from("innovation_insights" as any).update({
       status: "roadmap",
       roadmap_task: roadmapInput.trim(),
       reviewed_at: new Date().toISOString(),
