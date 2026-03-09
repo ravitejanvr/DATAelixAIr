@@ -85,7 +85,10 @@ export default function Billing() {
     try {
       const { data, error } = await supabase.functions.invoke("generate-invoice", {
         body: {
-          patient_id: selectedPatient.id, consultation_fee: consultationFee,
+          patient_id: selectedPatient.id,
+          visit_id: activeVisit?.id || null,
+          consultation_id: activeVisit?.consultation_id || null,
+          consultation_fee: consultationFee,
           procedures: procedures.filter(p => p.description),
           lab_charges: labCharges.filter(l => l.description),
           discount, payment_mode: paymentMode,
