@@ -18,20 +18,20 @@ const navItemsByRole = {
     { label: "Queue", path: "/patient-queue", icon: ListOrdered },
     { label: "Consultations", path: "/clinical", icon: Stethoscope },
     { label: "Patients", path: "/patients", icon: Users },
-    { label: "Reports", path: "/patients", icon: FileText },
+    { label: "Reports", path: "/reports", icon: FileText },
     { label: "Billing", path: "/billing", icon: IndianRupee },
   ],
   front_desk: [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { label: "Queue", path: "/patient-queue", icon: ListOrdered },
     { label: "Patients", path: "/patients", icon: Users },
-    { label: "Reports", path: "/patients", icon: FileText },
+    { label: "Reports", path: "/reports", icon: FileText },
     { label: "Billing", path: "/billing", icon: IndianRupee },
   ],
   clinic_admin: [
     { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { label: "Patients", path: "/patients", icon: Users },
-    { label: "Reports", path: "/patients", icon: FileText },
+    { label: "Reports", path: "/reports", icon: FileText },
     { label: "Billing", path: "/billing", icon: IndianRupee },
     { label: "Clinic Settings", path: "/clinic-admin", icon: Settings },
   ],
@@ -143,7 +143,7 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
         <nav className="flex-1 px-2 py-1.5 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => (
             <button
-              key={item.path}
+              key={`${item.path}:${item.label}`}
               onClick={() => navigate(item.path)}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150 ${
                 location.pathname === item.path
@@ -210,7 +210,7 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
             <nav className="space-y-1">
               {navItems.map((item) => (
                 <button
-                  key={item.path}
+                  key={`${item.path}:${item.label}`}
                   onClick={() => { navigate(item.path); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm ${
                     location.pathname === item.path ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"
