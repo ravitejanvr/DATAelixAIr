@@ -102,15 +102,17 @@ export default function AdminArticleEditor() {
       created_by: editing.created_by || user?.id,
     };
 
-    let error: any;
+    let saveError: any;
     if (editing.id) {
-      ({ error } = await (supabase.from("blog_articles").update(payload).eq("id", editing.id) as any));
+      const { error: e } = await (supabase.from("blog_articles") as any).update(payload).eq("id", editing.id);
+      saveError = e;
     } else {
-      ({ error } = await (supabase.from("blog_articles").insert(payload) as any));
+      const { error: e } = await (supabase.from("blog_articles") as any).insert([payload]);
+      saveError = e;
     }
 
-    if (error) {
-      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    if (saveError) {
+      toast({ title: "Save failed", description: saveError.message, variant: "destructive" });
     } else {
       toast({ title: editing.id ? "Article updated" : "Article created" });
       setEditing(null);
