@@ -101,34 +101,27 @@ export type GovernanceEventType = typeof GOVERNANCE_EVENT_TYPES[number];
 // Audit Logging Functions
 // ────────────────────────────────────────────────────────────────────────────
 
-import { supabase } from "@/integrations/supabase/client";
+import { logAuditEvent as _logAudit, type AuditEntry } from "@/layers/monitoring/api";
 
-export interface AuditLogEntry {
+export interface AuditLogEntry extends AuditEntry {
   event_type: GovernanceEventType;
-  actor_id: string;
-  target_type?: string;
-  target_id?: string;
   clinic_id?: string;
-  metadata?: Record<string, unknown>;
 }
 
 /**
- * Log an audit event to the immutable audit_logs table.
- * All significant clinical and governance actions should be logged.
+ * Log a governance audit event (delegates to monitoring layer).
  */
-export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
-  try {
-    await supabase.from("audit_logs").insert({
-      event_type: entry.event_type,
-      actor_id: entry.actor_id,
-      target_type: entry.target_type || "",
-      target_id: entry.target_id || "",
-      clinic_id: entry.clinic_id || null,
-      metadata: entry.metadata || {},
-    });
-  } catch (err) {
-    console.error("Audit log insert failed:", err);
-  }
+export async function logGovernanceEvent(entry: AuditLogEntry): Promise<void> {
+  await _logAudit({
+    event_type: entry.event_type,
+    actor_id: entry.actor_id,
+    target_type: entry.target_type || "",
+    target_id: entry.target_id || "",
+    metadata: {
+      ...(entry.metadata || {}),
+      clinic_id: entry.clinic_id,
+    },
+  });
 }
 
 /**
