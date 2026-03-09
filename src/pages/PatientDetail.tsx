@@ -276,7 +276,9 @@ export default function PatientDetail() {
                 <div className="absolute left-5 top-0 bottom-0 w-px bg-border" />
 
                 <div className="space-y-4">
-                  {consultations.map((c, idx) => (
+                  {consultations.map((c, idx) => {
+                    const reportData = c.report_data as any;
+                    return (
                     <div key={c.id} className="relative pl-12">
                       {/* Timeline dot */}
                       <div className={`absolute left-3.5 top-4 h-3 w-3 rounded-full border-2 border-card ${
