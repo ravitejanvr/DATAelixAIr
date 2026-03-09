@@ -53,6 +53,50 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch user role
+  useEffect(() => {
+    async function fetchUserRole() {
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      if (data) {
+        setUserRole(data.role);
+      }
+      setLoading(false);
+    }
+
+    fetchUserRole();
+  }, [user]);
+
+  // Get navigation items based on role
+  const navItems = userRole && navItemsByRole[userRole as keyof typeof navItemsByRole]
+    ? navItemsByRole[userRole as keyof typeof navItemsByRole]
+    : navItemsByRole.default;
+
+  // Show quick action only for doctors, nurses, and clinic admins
+  const showQuickAction = userRole === "doctor" || userRole === "nurse" || userRole === "clinic_admin";
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-background">
