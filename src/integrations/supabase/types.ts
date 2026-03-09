@@ -226,6 +226,98 @@ export type Database = {
           },
         ]
       }
+      clinical_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          action_hint: string | null
+          alert_type: string
+          category: string
+          clinic_id: string
+          consultation_id: string | null
+          created_at: string
+          doctor_id: string
+          id: string
+          matched_indicators: Json | null
+          message: string
+          metadata: Json | null
+          override_reason: string | null
+          patient_id: string
+          severity: string
+          title: string
+          visit_id: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          action_hint?: string | null
+          alert_type?: string
+          category?: string
+          clinic_id: string
+          consultation_id?: string | null
+          created_at?: string
+          doctor_id: string
+          id?: string
+          matched_indicators?: Json | null
+          message: string
+          metadata?: Json | null
+          override_reason?: string | null
+          patient_id: string
+          severity?: string
+          title: string
+          visit_id?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          action_hint?: string | null
+          alert_type?: string
+          category?: string
+          clinic_id?: string
+          consultation_id?: string | null
+          created_at?: string
+          doctor_id?: string
+          id?: string
+          matched_indicators?: Json | null
+          message?: string
+          metadata?: Json | null
+          override_reason?: string | null
+          patient_id?: string
+          severity?: string
+          title?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_alerts_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_alerts_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "consultations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_alerts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_alerts_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinics: {
         Row: {
           country: string | null
@@ -391,6 +483,88 @@ export type Database = {
             columns: ["visit_id"]
             isOneToOne: false
             referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diagnostic_flags: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          clinic_id: string
+          consultation_id: string
+          created_at: string
+          diagnosis: string | null
+          doctor_id: string
+          flag_type: string
+          id: string
+          inconsistency_detail: string
+          metadata: Json | null
+          patient_id: string
+          recommendation: string | null
+          severity: string
+          symptoms: Json | null
+          tests_ordered: Json | null
+          treatment_plan: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          clinic_id: string
+          consultation_id: string
+          created_at?: string
+          diagnosis?: string | null
+          doctor_id: string
+          flag_type?: string
+          id?: string
+          inconsistency_detail: string
+          metadata?: Json | null
+          patient_id: string
+          recommendation?: string | null
+          severity?: string
+          symptoms?: Json | null
+          tests_ordered?: Json | null
+          treatment_plan?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          clinic_id?: string
+          consultation_id?: string
+          created_at?: string
+          diagnosis?: string | null
+          doctor_id?: string
+          flag_type?: string
+          id?: string
+          inconsistency_detail?: string
+          metadata?: Json | null
+          patient_id?: string
+          recommendation?: string | null
+          severity?: string
+          symptoms?: Json | null
+          tests_ordered?: Json | null
+          treatment_plan?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnostic_flags_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnostic_flags_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "consultations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnostic_flags_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
         ]
@@ -876,6 +1050,101 @@ export type Database = {
           },
         ]
       }
+      medication_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_type: string
+          allergy_conflict: string | null
+          clinic_id: string
+          consultation_id: string | null
+          created_at: string
+          doctor_id: string
+          dose_issue: string | null
+          drug_a: string | null
+          drug_b: string | null
+          id: string
+          message: string
+          metadata: Json | null
+          override_reason: string | null
+          patient_id: string
+          prescription_id: string | null
+          rxnorm_ids: Json | null
+          severity: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type?: string
+          allergy_conflict?: string | null
+          clinic_id: string
+          consultation_id?: string | null
+          created_at?: string
+          doctor_id: string
+          dose_issue?: string | null
+          drug_a?: string | null
+          drug_b?: string | null
+          id?: string
+          message: string
+          metadata?: Json | null
+          override_reason?: string | null
+          patient_id: string
+          prescription_id?: string | null
+          rxnorm_ids?: Json | null
+          severity?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type?: string
+          allergy_conflict?: string | null
+          clinic_id?: string
+          consultation_id?: string | null
+          created_at?: string
+          doctor_id?: string
+          dose_issue?: string | null
+          drug_a?: string | null
+          drug_b?: string | null
+          id?: string
+          message?: string
+          metadata?: Json | null
+          override_reason?: string | null
+          patient_id?: string
+          prescription_id?: string | null
+          rxnorm_ids?: Json | null
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medication_alerts_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medication_alerts_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "consultations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medication_alerts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medication_alerts_prescription_id_fkey"
+            columns: ["prescription_id"]
+            isOneToOne: false
+            referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monitoring_events: {
         Row: {
           agent_name: string | null
@@ -1014,6 +1283,82 @@ export type Database = {
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outcome_tracking: {
+        Row: {
+          adverse_events: Json | null
+          clinic_id: string
+          consultation_id: string
+          created_at: string
+          doctor_id: string
+          follow_up_actual_date: string | null
+          follow_up_missed: boolean | null
+          follow_up_scheduled_date: string | null
+          id: string
+          outcome_notes: string | null
+          outcome_status: string | null
+          patient_id: string
+          readmission_within_days: number | null
+          treatment_effective: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          adverse_events?: Json | null
+          clinic_id: string
+          consultation_id: string
+          created_at?: string
+          doctor_id: string
+          follow_up_actual_date?: string | null
+          follow_up_missed?: boolean | null
+          follow_up_scheduled_date?: string | null
+          id?: string
+          outcome_notes?: string | null
+          outcome_status?: string | null
+          patient_id: string
+          readmission_within_days?: number | null
+          treatment_effective?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          adverse_events?: Json | null
+          clinic_id?: string
+          consultation_id?: string
+          created_at?: string
+          doctor_id?: string
+          follow_up_actual_date?: string | null
+          follow_up_missed?: boolean | null
+          follow_up_scheduled_date?: string | null
+          id?: string
+          outcome_notes?: string | null
+          outcome_status?: string | null
+          patient_id?: string
+          readmission_within_days?: number | null
+          treatment_effective?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outcome_tracking_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outcome_tracking_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "consultations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outcome_tracking_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
         ]
@@ -1297,6 +1642,68 @@ export type Database = {
         }
         Relationships: []
       }
+      population_signals: {
+        Row: {
+          affected_count: number
+          clinic_id: string | null
+          created_at: string
+          first_detected_at: string
+          geographic_scope: string | null
+          id: string
+          indicators: Json
+          is_resolved: boolean
+          last_updated_at: string
+          metadata: Json | null
+          resolved_at: string | null
+          severity: string
+          signal_name: string
+          signal_type: string
+          time_window_hours: number
+        }
+        Insert: {
+          affected_count?: number
+          clinic_id?: string | null
+          created_at?: string
+          first_detected_at?: string
+          geographic_scope?: string | null
+          id?: string
+          indicators?: Json
+          is_resolved?: boolean
+          last_updated_at?: string
+          metadata?: Json | null
+          resolved_at?: string | null
+          severity?: string
+          signal_name: string
+          signal_type?: string
+          time_window_hours?: number
+        }
+        Update: {
+          affected_count?: number
+          clinic_id?: string | null
+          created_at?: string
+          first_detected_at?: string
+          geographic_scope?: string | null
+          id?: string
+          indicators?: Json
+          is_resolved?: boolean
+          last_updated_at?: string
+          metadata?: Json | null
+          resolved_at?: string | null
+          severity?: string
+          signal_name?: string
+          signal_type?: string
+          time_window_hours?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "population_signals_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prescriptions: {
         Row: {
           clinic_id: string | null
@@ -1478,6 +1885,48 @@ export type Database = {
           source_language?: string | null
           updated_at?: string | null
           usage_count?: number | null
+        }
+        Relationships: []
+      }
+      risk_patterns: {
+        Row: {
+          action_hint: string | null
+          created_at: string
+          description: string
+          id: string
+          indicators: Json
+          is_active: boolean
+          pattern_name: string
+          pattern_type: string
+          severity: string
+          specialty: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_hint?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          indicators?: Json
+          is_active?: boolean
+          pattern_name: string
+          pattern_type?: string
+          severity?: string
+          specialty?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_hint?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          indicators?: Json
+          is_active?: boolean
+          pattern_name?: string
+          pattern_type?: string
+          severity?: string
+          specialty?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
