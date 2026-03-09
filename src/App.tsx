@@ -49,6 +49,7 @@ import QRVisitRegistration from "./pages/QRVisitRegistration";
 import FrontDesk from "./pages/FrontDesk";
 import VisitJourney from "./pages/VisitJourney";
 import VisitStatus from "./pages/VisitStatus";
+import ReportPreview from "./pages/ReportPreview";
 
 // Platform admin
 import PlatformAdmin from "./pages/PlatformAdmin";
