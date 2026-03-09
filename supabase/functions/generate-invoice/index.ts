@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
 
     const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
 
-    const validModes = ["cash", "upi", "card", "netbanking"];
+    const validModes = ["cash", "upi", "card", "netbanking", "online_link"];
     const mode = validModes.includes(payment_mode) ? payment_mode : "cash";
 
     const { data: invoice, error: insertError } = await admin.from("invoices").insert({
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       total,
       payment_mode: mode,
       invoice_number: invoiceNumber,
-      status: "paid",
+      status: "pending",
     }).select("id, invoice_number, total").single();
 
     if (insertError) throw new Error(insertError.message);
