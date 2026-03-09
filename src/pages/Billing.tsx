@@ -21,6 +21,7 @@ export default function Billing() {
   const [patients, setPatients] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [activeVisit, setActiveVisit] = useState<any>(null);
   const [consultationFee, setConsultationFee] = useState("500");
   const [procedures, setProcedures] = useState<LineItem[]>([]);
   const [labCharges, setLabCharges] = useState<LineItem[]>([]);
