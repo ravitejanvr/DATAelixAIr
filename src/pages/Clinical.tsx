@@ -673,7 +673,9 @@ export default function Clinical() {
       }
 
       if (workflowMode === "doctor_plus_admin") {
-        await supabase.from("consultations").update({ status: "awaiting_frontdesk" }).eq("id", consultationId);
+        await supabase.functions.invoke("save-consultation", {
+          body: { consultation_id: consultationId, status_override: "awaiting_frontdesk" },
+        });
         try {
           await supabase.functions.invoke("send-patient-update", {
             body: { patient_id: selectedPatient?.id || saveData.patient_id, visit_id: visitId, clinic_id: profileClinicId, trigger_event: "consultation_complete" },
