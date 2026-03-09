@@ -311,11 +311,11 @@ export default function ConsultationDetail() {
               </div>
             )}
 
-            {(consultation.ai_summary || reportData?.consultation?.visit_summary) && (
+            {(consultation.ai_summary || reportData?.consultation?.visit_summary || reportData?.soap_notes?.subjective) && (
               <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
                 <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">Consultation Summary</p>
                 <p className="text-sm text-foreground whitespace-pre-wrap">
-                  {reportData?.consultation?.visit_summary || consultation.ai_summary}
+                  {reportData?.soap_notes?.subjective || reportData?.consultation?.visit_summary || consultation.ai_summary}
                 </p>
               </div>
             )}
