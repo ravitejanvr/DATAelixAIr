@@ -23,6 +23,8 @@ import {
 } from "@/lib/blog-data";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
+import ProductInsightBlock from "@/components/blog/ProductInsightBlock";
+import KeywordLinker from "@/components/blog/KeywordLinker";
 
 // Safe accessor for article fields with defaults
 function safe(article: Article) {
