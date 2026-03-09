@@ -390,7 +390,7 @@ const Index = () => (
     {/* ════════════════════════════════════════════
         PRODUCT WORKFLOW
     ════════════════════════════════════════════ */}
-    <section className="py-24 bg-background">
+    <section id="product" className="py-24 bg-background">
       <div className="container mx-auto px-4">
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Product</p>
