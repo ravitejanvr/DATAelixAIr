@@ -160,10 +160,12 @@ export default function ConsultationDetail() {
   if (!consultation) return null;
 
   const patient = consultation.patients;
+  const reportData = consultation.report_data as any;
   const risk = consultation.risk_assessment as Record<string, any> | null;
   const drugs = (consultation.drug_recommendations || []) as Array<Record<string, any>>;
   const interactions = (consultation.drug_interactions || []) as Array<Record<string, any>>;
   const citations = (consultation.pubmed_citations || []) as Array<Record<string, any>>;
+  const safetyFlags = (consultation.safety_flags || []) as Array<Record<string, any>>;
 
   const SectionHeader = ({ title, icon: Icon, sectionKey, badge }: { title: string; icon: any; sectionKey: string; badge?: string }) => (
     <button
