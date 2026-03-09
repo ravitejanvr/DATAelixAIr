@@ -212,9 +212,9 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
           </div>
 
           {/* ═══ 4. VITALS ═══ */}
-          {data.vitals && (
-            <div className="mb-4">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.vitals}</h2>
+          <div className="mb-4">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.vitals}</h2>
+            {data.vitals && Object.values(data.vitals).some(v => v != null) ? (
               <div className="grid grid-cols-7 gap-1">
                 {[
                   { label: "Temp", value: data.vitals.temperature, unit: "°F" },
@@ -232,8 +232,10 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-[11px] text-gray-400 italic border border-dashed border-gray-200 rounded p-3 text-center">No vitals recorded for this visit.</p>
+            )}
+          </div>
 
           {/* ═══ 5. SOAP CLINICAL NOTES ═══ */}
           <div className="mb-4">
