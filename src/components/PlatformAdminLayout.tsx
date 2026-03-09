@@ -3,10 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import brainLogo from "@/assets/brain-logo-nobg.png";
-import {
-  LayoutDashboard, Building2, Users, BarChart3, ShieldAlert,
-  FileText, LogOut, Shield
-} from "lucide-react";
 
 import {
   LayoutDashboard, Building2, Users, BarChart3, ShieldAlert,
