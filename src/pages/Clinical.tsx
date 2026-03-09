@@ -590,6 +590,21 @@ export default function Clinical() {
       const consultationId = saveData.consultation_id;
       setSavedSessionId(consultationId);
 
+      // Explicitly update visit status via finalize-visit edge function
+      if (visitId) {
+        try {
+          await supabase.functions.invoke("finalize-visit", {
+            body: {
+              visit_id: visitId,
+              consultation_id: consultationId,
+              clinic_id: profileClinicId,
+              target_status: "consultation_complete",
+              billing_enabled: true,
+            },
+          });
+        } catch { /* non-blocking — finalize-consultation also handles status */ }
+      }
+
       let workflowMode = "doctor_only";
       if (profileClinicId) {
         const { data: wfConfig } = await supabase.from("clinic_workflow_config").select("workflow_mode").eq("clinic_id", profileClinicId).maybeSingle();
