@@ -358,9 +358,9 @@ export default function PatientDetail() {
                                       {typeof test === 'string' ? test : test.test_name}
                                     </Badge>
                                   ))}
-                                  {(c.report_data?.lab_orders || c.tests_ordered || []).length > 2 && (
+                                  {(reportData?.lab_orders || c.tests_ordered || []).length > 2 && (
                                     <Badge variant="secondary" className="text-[10px]">
-                                      +{(c.report_data?.lab_orders || c.tests_ordered || []).length - 2}
+                                      +{(reportData?.lab_orders || c.tests_ordered || []).length - 2}
                                     </Badge>
                                   )}
                                 </div>
