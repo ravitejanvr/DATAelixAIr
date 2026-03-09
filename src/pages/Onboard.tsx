@@ -136,106 +136,19 @@ export default function Onboard() {
         return;
       }
 
-      const isPlatformAdmin = PLATFORM_ADMIN_EMAILS.includes(email.trim().toLowerCase());
-      const roleMap: Record<string, string> = {
-        doctor: "doctor",
-        nurse: "nurse",
-        front_desk: "front_desk",
-        admin: "clinic_admin",
-      };
-      const appRole = isPlatformAdmin ? "platform_admin" : (roleMap[role] || "doctor");
-      const assignedStatus = isPlatformAdmin ? "approved" : "pending";
-
-      // Determine email domain type
-      const domain = email.split("@")[1]?.toLowerCase() || "";
-      const personalDomains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "rediffmail.com", "aol.com"];
-      const emailDomainType = personalDomains.includes(domain) ? "personal" : "institutional";
-
-      // 1. Create clinic workspace
-      const clinicName = `${email.split("@")[0]}'s Clinic`;
-      const { data: clinic, error: clinicErr } = await supabase
-        .from("clinics")
-        .insert({ name: clinicName, status: "pending" })
-        .select("id")
-        .single();
-
-      if (clinicErr) {
-        console.error("Clinic creation failed:", clinicErr);
-        toast({ title: "Setup failed", description: "Could not create workspace.", variant: "destructive" });
-        setCreatingWorkspace(false);
-        return;
-      }
-
-      const clinicId = clinic.id;
-
-      // 2. Ensure user role
-      const { data: existingRole } = await supabase.from("user_roles").select("id").eq("user_id", user.id).limit(1);
-      if (!existingRole?.length) {
-        await supabase.from("user_roles").insert({ user_id: user.id, role: appRole as any });
-      }
-
-      // 3. Update profile
-      await supabase.from("profiles").update({
-        full_name: email.split("@")[0],
-        email: email.trim(),
-        phone,
-        account_status: assignedStatus,
-        verification_status: "email_verified",
-        email_verified: true,
-        phone_verified: true,
-        email_domain_type: emailDomainType,
-        clinic_id: clinicId,
-        role_subtype: role,
-      }).eq("user_id", user.id);
-
-      // 4. Add to clinic_members
-      await supabase.from("clinic_members").insert({
-        user_id: user.id,
-        clinic_id: clinicId,
-        role: appRole === "clinic_admin" ? "admin" : "staff",
-        is_primary: true,
+      const { data, error } = await supabase.functions.invoke("onboard-user", {
+        body: { email: email.trim(), phone, role },
       });
 
-      // 5. Create demo patient
-      const { data: demoPatient } = await supabase
-        .from("patients")
-        .insert({
-          name: "Demo Patient",
-          age: 35,
-          gender: "Male",
-          phone: "+91 98765 00000",
-          doctor_id: user.id,
-          clinic_id: clinicId,
-          allergies: ["Penicillin"],
-          medical_history: [{ condition: "Hypertension", since: "2020" }],
-        })
-        .select("id")
-        .single();
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
 
-      // 6. Create demo visit
-      if (demoPatient) {
-        await supabase.from("patient_visits").insert({
-          patient_id: demoPatient.id,
-          clinic_id: clinicId,
-          status: "in_consultation",
-          chief_complaint: "Headache and mild fever for 2 days",
-          visit_type: "walk-in",
-        });
-      }
-
-      // 7. Create workflow config
-      await supabase.from("clinic_workflow_config").insert({
-        clinic_id: clinicId,
-        workflow_mode: "doctor_only",
-      });
-
-      // 8. Compute trust score (non-blocking)
+      // Compute trust score (non-blocking)
       supabase.functions.invoke("compute-trust-score", { body: { user_id: user.id } }).catch(() => {});
 
       toast({ title: "Workspace ready", description: "Opening your first consultation..." });
 
-      // Navigate to clinical cockpit
-      if (isPlatformAdmin) {
+      if (data?.is_platform_admin) {
         navigate("/platform-admin");
       } else {
         navigate("/clinical");
