@@ -618,6 +618,11 @@ export default function PlatformAdmin() {
               {auditLogs.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">No audit events yet.</p>}
             </div>
           </TabsContent>
+
+          {/* Articles Tab */}
+          <TabsContent value="articles" className="mt-4">
+            <AdminArticleEditor />
+          </TabsContent>
         </Tabs>
       </div>
     </>
