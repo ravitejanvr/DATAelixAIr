@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Plus, Pencil, Check, Trash2, Loader2, BookOpen, Eye, Archive,
-  FileText, Search, Sparkles, Radar
+  FileText, Search, Sparkles, Radar, HeartPulse
 } from "lucide-react";
+import BlogHealthChecker from "@/components/blog/BlogHealthChecker";
 import { categories, generateSlug, type ArticleCategory, type ArticleStatus, type SourceType } from "@/lib/blog-data";
 
 interface DbArticle {
