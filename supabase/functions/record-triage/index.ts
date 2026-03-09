@@ -88,8 +88,8 @@ serve(async (req) => {
 
     if (tErr) throw new Error(`Triage record failed: ${tErr.message}`);
 
-    // ── Update visit status if still registered ──
-    if (visit.status === "registered") {
+    // ── Update visit status if registered or arrived ──
+    if (["registered", "arrived"].includes(visit.status)) {
       await supabase
         .from("patient_visits")
         .update({ status: "triage" })
