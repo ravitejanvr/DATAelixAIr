@@ -109,11 +109,16 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
 
   return (
     <div className="space-y-1.5">
+      <VoiceRecordingConsent
+        open={showConsent}
+        onConsent={() => { setShowConsent(false); setVoiceConsent(); doStartRecording(); }}
+        onDecline={() => setShowConsent(false)}
+      />
       {/* Controls row */}
       <div className="flex items-center gap-2">
         {!isRecording ? (
           <Button
-            onClick={startRecording}
+            onClick={requestRecording}
             size="sm"
             variant="outline"
             className="h-7 text-[11px] gap-1"
