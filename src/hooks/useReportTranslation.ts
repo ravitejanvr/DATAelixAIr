@@ -16,6 +16,7 @@ export interface TranslatableFields {
 }
 
 export interface TranslatedReport {
+  visitSummary?: string;
   chiefComplaint?: string;
   symptoms?: string;
   findings?: string;
