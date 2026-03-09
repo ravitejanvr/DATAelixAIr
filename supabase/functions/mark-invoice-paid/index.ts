@@ -88,8 +88,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Audit log (non-blocking)
-    admin.from("audit_logs").insert({
+    // Audit log (awaited with retry)
+    const auditPayload = {
       actor_id: user.id,
       clinic_id: invoice.clinic_id,
       event_type: "invoice_paid",
@@ -102,7 +102,13 @@ Deno.serve(async (req) => {
         visit_id: invoice.visit_id,
         paid_at: new Date().toISOString(),
       },
-    }).then(() => {});
+    };
+    const { error: auditErr } = await admin.from("audit_logs").insert(auditPayload);
+    if (auditErr) {
+      console.error("[mark-invoice-paid] Audit log failed, retrying:", auditErr.message);
+      const { error: retryErr } = await admin.from("audit_logs").insert(auditPayload);
+      if (retryErr) console.error("[mark-invoice-paid] Audit log retry failed:", retryErr.message);
+    }
 
     return new Response(JSON.stringify({
       success: true,
