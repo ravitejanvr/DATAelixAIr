@@ -109,9 +109,8 @@ type IntakeStep = 0 | 1 | 2 | 3 | 4; // 0-3 = steps, 4 = review
 const SLIDE = { initial: { opacity: 0, x: 40 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -40 }, transition: { duration: 0.2 } };
 
 export default function PatientSelfIntake() {
-  const { visitId } = useParams<{ visitId: string }>();
   const [searchParams] = useSearchParams();
-  const clinicId = searchParams.get("clinic");
+  const visitToken = searchParams.get("token");
 
   const [lang, setLang] = useState<Lang>("en");
   const [step, setStep] = useState<IntakeStep>(0);
