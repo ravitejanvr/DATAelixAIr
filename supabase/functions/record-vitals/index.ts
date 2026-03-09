@@ -72,6 +72,49 @@ Deno.serve(async (req) => {
 
     if (insertError) throw new Error(insertError.message);
 
+    // ── Clinical alerts for abnormal vitals ──
+    const criticalAlerts: { title: string; message: string; severity: string }[] = [];
+    if (bp_systolic !== null && (bp_systolic >= 180 || bp_systolic <= 70))
+      criticalAlerts.push({ title: "Critical BP Systolic", message: `BP systolic: ${bp_systolic} mmHg`, severity: bp_systolic >= 180 ? "critical" : "warning" });
+    if (bp_diastolic !== null && (bp_diastolic >= 120 || bp_diastolic <= 40))
+      criticalAlerts.push({ title: "Critical BP Diastolic", message: `BP diastolic: ${bp_diastolic} mmHg`, severity: "critical" });
+    if (pulse !== null && (pulse >= 150 || pulse <= 40))
+      criticalAlerts.push({ title: "Abnormal Heart Rate", message: `Pulse: ${pulse} bpm`, severity: pulse >= 150 || pulse <= 40 ? "critical" : "warning" });
+    if (spo2 !== null && spo2 < 90)
+      criticalAlerts.push({ title: "Low SpO2", message: `SpO2: ${spo2}%`, severity: spo2 < 85 ? "critical" : "warning" });
+    if (temperature !== null && (temperature >= 40 || temperature <= 34))
+      criticalAlerts.push({ title: "Extreme Temperature", message: `Temperature: ${temperature}°C`, severity: "critical" });
+    if (blood_sugar !== null && (blood_sugar >= 400 || blood_sugar <= 50))
+      criticalAlerts.push({ title: "Critical Blood Sugar", message: `Blood sugar: ${blood_sugar} mg/dL`, severity: "critical" });
+
+    // Find the assigned doctor for this patient
+    const { data: patient } = await admin.from("patients").select("doctor_id").eq("id", patient_id).maybeSingle();
+    const doctor_id = patient?.doctor_id || user.id;
+
+    if (criticalAlerts.length > 0) {
+      const alertInserts = criticalAlerts.map(a => ({
+        clinic_id,
+        patient_id,
+        doctor_id,
+        visit_id: visit_id || null,
+        alert_type: "vitals_abnormal",
+        category: "vitals",
+        severity: a.severity,
+        title: a.title,
+        message: a.message,
+        metadata: { vitals_id: vitalsRow.id, recorded_by: user.id },
+      }));
+      admin.from("clinical_alerts").insert(alertInserts).then(() => {});
+    }
+
+    // ── Auto-advance visit status: vitals/triage → with_doctor ──
+    if (visit_id) {
+      const { data: visit } = await admin.from("patient_visits").select("status").eq("id", visit_id).maybeSingle();
+      if (visit && ["triage", "vitals"].includes(visit.status)) {
+        await admin.from("patient_visits").update({ status: "with_doctor" }).eq("id", visit_id);
+      }
+    }
+
     // Audit log (non-blocking)
     admin.from("audit_logs").insert({
       actor_id: user.id,
@@ -79,10 +122,16 @@ Deno.serve(async (req) => {
       target_type: "vitals",
       target_id: vitalsRow.id,
       clinic_id,
-      metadata: { patient_id, warnings },
+      metadata: { patient_id, warnings, clinical_alerts_count: criticalAlerts.length },
     }).then(() => {});
 
-    return new Response(JSON.stringify({ vitals_id: vitalsRow.id, warnings, status: "saved" }), {
+    return new Response(JSON.stringify({
+      vitals_id: vitalsRow.id,
+      warnings,
+      clinical_alerts: criticalAlerts.length,
+      visit_advanced: visit_id ? true : false,
+      status: "saved",
+    }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

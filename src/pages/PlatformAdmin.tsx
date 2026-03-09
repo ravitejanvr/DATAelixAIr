@@ -140,9 +140,27 @@ export default function PlatformAdmin() {
   const [monitoringLoading, setMonitoringLoading] = useState(false);
   const [governanceAudit, setGovernanceAudit] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<AdminTab>(() => getTabFromPath(location.pathname));
+  const [smsConfigured, setSmsConfigured] = useState<boolean | null>(null);
 
-  useEffect(() => { if (user) loadAll(); }, [user]);
+  useEffect(() => { if (user) { loadAll(); checkSmsConfig(); } }, [user]);
   useEffect(() => { setActiveTab(getTabFromPath(location.pathname)); }, [location.pathname]);
+
+  const checkSmsConfig = async () => {
+    // Check if any SMS notifications were sent in mock mode
+    const { data } = await supabase
+      .from("notification_logs")
+      .select("delivery_status")
+      .eq("delivery_status", "mock_delivered")
+      .limit(1);
+    // If mock deliveries exist OR no SMS logs at all, SMS may not be configured
+    const { data: anyLogs } = await supabase
+      .from("notification_logs")
+      .select("id")
+      .eq("message_type", "sms")
+      .eq("delivery_status", "delivered")
+      .limit(1);
+    setSmsConfigured(anyLogs && anyLogs.length > 0);
+  };
 
   const loadAll = async () => {
     setLoading(true);
@@ -290,6 +308,19 @@ export default function PlatformAdmin() {
           <Card><CardContent className="pt-4 pb-3"><p className="text-[10px] text-muted-foreground">Risk Flags</p><p className="text-2xl font-bold text-destructive">{riskFlags.length}</p></CardContent></Card>
           <Card><CardContent className="pt-4 pb-3"><p className="text-[10px] text-muted-foreground">All Users</p><p className="text-2xl font-bold">{users.length}</p></CardContent></Card>
         </div>
+
+        {/* SMS Configuration Warning */}
+        {smsConfigured === false && (
+          <Card className="border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 mb-6">
+            <CardContent className="py-3 flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">SMS Delivery Not Configured</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">Patient reports are being delivered in mock mode. Configure SMS_API_KEY in backend secrets to enable real SMS delivery.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="flex-wrap">
