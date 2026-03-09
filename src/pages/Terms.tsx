@@ -24,7 +24,7 @@ const Terms = () => (
       <section>
         <h2 className="font-display text-xl font-bold text-foreground mb-3">3. No Emergency Use</h2>
         <p className="text-sm text-muted-foreground">
-          DATAelixAIr is <strong className="text-foreground">not designed for emergency or life-threatening situations.</strong> In an emergency, contact your local emergency services immediately.
+          DATAelixAIr™ is <strong className="text-foreground">not designed for emergency or life-threatening situations.</strong> In an emergency, contact your local emergency services immediately.
         </p>
       </section>
 
