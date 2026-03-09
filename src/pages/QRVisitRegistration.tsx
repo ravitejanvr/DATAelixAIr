@@ -58,6 +58,7 @@ export default function QRVisitRegistration() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [tokenNumber, setTokenNumber] = useState<number | null>(null);
+  const [visitToken, setVisitToken] = useState<string | null>(null);
   const [clinicName, setClinicName] = useState("");
 
   // Basic info
