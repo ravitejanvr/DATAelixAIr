@@ -64,3 +64,20 @@ export * from './monitoring/api';
 
 // Layer 9: Governance
 export * from './governance/api';
+
+// Communication Layer
+export {
+  NOTIFICATION_EVENTS,
+  DEFAULT_TEMPLATES,
+  DEFAULT_CHANNEL_PRIORITY,
+  STATUS_TO_NOTIFICATION,
+  sendPatientNotification,
+  getNotificationLogs,
+  getNotificationForStatus,
+  type NotificationEvent,
+  type NotificationChannel,
+  type ChannelConfig,
+  type NotificationTemplate,
+  type SendNotificationParams,
+  type NotificationResult,
+} from './communication/api';
