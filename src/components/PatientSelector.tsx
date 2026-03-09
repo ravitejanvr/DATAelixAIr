@@ -51,6 +51,29 @@ export default function PatientSelector({ onSelect, selected }: PatientSelectorP
     return () => clearTimeout(t);
   }, [query, search]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-patient-selector]')) {
+        setShowDropdown(false);
+      }
+    };
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showDropdown]);
+
+  // Reset state when selection changes
+  useEffect(() => {
+    if (selected) {
+      setQuery("");
+      setResults([]);
+      setShowDropdown(false);
+    }
+  }, [selected]);
+
   if (selected) {
     return (
       <div className="flex items-center gap-2 p-2 rounded-lg border border-primary/20 bg-primary/[0.03]">
@@ -76,7 +99,7 @@ export default function PatientSelector({ onSelect, selected }: PatientSelectorP
   }
 
   return (
-    <div className="relative">
+    <div className="relative" data-patient-selector>
       <div className="relative">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
         <Input
