@@ -11,7 +11,7 @@ import brainLogo from "@/assets/brain-logo-nobg.png";
 import {
   ArrowLeft, User, Phone, Mail, Pill, AlertTriangle,
   Calendar, FileText, Stethoscope, Activity, Clock,
-  LogOut, Loader2, ChevronRight, BookOpen
+  LogOut, Loader2, ChevronRight, BookOpen, Beaker
 } from "lucide-react";
 import type { Json } from "@/integrations/supabase/types";
 
