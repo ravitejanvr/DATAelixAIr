@@ -343,151 +343,127 @@ export default function Onboard() {
               )}
             </div>
 
-            {/* Phone Section — only show after email verified */}
-            <AnimatePresence>
-              {emailVerified && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="space-y-3"
-                >
-                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-                    <Phone className="h-3.5 w-3.5" />
-                    Mobile
-                    {phoneVerified && <CheckCircle2 className="h-3.5 w-3.5 text-primary ml-auto" />}
-                  </label>
+            {/* Phone Section */}
+            <div className="space-y-3 pt-4 border-t border-border">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                <Phone className="h-3.5 w-3.5" />
+                Mobile
+                {phoneVerified && <CheckCircle2 className="h-3.5 w-3.5 text-primary ml-auto" />}
+              </label>
 
-                  {!phoneVerified ? (
-                    <>
-                      <div className="flex gap-2">
-                        <Input
-                          type="tel"
-                          value={phone}
-                          onChange={(e) => { setPhone(e.target.value); setPhoneOtpSent(false); setPhoneOtp(""); }}
-                          placeholder="+91 98765 43210"
-                          className="h-11"
-                          disabled={phoneOtpSent}
-                        />
-                        {!phoneOtpSent && (
-                          <Button
-                            onClick={sendPhoneOtp}
-                            disabled={!isValidPhone}
-                            className="shrink-0 h-11"
-                          >
-                            Send Code
-                          </Button>
-                        )}
-                      </div>
-
-                      <AnimatePresence>
-                        {phoneOtpSent && !phoneVerified && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            className="space-y-3"
-                          >
-                            <div className="rounded-lg border border-border bg-muted/50 p-2 text-center">
-                              <p className="text-[11px] text-muted-foreground">
-                                🧪 Pilot mode — Use code: <span className="font-semibold text-foreground">123456</span>
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <InputOTP maxLength={6} value={phoneOtp} onChange={setPhoneOtp}>
-                                <InputOTPGroup>
-                                  <InputOTPSlot index={0} />
-                                  <InputOTPSlot index={1} />
-                                  <InputOTPSlot index={2} />
-                                  <InputOTPSlot index={3} />
-                                  <InputOTPSlot index={4} />
-                                  <InputOTPSlot index={5} />
-                                </InputOTPGroup>
-                              </InputOTP>
-                              <Button
-                                size="sm"
-                                onClick={verifyPhoneOtp}
-                                disabled={phoneOtp.length !== 6}
-                              >
-                                Verify
-                              </Button>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </>
-                  ) : (
-                    <div className="flex items-center gap-2 text-sm text-foreground bg-muted/50 rounded-lg px-3 py-2">
-                      <span>{phone}</span>
-                      <CheckCircle2 className="h-4 w-4 text-primary ml-auto" />
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Role Selection — only show after both verified */}
-            <AnimatePresence>
-              {isFullyVerified && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="space-y-3"
-                >
-                  <label className="text-xs font-medium text-muted-foreground">Your role</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {ROLES.map((r) => (
-                      <button
-                        key={r.key}
-                        type="button"
-                        onClick={() => setRole(r.key)}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
-                          role === r.key
-                            ? "border-primary bg-primary/5 text-foreground"
-                            : "border-border hover:border-primary/40 text-muted-foreground"
-                        }`}
+              {!phoneVerified ? (
+                <>
+                  <div className="flex gap-2">
+                    <Input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => { setPhone(e.target.value); setPhoneOtpSent(false); setPhoneOtp(""); }}
+                      placeholder="+91 98765 43210"
+                      className="h-11"
+                      disabled={phoneOtpSent}
+                    />
+                    {!phoneOtpSent && (
+                      <Button
+                        onClick={sendPhoneOtp}
+                        disabled={!isValidPhone}
+                        className="shrink-0 h-11"
                       >
-                        <r.icon className={`h-5 w-5 ${role === r.key ? "text-primary" : ""}`} />
-                        <span className="text-[10px] font-medium">{r.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Start Consultation CTA — only show after fully verified */}
-            <AnimatePresence>
-              {isFullyVerified && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-4 pt-2"
-                >
-                  <Button
-                    className="w-full h-12 text-base gap-2"
-                    onClick={startFirstConsultation}
-                    disabled={creatingWorkspace}
-                  >
-                    {creatingWorkspace ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Creating workspace...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-5 w-5" />
-                        Start Your First Consultation
-                      </>
+                        Send Code
+                      </Button>
                     )}
-                  </Button>
-
-                  <div className="rounded-lg border border-border bg-muted/30 p-3 text-center">
-                    <p className="text-[11px] text-muted-foreground">
-                      <span className="font-medium text-foreground">Demo Mode</span> — Real patient messaging activates after clinic verification.
-                    </p>
                   </div>
-                </motion.div>
+
+                  <AnimatePresence>
+                    {phoneOtpSent && !phoneVerified && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="space-y-3"
+                      >
+                        <div className="rounded-lg border border-border bg-muted/50 p-2 text-center">
+                          <p className="text-[11px] text-muted-foreground">
+                            🧪 Pilot mode — Use code: <span className="font-semibold text-foreground">123456</span>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <InputOTP maxLength={6} value={phoneOtp} onChange={setPhoneOtp}>
+                            <InputOTPGroup>
+                              <InputOTPSlot index={0} />
+                              <InputOTPSlot index={1} />
+                              <InputOTPSlot index={2} />
+                              <InputOTPSlot index={3} />
+                              <InputOTPSlot index={4} />
+                              <InputOTPSlot index={5} />
+                            </InputOTPGroup>
+                          </InputOTP>
+                          <Button
+                            size="sm"
+                            onClick={verifyPhoneOtp}
+                            disabled={phoneOtp.length !== 6}
+                          >
+                            Verify
+                          </Button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-foreground bg-muted/50 rounded-lg px-3 py-2">
+                  <span>{phone}</span>
+                  <CheckCircle2 className="h-4 w-4 text-primary ml-auto" />
+                </div>
               )}
-            </AnimatePresence>
+            </div>
+
+            {/* Role Selection */}
+            <div className="space-y-3 pt-4 border-t border-border">
+              <label className="text-xs font-medium text-muted-foreground">Your role</label>
+              <div className="grid grid-cols-4 gap-2">
+                {ROLES.map((r) => (
+                  <button
+                    key={r.key}
+                    type="button"
+                    onClick={() => setRole(r.key)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
+                      role === r.key
+                        ? "border-primary bg-primary/5 text-foreground"
+                        : "border-border hover:border-primary/40 text-muted-foreground"
+                    }`}
+                  >
+                    <r.icon className={`h-5 w-5 ${role === r.key ? "text-primary" : ""}`} />
+                    <span className="text-[10px] font-medium">{r.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Start Consultation CTA */}
+            <div className="space-y-4 pt-6 border-t border-border">
+              <Button
+                className="w-full h-12 text-base gap-2"
+                onClick={startFirstConsultation}
+                disabled={!isFullyVerified || creatingWorkspace}
+              >
+                {creatingWorkspace ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Creating workspace...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5" />
+                    Start Your First Consultation
+                  </>
+                )}
+              </Button>
+
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-center">
+                <p className="text-[11px] text-muted-foreground">
+                  <span className="font-medium text-foreground">Demo Mode</span> — Real patient messaging activates after clinic verification.
+                </p>
+              </div>
+            </div>
           </motion.div>
 
           {/* Footer */}
