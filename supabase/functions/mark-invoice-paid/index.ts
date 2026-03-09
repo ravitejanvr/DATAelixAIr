@@ -79,13 +79,9 @@ Deno.serve(async (req) => {
         });
         visitUpdated = visitResp.ok;
         if (!visitResp.ok) {
-          // Fallback: direct update if state machine rejects (e.g. not in billing state)
-          const { error: directErr } = await admin.from("patient_visits")
-            .update({ status: "complete" })
-            .eq("id", invoice.visit_id)
-            .in("status", ["billing", "consultation_complete"]);
-          visitUpdated = !directErr;
-          if (directErr) console.error(`[mark-invoice-paid] Visit update failed: ${directErr.message}`);
+          const errBody = await visitResp.text();
+          console.error(`[mark-invoice-paid] Visit state transition rejected: ${errBody}`);
+          // Do NOT bypass the state machine — return error to caller
         }
       } catch (e) {
         console.error(`[mark-invoice-paid] Visit status update error:`, e);

@@ -148,15 +148,12 @@ export default function ConsultationDetail() {
     if (!consultation) return;
     setFinalizing(true);
     try {
-      // 1. Update visit status via finalize-visit if visit exists
+      // 1. Update visit status via update-visit-status
       if (consultation.visit_id) {
-        const { data: visitData, error: visitError } = await supabase.functions.invoke("finalize-visit", {
+        const { data: visitData, error: visitError } = await supabase.functions.invoke("update-visit-status", {
           body: {
             visit_id: consultation.visit_id,
-            consultation_id: consultation.id,
-            clinic_id: consultation.clinic_id,
             target_status: "consultation_complete",
-            billing_enabled: true,
           },
         });
         if (visitError) throw new Error(visitError.message);
