@@ -130,6 +130,8 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 38 92% 90%;
     --border: 224 14% 20%;
     --input: 224 14% 20%;
     --ring: 198 93% 59%;
