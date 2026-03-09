@@ -158,6 +158,7 @@ export function useReportTranslation() {
 
     if (!cached) {
       return {
+        visitSummary: fields.visitSummary || undefined,
         chiefComplaint: fields.chiefComplaint || undefined,
         symptoms: fields.symptoms || undefined,
         findings: fields.findings || undefined,
