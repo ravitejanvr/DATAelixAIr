@@ -90,10 +90,21 @@ serve(async (req) => {
         drug_name, dosage, frequency, duration, route, instructions
       `).eq("consultation_id", consultation.id),
       
-      // Lab orders
-      vId 
-        ? supabase.from("lab_orders").select("test_name, test_code, category, priority, status, notes").eq("visit_id", vId)
-        : Promise.resolve({ data: [], error: null }),
+      // Lab orders — query by visit_id OR consultation_id to catch all cases
+      (async () => {
+        let labData: any[] = [];
+        if (vId) {
+          const { data } = await supabase.from("lab_orders").select("test_name, test_code, category, priority, status, notes").eq("visit_id", vId);
+          if (data?.length) labData = data;
+        }
+        // Fallback: also query by consultation_id if visit_id yielded nothing
+        if (labData.length === 0 && consultation.id) {
+          const { data } = await supabase.from("lab_orders").select("test_name, test_code, category, priority, status, notes").eq("consultation_id", consultation.id);
+          if (data?.length) labData = data;
+        }
+        console.log(`[generate-patient-report] Lab orders found: ${labData.length} (visit_id=${vId}, consultation_id=${consultation.id})`);
+        return { data: labData, error: null };
+      })(),
       
       // Invoice
       vId 
@@ -144,6 +155,9 @@ serve(async (req) => {
     const prescriptions = prescriptionsRes.data || [];
     const labOrders = labOrdersRes.data || [];
     const invoice = invoiceRes.data || null;
+
+    // ── Debug logging ──
+    console.log(`[generate-patient-report] Data assembly: prescriptions=${prescriptions.length}, labOrders=${labOrders.length}, hasVitals=${!!vitalsRes.data}, hasTriage=${!!triageRes.data}, hasDoctor=${!!doctorRes.data}`);
 
     // ── Calculate age if date_of_birth exists ──
     let patientAge = patient.age;

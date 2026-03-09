@@ -163,16 +163,21 @@ Deno.serve(async (req) => {
           notes: String(o.notes || o.reason || "").substring(0, 500),
         }));
 
+        console.log(`[finalize-consultation] Inserting ${labRows.length} lab orders for consultation=${consultation_id}, visit=${visit_id}`);
+
         const { data: labData, error: labError } = await admin.from("lab_orders").insert(labRows).select("id, test_name");
         if (labError) throw new Error(labError.message);
         results.lab_orders = labData;
         results.stages.push({ stage: "lab_orders", status: "saved", count: labData?.length || 0 });
+        console.log(`[finalize-consultation] Lab orders saved: ${labData?.length || 0}`);
       } catch (e: any) {
         errors.push(`Lab orders: ${e.message}`);
         results.stages.push({ stage: "lab_orders", status: "error", error: e.message });
       }
     } else {
-      results.stages.push({ stage: "lab_orders", status: "skipped" });
+      const reason = !visit_id ? "no_visit_id" : "no_lab_orders";
+      console.log(`[finalize-consultation] Lab orders skipped: ${reason} (effectiveLabOrders=${effectiveLabOrders?.length || 0}, visit_id=${visit_id})`);
+      results.stages.push({ stage: "lab_orders", status: "skipped", reason });
     }
 
     // ── Stage 3: Generate Invoice ──
