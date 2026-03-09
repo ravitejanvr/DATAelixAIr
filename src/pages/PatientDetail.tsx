@@ -338,9 +338,9 @@ export default function PatientDetail() {
                                       {rx.drug_name}
                                     </Badge>
                                   ))}
-                                  {c.report_data.prescriptions.length > 2 && (
+                                  {reportData.prescriptions.length > 2 && (
                                     <Badge variant="outline" className="text-[10px]">
-                                      +{c.report_data.prescriptions.length - 2}
+                                      +{reportData.prescriptions.length - 2}
                                     </Badge>
                                   )}
                                 </div>
