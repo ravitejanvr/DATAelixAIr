@@ -1098,16 +1098,17 @@ export default function Clinical() {
                   {pendingRxFromSuggestions.length > 0 && (
                     <div className="mb-2">
                       <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Prescription</p>
-                      <div className="space-y-1">
+                      <div className="flex flex-wrap gap-1">
                         {pendingRxFromSuggestions.map((rx, i) => (
-                          <div key={i} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-muted/30 border border-border/50">
-                            <Pill className="h-3 w-3 text-chip-medication-text shrink-0" />
-                            <span className="text-xs font-medium text-foreground">{rx.drug_name}</span>
-                            <span className="text-[10px] text-muted-foreground">{rx.dose} · {rx.frequency} · {rx.duration}</span>
-                            <button onClick={() => setPendingRxFromSuggestions(prev => prev.filter((_, idx) => idx !== i))} className="ml-auto text-muted-foreground hover:text-destructive">
-                              <XCircle className="h-3 w-3" />
-                            </button>
-                          </div>
+                          <Chip
+                            key={i}
+                            variant="medication"
+                            selected
+                            removable
+                            onRemove={() => setPendingRxFromSuggestions(prev => prev.filter((_, idx) => idx !== i))}
+                          >
+                            {rx.drug_name} {rx.dose}
+                          </Chip>
                         ))}
                       </div>
                     </div>
