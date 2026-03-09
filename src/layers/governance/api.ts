@@ -160,7 +160,7 @@ export async function logAIPipelineInvocation(
   success: boolean,
   modelVersions?: Record<string, string>
 ): Promise<void> {
-  await logAuditEvent({
+  await logGovernanceEvent({
     event_type: "ai_pipeline_invoked",
     actor_id: actorId,
     clinic_id: clinicId || undefined,
