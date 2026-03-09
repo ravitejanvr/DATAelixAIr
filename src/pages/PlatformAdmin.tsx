@@ -16,6 +16,7 @@ import {
   BarChart3, Mail, Phone, MapPin, BookOpen
 } from "lucide-react";
 import AdminArticleEditor from "@/components/blog/AdminArticleEditor";
+import InnovationDashboard from "@/components/admin/InnovationDashboard";
 import type { MonitoringDashboardData } from "@/layers/monitoring/api";
 import { fetchMonitoringDashboard } from "@/layers/monitoring/api";
 import { MODEL_REGISTRY, DATA_ACCESS_MATRIX, ROLE_LABELS } from "@/layers/governance/api";
