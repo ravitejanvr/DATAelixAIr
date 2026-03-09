@@ -48,6 +48,7 @@ import PatientSelfIntake from "./pages/PatientSelfIntake";
 import QRVisitRegistration from "./pages/QRVisitRegistration";
 import FrontDesk from "./pages/FrontDesk";
 import VisitJourney from "./pages/VisitJourney";
+import VisitStatus from "./pages/VisitStatus";
 
 // Platform admin
 import PlatformAdmin from "./pages/PlatformAdmin";
