@@ -27,7 +27,7 @@ export default function ClinicQRCode({ clinicId, clinicName }: ClinicQRCodeProps
         <h2>${clinicName || "Clinic"}</h2>
         <p>Scan to register your visit</p>
         <div class="qr">${document.getElementById("clinic-qr-svg")?.innerHTML || ""}</div>
-        <p class="footer">Powered by DATAelixAIr</p>
+        <p class="footer">Powered by DATAelixAIr™</p>
       </body></html>
     `);
     printWindow.document.close();

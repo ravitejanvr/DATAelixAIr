@@ -31,7 +31,7 @@ export default function PlatformAdminLayout({ children }: { children: ReactNode 
           <div className="flex items-center gap-2">
             <img src={brainLogo} alt="DATAelixAIr" className="h-7 w-7" />
             <div>
-              <p className="text-sm font-bold text-foreground leading-none">DATAelixAIr</p>
+              <p className="text-sm font-bold text-foreground leading-none">DATAelixAIr<sup className="text-[0.5em] text-muted-foreground">™</sup></p>
               <p className="text-[10px] text-destructive font-medium">Platform Admin</p>
             </div>
           </div>

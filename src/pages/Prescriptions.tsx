@@ -249,7 +249,7 @@ export default function Prescriptions() {
         <div ref={printRef} className="hidden">
           {patient && (
             <div>
-              <h2>DATAelixAIr — Prescription</h2>
+              <h2>DATAelixAIr™ — Prescription</h2>
               <p>Doctor: {doctorProfile?.full_name || "—"}{doctorProfile?.specialization ? ` · ${doctorProfile.specialization}` : ""}</p>
               <p>Patient: {patient.name}{patient.age ? ` · ${patient.age}y` : ""}{patient.gender ? ` · ${patient.gender}` : ""}</p>
               <p>Date: {new Date().toLocaleDateString()}</p>

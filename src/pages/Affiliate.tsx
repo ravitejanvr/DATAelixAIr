@@ -33,7 +33,7 @@ const Affiliate = () => (
             Earn While Transforming <em className="not-italic text-primary">Healthcare</em>
           </h1>
           <p className="mt-5 text-dark-muted font-light leading-relaxed">
-            Join our affiliate program and earn recurring commissions by referring hospitals and clinics to DATAelixAIr.
+            Join our affiliate program and earn recurring commissions by referring hospitals and clinics to DATAelixAIr™.
           </p>
           <Button variant="default" size="lg" className="mt-8" asChild>
             <Link to="/contact">Apply Now →</Link>

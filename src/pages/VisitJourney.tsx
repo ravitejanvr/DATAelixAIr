@@ -120,7 +120,7 @@ export default function VisitJourney() {
             <img src={brainLogo} alt="DATAelixAIr" className="h-8 w-8" />
             <div className="flex-1">
               <h1 className="text-sm font-bold text-foreground">{visit.clinic?.name || "Clinic"}</h1>
-              <p className="text-[10px] text-muted-foreground">Powered by DATAelixAIr</p>
+              <p className="text-[10px] text-muted-foreground">Powered by DATAelixAIr™</p>
             </div>
             {/* Language Toggle */}
             <div className="flex gap-1">
