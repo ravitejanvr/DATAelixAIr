@@ -307,6 +307,9 @@ function ArticleDetailInner() {
                 </div>
               )}
 
+              {/* Product Insight Block */}
+              <ProductInsightBlock category={s.category} />
+
               {/* Section 4: Clinical Implications */}
               {s.clinical_implications && (
                 <div className="mb-8 p-5 rounded-xl bg-primary/5 border border-primary/10">
