@@ -10,10 +10,20 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Plus, Pencil, Check, Trash2, Loader2, BookOpen, Eye, Archive,
-  FileText, Search, Sparkles, Radar, HeartPulse
+  FileText, Search, Sparkles, Radar, HeartPulse, Shield, Globe
 } from "lucide-react";
 import BlogHealthChecker from "@/components/blog/BlogHealthChecker";
 import { categories, generateSlug, type ArticleCategory, type ArticleStatus, type SourceType } from "@/lib/blog-data";
+
+/** Trusted source whitelist */
+const TRUSTED_SOURCES = [
+  { value: "nature.com", label: "Nature Digital Medicine" },
+  { value: "mckinsey.com", label: "McKinsey Health" },
+  { value: "who.int", label: "WHO Guidelines" },
+  { value: "nhsx.nhs.uk", label: "NHS AI Lab" },
+  { value: "sciencedirect.com", label: "ScienceDirect" },
+  { value: "gov.health", label: "Government Health Reports" },
+];
 
 interface DbArticle {
   id: string;
@@ -75,6 +85,7 @@ export default function AdminArticleEditor() {
   const [filter, setFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
 
   useEffect(() => { loadArticles(); }, []);
 
@@ -106,7 +117,6 @@ export default function AdminArticleEditor() {
   const save = async () => {
     if (!editing?.title) { toast({ title: "Title required", variant: "destructive" }); return; }
 
-    // If publishing, validate required fields
     if (editing.status === "published") {
       const errors = validateForPublish(editing);
       if (errors.length > 0) {
@@ -162,7 +172,6 @@ export default function AdminArticleEditor() {
     if (error) { toast({ title: "Approve failed", variant: "destructive" }); return; }
     toast({ title: "Article published" });
 
-    // Index for RAG
     const toIndex = articles.find((a) => a.id === id);
     if (toIndex) {
       await (supabase.from("blog_article_index").upsert({
@@ -194,19 +203,25 @@ export default function AdminArticleEditor() {
   const generateDraft = async () => {
     setGenerating(true);
     try {
+      // Build search query based on selected source
+      const sourceConfig = TRUSTED_SOURCES.find(s => s.value === sourceFilter);
+      const searchTerm = sourceFilter !== "all" && sourceConfig
+        ? `site:${sourceFilter} clinical AI healthcare`
+        : "clinical AI healthcare safety";
+
       const { data: researchData } = await supabase.functions.invoke("fetch-research", {
-        body: { query: "clinical AI healthcare safety", max_results: 3 },
+        body: { query: searchTerm, max_results: 3 },
       });
 
       if (!researchData?.papers?.length) {
-        toast({ title: "No research found", variant: "destructive" });
+        toast({ title: "No research found from this source", description: "Try a different trusted source.", variant: "destructive" });
         setGenerating(false);
         return;
       }
 
       const paper = researchData.papers[0];
       const { data: draftData, error } = await supabase.functions.invoke("draft-article", {
-        body: { paper },
+        body: { paper, source_filter: sourceFilter !== "all" ? sourceFilter : undefined },
       });
 
       if (error || !draftData?.success) {
@@ -221,20 +236,25 @@ export default function AdminArticleEditor() {
         title: draft.title || paper.title,
         slug: generateSlug(draft.title || paper.title),
         summary: draft.summary || "",
+        content: draft.content || "",
         category: draft.category || "Research & Evidence",
         keywords: draft.keywords || [],
         key_findings: draft.key_findings || [],
         clinical_implications: draft.clinical_implications || "",
         source_type: "Research",
-        source_name: paper.source || paper.journal,
+        source_name: sourceConfig?.label || paper.source || paper.journal,
         source_url: paper.url,
         source_journal: paper.journal,
         source_year: paper.year,
         author: (paper.authors || []).slice(0, 3).join(", ") || "Research Team",
         status: "draft",
+        meta_title: draft.meta_title || "",
+        meta_description: draft.meta_description || "",
+        reading_time_min: draft.reading_time_min || 5,
+        publish_date: draft.publish_date || new Date().toISOString().split("T")[0],
       });
 
-      toast({ title: "AI draft generated", description: "Review and edit before publishing." });
+      toast({ title: "AI draft generated", description: `Source: ${sourceConfig?.label || "All trusted sources"}. Review and edit before publishing.` });
     } catch (e) {
       toast({ title: "Generation error", variant: "destructive" });
     }
@@ -356,12 +376,27 @@ export default function AdminArticleEditor() {
             <Input value={editing.source_url || ""} onChange={(e) => setEditing({ ...editing, source_url: e.target.value })} className="h-8 text-xs" />
           </div>
           <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase">Publish Date</label>
+            <Input type="date" value={editing.publish_date || ""} onChange={(e) => setEditing({ ...editing, publish_date: e.target.value })} className="h-8 text-xs" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase">Status</label>
+            <Select value={editing.status || "draft"} onValueChange={(v) => setEditing({ ...editing, status: v })}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft" className="text-xs">Draft</SelectItem>
+                <SelectItem value="published" className="text-xs">Published</SelectItem>
+                <SelectItem value="archived" className="text-xs">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
             <label className="text-[10px] font-semibold text-muted-foreground uppercase">Meta Title</label>
-            <Input value={editing.meta_title || ""} onChange={(e) => setEditing({ ...editing, meta_title: e.target.value })} className="h-8 text-xs" />
+            <Input value={editing.meta_title || ""} onChange={(e) => setEditing({ ...editing, meta_title: e.target.value })} className="h-8 text-xs" placeholder="Max 60 chars" />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-muted-foreground uppercase">Meta Description</label>
-            <Input value={editing.meta_description || ""} onChange={(e) => setEditing({ ...editing, meta_description: e.target.value })} className="h-8 text-xs" />
+            <Input value={editing.meta_description || ""} onChange={(e) => setEditing({ ...editing, meta_description: e.target.value })} className="h-8 text-xs" placeholder="Max 160 chars" />
           </div>
         </div>
       </div>
@@ -389,6 +424,33 @@ export default function AdminArticleEditor() {
           </Button>
         </div>
       </div>
+
+      {/* Source filter for AI generation */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="p-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Shield className="h-3.5 w-3.5 text-primary" />
+              <span className="text-[10px] font-semibold text-primary uppercase">Trusted Source Filter</span>
+            </div>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="h-7 text-xs w-[200px] bg-background">
+                <Globe className="h-3 w-3 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Select source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All Trusted Sources</SelectItem>
+                {TRUSTED_SOURCES.map((s) => (
+                  <SelectItem key={s.value} value={s.value} className="text-xs">{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-[10px] text-muted-foreground">
+              AI Generate will only use whitelisted, high-credibility sources
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -462,7 +524,6 @@ export default function AdminArticleEditor() {
         )}
       </div>
 
-      {/* Blog Health Checker */}
       <BlogHealthChecker />
     </div>
   );
