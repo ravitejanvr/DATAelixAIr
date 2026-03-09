@@ -171,6 +171,7 @@ export default function QRVisitRegistration() {
       });
 
       setTokenNumber(visitData.token_number);
+      setVisitToken(visitData.visit_token);
       setSubmitted(true);
     } catch (e: any) {
       console.error("QR registration error:", e);
