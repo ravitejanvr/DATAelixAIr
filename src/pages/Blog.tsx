@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { Chip, ChipGroup } from "@/components/ui/chip";
 import SEO from "@/components/SEO";
 import TrendingResearch from "@/components/blog/TrendingResearch";
+import ResearchRadar from "@/components/blog/ResearchRadar";
 import ArticleCard from "@/components/blog/ArticleCard";
 import {
   staticArticles,
