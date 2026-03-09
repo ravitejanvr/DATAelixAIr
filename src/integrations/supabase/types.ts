@@ -14,6 +14,85 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_decision_ledger: {
+        Row: {
+          ai_output: string
+          ai_output_type: string
+          clinic_id: string
+          confidence: number | null
+          consultation_id: string | null
+          created_at: string
+          doctor_action: string
+          doctor_id: string
+          evidence_reference: string | null
+          guideline_source: string | null
+          id: string
+          metadata: Json
+          model_version: string | null
+          override_reason: string | null
+          safety_status: string
+          visit_id: string
+        }
+        Insert: {
+          ai_output: string
+          ai_output_type?: string
+          clinic_id: string
+          confidence?: number | null
+          consultation_id?: string | null
+          created_at?: string
+          doctor_action?: string
+          doctor_id: string
+          evidence_reference?: string | null
+          guideline_source?: string | null
+          id?: string
+          metadata?: Json
+          model_version?: string | null
+          override_reason?: string | null
+          safety_status?: string
+          visit_id: string
+        }
+        Update: {
+          ai_output?: string
+          ai_output_type?: string
+          clinic_id?: string
+          confidence?: number | null
+          consultation_id?: string | null
+          created_at?: string
+          doctor_action?: string
+          doctor_id?: string
+          evidence_reference?: string | null
+          guideline_source?: string | null
+          id?: string
+          metadata?: Json
+          model_version?: string | null
+          override_reason?: string | null
+          safety_status?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_decision_ledger_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decision_ledger_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "consultations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decision_ledger_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           actor_id: string
