@@ -345,6 +345,10 @@ export default function AdminArticleEditor() {
           <FileText className="h-4 w-4" /> Articles ({articles.length})
         </h3>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={runResearchRadar} disabled={radarRunning}>
+            {radarRunning ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Radar className="h-3 w-3 mr-1" />}
+            Research Radar
+          </Button>
           <Button size="sm" variant="outline" onClick={generateDraft} disabled={generating}>
             {generating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
             AI Generate
