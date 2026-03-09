@@ -8,8 +8,8 @@ const corsHeaders = {
 /**
  * mark-invoice-paid Edge Function
  * 
- * Marks an invoice as paid and transitions the visit to complete.
- * Input: invoice_id, payment_method, payment_reference
+ * Marks an invoice as paid, records paid_at timestamp,
+ * and transitions the visit from billing → complete.
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -52,26 +52,47 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Invoice is already paid" }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Update invoice to paid
+    // Update invoice to paid with paid_at timestamp
     const { error: updateErr } = await admin.from("invoices").update({
       status: "paid",
       payment_mode: method,
+      paid_at: new Date().toISOString(),
     }).eq("id", invoice_id);
 
     if (updateErr) throw new Error(`Invoice update failed: ${updateErr.message}`);
 
-    // Update visit status to complete
+    // Update visit status: billing → complete (using update-visit-status state machine)
     let visitUpdated = false;
     if (invoice.visit_id) {
-      const { error: visitErr } = await admin.from("patient_visits")
-        .update({ status: "complete" })
-        .eq("id", invoice.visit_id);
-      
-      visitUpdated = !visitErr;
-      if (visitErr) console.error(`[mark-invoice-paid] Visit update failed: ${visitErr.message}`);
+      try {
+        const visitResp = await fetch(`${supabaseUrl}/functions/v1/update-visit-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: authHeader,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({
+            visit_id: invoice.visit_id,
+            target_status: "complete",
+          }),
+        });
+        visitUpdated = visitResp.ok;
+        if (!visitResp.ok) {
+          // Fallback: direct update if state machine rejects (e.g. not in billing state)
+          const { error: directErr } = await admin.from("patient_visits")
+            .update({ status: "complete" })
+            .eq("id", invoice.visit_id)
+            .in("status", ["billing", "consultation_complete"]);
+          visitUpdated = !directErr;
+          if (directErr) console.error(`[mark-invoice-paid] Visit update failed: ${directErr.message}`);
+        }
+      } catch (e) {
+        console.error(`[mark-invoice-paid] Visit status update error:`, e);
+      }
     }
 
-    // Audit log
+    // Audit log (non-blocking)
     admin.from("audit_logs").insert({
       actor_id: user.id,
       clinic_id: invoice.clinic_id,
@@ -83,6 +104,7 @@ Deno.serve(async (req) => {
         payment_reference: payment_reference || null,
         visit_completed: visitUpdated,
         visit_id: invoice.visit_id,
+        paid_at: new Date().toISOString(),
       },
     }).then(() => {});
 
@@ -91,6 +113,7 @@ Deno.serve(async (req) => {
       invoice_id,
       status: "paid",
       payment_method: method,
+      paid_at: new Date().toISOString(),
       visit_completed: visitUpdated,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

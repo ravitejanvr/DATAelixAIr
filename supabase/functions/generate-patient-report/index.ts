@@ -61,6 +61,18 @@ serve(async (req) => {
 
       consultation_id = tokenRecord.consultation_id;
       isTokenAccess = true;
+
+      // Log token usage for audit trail
+      supabase.from("audit_logs").insert({
+        actor_id: "00000000-0000-0000-0000-000000000000",
+        event_type: "report_token_used",
+        target_type: "report_token",
+        target_id: token,
+        metadata: {
+          consultation_id: tokenRecord.consultation_id,
+          accessed_at: new Date().toISOString(),
+        },
+      }).then(() => {});
     } else {
       // POST: require auth
       const authHeader = req.headers.get("Authorization");

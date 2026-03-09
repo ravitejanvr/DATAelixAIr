@@ -21,6 +21,7 @@ export default function Billing() {
   const [patients, setPatients] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [activeVisit, setActiveVisit] = useState<any>(null);
   const [consultationFee, setConsultationFee] = useState("500");
   const [procedures, setProcedures] = useState<LineItem[]>([]);
   const [labCharges, setLabCharges] = useState<LineItem[]>([]);
@@ -41,6 +42,23 @@ export default function Billing() {
     loadPatients();
     loadRecentInvoices();
   }, [user]);
+
+  // When patient is selected, find their active visit
+  useEffect(() => {
+    if (!selectedPatient) { setActiveVisit(null); return; }
+    const fetchVisit = async () => {
+      const { data } = await supabase
+        .from("patient_visits")
+        .select("id, consultation_id, clinic_id, status")
+        .eq("patient_id", selectedPatient.id)
+        .in("status", ["billing", "consultation_complete", "with_doctor", "registered", "arrived", "triage", "vitals"])
+        .order("check_in_time", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setActiveVisit(data || null);
+    };
+    fetchVisit();
+  }, [selectedPatient]);
 
   const loadPatients = async () => {
     const { data } = await supabase.from("patients").select("id, name, age, gender, phone").order("created_at", { ascending: false });
@@ -67,7 +85,10 @@ export default function Billing() {
     try {
       const { data, error } = await supabase.functions.invoke("generate-invoice", {
         body: {
-          patient_id: selectedPatient.id, consultation_fee: consultationFee,
+          patient_id: selectedPatient.id,
+          visit_id: activeVisit?.id || null,
+          consultation_id: activeVisit?.consultation_id || null,
+          consultation_fee: consultationFee,
           procedures: procedures.filter(p => p.description),
           lab_charges: labCharges.filter(l => l.description),
           discount, payment_mode: paymentMode,
@@ -234,16 +255,38 @@ export default function Billing() {
               <div>
                 <h3 className="text-sm font-semibold text-foreground mb-2">Recent Invoices</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {recentInvoices.map((inv: any) => (
+                {recentInvoices.map((inv: any) => (
                     <ClinicalCard key={inv.id} className="p-3">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-foreground">{(inv.patients as any)?.name || "Patient"}</p>
                           <p className="text-[10px] text-muted-foreground">{inv.invoice_number} · {new Date(inv.created_at).toLocaleDateString()}</p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-primary">₹{inv.total}</p>
-                          <Chip variant={inv.status === "paid" ? "medication" : "lab"} size="sm">{inv.status || "pending"}</Chip>
+                        <div className="text-right flex items-center gap-2">
+                          <div>
+                            <p className="text-sm font-bold text-primary">₹{inv.total}</p>
+                            <Chip variant={inv.status === "paid" ? "medication" : "lab"} size="sm">{inv.status || "pending"}</Chip>
+                          </div>
+                          {inv.status === "pending" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[10px] rounded-lg"
+                              onClick={async () => {
+                                const { error } = await supabase.functions.invoke("mark-invoice-paid", {
+                                  body: { invoice_id: inv.id, payment_method: inv.payment_mode || "cash" },
+                                });
+                                if (!error) {
+                                  toast({ title: "Payment recorded", description: `${inv.invoice_number} marked as paid` });
+                                  loadRecentInvoices();
+                                } else {
+                                  toast({ title: "Error", description: "Failed to mark as paid", variant: "destructive" });
+                                }
+                              }}
+                            >
+                              <CheckCircle2 className="h-3 w-3 mr-1" /> Paid
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </ClinicalCard>
