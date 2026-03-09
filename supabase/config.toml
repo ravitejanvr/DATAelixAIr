@@ -71,3 +71,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.global-safety-engine]
     verify_jwt = false
+  [functions.mark-invoice-paid]
+    verify_jwt = false
