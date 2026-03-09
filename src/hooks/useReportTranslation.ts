@@ -171,6 +171,7 @@ export function useReportTranslation() {
     }
 
     return {
+      visitSummary: cached.visitSummary || fields.visitSummary || undefined,
       chiefComplaint: cached.chiefComplaint || fields.chiefComplaint || undefined,
       symptoms: cached.symptoms || fields.symptoms || undefined,
       findings: cached.findings || fields.findings || undefined,
