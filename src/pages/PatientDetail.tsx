@@ -245,7 +245,7 @@ export default function PatientDetail() {
 
               {/* Run analysis button */}
               <Button className="w-full mt-2" onClick={() => navigate("/clinical", { state: { patient } })}>
-                <Stethoscope className="h-4 w-4 mr-1" /> Run CDSS Analysis
+                <Stethoscope className="h-4 w-4 mr-1" /> Clinical Insights
               </Button>
             </CardContent>
           </Card>

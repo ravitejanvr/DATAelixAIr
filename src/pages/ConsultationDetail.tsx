@@ -346,26 +346,63 @@ export default function ConsultationDetail() {
           </Card>
         )}
 
-        {/* SOAP Notes */}
-        {(consultation.soap_subjective || consultation.soap_objective || consultation.soap_assessment || consultation.soap_plan) && (
+        {/* Clinical Summary Sections */}
+        <Card className="mb-4">
+          <CardContent className="py-4">
+            <SectionHeader title="Clinical Summary" icon={FileText} sectionKey="soap" />
+            {expandedSections.soap && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                {[
+                  { label: "Visit Summary", content: reportData?.consultation?.visit_summary || consultation.soap_subjective, color: "border-blue-300" },
+                  { label: "Findings", content: reportData?.consultation?.findings || consultation.soap_objective, color: "border-emerald-300" },
+                  { label: "Provisional Diagnosis", content: reportData?.consultation?.diagnosis || consultation.soap_assessment, color: "border-amber-300" },
+                  { label: "Treatment Plan", content: reportData?.consultation?.treatment_plan || consultation.soap_plan, color: "border-purple-300" },
+                ].map((s) => s.content && (
+                  <div key={s.label} className={`p-3 rounded-lg bg-muted/30 border-l-4 ${s.color}`}>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{s.label}</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{s.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Safety Warnings */}
+        {safetyFlags && safetyFlags.length > 0 && (
+          <Card className="mb-4 border-destructive/30">
+            <CardContent className="py-4">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                <h3 className="text-sm font-semibold text-destructive">Safety Warnings</h3>
+              </div>
+              <div className="space-y-2">
+                {safetyFlags.map((flag: any, i: number) => (
+                  <div key={i} className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                    <p className="text-sm text-foreground font-medium">{flag.severity}: {flag.message}</p>
+                    {flag.recommendation && (
+                      <p className="text-xs text-muted-foreground mt-1">{flag.recommendation}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Follow-up */}
+        {(consultation.follow_up_date || reportData?.consultation?.follow_up_date) && (
           <Card className="mb-4">
             <CardContent className="py-4">
-              <SectionHeader title="SOAP Notes" icon={FileText} sectionKey="soap" />
-              {expandedSections.soap && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                  {[
-                    { label: "Subjective", content: consultation.soap_subjective, color: "border-blue-300" },
-                    { label: "Objective", content: consultation.soap_objective, color: "border-emerald-300" },
-                    { label: "Assessment", content: consultation.soap_assessment, color: "border-amber-300" },
-                    { label: "Plan", content: consultation.soap_plan, color: "border-purple-300" },
-                  ].map((s) => s.content && (
-                    <div key={s.label} className={`p-3 rounded-lg bg-muted/30 border-l-4 ${s.color}`}>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{s.label}</p>
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{s.content}</p>
-                    </div>
-                  ))}
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Follow-up</p>
+                  <p className="text-sm text-foreground">
+                    {new Date(reportData?.consultation?.follow_up_date || consultation.follow_up_date).toLocaleDateString()}
+                  </p>
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
         )}
