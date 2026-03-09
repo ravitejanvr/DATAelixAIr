@@ -38,6 +38,8 @@ interface ConsultationFull {
   billing_amount: number | null;
   created_at: string;
   updated_at: string;
+  report_data: Json;
+  safety_flags: Json;
   patients: { name: string; age: number | null; gender: string | null; allergies: string[] | null };
 }
 
