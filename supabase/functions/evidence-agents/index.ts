@@ -263,7 +263,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { medications, diagnosis, patient_age, allergies } = await req.json();
+    const { medications, diagnosis, patient_age, allergies, related_features } = await req.json();
 
     if (!medications || !Array.isArray(medications) || medications.length === 0) {
       return new Response(JSON.stringify({ error: "medications array required" }), {
