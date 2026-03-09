@@ -206,17 +206,15 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
           </div>
 
           {/* ═══ 3. VISIT SUMMARY ═══ */}
-          {(t.visitSummary || data.visitSummary) && (
-            <div className="mb-4 p-3 bg-[#f0f9ff] border border-[#bae6fd] rounded">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-1.5">{h.visitSummary}</h2>
-              <p className="text-[11px] text-gray-800 leading-relaxed">{t.visitSummary || data.visitSummary}</p>
-            </div>
-          )}
+          <div className="mb-4 p-3 bg-[#f0f9ff] border border-[#bae6fd] rounded">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-1.5">{h.visitSummary}</h2>
+            <p className="text-[11px] text-gray-800 leading-relaxed">{t.visitSummary || data.visitSummary || "No visit summary recorded."}</p>
+          </div>
 
           {/* ═══ 4. VITALS ═══ */}
-          {data.vitals && (
-            <div className="mb-4">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.vitals}</h2>
+          <div className="mb-4">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.vitals}</h2>
+            {data.vitals && Object.values(data.vitals).some(v => v != null) ? (
               <div className="grid grid-cols-7 gap-1">
                 {[
                   { label: "Temp", value: data.vitals.temperature, unit: "°F" },
@@ -234,38 +232,32 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-[11px] text-gray-400 italic border border-dashed border-gray-200 rounded p-3 text-center">No vitals recorded for this visit.</p>
+            )}
+          </div>
 
           {/* ═══ 5. SOAP CLINICAL NOTES ═══ */}
           <div className="mb-4">
             <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2 border-b border-[#0077b6]/20 pb-1">{h.consultationSummary}</h2>
             <div className="space-y-2.5">
-              {(t.symptoms || data.symptoms || t.chiefComplaint || data.chiefComplaint) && (
-                <SoapSection
-                  label={h.subjective}
-                  content={`${t.chiefComplaint || data.chiefComplaint || ""}\n${t.symptoms || data.symptoms || ""}`.trim()}
-                  color="#2563eb"
-                />
-              )}
-              {(t.findings || data.findings) && (
-                <SoapSection label={h.objective} content={t.findings || data.findings!} color="#059669" />
-              )}
-              {(t.diagnosis || data.diagnosis) && (
-                <SoapSection label={h.assessment} content={t.diagnosis || data.diagnosis!} color="#d97706" highlight />
-              )}
-              {(t.plan || data.plan) && (
-                <SoapSection label={h.planLabel} content={t.plan || data.plan!} color="#7c3aed" />
-              )}
+              <SoapSection
+                label={h.subjective}
+                content={`${t.chiefComplaint || data.chiefComplaint || ""}\n${t.symptoms || data.symptoms || ""}`.trim() || "Not documented"}
+                color="#2563eb"
+              />
+              <SoapSection label={h.objective} content={t.findings || data.findings || "Not documented"} color="#059669" />
+              <SoapSection label={h.assessment} content={t.diagnosis || data.diagnosis || "Not documented"} color="#d97706" highlight />
+              <SoapSection label={h.planLabel} content={t.plan || data.plan || "Not documented"} color="#7c3aed" />
             </div>
           </div>
 
           {/* ═══ 6. PRESCRIPTION TABLE ═══ */}
-          {data.prescriptions && data.prescriptions.length > 0 && (
-            <div className="mb-4">
-              <h2 className="text-[11px] font-bold text-[#0077b6] mb-2 flex items-center gap-1.5">
-                <span className="text-[18px] font-serif italic leading-none">℞</span> {h.prescription}
-              </h2>
+          <div className="mb-4">
+            <h2 className="text-[11px] font-bold text-[#0077b6] mb-2 flex items-center gap-1.5">
+              <span className="text-[18px] font-serif italic leading-none">℞</span> {h.prescription}
+            </h2>
+            {data.prescriptions && data.prescriptions.length > 0 ? (
               <table className="w-full border-collapse text-[10px]">
                 <thead>
                   <tr className="bg-[#0077b6] text-white">
@@ -292,13 +284,15 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
+            ) : (
+              <p className="text-[11px] text-gray-400 italic border border-dashed border-gray-200 rounded p-3 text-center">No medications prescribed.</p>
+            )}
+          </div>
 
           {/* ═══ 7. INVESTIGATIONS ═══ */}
-          {data.labOrders && data.labOrders.length > 0 && (
-            <div className="mb-4">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.investigations}</h2>
+          <div className="mb-4">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.investigations}</h2>
+            {data.labOrders && data.labOrders.length > 0 ? (
               <table className="w-full border-collapse text-[10px]">
                 <thead>
                   <tr className="bg-gray-100">
@@ -325,14 +319,16 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
+            ) : (
+              <p className="text-[11px] text-gray-400 italic border border-dashed border-gray-200 rounded p-3 text-center">No investigations ordered.</p>
+            )}
+          </div>
 
           {/* ═══ 8. PATIENT INSTRUCTIONS ═══ */}
-          {((t.advice && t.advice.length > 0) || (data.advice && data.advice.length > 0)) && (
-            <div className="mb-4">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.adviceLabel}</h2>
-              <div className="bg-[#fffbeb] border border-[#fde68a] rounded p-3">
+          <div className="mb-4">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#0077b6] mb-2">{h.adviceLabel}</h2>
+            <div className="bg-[#fffbeb] border border-[#fde68a] rounded p-3">
+              {(t.advice || data.advice || []).length > 0 ? (
                 <ul className="list-none space-y-1 text-[11px]">
                   {(t.advice || data.advice || []).map((a, i) => (
                     <li key={i} className="flex items-start gap-2">
@@ -341,24 +337,26 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                     </li>
                   ))}
                 </ul>
-              </div>
+              ) : (
+                <p className="text-[11px] text-gray-400 italic text-center">Follow doctor's verbal advice. Contact clinic if symptoms persist.</p>
+              )}
             </div>
-          )}
+          </div>
 
           {/* ═══ 9. FOLLOW-UP ═══ */}
-          {(data.followUpDate || t.followUpInstructions || data.followUpInstructions) && (
-            <div className="mb-4 p-3 bg-[#eff6ff] border border-[#bfdbfe] rounded">
-              <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#2563eb] mb-1.5">{h.followUp}</h2>
-              {data.followUpDate && (
-                <p className="text-[12px] font-bold text-[#1e40af]">
-                  {h.nextVisit}: {new Date(data.followUpDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                </p>
-              )}
-              {(t.followUpInstructions || data.followUpInstructions) && (
-                <p className="text-[11px] text-[#3b82f6] mt-1">{t.followUpInstructions || data.followUpInstructions}</p>
-              )}
-            </div>
-          )}
+          <div className="mb-4 p-3 bg-[#eff6ff] border border-[#bfdbfe] rounded">
+            <h2 className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#2563eb] mb-1.5">{h.followUp}</h2>
+            {data.followUpDate ? (
+              <p className="text-[12px] font-bold text-[#1e40af]">
+                {h.nextVisit}: {new Date(data.followUpDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+              </p>
+            ) : (
+              <p className="text-[11px] text-gray-500">Follow-up as needed. Contact clinic if symptoms persist or worsen.</p>
+            )}
+            {(t.followUpInstructions || data.followUpInstructions) && (
+              <p className="text-[11px] text-[#3b82f6] mt-1">{t.followUpInstructions || data.followUpInstructions}</p>
+            )}
+          </div>
 
           {/* ═══ 10. DOCTOR SIGNATURE ═══ */}
           <div className="mt-6 flex justify-between items-end">
