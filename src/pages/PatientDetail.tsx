@@ -323,7 +323,7 @@ export default function PatientDetail() {
                               <div className="flex items-start gap-2">
                                 <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Diagnosis:</span>
                                 <span className="text-foreground line-clamp-1">
-                                  {c.report_data?.consultation?.diagnosis || c.soap_assessment}
+                                  {reportData?.consultation?.diagnosis || c.soap_assessment}
                                 </span>
                               </div>
                             )}
