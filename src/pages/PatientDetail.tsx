@@ -72,7 +72,7 @@ export default function PatientDetail() {
       supabase.from("patients").select("*").eq("id", id!).single(),
       supabase
         .from("consultations")
-        .select("id, chief_complaint, ai_summary, status, soap_subjective, soap_assessment, soap_plan, created_at, follow_up_date, tests_ordered")
+        .select("id, chief_complaint, ai_summary, status, soap_subjective, soap_assessment, soap_plan, created_at, follow_up_date, tests_ordered, report_data")
         .eq("patient_id", id!)
         .order("created_at", { ascending: false }),
     ]);
