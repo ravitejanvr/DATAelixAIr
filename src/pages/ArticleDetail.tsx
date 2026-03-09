@@ -265,7 +265,7 @@ function ArticleDetailInner() {
                     <h2 className="font-display text-base font-bold text-foreground">The Problem</h2>
                   </div>
                   <p className="text-[0.95rem] text-muted-foreground font-light leading-relaxed border-l-2 border-primary/30 pl-4">
-                    {s.summary}
+                    <KeywordLinker text={s.summary} />
                   </p>
                 </div>
               )}
