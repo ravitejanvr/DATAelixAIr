@@ -43,6 +43,23 @@ export default function Billing() {
     loadRecentInvoices();
   }, [user]);
 
+  // When patient is selected, find their active visit
+  useEffect(() => {
+    if (!selectedPatient) { setActiveVisit(null); return; }
+    const fetchVisit = async () => {
+      const { data } = await supabase
+        .from("patient_visits")
+        .select("id, consultation_id, clinic_id, status")
+        .eq("patient_id", selectedPatient.id)
+        .in("status", ["billing", "consultation_complete", "with_doctor", "registered", "arrived", "triage", "vitals"])
+        .order("check_in_time", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setActiveVisit(data || null);
+    };
+    fetchVisit();
+  }, [selectedPatient]);
+
   const loadPatients = async () => {
     const { data } = await supabase.from("patients").select("id, name, age, gender, phone").order("created_at", { ascending: false });
     setPatients(data || []);
