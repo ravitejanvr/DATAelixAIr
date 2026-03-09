@@ -390,6 +390,9 @@ function ArticleDetailInner() {
                 </Button>
               </div>
 
+              {/* Database evidence sources */}
+              <ArticleEvidenceSources relatedFeatures={s.related_platform_features} />
+
               {/* Evidence panel */}
               <EvidenceSourcesPanel article={article} />
             </motion.div>

@@ -7,6 +7,7 @@ import {
   Users, Settings, BarChart3, ShieldCheck, Workflow, TrendingUp, Clock,
   BrainCircuit, type LucideIcon,
 } from "lucide-react";
+import ClinicalEvidenceSection from "@/components/ClinicalEvidenceSection";
 
 interface SolutionData {
   slug: string;
