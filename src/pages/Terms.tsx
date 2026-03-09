@@ -38,7 +38,7 @@ const Terms = () => (
       <section>
         <h2 className="font-display text-xl font-bold text-foreground mb-3">5. Limitation of Liability</h2>
         <p className="text-sm text-muted-foreground">
-          To the maximum extent permitted by law, DATAelixAIr's total liability is limited to the subscription fees paid by you in the 12 months preceding any claim. We are not liable for indirect, incidental, or consequential damages.
+          To the maximum extent permitted by law, DATAelixAIr™'s total liability is limited to the subscription fees paid by you in the 12 months preceding any claim. We are not liable for indirect, incidental, or consequential damages.
         </p>
       </section>
 
