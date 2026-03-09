@@ -167,11 +167,11 @@ export default function AdminArticleEditor() {
     if (toIndex) {
       await (supabase.from("blog_article_index").upsert({
         article_id: id,
-        title: article.title,
-        summary: article.summary,
-        keywords: article.keywords,
-        category: article.category,
-        full_text: `${article.title}\n${article.summary}\n${article.content}\n${(article.key_findings || []).join("\n")}`,
+        title: toIndex.title,
+        summary: toIndex.summary,
+        keywords: toIndex.keywords,
+        category: toIndex.category,
+        full_text: `${toIndex.title}\n${toIndex.summary}\n${toIndex.content}\n${(toIndex.key_findings || []).join("\n")}`,
       }, { onConflict: "article_id" }) as any);
     }
     loadArticles();
