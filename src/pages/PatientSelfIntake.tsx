@@ -343,7 +343,8 @@ export default function PatientSelfIntake() {
       </div>
 
       {/* ── Content ── */}
-      <div className="flex-1 max-w-md mx-auto w-full px-4 py-5 pb-28">
+      <div className="flex-1 max-w-md mx-auto w-full px-4 py-5 pb-28 space-y-4">
+        <PatientTrustBanner compact />
         <AnimatePresence mode="wait">
           {/* ── STEP 0: Chief Complaint ── */}
           {step === 0 && (
