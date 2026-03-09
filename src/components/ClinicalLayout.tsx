@@ -193,7 +193,21 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-background/80 backdrop-blur-sm" onClick={() => setSidebarOpen(false)}>
-          <div className="w-64 h-full bg-card border-r border-border p-4 pt-16 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="w-64 h-full bg-card border-r border-border p-4 pt-16 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            {/* Quick Action Button - Mobile */}
+            {showQuickAction && (
+              <div className="mb-3">
+                <Button
+                  onClick={() => { navigate("/clinical"); setSidebarOpen(false); }}
+                  size="sm"
+                  className="w-full gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  New Consultation
+                </Button>
+              </div>
+            )}
+            
             <nav className="space-y-1">
               {navItems.map((item) => (
                 <button
