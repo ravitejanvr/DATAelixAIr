@@ -2215,6 +2215,7 @@ export type Database = {
           created_by: string
           expires_at: string
           id: string
+          patient_id: string | null
           token: string
         }
         Insert: {
@@ -2223,6 +2224,7 @@ export type Database = {
           created_by: string
           expires_at: string
           id?: string
+          patient_id?: string | null
           token: string
         }
         Update: {
@@ -2231,6 +2233,7 @@ export type Database = {
           created_by?: string
           expires_at?: string
           id?: string
+          patient_id?: string | null
           token?: string
         }
         Relationships: [
