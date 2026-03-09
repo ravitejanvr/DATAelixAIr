@@ -257,7 +257,7 @@ export default function Onboard() {
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-3 mb-4">
               <img src={brainLogo} alt="DATAelixAIr Logo" className="h-12" />
-              <span className="font-display text-2xl font-bold tracking-tight text-foreground">DATAelixAIr</span>
+              <span className="font-display text-2xl font-bold tracking-tight text-foreground">DATAelixAIr<sup className="text-[0.5em] text-muted-foreground">™</sup></span>
             </div>
             <h1 className="font-display text-2xl font-bold text-foreground">Start Your First Consultation</h1>
           </div>
