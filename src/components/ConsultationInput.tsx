@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Mic, Square, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import VoiceRecordingConsent, { hasVoiceConsent, setVoiceConsent } from "@/components/VoiceRecordingConsent";
 
 interface ConsultationInputProps {
   transcript: string;
@@ -16,6 +17,7 @@ interface ConsultationInputProps {
 export default function ConsultationInput({ transcript, onTranscriptChange, disabled }: ConsultationInputProps) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [showConsent, setShowConsent] = useState(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -40,7 +42,15 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
     },
   });
 
-  const startRecording = useCallback(async () => {
+  const requestRecording = useCallback(() => {
+    if (hasVoiceConsent()) {
+      doStartRecording();
+    } else {
+      setShowConsent(true);
+    }
+  }, []);
+
+  const doStartRecording = useCallback(async () => {
     setIsConnecting(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -99,11 +109,16 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
 
   return (
     <div className="space-y-1.5">
+      <VoiceRecordingConsent
+        open={showConsent}
+        onConsent={() => { setShowConsent(false); setVoiceConsent(); doStartRecording(); }}
+        onDecline={() => setShowConsent(false)}
+      />
       {/* Controls row */}
       <div className="flex items-center gap-2">
         {!isRecording ? (
           <Button
-            onClick={startRecording}
+            onClick={requestRecording}
             size="sm"
             variant="outline"
             className="h-7 text-[11px] gap-1"
