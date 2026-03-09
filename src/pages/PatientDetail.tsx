@@ -352,7 +352,7 @@ export default function PatientDetail() {
                               <div className="flex items-start gap-2">
                                 <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Tests:</span>
                                 <div className="flex flex-wrap gap-1">
-                                  {(c.report_data?.lab_orders || c.tests_ordered || []).slice(0, 2).map((test: any, i: number) => (
+                                  {(reportData?.lab_orders || c.tests_ordered || []).slice(0, 2).map((test: any, i: number) => (
                                     <Badge key={i} variant="secondary" className="text-[10px]">
                                       <Beaker className="h-2.5 w-2.5 mr-0.5" />
                                       {typeof test === 'string' ? test : test.test_name}
