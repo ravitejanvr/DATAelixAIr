@@ -86,7 +86,7 @@ serve(async (req) => {
         status: "registered",
         chief_complaint: typeof chief_complaint === "string" ? chief_complaint.slice(0, 500) : "",
       })
-      .select("id, token_number, status")
+      .select("id, token_number, status, visit_token")
       .single();
 
     if (vErr) throw new Error(`Visit creation failed: ${vErr.message}`);
@@ -103,6 +103,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       visit_id: visit.id,
+      visit_token: visit.visit_token,
       token_number: visit.token_number,
       status: visit.status,
       duplicate: false,

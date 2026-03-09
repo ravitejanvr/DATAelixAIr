@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,15 +109,15 @@ type IntakeStep = 0 | 1 | 2 | 3 | 4; // 0-3 = steps, 4 = review
 const SLIDE = { initial: { opacity: 0, x: 40 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -40 }, transition: { duration: 0.2 } };
 
 export default function PatientSelfIntake() {
-  const { visitId } = useParams<{ visitId: string }>();
   const [searchParams] = useSearchParams();
-  const clinicId = searchParams.get("clinic");
+  const visitToken = searchParams.get("token");
 
   const [lang, setLang] = useState<Lang>("en");
   const [step, setStep] = useState<IntakeStep>(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [visitValid, setVisitValid] = useState<boolean | null>(null);
+  const [visitId, setVisitId] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
   const [showLangPicker, setShowLangPicker] = useState(false);
 
@@ -135,23 +135,22 @@ export default function PatientSelfIntake() {
 
   const t = useCallback((key: string) => T[key]?.[lang] || T[key]?.en || key, [lang]);
 
-  // Validate visit
+  // Validate visit via edge function (token-based, no direct DB access)
   useEffect(() => {
-    if (!visitId) { setVisitValid(false); return; }
+    if (!visitToken) { setVisitValid(false); return; }
     (async () => {
-      const { data } = await supabase
-        .from("patient_visits")
-        .select("id, patient_id, patients(name)")
-        .eq("id", visitId)
-        .maybeSingle();
-      if (data) {
-        setVisitValid(true);
-        setPatientName((data.patients as any)?.name || "");
-      } else {
+      const { data, error } = await supabase.functions.invoke("validate-intake", {
+        body: { visit_token: visitToken },
+      });
+      if (error || !data?.visit_id) {
         setVisitValid(false);
+      } else {
+        setVisitValid(true);
+        setVisitId(data.visit_id);
+        setPatientName(data.patient_name || "");
       }
     })();
-  }, [visitId]);
+  }, [visitToken]);
 
   // Autocomplete: symptoms
   const filteredSuggestions = useMemo(() => {
@@ -204,40 +203,26 @@ export default function PatientSelfIntake() {
   const goBack = () => { if (step > 0) setStep((step - 1) as IntakeStep); };
 
   const handleSubmit = async () => {
-    if (!visitId) return;
+    if (!visitToken) return;
     setSubmitting(true);
     try {
-      const { data: visit } = await supabase
-        .from("patient_visits")
-        .select("patient_id, clinic_id")
-        .eq("id", visitId)
-        .single();
-      if (!visit) throw new Error("Visit not found");
-
       const allergyList = allergies.length > 0 ? allergies : [];
       const conditionList = conditions.filter(c => c !== "None");
 
-      const { error } = await supabase.from("triage").insert({
-        visit_id: visitId,
-        patient_id: visit.patient_id,
-        clinic_id: visit.clinic_id,
-        chief_complaint: chiefComplaint,
-        symptom_duration: duration,
-        pain_score: painScore,
-        allergies_noted: allergyList.join(", ") || null,
-        pregnancy_status: "not_applicable",
-        priority: painScore >= 8 ? "urgent" : painScore >= 5 ? "semi_urgent" : "routine",
-        notes: conditionList.length ? `Chronic: ${conditionList.join(", ")}` : null,
-        recorded_by: visit.patient_id,
+      const { data, error } = await supabase.functions.invoke("submit-intake", {
+        body: {
+          visit_token: visitToken,
+          chief_complaint: chiefComplaint,
+          symptom_duration: duration,
+          pain_score: painScore,
+          priority: painScore >= 8 ? "urgent" : painScore >= 5 ? "semi_urgent" : "routine",
+          allergies_noted: allergyList.join(", ") || null,
+          notes: conditionList.length ? `Chronic: ${conditionList.join(", ")}` : null,
+          allergies: allergyList,
+        },
       });
-      if (error) throw error;
 
-      await supabase.from("patient_visits").update({ status: "triage" }).eq("id", visitId);
-
-      if (allergyList.length) {
-        await supabase.from("patients").update({ allergies: allergyList }).eq("id", visit.patient_id);
-      }
-
+      if (error) throw new Error(error.message);
       setSubmitted(true);
     } catch (e) {
       console.error("Intake submission error:", e);
