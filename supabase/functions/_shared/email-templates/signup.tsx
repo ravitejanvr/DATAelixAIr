@@ -44,7 +44,7 @@ export const SignupEmail = ({
         <Text style={text}>
           Welcome to{' '}
           <Link href={siteUrl} style={link}>
-            <strong>DATAelixAIr</strong>
+            <strong>DATAelixAIr™</strong>
           </Link>
           — your AI clinical documentation workspace.
         </Text>

@@ -129,7 +129,7 @@ const Index = () => {
           </motion.h1>
 
           <motion.p variants={fadeUp} custom={2} className="mt-6 text-[clamp(0.95rem,1.3vw,1.1rem)] font-light leading-relaxed text-muted-foreground max-w-2xl mx-auto">
-            Record the consultation or write naturally. DATAelixAIr automatically generates clinical notes, prescriptions, lab orders, and patient reports — ready for doctor review in seconds.
+            Record the consultation or write naturally. DATAelixAIr™ automatically generates clinical notes, prescriptions, lab orders, and patient reports — ready for doctor review in seconds.
           </motion.p>
 
           <motion.div variants={fadeUp} custom={3} className="mt-9 flex flex-wrap justify-center gap-4">

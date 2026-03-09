@@ -42,7 +42,7 @@ export const InviteEmail = ({
         <Text style={text}>
           You've been invited to join{' '}
           <Link href={siteUrl} style={link}>
-            <strong>DATAelixAIr</strong>
+            <strong>DATAelixAIr™</strong>
           </Link>
           — an AI clinical documentation workspace for healthcare professionals. Click below to accept and create your account.
         </Text>
