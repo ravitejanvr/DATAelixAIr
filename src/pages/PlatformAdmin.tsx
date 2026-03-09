@@ -13,9 +13,10 @@ import {
   Building2, Users, FileText, Check, X, Loader2, ShieldAlert, Ban,
   Activity, TrendingUp, Clock, AlertTriangle, CheckCircle, XCircle, Zap,
   Shield, Cpu, Lock, Eye, UserCheck, UserX, MessageSquare, Flag,
-  BarChart3, Mail, Phone, MapPin, BookOpen
+  BarChart3, Mail, Phone, MapPin, BookOpen, Lightbulb
 } from "lucide-react";
 import AdminArticleEditor from "@/components/blog/AdminArticleEditor";
+import InnovationDashboard from "@/components/admin/InnovationDashboard";
 import type { MonitoringDashboardData } from "@/layers/monitoring/api";
 import { fetchMonitoringDashboard } from "@/layers/monitoring/api";
 import { MODEL_REGISTRY, DATA_ACCESS_MATRIX, ROLE_LABELS } from "@/layers/governance/api";
@@ -109,7 +110,7 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
-type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles";
+type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation";
 
 const getTabFromPath = (pathname: string): AdminTab => {
   const tabSegment = pathname.split("/")[2];
@@ -120,6 +121,7 @@ const getTabFromPath = (pathname: string): AdminTab => {
   if (tabSegment === "audit") return "audit";
   if (tabSegment === "safety") return "safety";
   if (tabSegment === "articles") return "articles";
+  if (tabSegment === "innovation") return "innovation";
   return "pilots";
 };
 
@@ -334,6 +336,7 @@ export default function PlatformAdmin() {
             <TabsTrigger value="monitoring"><Activity className="h-3.5 w-3.5 mr-1" /> Monitoring</TabsTrigger>
             <TabsTrigger value="audit"><FileText className="h-3.5 w-3.5 mr-1" /> Audit</TabsTrigger>
             <TabsTrigger value="articles"><BookOpen className="h-3.5 w-3.5 mr-1" /> Articles</TabsTrigger>
+            <TabsTrigger value="innovation"><Lightbulb className="h-3.5 w-3.5 mr-1" /> Innovation</TabsTrigger>
           </TabsList>
 
           {/* Pilots Tab */}
@@ -622,6 +625,11 @@ export default function PlatformAdmin() {
           {/* Articles Tab */}
           <TabsContent value="articles" className="mt-4">
             <AdminArticleEditor />
+          </TabsContent>
+
+          {/* Innovation Tab */}
+          <TabsContent value="innovation" className="mt-4">
+            <InnovationDashboard />
           </TabsContent>
         </Tabs>
       </div>
