@@ -89,9 +89,10 @@ serve(async (req) => {
       });
     }
 
-    // ── Check for returning patient (only if real phone) ──
+    // ── Check for returning patient (phone OR name+age+clinic) ──
     let patientId: string;
     let isReturning = false;
+    let possibleDuplicates: { id: string; name: string; phone: string }[] = [];
 
     const safeAllergies = Array.isArray(allergies) ? allergies.filter((a: any) => typeof a === "string").slice(0, 50) : [];
     const safeConditions = Array.isArray(conditions) ? conditions.filter((c: any) => typeof c === "string").slice(0, 50) : [];
@@ -105,17 +106,27 @@ serve(async (req) => {
         .limit(1);
 
       if (existingPatients && existingPatients.length > 0) {
-        // Returning patient — update demographics
         patientId = existingPatients[0].id;
         isReturning = true;
-
         await supabase.from("patients").update({
           age: parsedAge,
           gender: gender.toLowerCase(),
           ...(safeAllergies.length > 0 ? { allergies: safeAllergies } : {}),
         }).eq("id", patientId);
       } else {
-        // New patient with phone
+        // Check name+age+clinic duplicate before creating
+        const { data: nameMatches } = await supabase
+          .from("patients")
+          .select("id, name, phone")
+          .eq("clinic_id", clinic_id)
+          .ilike("name", name.trim())
+          .eq("age", parsedAge)
+          .limit(5);
+
+        if (nameMatches && nameMatches.length > 0) {
+          possibleDuplicates = nameMatches.map((m: any) => ({ id: m.id, name: m.name, phone: m.phone || "" }));
+        }
+
         const { data: newPatient, error: pErr } = await supabase
           .from("patients")
           .insert({
@@ -137,7 +148,19 @@ serve(async (req) => {
         patientId = newPatient.id;
       }
     } else {
-      // Walk-in without phone — always create new record
+      // Walk-in without phone — check name+age+clinic duplicate
+      const { data: nameMatches } = await supabase
+        .from("patients")
+        .select("id, name, phone")
+        .eq("clinic_id", clinic_id)
+        .ilike("name", name.trim())
+        .eq("age", parsedAge)
+        .limit(5);
+
+      if (nameMatches && nameMatches.length > 0) {
+        possibleDuplicates = nameMatches.map((m: any) => ({ id: m.id, name: m.name, phone: m.phone || "" }));
+      }
+
       const { data: newPatient, error: pErr } = await supabase
         .from("patients")
         .insert({
