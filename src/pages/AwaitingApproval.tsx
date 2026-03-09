@@ -125,9 +125,9 @@ export default function AwaitingApproval() {
           >
             <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-lg font-bold text-foreground">Your clinic workspace is ready</h1>
+                <h1 className="text-lg font-bold text-foreground">Demo Mode Active</h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Your account is currently under verification. You can explore the system while approval is processed.
+                  Real patient messaging will activate after clinic verification. You can explore the full AI workflow below.
                 </p>
                 {trustScore > 0 && (
                   <div className="flex items-center gap-2 mt-2">
