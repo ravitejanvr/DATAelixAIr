@@ -80,7 +80,18 @@ const clinicOps = [
   { icon: Send, title: "Patient Messaging", desc: "SMS and WhatsApp delivery of reports, instructions, and follow-up reminders." },
 ];
 
-const Index = () => (
+const Index = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.hash) {
+      setTimeout(() => {
+        document.querySelector(location.hash)?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  }, [location.hash]);
+
+  return (
   <div>
     <SEO
       title="DATAelixAIr — AI Clinical Workspace for Faster Consultations"
