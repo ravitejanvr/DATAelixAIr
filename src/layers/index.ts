@@ -1,4 +1,33 @@
 /**
+ * DATAelixAIr Layer Architecture Index
+ * 
+ * Exports all layer APIs for centralized access
+ */
+
+// Layer 2: Clinical Workflow
+export * from "./workflow/api";
+
+// Layer 3: Multilingual Processing
+export * from "./multilingual/api";
+
+// Layer 4: Clinical Intelligence (AI Agents)
+export * from "./intelligence/api";
+export * from "./ai-agents/api";
+
+// Layer 5: Clinical Safety
+export * from "./safety/api";
+
+// Layer 6: Evidence/RAG
+export * from "./evidence/api";
+
+// Layer 7: Learning
+export * from "./learning/api";
+
+// Layer 8: Monitoring
+export * from "./monitoring/api";
+
+// Layer 9: Governance
+export * from "./governance/api";
  * DATAelixAIr — 10-Layer Clinical AI Architecture
  * 
  * Layer 1:  User Interface (UI)
