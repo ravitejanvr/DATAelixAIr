@@ -13,7 +13,7 @@ import {
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Queue", path: "/queue", icon: ListOrdered },
-  { label: "Write / Record", path: "/clinical", icon: Stethoscope },
+  { label: "Clinical Cockpit", path: "/clinical", icon: Stethoscope },
   { label: "Patients", path: "/patients", icon: Users },
   
   { label: "Triage", path: "/triage", icon: ClipboardCheck },
