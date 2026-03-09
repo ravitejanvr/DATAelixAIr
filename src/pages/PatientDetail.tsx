@@ -333,7 +333,7 @@ export default function PatientDetail() {
                               <div className="flex items-start gap-2">
                                 <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">Rx:</span>
                                 <div className="flex flex-wrap gap-1">
-                                  {c.report_data.prescriptions.slice(0, 2).map((rx: any, i: number) => (
+                                  {reportData.prescriptions.slice(0, 2).map((rx: any, i: number) => (
                                     <Badge key={i} variant="outline" className="text-[10px]">
                                       {rx.drug_name}
                                     </Badge>
