@@ -175,6 +175,7 @@ export default function Clinical() {
 
   // Auto-generate trigger
   const [autoGenerateTriggered, setAutoGenerateTriggered] = useState(false);
+  const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
 
   // Consultation summary & copilot selections
   const [consultationSummary, setConsultationSummary] = useState("");
