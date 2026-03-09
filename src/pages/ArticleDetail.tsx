@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Clock, ExternalLink, Calendar, ArrowRight,
-  Stethoscope, FileText, ShieldCheck, Lightbulb, Zap, Building2
+  Stethoscope, FileText, ShieldCheck, Lightbulb, Zap, Building2, SearchX
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,15 +11,41 @@ import { Badge } from "@/components/ui/badge";
 import SEO from "@/components/SEO";
 import EvidenceSourcesPanel from "@/components/blog/EvidenceSourcesPanel";
 import RelatedArticles from "@/components/blog/RelatedArticles";
+import ArticleSkeleton from "@/components/blog/ArticleSkeleton";
+import ArticleErrorBoundary from "@/components/blog/ArticleErrorBoundary";
 import {
   staticArticles,
   categoryMeta,
   findRelatedArticles,
   detectFeatureLinks,
   type Article,
+  type ArticleCategory,
 } from "@/lib/blog-data";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
+
+// Safe accessor for article fields with defaults
+function safe(article: Article) {
+  return {
+    title: article.title || "Untitled Article",
+    slug: article.slug || "",
+    summary: article.summary || "",
+    content: article.content || "",
+    author: article.author || "DATAelixAIr Research",
+    publish_date: article.publish_date || new Date().toISOString().split("T")[0],
+    reading_time_min: article.reading_time_min || 5,
+    category: (article.category || "Research & Evidence") as ArticleCategory,
+    keywords: article.keywords || [],
+    key_findings: article.key_findings || [],
+    clinical_implications: article.clinical_implications || "",
+    source_type: article.source_type || "Editorial",
+    source_name: article.source_name || "",
+    source_url: article.source_url || "",
+    meta_title: article.meta_title || `${article.title || "Article"} — DATAelixAIr`,
+    meta_description: article.meta_description || article.summary || "",
+    related_platform_features: article.related_platform_features || [],
+  };
+}
 
 // Platform features for sidebar
 const PLATFORM_FEATURES = [
@@ -71,11 +97,39 @@ function generateClinicScenario(article: Article): { title: string; scenario: st
   return scenarios[cat] || scenarios["Clinical AI & Decision Support"];
 }
 
-export default function ArticleDetail() {
+function ArticleNotFound() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-5 px-4">
+      <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+        <SearchX className="h-7 w-7 text-muted-foreground" />
+      </div>
+      <div className="text-center">
+        <h1 className="font-display text-2xl font-bold text-foreground mb-2">Article Not Found</h1>
+        <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
+          This article may have been removed, unpublished, or the link may be incorrect. 
+          Browse our Research & Insights hub for the latest content.
+        </p>
+      </div>
+      <div className="flex gap-3">
+        <Button variant="outline" asChild>
+          <Link to="/blog">
+            <ArrowLeft size={14} className="mr-1" /> Browse All Articles
+          </Link>
+        </Button>
+        <Button asChild>
+          <Link to="/pilot-request">Request Pilot Access</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ArticleDetailInner() {
   const { slug } = useParams<{ slug: string }>();
   const [article, setArticle] = useState<Article | null>(null);
   const [allArticles, setAllArticles] = useState<Article[]>(staticArticles);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     loadArticle();
@@ -83,7 +137,10 @@ export default function ArticleDetail() {
 
   const loadArticle = async () => {
     setLoading(true);
+    setNotFound(false);
+
     try {
+      // Only fetch published articles
       const { data: dbArticles } = await supabase
         .from("blog_articles")
         .select("*")
@@ -91,41 +148,41 @@ export default function ArticleDetail() {
 
       const dbList: Article[] = (dbArticles || []).map((a: any) => ({
         ...a,
-        publish_date: a.publish_date || a.created_at,
+        publish_date: a.publish_date || a.created_at || new Date().toISOString().split("T")[0],
         source_name: a.source_name || "",
         source_url: a.source_url || "",
+        keywords: a.keywords || [],
+        key_findings: a.key_findings || [],
+        related_platform_features: a.related_platform_features || [],
       }));
 
-      const combined = [...dbList, ...staticArticles.filter((s) => !dbList.some((d) => d.slug === s.slug))];
+      const publishedStatic = staticArticles.filter((s) => s.status === "published");
+      const combined = [
+        ...dbList,
+        ...publishedStatic.filter((s) => !dbList.some((d) => d.slug === s.slug)),
+      ];
       setAllArticles(combined);
-      setArticle(combined.find((a) => a.slug === slug) || null);
+
+      const found = combined.find((a) => a.slug === slug) || null;
+      setArticle(found);
+      if (!found) setNotFound(true);
     } catch {
-      setArticle(staticArticles.find((a) => a.slug === slug) || null);
+      // Fallback to static published articles
+      const publishedStatic = staticArticles.filter((s) => s.status === "published");
+      setAllArticles(publishedStatic);
+      const found = publishedStatic.find((a) => a.slug === slug) || null;
+      setArticle(found);
+      if (!found) setNotFound(true);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  }
+  if (loading) return <ArticleSkeleton />;
+  if (notFound || !article) return <ArticleNotFound />;
 
-  if (!article) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <p className="text-muted-foreground">Article not found.</p>
-        <Button variant="outline" asChild>
-          <Link to="/blog">← Back to Research & Insights</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  const meta = categoryMeta[article.category];
+  const s = safe(article);
+  const meta = categoryMeta[s.category] || categoryMeta["Research & Evidence"];
   const Icon = meta.icon;
   const related = findRelatedArticles(article, allArticles);
   const capabilities = detectFeatureLinks(article);
@@ -134,20 +191,17 @@ export default function ArticleDetail() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
-    headline: article.title,
-    description: article.summary,
-    author: { "@type": "Person", name: article.author },
-    datePublished: article.publish_date,
+    headline: s.title,
+    description: s.summary,
+    author: { "@type": "Person", name: s.author },
+    datePublished: s.publish_date,
     publisher: { "@type": "Organization", name: "DATAelixAIr" },
-    keywords: article.keywords.join(", "),
+    keywords: s.keywords.join(", "),
   };
 
   return (
     <div>
-      <SEO
-        title={article.meta_title || `${article.title} — DATAelixAIr`}
-        description={article.meta_description || article.summary}
-      />
+      <SEO title={s.meta_title} description={s.meta_description} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       {/* Header */}
@@ -161,23 +215,32 @@ export default function ArticleDetail() {
             <div className="flex items-center gap-2 flex-wrap mb-4">
               <span className={`inline-flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${meta.colorClass}`}>
                 <Icon className="h-3 w-3" />
-                {article.category}
+                {s.category}
               </span>
-              {article.source_type === "Research" && (
+              {s.source_type === "Research" && s.source_name && (
                 <span className="text-[0.6rem] font-medium uppercase px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
-                  {article.source_name}
+                  {s.source_name}
                 </span>
               )}
             </div>
 
             <h1 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.15] tracking-tight text-foreground mb-4 max-w-3xl">
-              {article.title}
+              {s.title}
             </h1>
 
             <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
-              <span className="flex items-center gap-1"><Calendar size={14} /> {new Date(article.publish_date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</span>
-              <span className="flex items-center gap-1"><Clock size={14} /> {article.reading_time_min} min read</span>
-              <span>{article.author}</span>
+              <span className="flex items-center gap-1">
+                <Calendar size={14} />
+                {(() => {
+                  try {
+                    return new Date(s.publish_date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+                  } catch {
+                    return s.publish_date;
+                  }
+                })()}
+              </span>
+              <span className="flex items-center gap-1"><Clock size={14} /> {s.reading_time_min} min read</span>
+              <span>{s.author}</span>
             </div>
           </motion.div>
         </div>
@@ -191,20 +254,22 @@ export default function ArticleDetail() {
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
 
               {/* Section 1: Problem / Summary */}
-              <div className="mb-8">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-6 w-6 rounded-md bg-destructive/10 flex items-center justify-center">
-                    <Stethoscope className="h-3.5 w-3.5 text-destructive" />
+              {s.summary && (
+                <div className="mb-8">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-6 w-6 rounded-md bg-destructive/10 flex items-center justify-center">
+                      <Stethoscope className="h-3.5 w-3.5 text-destructive" />
+                    </div>
+                    <h2 className="font-display text-base font-bold text-foreground">The Problem</h2>
                   </div>
-                  <h2 className="font-display text-base font-bold text-foreground">The Problem</h2>
+                  <p className="text-[0.95rem] text-muted-foreground font-light leading-relaxed border-l-2 border-primary/30 pl-4">
+                    {s.summary}
+                  </p>
                 </div>
-                <p className="text-[0.95rem] text-muted-foreground font-light leading-relaxed border-l-2 border-primary/30 pl-4">
-                  {article.summary}
-                </p>
-              </div>
+              )}
 
               {/* Section 2: Evidence / Key Findings */}
-              {article.key_findings.length > 0 && (
+              {s.key_findings.length > 0 && (
                 <div className="mb-8">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
@@ -213,7 +278,7 @@ export default function ArticleDetail() {
                     <h2 className="font-display text-base font-bold text-foreground">Evidence</h2>
                   </div>
                   <ul className="space-y-2.5">
-                    {article.key_findings.map((f, i) => (
+                    {s.key_findings.map((f, i) => (
                       <li key={i} className="flex items-start gap-2.5 text-sm text-muted-foreground leading-relaxed">
                         <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold mt-0.5 shrink-0">
                           {i + 1}
@@ -226,7 +291,7 @@ export default function ArticleDetail() {
               )}
 
               {/* Section 3: Insight / Content */}
-              {article.content && (
+              {s.content && (
                 <div className="mb-8">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="h-6 w-6 rounded-md bg-violet-500/10 flex items-center justify-center">
@@ -235,19 +300,19 @@ export default function ArticleDetail() {
                     <h2 className="font-display text-base font-bold text-foreground">Insight</h2>
                   </div>
                   <div className="prose prose-sm max-w-none dark:prose-invert">
-                    <ReactMarkdown>{article.content}</ReactMarkdown>
+                    <ReactMarkdown>{s.content}</ReactMarkdown>
                   </div>
                 </div>
               )}
 
               {/* Section 4: Clinical Implications */}
-              {article.clinical_implications && (
+              {s.clinical_implications && (
                 <div className="mb-8 p-5 rounded-xl bg-primary/5 border border-primary/10">
                   <div className="flex items-center gap-2 mb-3">
                     <ShieldCheck className="h-4 w-4 text-primary" />
                     <h2 className="font-display text-base font-bold text-foreground">Clinical Implication</h2>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{article.clinical_implications}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{s.clinical_implications}</p>
                 </div>
               )}
 
@@ -293,10 +358,10 @@ export default function ArticleDetail() {
               </div>
 
               {/* External source */}
-              {article.source_url && (
+              {s.source_url && (
                 <div className="mb-8">
                   <Button variant="outline" size="sm" asChild>
-                    <a href={article.source_url} target="_blank" rel="noopener noreferrer">
+                    <a href={s.source_url} target="_blank" rel="noopener noreferrer">
                       Read Original Source <ExternalLink size={14} className="ml-1" />
                     </a>
                   </Button>
@@ -363,12 +428,12 @@ export default function ArticleDetail() {
               </Card>
 
               {/* Keywords */}
-              {article.keywords.length > 0 && (
+              {s.keywords.length > 0 && (
                 <Card className="border-border/50">
                   <CardContent className="p-4">
                     <h3 className="text-xs font-bold text-foreground uppercase tracking-wider mb-2">Topics</h3>
                     <div className="flex flex-wrap gap-1.5">
-                      {article.keywords.map((kw, i) => (
+                      {s.keywords.map((kw, i) => (
                         <Badge key={i} variant="outline" className="text-[10px]">{kw}</Badge>
                       ))}
                     </div>
@@ -431,5 +496,13 @@ export default function ArticleDetail() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function ArticleDetail() {
+  return (
+    <ArticleErrorBoundary>
+      <ArticleDetailInner />
+    </ArticleErrorBoundary>
   );
 }

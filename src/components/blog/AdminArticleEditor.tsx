@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Plus, Pencil, Check, Trash2, Loader2, BookOpen, Eye, Archive,
-  FileText, Search, Sparkles, Radar
+  FileText, Search, Sparkles, Radar, HeartPulse
 } from "lucide-react";
+import BlogHealthChecker from "@/components/blog/BlogHealthChecker";
 import { categories, generateSlug, type ArticleCategory, type ArticleStatus, type SourceType } from "@/lib/blog-data";
 
 interface DbArticle {
@@ -91,8 +92,29 @@ export default function AdminArticleEditor() {
     setLoading(false);
   };
 
+  const validateForPublish = (article: Partial<DbArticle>): string[] => {
+    const errors: string[] = [];
+    if (!article.title?.trim()) errors.push("Title is required");
+    if (!article.slug?.trim()) errors.push("Slug is required");
+    if (!article.category?.trim()) errors.push("Category is required");
+    if (!article.summary?.trim()) errors.push("Summary is required");
+    if (!article.content?.trim()) errors.push("Content is required");
+    if (!article.publish_date) errors.push("Publish date is required");
+    return errors;
+  };
+
   const save = async () => {
     if (!editing?.title) { toast({ title: "Title required", variant: "destructive" }); return; }
+
+    // If publishing, validate required fields
+    if (editing.status === "published") {
+      const errors = validateForPublish(editing);
+      if (errors.length > 0) {
+        toast({ title: "Cannot publish", description: errors.join(", "), variant: "destructive" });
+        return;
+      }
+    }
+
     setSaving(true);
     const slug = editing.slug || generateSlug(editing.title);
     const payload = {
@@ -122,6 +144,15 @@ export default function AdminArticleEditor() {
   };
 
   const approve = async (id: string) => {
+    const article = articles.find((a) => a.id === id);
+    if (article) {
+      const errors = validateForPublish(article);
+      if (errors.length > 0) {
+        toast({ title: "Cannot publish", description: errors.join(", "), variant: "destructive" });
+        return;
+      }
+    }
+
     const { error } = await (supabase.from("blog_articles").update({
       status: "published",
       approved_by: user?.id,
@@ -132,15 +163,15 @@ export default function AdminArticleEditor() {
     toast({ title: "Article published" });
 
     // Index for RAG
-    const article = articles.find((a) => a.id === id);
-    if (article) {
+    const toIndex = articles.find((a) => a.id === id);
+    if (toIndex) {
       await (supabase.from("blog_article_index").upsert({
         article_id: id,
-        title: article.title,
-        summary: article.summary,
-        keywords: article.keywords,
-        category: article.category,
-        full_text: `${article.title}\n${article.summary}\n${article.content}\n${(article.key_findings || []).join("\n")}`,
+        title: toIndex.title,
+        summary: toIndex.summary,
+        keywords: toIndex.keywords,
+        category: toIndex.category,
+        full_text: `${toIndex.title}\n${toIndex.summary}\n${toIndex.content}\n${(toIndex.key_findings || []).join("\n")}`,
       }, { onConflict: "article_id" }) as any);
     }
     loadArticles();
@@ -414,6 +445,9 @@ export default function AdminArticleEditor() {
           <p className="text-sm text-muted-foreground text-center py-8">No articles found.</p>
         )}
       </div>
+
+      {/* Blog Health Checker */}
+      <BlogHealthChecker />
     </div>
   );
 }
