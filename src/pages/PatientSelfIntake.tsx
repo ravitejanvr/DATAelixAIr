@@ -203,40 +203,26 @@ export default function PatientSelfIntake() {
   const goBack = () => { if (step > 0) setStep((step - 1) as IntakeStep); };
 
   const handleSubmit = async () => {
-    if (!visitId) return;
+    if (!visitToken) return;
     setSubmitting(true);
     try {
-      const { data: visit } = await supabase
-        .from("patient_visits")
-        .select("patient_id, clinic_id")
-        .eq("id", visitId)
-        .single();
-      if (!visit) throw new Error("Visit not found");
-
       const allergyList = allergies.length > 0 ? allergies : [];
       const conditionList = conditions.filter(c => c !== "None");
 
-      const { error } = await supabase.from("triage").insert({
-        visit_id: visitId,
-        patient_id: visit.patient_id,
-        clinic_id: visit.clinic_id,
-        chief_complaint: chiefComplaint,
-        symptom_duration: duration,
-        pain_score: painScore,
-        allergies_noted: allergyList.join(", ") || null,
-        pregnancy_status: "not_applicable",
-        priority: painScore >= 8 ? "urgent" : painScore >= 5 ? "semi_urgent" : "routine",
-        notes: conditionList.length ? `Chronic: ${conditionList.join(", ")}` : null,
-        recorded_by: visit.patient_id,
+      const { data, error } = await supabase.functions.invoke("submit-intake", {
+        body: {
+          visit_token: visitToken,
+          chief_complaint: chiefComplaint,
+          symptom_duration: duration,
+          pain_score: painScore,
+          priority: painScore >= 8 ? "urgent" : painScore >= 5 ? "semi_urgent" : "routine",
+          allergies_noted: allergyList.join(", ") || null,
+          notes: conditionList.length ? `Chronic: ${conditionList.join(", ")}` : null,
+          allergies: allergyList,
+        },
       });
-      if (error) throw error;
 
-      await supabase.from("patient_visits").update({ status: "triage" }).eq("id", visitId);
-
-      if (allergyList.length) {
-        await supabase.from("patients").update({ allergies: allergyList }).eq("id", visit.patient_id);
-      }
-
+      if (error) throw new Error(error.message);
       setSubmitted(true);
     } catch (e) {
       console.error("Intake submission error:", e);
