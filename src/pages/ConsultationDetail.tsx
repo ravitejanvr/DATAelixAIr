@@ -435,10 +435,10 @@ export default function ConsultationDetail() {
               {expandedSections.soap && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                   {[
-                    { label: "Visit Summary", content: reportData?.consultation?.visit_summary || consultation.soap_subjective, color: "border-blue-300" },
-                    { label: "Findings", content: reportData?.consultation?.findings || consultation.soap_objective, color: "border-emerald-300" },
-                    { label: "Provisional Diagnosis", content: reportData?.consultation?.diagnosis || consultation.soap_assessment, color: "border-amber-300" },
-                    { label: "Treatment Plan", content: reportData?.consultation?.treatment_plan || consultation.soap_plan, color: "border-purple-300" },
+                    { label: "Visit Summary", content: reportData?.soap_notes?.subjective || reportData?.consultation?.visit_summary || consultation.soap_subjective, color: "border-blue-300" },
+                    { label: "Findings", content: reportData?.soap_notes?.objective || reportData?.consultation?.findings || consultation.soap_objective, color: "border-emerald-300" },
+                    { label: "Provisional Diagnosis", content: reportData?.soap_notes?.assessment || reportData?.consultation?.diagnosis || consultation.soap_assessment, color: "border-amber-300" },
+                    { label: "Treatment Plan", content: reportData?.soap_notes?.plan || reportData?.consultation?.treatment_plan || consultation.soap_plan, color: "border-purple-300" },
                   ].map((s) => s.content && (
                     <div key={s.label} className={`p-3 rounded-lg bg-muted/30 border-l-4 ${s.color}`}>
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{s.label}</p>
