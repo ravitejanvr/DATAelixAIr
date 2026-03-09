@@ -150,28 +150,33 @@ Deno.serve(async (req) => {
       } catch (_e) { /* AI generation is best-effort */ }
     }
 
-    if (effectiveLabOrders && effectiveLabOrders.length > 0 && visit_id) {
+    if (effectiveLabOrders && effectiveLabOrders.length > 0) {
+      // visit_id may be null for doctor-only workflows — still persist with consultation_id
       try {
         const labRows = effectiveLabOrders.slice(0, 30).filter((o: any) => o.test_name?.trim()).map((o: any) => ({
           patient_id,
           doctor_id: user.id,
           clinic_id,
-          visit_id,
+          visit_id: visit_id || null,
           consultation_id: consultation_id || null,
           test_name: String(o.test_name).substring(0, 200),
           priority: ["urgent", "routine", "stat"].includes(o.priority) ? o.priority : "routine",
           notes: String(o.notes || o.reason || "").substring(0, 500),
         }));
 
+        console.log(`[finalize-consultation] Inserting ${labRows.length} lab orders for consultation=${consultation_id}, visit=${visit_id}`);
+
         const { data: labData, error: labError } = await admin.from("lab_orders").insert(labRows).select("id, test_name");
         if (labError) throw new Error(labError.message);
         results.lab_orders = labData;
         results.stages.push({ stage: "lab_orders", status: "saved", count: labData?.length || 0 });
+        console.log(`[finalize-consultation] Lab orders saved: ${labData?.length || 0}`);
       } catch (e: any) {
         errors.push(`Lab orders: ${e.message}`);
         results.stages.push({ stage: "lab_orders", status: "error", error: e.message });
       }
     } else {
+      console.log(`[finalize-consultation] No lab orders to save (lab_orders input: ${JSON.stringify(lab_orders?.length || 0)})`);
       results.stages.push({ stage: "lab_orders", status: "skipped" });
     }
 
