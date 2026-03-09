@@ -1,34 +1,102 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import CommandPalette from "@/components/CommandPalette";
 import brainLogo from "@/assets/brain-logo-nobg.png";
+import { supabase } from "@/integrations/supabase/client";
 import {
-  LayoutDashboard, Stethoscope, Users, Pill, Activity,
-  LogOut, Menu, X, Globe, ClipboardList, ClipboardCheck, FileInput, ListOrdered,
-  Search, Settings, IndianRupee
+  LayoutDashboard, Stethoscope, Users, FileText, Activity,
+  LogOut, Menu, X, Globe, ListOrdered, Plus,
+  Search, Settings, IndianRupee, Building2, BarChart3, Shield
 } from "lucide-react";
 
-const navItems = [
-  { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { label: "Queue", path: "/queue", icon: ListOrdered },
-  { label: "Clinical Cockpit", path: "/clinical", icon: Stethoscope },
-  { label: "Patients", path: "/patients", icon: Users },
-  
-  { label: "Triage", path: "/triage", icon: ClipboardCheck },
-  { label: "Intake", path: "/intake", icon: FileInput },
-  { label: "Vitals", path: "/vitals", icon: Activity },
-  { label: "Prescriptions", path: "/prescriptions", icon: Pill },
-  { label: "Billing", path: "/billing", icon: IndianRupee },
-  { label: "Clinic Settings", path: "/clinic-settings", icon: Settings },
-];
+// Role-based navigation configuration
+const navItemsByRole = {
+  doctor: [
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Queue", path: "/queue", icon: ListOrdered },
+    { label: "Consultations", path: "/clinical", icon: Stethoscope },
+    { label: "Patients", path: "/patients", icon: Users },
+    { label: "Reports", path: "/reports", icon: FileText },
+  ],
+  front_desk: [
+    { label: "Queue", path: "/queue", icon: ListOrdered },
+    { label: "Patients", path: "/patients", icon: Users },
+    { label: "Reports", path: "/reports", icon: FileText },
+    { label: "Billing", path: "/billing", icon: IndianRupee },
+  ],
+  clinic_admin: [
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Patients", path: "/patients", icon: Users },
+    { label: "Reports", path: "/reports", icon: FileText },
+    { label: "Billing", path: "/billing", icon: IndianRupee },
+    { label: "Clinic Settings", path: "/clinic-settings", icon: Settings },
+  ],
+  platform_admin: [
+    { label: "Platform Dashboard", path: "/platform-admin", icon: LayoutDashboard },
+    { label: "Clinics", path: "/platform-admin?tab=clinics", icon: Building2 },
+    { label: "Users", path: "/platform-admin?tab=users", icon: Users },
+    { label: "Usage Metrics", path: "/platform-admin?tab=monitoring", icon: BarChart3 },
+    { label: "Audit Logs", path: "/platform-admin?tab=governance", icon: Shield },
+  ],
+  // Fallback for other roles
+  default: [
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Queue", path: "/queue", icon: ListOrdered },
+    { label: "Patients", path: "/patients", icon: Users },
+  ],
+};
 
 export default function ClinicalLayout({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch user role
+  useEffect(() => {
+    async function fetchUserRole() {
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      if (data) {
+        setUserRole(data.role);
+      }
+      setLoading(false);
+    }
+
+    fetchUserRole();
+  }, [user]);
+
+  // Get navigation items based on role
+  const navItems = userRole && navItemsByRole[userRole as keyof typeof navItemsByRole]
+    ? navItemsByRole[userRole as keyof typeof navItemsByRole]
+    : navItemsByRole.default;
+
+  // Show quick action only for doctors, nurses, and clinic admins
+  const showQuickAction = userRole === "doctor" || userRole === "nurse" || userRole === "clinic_admin";
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -58,6 +126,20 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
             <kbd className="ml-auto text-[8px] bg-background px-1 py-0.5 rounded border border-border font-mono">⌘K</kbd>
           </button>
         </div>
+
+        {/* Quick Action Button */}
+        {showQuickAction && (
+          <div className="px-2 pt-2">
+            <Button
+              onClick={() => navigate("/clinical")}
+              size="sm"
+              className="w-full h-8 text-xs gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Consultation
+            </Button>
+          </div>
+        )}
 
         <nav className="flex-1 px-2 py-1.5 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => (
@@ -111,7 +193,21 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-background/80 backdrop-blur-sm" onClick={() => setSidebarOpen(false)}>
-          <div className="w-64 h-full bg-card border-r border-border p-4 pt-16 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="w-64 h-full bg-card border-r border-border p-4 pt-16 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            {/* Quick Action Button - Mobile */}
+            {showQuickAction && (
+              <div className="mb-3">
+                <Button
+                  onClick={() => { navigate("/clinical"); setSidebarOpen(false); }}
+                  size="sm"
+                  className="w-full gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  New Consultation
+                </Button>
+              </div>
+            )}
+            
             <nav className="space-y-1">
               {navItems.map((item) => (
                 <button
