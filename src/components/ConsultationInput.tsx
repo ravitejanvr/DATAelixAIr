@@ -42,7 +42,15 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
     },
   });
 
-  const startRecording = useCallback(async () => {
+  const requestRecording = useCallback(() => {
+    if (hasVoiceConsent()) {
+      doStartRecording();
+    } else {
+      setShowConsent(true);
+    }
+  }, []);
+
+  const doStartRecording = useCallback(async () => {
     setIsConnecting(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
