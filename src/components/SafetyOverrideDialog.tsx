@@ -153,7 +153,7 @@ export function SafetyOverrideDialog({
           {/* Warning Alerts */}
           {warningAlerts.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-amber-600 flex items-center gap-1">
+              <h4 className="text-sm font-semibold text-warning flex items-center gap-1">
                 <AlertCircle className="h-4 w-4" />
                 Warnings — Review Recommended
               </h4>
