@@ -449,7 +449,7 @@ const Index = () => {
             <em className="not-italic text-primary">Entire Patient Visit</em>
           </h2>
           <p className="mt-5 text-muted-foreground font-light leading-relaxed max-w-lg mx-auto">
-            Beyond documentation — DATAelixAIr covers every operational step from consultation to patient messaging.
+            Beyond documentation — DATAelixAIr™ covers every operational step from consultation to patient messaging.
           </p>
         </motion.div>
 
