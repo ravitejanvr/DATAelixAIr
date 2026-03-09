@@ -69,3 +69,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.generate-lab-orders]
     verify_jwt = false
+  [functions.global-safety-engine]
+    verify_jwt = false
