@@ -117,6 +117,7 @@ export default function PatientSelfIntake() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [visitValid, setVisitValid] = useState<boolean | null>(null);
+  const [visitId, setVisitId] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
   const [showLangPicker, setShowLangPicker] = useState(false);
 
