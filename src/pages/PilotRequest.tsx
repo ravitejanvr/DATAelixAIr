@@ -75,7 +75,7 @@ export default function PilotRequest() {
         <Card className="max-w-lg w-full">
           <CardHeader>
             <CardTitle className="text-xl">Request a Pilot</CardTitle>
-            <CardDescription>Fill in your clinic details to apply for the DATAelixAIr pilot program.</CardDescription>
+            <CardDescription>Fill in your clinic details to apply for the DATAelixAIr™ pilot program.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
