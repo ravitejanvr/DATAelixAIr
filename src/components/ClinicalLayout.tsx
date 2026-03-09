@@ -127,6 +127,20 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
           </button>
         </div>
 
+        {/* Quick Action Button */}
+        {showQuickAction && (
+          <div className="px-2 pt-2">
+            <Button
+              onClick={() => navigate("/clinical")}
+              size="sm"
+              className="w-full h-8 text-xs gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Consultation
+            </Button>
+          </div>
+        )}
+
         <nav className="flex-1 px-2 py-1.5 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => (
             <button
