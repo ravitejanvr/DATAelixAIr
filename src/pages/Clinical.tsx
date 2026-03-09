@@ -274,6 +274,68 @@ export default function Clinical() {
     }
   }, [generatedSummary, summaryManuallyEdited]);
 
+  // ── Auto-save consultation draft every 10 seconds ──
+  const DRAFT_KEY = "dataelixair_consultation_draft";
+
+  useEffect(() => {
+    if (!selectedPatient || savedSessionId) return; // Don't auto-save after finalized
+    const interval = setInterval(() => {
+      const draft = {
+        timestamp: Date.now(),
+        patient_id: selectedPatient.id,
+        patient_name: selectedPatient.name,
+        visit_id: visitId,
+        transcript,
+        stabilizedTranscript,
+        selectedSymptoms,
+        selectedDuration,
+        expansionSelections,
+        priorMeds,
+        extractedData,
+        soapSections,
+        pendingRxFromSuggestions,
+        selectedDiagnoses,
+        selectedTests,
+        selectedAdvice,
+        followUpDate,
+        followUpNotes,
+        consultationSummary,
+      };
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } catch { /* storage full — ignore */ }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [selectedPatient, savedSessionId, visitId, transcript, stabilizedTranscript, selectedSymptoms, selectedDuration, expansionSelections, priorMeds, extractedData, soapSections, pendingRxFromSuggestions, selectedDiagnoses, selectedTests, selectedAdvice, followUpDate, followUpNotes, consultationSummary]);
+
+  // ── Recover draft on mount ──
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      // Only recover if less than 2 hours old and no patient selected yet
+      if (Date.now() - draft.timestamp > 2 * 60 * 60 * 1000) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      if (!selectedPatient && draft.patient_name) {
+        toast({
+          title: "Draft recovered",
+          description: `Unsaved consultation for ${draft.patient_name}. Select the patient to restore.`,
+          duration: 8000,
+        });
+      }
+    } catch { /* ignore parse errors */ }
+  }, []);
+
+  // Clear draft after successful save
+  useEffect(() => {
+    if (savedSessionId) {
+      localStorage.removeItem(DRAFT_KEY);
+    }
+  }, [savedSessionId]);
+
   // Sync symptom chips to extracted data
   useEffect(() => {
     if (selectedSymptoms.length > 0) {
