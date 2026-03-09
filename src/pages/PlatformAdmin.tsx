@@ -120,6 +120,7 @@ const getTabFromPath = (pathname: string): AdminTab => {
   if (tabSegment === "audit") return "audit";
   if (tabSegment === "safety") return "safety";
   if (tabSegment === "articles") return "articles";
+  if (tabSegment === "innovation") return "innovation";
   return "pilots";
 };
 
