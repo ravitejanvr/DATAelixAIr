@@ -163,8 +163,8 @@ export default function AdminArticleEditor() {
     toast({ title: "Article published" });
 
     // Index for RAG
-    const article = articles.find((a) => a.id === id);
-    if (article) {
+    const toIndex = articles.find((a) => a.id === id);
+    if (toIndex) {
       await (supabase.from("blog_article_index").upsert({
         article_id: id,
         title: article.title,
