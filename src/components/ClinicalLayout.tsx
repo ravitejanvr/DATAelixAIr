@@ -11,19 +11,42 @@ import {
   Search, Settings, IndianRupee, Building2, BarChart3, Shield
 } from "lucide-react";
 
-const navItems = [
-  { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { label: "Queue", path: "/queue", icon: ListOrdered },
-  { label: "Clinical Cockpit", path: "/clinical", icon: Stethoscope },
-  { label: "Patients", path: "/patients", icon: Users },
-  
-  { label: "Triage", path: "/triage", icon: ClipboardCheck },
-  { label: "Intake", path: "/intake", icon: FileInput },
-  { label: "Vitals", path: "/vitals", icon: Activity },
-  { label: "Prescriptions", path: "/prescriptions", icon: Pill },
-  { label: "Billing", path: "/billing", icon: IndianRupee },
-  { label: "Clinic Settings", path: "/clinic-settings", icon: Settings },
-];
+// Role-based navigation configuration
+const navItemsByRole = {
+  doctor: [
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Queue", path: "/queue", icon: ListOrdered },
+    { label: "Consultations", path: "/clinical", icon: Stethoscope },
+    { label: "Patients", path: "/patients", icon: Users },
+    { label: "Reports", path: "/reports", icon: FileText },
+  ],
+  front_desk: [
+    { label: "Queue", path: "/queue", icon: ListOrdered },
+    { label: "Patients", path: "/patients", icon: Users },
+    { label: "Reports", path: "/reports", icon: FileText },
+    { label: "Billing", path: "/billing", icon: IndianRupee },
+  ],
+  clinic_admin: [
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Patients", path: "/patients", icon: Users },
+    { label: "Reports", path: "/reports", icon: FileText },
+    { label: "Billing", path: "/billing", icon: IndianRupee },
+    { label: "Clinic Settings", path: "/clinic-settings", icon: Settings },
+  ],
+  platform_admin: [
+    { label: "Platform Dashboard", path: "/platform-admin", icon: LayoutDashboard },
+    { label: "Clinics", path: "/platform-admin?tab=clinics", icon: Building2 },
+    { label: "Users", path: "/platform-admin?tab=users", icon: Users },
+    { label: "Usage Metrics", path: "/platform-admin?tab=monitoring", icon: BarChart3 },
+    { label: "Audit Logs", path: "/platform-admin?tab=governance", icon: Shield },
+  ],
+  // Fallback for other roles
+  default: [
+    { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { label: "Queue", path: "/queue", icon: ListOrdered },
+    { label: "Patients", path: "/patients", icon: Users },
+  ],
+};
 
 export default function ClinicalLayout({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
