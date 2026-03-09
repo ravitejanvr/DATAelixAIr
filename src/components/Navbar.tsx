@@ -24,10 +24,7 @@ const Navbar = () => {
       if (location.pathname === link.path) {
         document.querySelector(link.hash)?.scrollIntoView({ behavior: "smooth" });
       } else {
-        navigate(link.path);
-        setTimeout(() => {
-          document.querySelector(link.hash)?.scrollIntoView({ behavior: "smooth" });
-        }, 300);
+        navigate(link.path + link.hash);
       }
     } else {
       if (location.pathname === link.path) {
