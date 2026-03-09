@@ -19,6 +19,7 @@ import PatientSelector, { type SelectedPatient } from "@/components/PatientSelec
 import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import FollowUpPanel from "@/components/clinical/FollowUpPanel";
 import ClinicalCopilot from "@/components/clinical/ClinicalCopilot";
+import AiDisclosureBadge from "@/components/AiDisclosureBadge";
 
 import ConsultationTimeline from "@/components/ConsultationTimeline";
 import ConsultationComplete from "@/components/ConsultationComplete";
