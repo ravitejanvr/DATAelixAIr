@@ -182,7 +182,7 @@ serve(async (req) => {
       patientId = newPatient.id;
     }
 
-    // ── Audit log ──
+    // ── Audit log (use assignedDoctorId as system proxy for self-registered patients) ──
     supabase.from("audit_logs").insert({
       actor_id: assignedDoctorId,
       clinic_id,
@@ -193,14 +193,28 @@ serve(async (req) => {
         source: "qr_registration",
         is_returning: isReturning,
         phone_verified: phoneVerified,
+        self_registered: true,
+        possible_duplicates: possibleDuplicates.length > 0 ? possibleDuplicates : undefined,
       },
     }).then(() => {});
+
+    // ── Flag duplicates in risk_flags for admin review ──
+    if (possibleDuplicates.length > 0) {
+      supabase.from("risk_flags").insert({
+        user_id: assignedDoctorId,
+        flag_type: "duplicate_patient",
+        severity: "low",
+        description: `Possible duplicate patient: "${name.trim()}" age ${parsedAge} at clinic. Matches: ${possibleDuplicates.map(d => `${d.name} (${d.phone || "no phone"})`).join(", ")}`,
+        metadata: { patient_id: patientId, duplicates: possibleDuplicates },
+      }).then(() => {});
+    }
 
     return new Response(JSON.stringify({
       patient_id: patientId,
       is_returning: isReturning,
       clinic_name: clinic.name,
       phone_verified: phoneVerified,
+      possible_duplicates: possibleDuplicates.length > 0 ? possibleDuplicates : undefined,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
