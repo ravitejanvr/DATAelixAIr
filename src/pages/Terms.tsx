@@ -10,7 +10,7 @@ const Terms = () => (
       <section>
         <h2 className="font-display text-xl font-bold text-foreground mb-3">1. Eligibility</h2>
         <p className="text-sm text-muted-foreground">
-          DATAelixAIr services are intended for <strong className="text-foreground">registered healthcare professionals</strong> and authorised institutional representatives only. By using our platform, you confirm you hold valid medical registration (e.g., MCI/NMC, GMC) or are acting on behalf of a registered healthcare institution.
+          DATAelixAIr™ services are intended for <strong className="text-foreground">registered healthcare professionals</strong> and authorised institutional representatives only. By using our platform, you confirm you hold valid medical registration (e.g., MCI/NMC, GMC) or are acting on behalf of a registered healthcare institution.
         </p>
       </section>
 
