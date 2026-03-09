@@ -760,6 +760,41 @@ export type Database = {
           },
         ]
       }
+      diagnostic_hypotheses: {
+        Row: {
+          confidence_score: number
+          created_at: string
+          evidence_sources: Json
+          hypothesis: Json
+          id: string
+          visit_id: string
+        }
+        Insert: {
+          confidence_score?: number
+          created_at?: string
+          evidence_sources?: Json
+          hypothesis?: Json
+          id?: string
+          visit_id: string
+        }
+        Update: {
+          confidence_score?: number
+          created_at?: string
+          evidence_sources?: Json
+          hypothesis?: Json
+          id?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnostic_hypotheses_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctor_favorites: {
         Row: {
           clinic_id: string | null
