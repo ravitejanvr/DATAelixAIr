@@ -17,6 +17,7 @@ interface ConsultationInputProps {
 export default function ConsultationInput({ transcript, onTranscriptChange, disabled }: ConsultationInputProps) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [showConsent, setShowConsent] = useState(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
