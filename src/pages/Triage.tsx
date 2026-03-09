@@ -58,19 +58,22 @@ export default function Triage() {
     if (!chiefComplaint.trim()) { toast({ title: "Chief complaint required", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("user_id", user.id).maybeSingle();
-      const { error } = await supabase.from("triage").insert({
-        visit_id: activeVisit.id, patient_id: selectedPatient.id,
-        clinic_id: profile?.clinic_id || activeVisit.clinic_id, recorded_by: user.id,
-        chief_complaint: chiefComplaint.trim(),
-        symptom_duration: selectedDuration || triage.symptom_duration || null,
-        pain_score: triage.pain_score ? parseInt(triage.pain_score) : null,
-        allergies_noted: triage.allergies_noted || null,
-        pregnancy_status: triage.pregnancy_status, priority: triage.priority,
-        notes: triage.notes || null,
-      } as any);
-      if (error) throw error;
-      await supabase.from("patient_visits").update({ status: "vitals" } as any).eq("id", activeVisit.id);
+      const { data, error } = await supabase.functions.invoke("record-triage", {
+        body: {
+          visit_id: activeVisit.id,
+          patient_id: selectedPatient.id,
+          clinic_id: activeVisit.clinic_id,
+          chief_complaint: chiefComplaint.trim(),
+          symptom_duration: selectedDuration || triage.symptom_duration || null,
+          pain_score: triage.pain_score ? parseInt(triage.pain_score) : null,
+          allergies_noted: triage.allergies_noted || null,
+          priority: triage.priority,
+          notes: triage.notes || null,
+          recorded_by: user.id,
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
       toast({ title: "Triage saved", description: `Complete for ${selectedPatient.name}` });
       setTriage(EMPTY_TRIAGE); setSelectedComplaints([]); setSelectedDuration("");
       selectPatient(selectedPatient);
