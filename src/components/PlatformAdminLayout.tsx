@@ -6,7 +6,7 @@ import brainLogo from "@/assets/brain-logo-nobg.png";
 
 import {
   LayoutDashboard, Building2, Users, BarChart3, ShieldAlert,
-  FileText, LogOut, Shield, Lightbulb
+  FileText, LogOut, Shield, Lightbulb, BookOpen
 } from "lucide-react";
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { label: "Pilot Requests", path: "/platform-admin/pilots", icon: Building2 },
   { label: "Users", path: "/platform-admin/users", icon: Users },
   { label: "Clinics", path: "/platform-admin/clinics", icon: Building2 },
+  { label: "Articles", path: "/platform-admin/articles", icon: BookOpen },
   { label: "Risk Flags", path: "/platform-admin/safety", icon: ShieldAlert },
   { label: "Governance", path: "/platform-admin/governance", icon: Shield },
   { label: "Innovation", path: "/platform-admin/innovation", icon: Lightbulb },
