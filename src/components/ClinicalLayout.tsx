@@ -143,7 +143,7 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
         <nav className="flex-1 px-2 py-1.5 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => (
             <button
-              key={item.path}
+              key={`${item.path}:${item.label}`}
               onClick={() => navigate(item.path)}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150 ${
                 location.pathname === item.path
