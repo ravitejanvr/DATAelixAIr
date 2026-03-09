@@ -134,7 +134,7 @@ export async function logSafetyOverride(
   acknowledgedAlerts: string[],
   consultationId?: string
 ): Promise<void> {
-  await logAuditEvent({
+  await logGovernanceEvent({
     event_type: "safety_override_confirmed",
     actor_id: actorId,
     target_type: "consultation",
