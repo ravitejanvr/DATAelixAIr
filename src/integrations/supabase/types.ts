@@ -695,6 +695,7 @@ export type Database = {
           id: string
           invoice_number: string | null
           lab_charges: Json | null
+          paid_at: string | null
           patient_id: string
           payment_mode: string | null
           procedures: Json | null
@@ -713,6 +714,7 @@ export type Database = {
           id?: string
           invoice_number?: string | null
           lab_charges?: Json | null
+          paid_at?: string | null
           patient_id: string
           payment_mode?: string | null
           procedures?: Json | null
@@ -731,6 +733,7 @@ export type Database = {
           id?: string
           invoice_number?: string | null
           lab_charges?: Json | null
+          paid_at?: string | null
           patient_id?: string
           payment_mode?: string | null
           procedures?: Json | null
