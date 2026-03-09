@@ -56,23 +56,16 @@ export default function Auth() {
   const PLATFORM_ADMIN_EMAILS = ["raviteja@elixair.uk", "raviteja.nvr@elixair.uk", "raviteja.nvr@gmail.com"];
 
   const ensureProfileAndRole = async (userId: string) => {
-    const isPlatformAdmin = PLATFORM_ADMIN_EMAILS.includes(signUpEmail.trim().toLowerCase());
-    const assignedRole: AppRole = isPlatformAdmin ? "platform_admin" : signUpRole;
-    const assignedStatus = isPlatformAdmin ? "approved" : "pending";
-
-    const { data: existingRole } = await supabase.from("user_roles").select("id").eq("user_id", userId).limit(1);
-    if (!existingRole?.length) {
-      await supabase.from("user_roles").insert({ user_id: userId, role: assignedRole });
-    } else if (isPlatformAdmin) {
-      await supabase.from("user_roles").update({ role: assignedRole }).eq("user_id", userId);
-    }
-
-    const { data: existingProfile } = await supabase.from("profiles").select("id").eq("user_id", userId).limit(1);
-    if (!existingProfile?.length) {
-      await supabase.from("profiles").insert({ user_id: userId, full_name: signUpName, phone: signUpPhone || "", account_status: assignedStatus });
-    } else {
-      await supabase.from("profiles").update({ full_name: signUpName, phone: signUpPhone || "", account_status: isPlatformAdmin ? "approved" : undefined }).eq("user_id", userId);
-    }
+    const { data, error } = await supabase.functions.invoke("ensure-profile-role", {
+      body: {
+        full_name: signUpName,
+        phone: signUpPhone || "",
+        role: signUpRole,
+        email: signUpEmail.trim(),
+      },
+    });
+    if (error) console.error("ensure-profile-role error:", error);
+    if (data?.error) console.error("ensure-profile-role data error:", data.error);
   };
 
   const checkApprovalAndRoute = async (userId: string, fallbackRole?: AppRole) => {
