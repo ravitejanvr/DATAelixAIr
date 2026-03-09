@@ -144,6 +144,15 @@ export default function AdminArticleEditor() {
   };
 
   const approve = async (id: string) => {
+    const article = articles.find((a) => a.id === id);
+    if (article) {
+      const errors = validateForPublish(article);
+      if (errors.length > 0) {
+        toast({ title: "Cannot publish", description: errors.join(", "), variant: "destructive" });
+        return;
+      }
+    }
+
     const { error } = await (supabase.from("blog_articles").update({
       status: "published",
       approved_by: user?.id,
