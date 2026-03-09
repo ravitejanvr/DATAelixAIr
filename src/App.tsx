@@ -32,6 +32,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import Clinical from "./pages/Clinical";
 import Patients from "./pages/Patients";
+import Reports from "./pages/Reports";
 import PatientDetail from "./pages/PatientDetail";
 import Prescriptions from "./pages/Prescriptions";
 import ConsultationDetail from "./pages/ConsultationDetail";
