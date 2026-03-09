@@ -445,6 +445,9 @@ export default function AdminArticleEditor() {
           <p className="text-sm text-muted-foreground text-center py-8">No articles found.</p>
         )}
       </div>
+
+      {/* Blog Health Checker */}
+      <BlogHealthChecker />
     </div>
   );
 }
