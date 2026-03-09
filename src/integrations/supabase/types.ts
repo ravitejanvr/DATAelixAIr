@@ -1673,6 +1673,7 @@ export type Database = {
           token_number: number | null
           updated_at: string
           visit_date: string | null
+          visit_token: string
           visit_type: string | null
         }
         Insert: {
@@ -1688,6 +1689,7 @@ export type Database = {
           token_number?: number | null
           updated_at?: string
           visit_date?: string | null
+          visit_token?: string
           visit_type?: string | null
         }
         Update: {
@@ -1703,6 +1705,7 @@ export type Database = {
           token_number?: number | null
           updated_at?: string
           visit_date?: string | null
+          visit_token?: string
           visit_type?: string | null
         }
         Relationships: [
