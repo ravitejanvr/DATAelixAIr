@@ -989,6 +989,72 @@ export type Database = {
         }
         Relationships: []
       }
+      drug_safety_updates: {
+        Row: {
+          affected_populations: string[] | null
+          alert_type: string
+          black_box_warning: boolean | null
+          contraindications: string[] | null
+          created_at: string
+          description: string | null
+          drug_name: string
+          generic_name: string | null
+          id: string
+          ingested_at: string
+          is_active: boolean | null
+          metadata: Json | null
+          recall_info: string | null
+          severity: string
+          source: string
+          source_id: string | null
+          source_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          affected_populations?: string[] | null
+          alert_type?: string
+          black_box_warning?: boolean | null
+          contraindications?: string[] | null
+          created_at?: string
+          description?: string | null
+          drug_name: string
+          generic_name?: string | null
+          id?: string
+          ingested_at?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          recall_info?: string | null
+          severity?: string
+          source?: string
+          source_id?: string | null
+          source_url?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          affected_populations?: string[] | null
+          alert_type?: string
+          black_box_warning?: boolean | null
+          contraindications?: string[] | null
+          created_at?: string
+          description?: string | null
+          drug_name?: string
+          generic_name?: string | null
+          id?: string
+          ingested_at?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          recall_info?: string | null
+          severity?: string
+          source?: string
+          source_id?: string | null
+          source_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       evidence_sources: {
         Row: {
           authors: string
@@ -1093,6 +1159,80 @@ export type Database = {
           version?: string
         }
         Relationships: []
+      }
+      guideline_updates: {
+        Row: {
+          applicable_conditions: string[] | null
+          applicable_drugs: string[] | null
+          country: string | null
+          created_at: string
+          id: string
+          ingested_at: string
+          is_active: boolean | null
+          keywords: string[] | null
+          metadata: Json | null
+          publication_date: string | null
+          recommendation_text: string | null
+          source_organization: string
+          specialty: string | null
+          summary: string | null
+          supersedes_id: string | null
+          title: string
+          updated_at: string
+          url: string | null
+          version: string | null
+        }
+        Insert: {
+          applicable_conditions?: string[] | null
+          applicable_drugs?: string[] | null
+          country?: string | null
+          created_at?: string
+          id?: string
+          ingested_at?: string
+          is_active?: boolean | null
+          keywords?: string[] | null
+          metadata?: Json | null
+          publication_date?: string | null
+          recommendation_text?: string | null
+          source_organization: string
+          specialty?: string | null
+          summary?: string | null
+          supersedes_id?: string | null
+          title: string
+          updated_at?: string
+          url?: string | null
+          version?: string | null
+        }
+        Update: {
+          applicable_conditions?: string[] | null
+          applicable_drugs?: string[] | null
+          country?: string | null
+          created_at?: string
+          id?: string
+          ingested_at?: string
+          is_active?: boolean | null
+          keywords?: string[] | null
+          metadata?: Json | null
+          publication_date?: string | null
+          recommendation_text?: string | null
+          source_organization?: string
+          specialty?: string | null
+          summary?: string | null
+          supersedes_id?: string | null
+          title?: string
+          updated_at?: string
+          url?: string | null
+          version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guideline_updates_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "guideline_updates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       guideline_usage_logs: {
         Row: {
@@ -1577,6 +1717,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      medical_evidence: {
+        Row: {
+          abstract: string | null
+          authors: string | null
+          created_at: string
+          evidence_strength: string | null
+          id: string
+          ingested_at: string
+          is_ai_summarized: boolean | null
+          journal: string | null
+          keywords: string[] | null
+          metadata: Json | null
+          relevance_category: string | null
+          relevance_score: number | null
+          source: string
+          source_id: string | null
+          summary: string | null
+          title: string
+          updated_at: string
+          url: string | null
+          year: number | null
+        }
+        Insert: {
+          abstract?: string | null
+          authors?: string | null
+          created_at?: string
+          evidence_strength?: string | null
+          id?: string
+          ingested_at?: string
+          is_ai_summarized?: boolean | null
+          journal?: string | null
+          keywords?: string[] | null
+          metadata?: Json | null
+          relevance_category?: string | null
+          relevance_score?: number | null
+          source?: string
+          source_id?: string | null
+          summary?: string | null
+          title: string
+          updated_at?: string
+          url?: string | null
+          year?: number | null
+        }
+        Update: {
+          abstract?: string | null
+          authors?: string | null
+          created_at?: string
+          evidence_strength?: string | null
+          id?: string
+          ingested_at?: string
+          is_ai_summarized?: boolean | null
+          journal?: string | null
+          keywords?: string[] | null
+          metadata?: Json | null
+          relevance_category?: string | null
+          relevance_score?: number | null
+          source?: string
+          source_id?: string | null
+          summary?: string | null
+          title?: string
+          updated_at?: string
+          url?: string | null
+          year?: number | null
+        }
+        Relationships: []
       }
       medication_alerts: {
         Row: {
