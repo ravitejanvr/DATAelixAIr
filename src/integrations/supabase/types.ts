@@ -1909,6 +1909,41 @@ export type Database = {
         }
         Relationships: []
       }
+      report_tokens: {
+        Row: {
+          consultation_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          token: string
+        }
+        Insert: {
+          consultation_id: string
+          created_at?: string
+          created_by: string
+          expires_at: string
+          id?: string
+          token: string
+        }
+        Update: {
+          consultation_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_tokens_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "consultations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       risk_flags: {
         Row: {
           created_at: string
