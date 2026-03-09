@@ -16,6 +16,7 @@ import ScrollToTop from "./components/ScrollToTop";
 import Index from "./pages/Index";
 import Vision from "./pages/Vision";
 import Blog from "./pages/Blog";
+import ArticleDetail from "./pages/ArticleDetail";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
