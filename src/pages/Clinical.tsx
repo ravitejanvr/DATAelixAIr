@@ -30,7 +30,7 @@ import {
   Sparkles, RotateCcw, Clock, ClipboardCheck, Brain, CalendarDays,
   Zap, Activity, Stethoscope, Eye, Search, Moon, Sun,
   Heart, Thermometer, Wind, Droplets, Shield, Mic, PenLine,
-  ChevronDown, ChevronUp, Phone, FileUp, X, Send, MessageSquare, Scale
+  ChevronDown, ChevronUp, Phone, FileUp, X, Send, MessageSquare
 } from "lucide-react";
 import type { ExtractedData, SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_EXTRACTED, EMPTY_SOAP } from "@/layers/ai-agents/api";
@@ -241,8 +241,6 @@ export default function Clinical() {
   // Validation state
   const [isValidating, setIsValidating] = useState(false);
   const [validationComplete, setValidationComplete] = useState(false);
-  const [complianceResults, setComplianceResults] = useState<any[] | null>(null);
-  const [evidenceResults, setEvidenceResults] = useState<any | null>(null);
 
   // Command bar state
   const [commandQuery, setCommandQuery] = useState("");
@@ -699,10 +697,10 @@ export default function Clinical() {
       const alertCount = (results.interaction_flags?.length || 0) + (results.allergy_flags?.length || 0) +
         (results.dose_warnings?.length || 0) + (results.vitals_dangers?.length || 0) + (results.emergency_patterns?.length || 0);
 
-      // 2. Guideline compliance check
+      // 2. Guideline compliance check (non-blocking)
       if (selectedDiagnoses.length > 0 || pendingRxFromSuggestions.length > 0 || selectedTests.length > 0) {
         try {
-          const { data: compData } = await supabase.functions.invoke("guideline-compliance", {
+          await supabase.functions.invoke("guideline-compliance", {
             body: {
               diagnoses: selectedDiagnoses,
               medications: pendingRxFromSuggestions,
@@ -712,17 +710,15 @@ export default function Clinical() {
               chief_complaint: chiefComplaint || selectedDiagnoses[0] || "",
             },
           });
-          if (compData?.results) setComplianceResults(compData.results);
         } catch { /* non-blocking */ }
       }
 
-      // 3. Evidence retrieval
+      // 3. Evidence retrieval (non-blocking)
       if (chiefComplaint || selectedDiagnoses.length > 0) {
         try {
-          const { data: evData } = await supabase.functions.invoke("retrieve-guideline-recommendation", {
+          await supabase.functions.invoke("retrieve-guideline-recommendation", {
             body: { diagnosis: selectedDiagnoses[0] || chiefComplaint },
           });
-          if (evData) setEvidenceResults(evData);
         } catch { /* non-blocking */ }
       }
 
@@ -1656,48 +1652,6 @@ export default function Clinical() {
                     )}
                   </Button>
 
-                  {/* Compliance Results */}
-                  {validationComplete && complianceResults && complianceResults.length > 0 && (
-                    <div className="space-y-1.5 p-2 rounded-lg bg-muted/40 border border-border">
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Guideline Compliance</span>
-                      {complianceResults.map((r: any, i: number) => (
-                        <div key={i} className="flex items-start gap-1.5 text-xs">
-                          {r.compliance_status === "guideline_aligned" ? (
-                            <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
-                          ) : r.compliance_status === "evidence_supported" ? (
-                            <Scale className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />
-                          ) : (
-                            <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />
-                          )}
-                          <div>
-                            <span className="font-medium">{r.item}</span>
-                            <span className="text-muted-foreground ml-1">— {r.explanation}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Evidence Results */}
-                  {validationComplete && evidenceResults && evidenceResults.recommended_treatment && (
-                    <div className="space-y-1 p-2 rounded-lg bg-muted/40 border border-border">
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Evidence</span>
-                      <div className="text-xs">
-                        <span className="font-medium">{evidenceResults.diagnosis}</span>
-                        <span className="text-muted-foreground"> — Recommended: </span>
-                        <span className="font-medium text-primary">{evidenceResults.recommended_treatment}</span>
-                        {evidenceResults.authority && (
-                          <span className="text-muted-foreground"> ({evidenceResults.authority}, {evidenceResults.evidence_level})</span>
-                        )}
-                      </div>
-                      {evidenceResults.all_recommendations?.length > 1 && (
-                        <div className="text-[10px] text-muted-foreground mt-1">
-                          +{evidenceResults.all_recommendations.length - 1} more recommendation(s)
-                        </div>
-                      )}
-                    </div>
-                  )}
-
                   <div className="flex items-start gap-1.5">
                     <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} className="mt-0.5 h-3.5 w-3.5" />
                     <label htmlFor="final-review" className="text-xs text-muted-foreground cursor-pointer select-none leading-relaxed">
@@ -1770,15 +1724,15 @@ export default function Clinical() {
 
         {/* ═══ FOOTER: Command Bar — always visible ═══ */}
         <div className="shrink-0 px-4 py-2 border-t border-border bg-card/90 backdrop-blur-sm">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-foreground bg-background shadow-sm hover:border-foreground/70 transition-colors max-w-3xl mx-auto">
-            <Sparkles className="h-4 w-4 text-foreground/50 shrink-0" />
+          <div className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-border bg-background shadow-sm hover:border-primary/30 transition-colors max-w-3xl mx-auto">
+            <Sparkles className="h-4 w-4 text-primary/50 shrink-0" />
             <input
               id="command-bar-input"
               type="text"
               value={commandQuery}
               onChange={e => setCommandQuery(e.target.value)}
               placeholder="Input anything!"
-              className="flex-1 text-sm bg-transparent border-none outline-none text-foreground placeholder:text-foreground/40"
+              className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
               onKeyDown={e => {
                 if (e.key === "Enter" && commandQuery.trim()) {
                   handleCommandBarInput(commandQuery.trim());
