@@ -261,12 +261,11 @@ serve(async (req) => {
     let modularOutput: any = {
       diagnoses: [], labs: [], medications: [], guidelines: [],
       safety_score: 0, safety_flags: [], error: null,
-      context: null, hypotheses: [], evidence: null, compliance: null, oversight: null,
+      context: null, ddx: null, hypotheses: [], evidence: null, compliance: null, oversight: null,
     };
 
     try {
       // ─── MODULE 1: Context Engine ───────────────────────
-      // Assembles structured clinical context from raw patient data
       const ctxStart = Date.now();
       const structuredContext = {
         patient_age: ctx.age || null,
@@ -296,6 +295,95 @@ serve(async (req) => {
         latency_ms: Date.now() - ctxStart,
         details: `Assembled ${Object.keys(structuredContext).length} data points`,
       });
+
+      // ─── MODULE 1.5: DDX Engine ────────────────────────
+      const ddxStart = Date.now();
+      try {
+        const ddxUrl = `${supabaseUrl}/functions/v1/ddx-engine`;
+        const ddxResp = await fetch(ddxUrl, {
+          method: "POST",
+          headers: {
+            Authorization: authHeader,
+            "Content-Type": "application/json",
+            apikey: anonKey,
+          },
+          body: JSON.stringify({
+            symptoms: structuredContext.symptoms,
+            vitals: {
+              temperature: structuredContext.vitals.temperature,
+              spo2: structuredContext.vitals.spo2,
+              pulse: structuredContext.vitals.pulse,
+            },
+            age: structuredContext.patient_age,
+            sex: structuredContext.patient_sex,
+            medical_history: structuredContext.medical_history,
+            current_medications: structuredContext.medications,
+            allergies: structuredContext.allergies,
+          }),
+        });
+
+        if (ddxResp.ok) {
+          const ddxData = await ddxResp.json();
+          modularOutput.ddx = ddxData;
+
+          // Merge DDX diagnoses into modular output
+          if (ddxData.differential_diagnoses?.length > 0) {
+            modularOutput.diagnoses = ddxData.differential_diagnoses.map((d: any) => d.diagnosis_name);
+          }
+
+          // Merge DDX labs
+          if (ddxData.recommended_labs?.length > 0) {
+            const existingLabs = new Set(modularOutput.labs.map((l: string) => l.toLowerCase()));
+            for (const lab of ddxData.recommended_labs) {
+              if (!existingLabs.has(lab.test_name.toLowerCase())) {
+                modularOutput.labs.push(lab.test_name);
+              }
+            }
+          }
+
+          // Merge DDX medications
+          if (ddxData.suggested_medications?.length > 0) {
+            const existingMeds = new Set(modularOutput.medications.map((m: string) => m.toLowerCase()));
+            for (const med of ddxData.suggested_medications) {
+              if (med.safe && !existingMeds.has(med.generic_name.toLowerCase())) {
+                modularOutput.medications.push(med.generic_name);
+              }
+            }
+          }
+
+          // Merge DDX guidelines
+          if (ddxData.guideline_recommendations?.length > 0) {
+            modularOutput.guidelines = ddxData.guideline_recommendations.map((g: any) => ({
+              title: g.guideline_name,
+              organization: g.authority,
+              recommendation: g.recommendation,
+              evidence_grade: g.evidence_level,
+            }));
+          }
+
+          moduleLogs.push({
+            module: "ddx_engine",
+            status: "success",
+            latency_ms: Date.now() - ddxStart,
+            details: `${ddxData.differential_diagnoses?.length || 0} diagnoses (${ddxData.dangerous_diagnoses_injected || 0} must-not-miss), ${ddxData.recommended_labs?.length || 0} labs, ${ddxData.suggested_medications?.length || 0} meds, ${ddxData.guideline_recommendations?.length || 0} guidelines. Graph: ${ddxData.matched_symptoms?.length || 0}/${structuredContext.symptoms.length} symptoms matched. Execution: ${ddxData.execution_ms}ms`,
+          });
+        } else {
+          const errText = await ddxResp.text();
+          moduleLogs.push({
+            module: "ddx_engine",
+            status: "error",
+            latency_ms: Date.now() - ddxStart,
+            details: `HTTP ${ddxResp.status}: ${errText.substring(0, 200)}`,
+          });
+        }
+      } catch (e) {
+        moduleLogs.push({
+          module: "ddx_engine",
+          status: "error",
+          latency_ms: Date.now() - ddxStart,
+          details: e instanceof Error ? e.message : "Unknown error",
+        });
+      }
 
       // ─── MODULE 2: Hypothesis Engine ────────────────────
       // Calls query-clinical-graph for knowledge graph results + AI for hypothesis generation
