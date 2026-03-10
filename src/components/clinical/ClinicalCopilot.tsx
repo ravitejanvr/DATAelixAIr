@@ -493,8 +493,10 @@ export default function ClinicalCopilot({
                   variant="outline"
                   className="w-full text-xs h-7"
                   onClick={async () => {
-                    if (selectedMedications.length === 0) {
-                      toast.error("Add medications first");
+                    const hasDiagnosis = !!(diagnosis || selectedDiagnoses[0] || chiefComplaint);
+                    const hasMeds = selectedMedications.length > 0;
+                    if (!hasDiagnosis && !hasMeds) {
+                      toast.error("Select a diagnosis or medication first");
                       return;
                     }
                     setLoadingEvidence(true);
@@ -502,7 +504,7 @@ export default function ClinicalCopilot({
                       const { data, error } = await supabase.functions.invoke("evidence-agents", {
                         body: {
                           medications: selectedMedications.map(m => m.drug_name),
-                          diagnosis: diagnosis || selectedDiagnoses[0] || "",
+                          diagnosis: diagnosis || selectedDiagnoses[0] || chiefComplaint || "",
                           patient_age: patientAge,
                           allergies: allergies,
                         },
@@ -517,7 +519,7 @@ export default function ClinicalCopilot({
                       setLoadingEvidence(false);
                     }
                   }}
-                  disabled={loadingEvidence || selectedMedications.length === 0}
+                  disabled={loadingEvidence || (selectedMedications.length === 0 && !diagnosis && selectedDiagnoses.length === 0 && !chiefComplaint)}
                 >
                   {loadingEvidence && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
                   Retrieve Evidence
