@@ -1113,6 +1113,7 @@ export default function Clinical() {
     patientAge: selectedPatient?.age,
     allergies: selectedPatient?.allergies || [],
     diagnosis: selectedDiagnoses[0],
+    chiefComplaint,
     instructions: copilotInstructions,
     selectedInstructions,
     onToggleInstruction: toggleInstruction,
