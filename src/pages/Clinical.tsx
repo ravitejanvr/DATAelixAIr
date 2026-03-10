@@ -289,6 +289,11 @@ export default function Clinical() {
   const [autoGenerateTriggered, setAutoGenerateTriggered] = useState(false);
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
 
+  // Modular pipeline outputs
+  const [pipelineHypotheses, setPipelineHypotheses] = useState<HypothesisEntry[]>([]);
+  const [pipelineEvidence, setPipelineEvidence] = useState<PipelineEvidence | null>(null);
+  const [pipelineCompliance, setPipelineCompliance] = useState<PipelineCompliance | null>(null);
+
   // Consultation summary & copilot selections
   const [consultationSummary, setConsultationSummary] = useState("");
   const [summaryManuallyEdited, setSummaryManuallyEdited] = useState(false);
