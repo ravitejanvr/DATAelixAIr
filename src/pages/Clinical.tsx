@@ -86,6 +86,63 @@ const QUICK_RX_TEMPLATES: Record<string, { drug: string; dose: string; freq: str
     { drug: "Ambroxol", dose: "30mg", freq: "BD", dur: "5 days" },
     { drug: "Cetirizine", dose: "10mg", freq: "OD", dur: "5 days" },
   ],
+  "Headache": [
+    { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "3 days" },
+    { drug: "Ibuprofen", dose: "400mg", freq: "BD", dur: "3 days" },
+  ],
+  "Chest pain": [
+    { drug: "Aspirin", dose: "325mg", freq: "OD", dur: "as directed" },
+    { drug: "Pantoprazole", dose: "40mg", freq: "OD", dur: "14 days" },
+  ],
+  "Abdominal pain": [
+    { drug: "Pantoprazole", dose: "40mg", freq: "OD", dur: "14 days" },
+    { drug: "Dicyclomine", dose: "20mg", freq: "TID", dur: "5 days" },
+  ],
+  "Vomiting": [
+    { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "3 days" },
+    { drug: "ORS", dose: "1 sachet", freq: "BD", dur: "3 days" },
+  ],
+  "Diarrhea": [
+    { drug: "ORS", dose: "1 sachet", freq: "after each stool", dur: "3 days" },
+    { drug: "Racecadotril", dose: "100mg", freq: "TID", dur: "3 days" },
+  ],
+  "Cold": [
+    { drug: "Cetirizine", dose: "10mg", freq: "OD", dur: "5 days" },
+    { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "3 days" },
+  ],
+  "Sore throat": [
+    { drug: "Amoxicillin", dose: "500mg", freq: "TID", dur: "5 days" },
+    { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "3 days" },
+  ],
+  "Viral Fever": [
+    { drug: "Paracetamol", dose: "650mg", freq: "TID", dur: "3 days" },
+    { drug: "ORS", dose: "1 sachet", freq: "BD", dur: "3 days" },
+  ],
+  "Dengue": [
+    { drug: "Paracetamol", dose: "650mg", freq: "TID", dur: "5 days" },
+    { drug: "ORS", dose: "1 sachet", freq: "TID", dur: "5 days" },
+  ],
+  "URTI": [
+    { drug: "Amoxicillin", dose: "500mg", freq: "TID", dur: "5 days" },
+    { drug: "Cetirizine", dose: "10mg", freq: "OD", dur: "5 days" },
+    { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "3 days" },
+  ],
+  "Gastritis": [
+    { drug: "Pantoprazole", dose: "40mg", freq: "OD", dur: "14 days" },
+    { drug: "Sucralfate", dose: "1g", freq: "BD", dur: "14 days" },
+  ],
+  "Bronchitis": [
+    { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
+    { drug: "Ambroxol", dose: "30mg", freq: "BD", dur: "5 days" },
+  ],
+  "Malaria": [
+    { drug: "Artemether-Lumefantrine", dose: "80/480mg", freq: "BD", dur: "3 days" },
+    { drug: "Paracetamol", dose: "650mg", freq: "TID", dur: "3 days" },
+  ],
+  "Typhoid": [
+    { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "7 days" },
+    { drug: "Paracetamol", dose: "650mg", freq: "TID", dur: "3 days" },
+  ],
 };
 
 // AI Copilot maps
