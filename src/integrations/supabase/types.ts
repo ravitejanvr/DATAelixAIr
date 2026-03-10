@@ -1655,6 +1655,48 @@ export type Database = {
           },
         ]
       }
+      guideline_sources: {
+        Row: {
+          created_at: string
+          disease_category: string
+          guideline_name: string
+          id: string
+          is_active: boolean
+          last_updated: string
+          organization: string
+          priority: number
+          region: string
+          source_url: string | null
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          disease_category?: string
+          guideline_name?: string
+          id?: string
+          is_active?: boolean
+          last_updated?: string
+          organization: string
+          priority?: number
+          region?: string
+          source_url?: string | null
+          version?: string
+        }
+        Update: {
+          created_at?: string
+          disease_category?: string
+          guideline_name?: string
+          id?: string
+          is_active?: boolean
+          last_updated?: string
+          organization?: string
+          priority?: number
+          region?: string
+          source_url?: string | null
+          version?: string
+        }
+        Relationships: []
+      }
       guideline_updates: {
         Row: {
           applicable_conditions: string[] | null
@@ -1732,30 +1774,39 @@ export type Database = {
       guideline_usage_logs: {
         Row: {
           clinic_id: string
+          compliance_result: string | null
           created_at: string
           guideline_id: string
+          guideline_name: string | null
           id: string
           matched_condition: string | null
+          recommendation_checked: string | null
           recommendation_used: string | null
           tier: number
           visit_id: string
         }
         Insert: {
           clinic_id: string
+          compliance_result?: string | null
           created_at?: string
           guideline_id: string
+          guideline_name?: string | null
           id?: string
           matched_condition?: string | null
+          recommendation_checked?: string | null
           recommendation_used?: string | null
           tier: number
           visit_id: string
         }
         Update: {
           clinic_id?: string
+          compliance_result?: string | null
           created_at?: string
           guideline_id?: string
+          guideline_name?: string | null
           id?: string
           matched_condition?: string | null
+          recommendation_checked?: string | null
           recommendation_used?: string | null
           tier?: number
           visit_id?: string
