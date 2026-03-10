@@ -637,10 +637,12 @@ serve(async (req) => {
     const requires_manual_review = confidence_level !== "high" ||
       interaction_flags.length > 0 || allergy_flags.length > 0 || dose_warnings.length > 0 ||
       vitals_dangers.length > 0 || emergency_patterns.length > 0 ||
+      duplicate_therapy_flags.length > 0 || contraindication_flags.length > 0 ||
       !context_completeness.context_complete;
 
     const result = {
       normalized_drugs, drug_normalization_results, interaction_flags, allergy_flags, dose_warnings,
+      structured_warnings, duplicate_therapy_flags, contraindication_flags,
       vitals_dangers, emergency_patterns, context_completeness,
       confidence_level, requires_manual_review,
       ai_suggestions_blocked: context_completeness.ai_suggestions_blocked,
