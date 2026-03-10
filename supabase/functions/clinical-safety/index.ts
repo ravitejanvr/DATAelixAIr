@@ -571,28 +571,56 @@ serve(async (req) => {
         }
         if (generic) seenGenerics.set(generic, rx.drug_name || rx.generic_name);
 
-        // Contraindication checks against patient conditions
-        if (rx.drug_cui && SUPABASE_URL && SERVICE_KEY) {
+        // Contraindication checks against patient conditions using relational table
+        if (SUPABASE_URL && SERVICE_KEY) {
           try {
             const adminClient = createClient(SUPABASE_URL, SERVICE_KEY);
-            const { data: guidelines } = await adminClient
-              .from("drug_dose_guidelines")
-              .select("contraindications")
-              .eq("ingredient_cui", rx.drug_cui)
-              .limit(1)
-              .maybeSingle();
+            const patientConditions = (clinical_context?.conditions || clinical_context?.chronic_conditions || []).map((c: string) => c.toLowerCase());
 
-            if (guidelines?.contraindications && Array.isArray(guidelines.contraindications)) {
-              const patientConditions = (clinical_context?.conditions || []).map((c: string) => c.toLowerCase());
-              for (const ci of guidelines.contraindications) {
-                const ciLower = String(ci).toLowerCase();
-                for (const cond of patientConditions) {
-                  if (ciLower.includes(cond) || cond.includes(ciLower)) {
-                    contraindication_flags.push({
-                      drug: rx.generic_name || rx.drug_name,
-                      condition: cond,
-                      message: `⚠ ${rx.generic_name} is contraindicated in patients with "${cond}".`,
-                    });
+            // PRIMARY: Query drug_contraindication_map (relational)
+            const genericName = (rx.generic_name || "").toLowerCase().trim();
+            if (genericName) {
+              const { data: contraRows } = await adminClient
+                .from("drug_contraindication_map")
+                .select("severity, notes, source_guideline, drug_master!inner(generic_name), diagnoses!inner(diagnosis_name)")
+                .ilike("drug_master.generic_name", `%${genericName}%`);
+
+              if (contraRows && contraRows.length > 0) {
+                for (const row of contraRows) {
+                  const condName = (row as any).diagnoses?.diagnosis_name?.toLowerCase() || "";
+                  for (const cond of patientConditions) {
+                    if (condName.includes(cond) || cond.includes(condName)) {
+                      contraindication_flags.push({
+                        drug: rx.generic_name || rx.drug_name,
+                        condition: cond,
+                        message: `⚠ ${rx.generic_name} is contraindicated in patients with "${cond}" (${(row as any).severity || "moderate"} severity). Source: ${(row as any).source_guideline || "clinical reference"}.`,
+                      });
+                    }
+                  }
+                }
+              }
+            }
+
+            // FALLBACK: Check JSONB contraindications in drug_dose_guidelines
+            if (rx.drug_cui && contraindication_flags.filter(f => f.drug === (rx.generic_name || rx.drug_name)).length === 0) {
+              const { data: guidelines } = await adminClient
+                .from("drug_dose_guidelines")
+                .select("contraindications")
+                .eq("ingredient_cui", rx.drug_cui)
+                .limit(1)
+                .maybeSingle();
+
+              if (guidelines?.contraindications && Array.isArray(guidelines.contraindications)) {
+                for (const ci of guidelines.contraindications) {
+                  const ciLower = String(ci).toLowerCase();
+                  for (const cond of patientConditions) {
+                    if (ciLower.includes(cond) || cond.includes(ciLower)) {
+                      contraindication_flags.push({
+                        drug: rx.generic_name || rx.drug_name,
+                        condition: cond,
+                        message: `⚠ ${rx.generic_name} is contraindicated in patients with "${cond}".`,
+                      });
+                    }
                   }
                 }
               }

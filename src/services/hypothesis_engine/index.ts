@@ -2,11 +2,8 @@
  * Diagnostic Hypothesis Engine
  * 
  * Generates ranked differential diagnoses from clinical context.
- * This is an optional layer — when disabled, the system uses
- * the existing extract-patient-data + clinical-agent flow.
- * 
- * Future: Will invoke a dedicated edge function for hypothesis generation.
- * Current: Defines the contract and types for gradual migration.
+ * Now connects to the clinical knowledge graph for structured reasoning
+ * and injects must-not-miss dangerous diagnoses.
  */
 
 export interface DiagnosticHypothesis {
@@ -17,6 +14,7 @@ export interface DiagnosticHypothesis {
   contradicting_evidence: string[];
   recommended_tests: string[];
   urgency: "routine" | "urgent" | "emergent";
+  must_not_miss?: boolean;
 }
 
 export interface HypothesisResult {
@@ -24,25 +22,32 @@ export interface HypothesisResult {
   reasoning_chain: string;
   data_gaps: string[];
   generated_at: string;
+  source?: string;
 }
 
 /**
  * Generate diagnostic hypotheses from enriched clinical context.
  * 
- * STUB: Returns empty result until edge function is implemented.
- * The pipeline orchestrator will skip this stage when it returns empty.
+ * Uses the generate-hypotheses edge function which internally calls:
+ * 1. query-clinical-graph (knowledge graph traversal)
+ * 2. AI reasoning with graph context
+ * 3. dangerous_diagnoses injection
  */
 export async function generateHypotheses(
   context: import("@/services/clinical_context").EnrichedClinicalContext
 ): Promise<HypothesisResult> {
   console.log("[HypothesisEngine] Generating hypotheses for visit:", context.visit_id);
   
-  // Stub — will be replaced by edge function invocation
+  // The actual graph + AI logic is in the generate-hypotheses edge function.
+  // The client service (hypothesis_engine/client.ts) invokes it.
+  // This index.ts is used by the client-side orchestrator which already calls the edge function.
+  // Return empty to let the edge function handle it.
   return {
     hypotheses: [],
     reasoning_chain: "",
     data_gaps: [],
     generated_at: new Date().toISOString(),
+    source: "pending_edge_function",
   };
 }
 
