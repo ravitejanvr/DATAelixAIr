@@ -155,7 +155,7 @@ serve(async (req) => {
             generic_name: genericName,
             rxnorm_id: brand.rxcui,
           },
-          { onConflict: "rxnorm_id", ignoreDuplicates: true }
+          { onConflict: "brand_name", ignoreDuplicates: false }
         );
 
         if (error) {
