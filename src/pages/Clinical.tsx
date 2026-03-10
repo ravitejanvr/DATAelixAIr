@@ -1528,39 +1528,7 @@ export default function Clinical() {
             </div>
             )}
 
-            {/* Command Bar at bottom */}
-            {selectedPatient && (
-              <div className="shrink-0 p-3 border-t border-border bg-card/80 backdrop-blur-sm">
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl border border-border bg-background shadow-sm hover:border-primary/30 transition-colors">
-                  <Sparkles className="h-4 w-4 text-primary/50 shrink-0" />
-                  <input
-                    type="text"
-                    value={commandQuery}
-                    onChange={e => setCommandQuery(e.target.value)}
-                    placeholder="Ask anything!"
-                    className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
-                    onKeyDown={e => {
-                      if (e.key === "Enter" && commandQuery.trim()) {
-                        // Future: handle command
-                        toast({ title: "Command received", description: commandQuery });
-                        setCommandQuery("");
-                      }
-                    }}
-                  />
-                  <button
-                    className="h-7 w-7 rounded-xl bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors"
-                    onClick={() => {
-                      if (commandQuery.trim()) {
-                        toast({ title: "Command received", description: commandQuery });
-                        setCommandQuery("");
-                      }
-                    }}
-                  >
-                    <Mic className="h-3.5 w-3.5 text-primary" />
-                  </button>
-                </div>
-              </div>
-            )}
+
           </div>
           )}
 
