@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, FlaskConical, BarChart3, ShieldCheck } from "lucide-react";
+import { Loader2, Play, FlaskConical, BarChart3, ShieldCheck, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import PlatformAdminLayout from "@/components/PlatformAdminLayout";
 import { Progress } from "@/components/ui/progress";
@@ -96,6 +96,10 @@ export default function AiPipelineTest() {
                     <span>Latency Diff: {comp.latency_difference_ms}ms</span>
                     <span>{comp.legacy_faster ? "Legacy faster" : "Modular faster"}</span>
                   </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Modules: {comp.modules_executed}/{comp.modules_total} executed</span>
+                    {comp.modules_failed > 0 && <span className="text-destructive">{comp.modules_failed} failed</span>}
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -113,6 +117,36 @@ export default function AiPipelineTest() {
                   variant="modular"
                 />
               </div>
+            )}
+
+            {result?.module_execution_logs?.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Clock className="h-4 w-4" /> Module Execution Logs
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {result.module_execution_logs.map((log: any, i: number) => (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/30 text-xs">
+                        {log.status === "success" ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-semibold">{log.module}</span>
+                            <Badge variant="secondary" className="text-[10px]">{log.latency_ms}ms</Badge>
+                          </div>
+                          {log.details && <p className="text-muted-foreground mt-0.5 break-words">{log.details}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {!result && !loading && (
@@ -166,9 +200,47 @@ function PipelineCard({ title, data, variant }: { title: string; data: any; vari
 
         {variant === "modular" && (
           <>
+            {data.hypotheses?.length > 0 && (
+              <div>
+                <p className="font-semibold mb-1">Differential Diagnoses (Hypothesis Engine)</p>
+                {data.hypotheses.map((h: any, i: number) => (
+                  <div key={i} className="p-1.5 bg-muted/50 rounded mb-1 flex justify-between">
+                    <span>{h.diagnosis}</span>
+                    <Badge variant="secondary" className="text-[10px]">{Math.round((h.confidence || 0) * 100)}%</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {data.evidence && (
+              <div>
+                <p className="font-semibold mb-1">Evidence (Knowledge Retrieval)</p>
+                <div className="text-muted-foreground">
+                  {data.evidence.citation_count} citations from {(data.evidence.sources_queried || []).join(", ")} · Confidence: {data.evidence.retrieval_confidence}
+                </div>
+              </div>
+            )}
+
+            {data.compliance && (
+              <div>
+                <p className="font-semibold mb-1">Guideline Compliance</p>
+                <div className="text-muted-foreground">
+                  {data.compliance.guidelines_matched} guidelines matched from {(data.compliance.guidelines_sources || []).join(", ")}
+                </div>
+                {data.compliance.results?.map((r: any, i: number) => (
+                  <div key={i} className="flex items-center gap-1 mt-0.5">
+                    <Badge variant={r.compliance_status === "guideline_aligned" ? "default" : r.compliance_status === "evidence_supported" ? "secondary" : "destructive"} className="text-[10px]">
+                      {r.compliance_status}
+                    </Badge>
+                    <span>{r.item}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {data.guidelines?.length > 0 && (
               <div>
-                <p className="font-semibold mb-1">Guidelines</p>
+                <p className="font-semibold mb-1">Guidelines Referenced</p>
                 {data.guidelines.map((g: any, i: number) => (
                   <div key={i} className="p-1.5 bg-muted/50 rounded mb-1">
                     <span className="font-medium">{g.title}</span>
@@ -177,21 +249,16 @@ function PipelineCard({ title, data, variant }: { title: string; data: any; vari
                 ))}
               </div>
             )}
+
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4" />
-              <span>Safety Score: <strong>{data.safety_score}/100</strong></span>
+              <span>Safety Score (Oversight Engine): <strong>{data.safety_score}/100</strong></span>
             </div>
             {data.safety_flags?.length > 0 && (
               <div className="space-y-1">
                 {data.safety_flags.map((f: string, i: number) => (
                   <Badge key={i} variant="destructive" className="text-[10px] mr-1">{f}</Badge>
                 ))}
-              </div>
-            )}
-            {data.reasoning && (
-              <div>
-                <p className="font-semibold mb-1">Clinical Reasoning</p>
-                <p className="text-muted-foreground">{data.reasoning}</p>
               </div>
             )}
           </>
