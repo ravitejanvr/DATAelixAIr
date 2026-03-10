@@ -2,15 +2,14 @@
  * Clinical Pipeline Orchestrator (Optimized)
  * 
  * Modular pipeline that coordinates all service layers.
- * Key optimization: After hypothesis_engine, runs knowledge_retrieval,
- * guideline_engine, and oversight_engine in PARALLEL.
- * 
- * Target latency: < 8 seconds (down from ~25s).
  * 
  * Pipeline stages:
  *   1. build_context()        → Clinical Context Engine (sync)
- *   2. generate_hypotheses()  → Diagnostic Hypothesis Engine
- *   3. [PARALLEL] retrieve_evidence() + evaluate_guidelines() + oversight_report()
+ *   2. run_ddx_engine()       → Structured Differential Diagnosis (graph traversal)
+ *   3. generate_hypotheses()  → AI Hypothesis Engine (augmented by DDX)
+ *   4. [PARALLEL] retrieve_evidence() + evaluate_guidelines() + oversight_report()
+ *
+ * Target latency: < 8 seconds.
  */
 
 import { isNewPipelineEnabled } from "@/services/feature_flags";
@@ -31,6 +30,7 @@ import {
 } from "@/services/oversight_engine";
 import { queryEvidence, type EvidenceQueryResult } from "@/services/knowledge_ingestion";
 import { getCached, setCache } from "@/services/knowledge_cache";
+import { runDDXEngine, type DDXResult } from "@/services/ddx_engine/client";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PipelineInput {
@@ -50,6 +50,7 @@ export interface PipelineInput {
 export interface PipelineResult {
   enabled: boolean;
   enriched_context: EnrichedClinicalContext | null;
+  ddx: DDXResult | null;
   hypotheses: HypothesisResult | null;
   guideline_alignment: GuidelineAlignmentResult | null;
   evidence: EvidenceQueryResult | null;
@@ -90,7 +91,7 @@ async function withTimeout<T>(
 }
 
 /**
- * Run the full clinical pipeline with parallelization and caching.
+ * Run the full clinical pipeline with DDX engine, parallelization, and caching.
  */
 export async function runClinicalPipeline(
   input: PipelineInput,
@@ -104,6 +105,7 @@ export async function runClinicalPipeline(
     return {
       enabled: false,
       enriched_context: null,
+      ddx: null,
       hypotheses: null,
       guideline_alignment: null,
       evidence: null,
@@ -117,7 +119,7 @@ export async function runClinicalPipeline(
 
   clearPipelineLogs();
   clearOversightEvents();
-  console.log("[Pipeline] Starting optimized modular pipeline...");
+  console.log("[Pipeline] Starting optimized modular pipeline with DDX engine...");
 
   // ── Stage 1: Build Context (sync, fast) ──
   const ctxStart = performance.now();
@@ -142,7 +144,64 @@ export async function runClinicalPipeline(
   });
   stageLatencies.build_context = Math.round(performance.now() - ctxStart);
 
-  // ── Stage 2: Generate Hypotheses ──
+  // ── Stage 2: DDX Engine (structured graph traversal) ──
+  let ddxResult: DDXResult | null = null;
+  const ddxStart = performance.now();
+  try {
+    ddxResult = await withStageLogging("ddx_engine", async () => {
+      // Build symptoms from clinical context
+      const symptoms: string[] = [];
+      if (input.clinical_context.chief_complaint) {
+        symptoms.push(input.clinical_context.chief_complaint);
+      }
+      // Add any additional symptoms from medical_history context
+      if ((input.clinical_context as any).symptoms) {
+        symptoms.push(...(input.clinical_context as any).symptoms);
+      }
+
+      const result = await runDDXEngine({
+        symptoms: [...new Set(symptoms)],
+        vitals: {
+          temperature: input.clinical_context.temperature,
+          spo2: input.clinical_context.oxygen_saturation,
+          pulse: input.clinical_context.pulse,
+          bp: input.clinical_context.blood_pressure,
+        },
+        age: input.clinical_context.patient_age,
+        sex: input.clinical_context.patient_sex,
+        medical_history: input.clinical_context.medical_history,
+        current_medications: input.clinical_context.current_medications,
+        allergies: input.clinical_context.allergies,
+        visit_id: input.visit_id,
+        clinic_id: input.clinic_id,
+      });
+
+      if (result) {
+        console.log(`[Pipeline] DDX returned ${result.differential_diagnoses.length} diagnoses in ${result.execution_ms}ms`);
+        if (result.dangerous_diagnoses_injected > 0) {
+          recordOversightEvent({
+            event_type: "dangerous_diagnosis_injected",
+            severity: "warning",
+            stage: "ddx_engine",
+            message: `${result.dangerous_diagnoses_injected} must-not-miss diagnoses injected`,
+            metadata: {
+              dangerous_count: result.dangerous_diagnoses_injected,
+              diagnoses: result.differential_diagnoses.filter(d => d.must_not_miss).map(d => d.diagnosis_name),
+            },
+          });
+        }
+      }
+      return result;
+    });
+  } catch {
+    ddxResult = null;
+  }
+  stageLatencies.ddx_engine = Math.round(performance.now() - ddxStart);
+
+  // Stream DDX results to UI
+  onProgress?.("ddx", { ddx: ddxResult });
+
+  // ── Stage 3: Generate Hypotheses (augmented by DDX) ──
   let hypotheses: HypothesisResult | null = null;
   const hypStart = performance.now();
   try {
@@ -166,17 +225,16 @@ export async function runClinicalPipeline(
   // Stream hypotheses to UI immediately
   onProgress?.("hypotheses", { hypotheses });
 
-  // ── Stage 3: PARALLEL — Evidence + Guidelines + Oversight ──
+  // ── Stage 4: PARALLEL — Evidence + Guidelines + Oversight ──
   const parallelStart = performance.now();
 
   const [evidence, guidelineAlignment, oversight] = await Promise.all([
-    // 3a: Evidence retrieval with caching + timeout
+    // 4a: Evidence retrieval with caching + timeout
     (async (): Promise<EvidenceQueryResult | null> => {
       if (!input.clinical_context.chief_complaint) return null;
       const query = input.clinical_context.chief_complaint;
       const start = performance.now();
       try {
-        // Check cache first
         const cached = await getCached<EvidenceQueryResult>(query, "evidence");
         if (cached.hit && cached.data) {
           console.log("[Pipeline] Cache HIT for evidence query");
@@ -184,7 +242,6 @@ export async function runClinicalPipeline(
           return cached.data;
         }
 
-        // Fetch with timeout
         const result = await withTimeout(
           withStageLogging("retrieve_evidence", () => queryEvidence(query, { maxResults: 5 })),
           STAGE_TIMEOUT_MS,
@@ -192,13 +249,11 @@ export async function runClinicalPipeline(
         );
 
         if (result) {
-          // Cache result (non-blocking)
           setCache(query, "evidence", result, 12);
           stageLatencies.retrieve_evidence = Math.round(performance.now() - start);
           return result;
         }
 
-        // Timeout: try cache even if expired
         const staleCache = await getCached<EvidenceQueryResult>(query, "evidence_stale");
         stageLatencies.retrieve_evidence = Math.round(performance.now() - start);
         return staleCache.data;
@@ -208,7 +263,7 @@ export async function runClinicalPipeline(
       }
     })(),
 
-    // 3b: Guideline alignment with caching + timeout
+    // 4b: Guideline alignment with caching + timeout
     (async (): Promise<GuidelineAlignmentResult | null> => {
       if (!input.recommendations) return null;
       const start = performance.now();
@@ -243,7 +298,7 @@ export async function runClinicalPipeline(
       }
     })(),
 
-    // 3c: Oversight report (fast, in-memory)
+    // 4c: Oversight report (fast, in-memory)
     (async (): Promise<OversightReport> => {
       const start = performance.now();
       const report = await withStageLogging("oversight_report", async () =>
@@ -277,6 +332,9 @@ export async function runClinicalPipeline(
       visit_id: input.visit_id || null,
       clinic_id: input.clinic_id || null,
       metadata: {
+        ddx_enabled: !!ddxResult,
+        ddx_diagnoses: ddxResult?.differential_diagnoses.length || 0,
+        ddx_latency_ms: ddxResult?.execution_ms || 0,
         cache_hits: {
           evidence: !!(evidence && stageLatencies.retrieve_evidence && stageLatencies.retrieve_evidence < 100),
           guideline: !!(guidelineAlignment && stageLatencies.retrieve_guidelines && stageLatencies.retrieve_guidelines < 100),
@@ -299,6 +357,7 @@ export async function runClinicalPipeline(
   return {
     enabled: true,
     enriched_context: enrichedContext,
+    ddx: ddxResult,
     hypotheses,
     guideline_alignment: guidelineAlignment,
     evidence,
