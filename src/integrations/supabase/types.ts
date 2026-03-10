@@ -93,6 +93,36 @@ export type Database = {
           },
         ]
       }
+      ai_pipeline_tests: {
+        Row: {
+          comparison_metrics: Json
+          created_at: string
+          id: string
+          legacy_output: Json
+          modular_output: Json
+          patient_context: Json
+          triggered_by: string
+        }
+        Insert: {
+          comparison_metrics?: Json
+          created_at?: string
+          id?: string
+          legacy_output?: Json
+          modular_output?: Json
+          patient_context?: Json
+          triggered_by: string
+        }
+        Update: {
+          comparison_metrics?: Json
+          created_at?: string
+          id?: string
+          legacy_output?: Json
+          modular_output?: Json
+          patient_context?: Json
+          triggered_by?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           actor_id: string
