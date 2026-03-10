@@ -19,10 +19,11 @@ import PatientSelector, { type SelectedPatient } from "@/components/PatientSelec
 import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import FollowUpPanel from "@/components/clinical/FollowUpPanel";
 import AdaptiveAICopilotPanel from "@/components/clinical/AdaptiveAICopilotPanel";
-import ClinicalCopilot from "@/components/clinical/ClinicalCopilot";
-import AiDisclosureBadge from "@/components/AiDisclosureBadge";
+import PatientHeaderCompact from "@/components/clinical/PatientHeaderCompact";
+import PatientContextPanel from "@/components/clinical/PatientContextPanel";
+import ClinicalWorkspace from "@/components/clinical/ClinicalWorkspace";
+import ProgressiveActionBar from "@/components/clinical/ProgressiveActionBar";
 
-import ConsultationTimeline from "@/components/ConsultationTimeline";
 import ConsultationComplete from "@/components/ConsultationComplete";
 import { motion, AnimatePresence } from "framer-motion";
 import {
