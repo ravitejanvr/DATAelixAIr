@@ -760,12 +760,52 @@ Generate differential diagnoses as JSON array.`,
     modularOutput.latency_ms = Date.now() - modularStart;
 
     // ══════════════════════════════════════
-    // STEP 3: COMPARISON
+    // STEP 3: COMPARISON (Semantic Matching)
     // ══════════════════════════════════════
+
+    // Load ontology tables for semantic matching
+    const { data: conditionMap } = await admin
+      .from("clinical_condition_map")
+      .select("canonical_condition, synonyms");
+
+    const { data: labEquiv } = await admin
+      .from("lab_test_equivalence")
+      .select("canonical_name, aliases");
+
+    const { data: brandGenericMap } = await admin
+      .from("drug_brand_generic_map")
+      .select("brand_name, generic_name")
+      .limit(500);
+
+    // Text-based (legacy) overlap for reference
+    const text_diagnosis_overlap = computeOverlap(legacyOutput.diagnoses, modularOutput.diagnoses);
+    const text_lab_overlap = computeOverlap(legacyOutput.labs || [], modularOutput.labs);
+    const text_medication_overlap = computeMedicationOverlap(legacyOutput.medications, modularOutput.medications);
+
+    // Semantic overlap using ontology
+    const semantic_diagnosis_overlap = computeSemanticDiagnosisOverlap(
+      legacyOutput.diagnoses, modularOutput.diagnoses, conditionMap || []
+    );
+    const semantic_lab_overlap = computeSemanticLabOverlap(
+      legacyOutput.labs || [], modularOutput.labs, labEquiv || []
+    );
+    const semantic_medication_overlap = computeGenericMedOverlap(
+      legacyOutput.medications, modularOutput.medications, brandGenericMap || []
+    );
+
     const comparison = {
-      diagnosis_overlap: computeOverlap(legacyOutput.diagnoses, modularOutput.diagnoses),
-      lab_overlap: computeOverlap(legacyOutput.labs || [], modularOutput.labs),
-      medication_overlap: computeMedicationOverlap(legacyOutput.medications, modularOutput.medications),
+      // Primary metrics (semantic)
+      diagnosis_overlap: semantic_diagnosis_overlap,
+      lab_overlap: semantic_lab_overlap,
+      medication_overlap: semantic_medication_overlap,
+      // Text-based metrics for reference
+      text_diagnosis_overlap,
+      text_lab_overlap,
+      text_medication_overlap,
+      // Semantic vs text delta
+      semantic_diagnosis_delta: semantic_diagnosis_overlap - text_diagnosis_overlap,
+      semantic_lab_delta: semantic_lab_overlap - text_lab_overlap,
+      semantic_medication_delta: semantic_medication_overlap - text_medication_overlap,
       latency_difference_ms: legacyOutput.latency_ms - modularOutput.latency_ms,
       legacy_faster: legacyOutput.latency_ms < modularOutput.latency_ms,
       modules_executed: moduleLogs.filter(l => l.status === "success").length,
