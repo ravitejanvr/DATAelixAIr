@@ -989,6 +989,134 @@ export type Database = {
         }
         Relationships: []
       }
+      dose_frequency_dictionary: {
+        Row: {
+          code: string
+          id: string
+          meaning: string
+          times_per_day: number
+        }
+        Insert: {
+          code: string
+          id?: string
+          meaning?: string
+          times_per_day?: number
+        }
+        Update: {
+          code?: string
+          id?: string
+          meaning?: string
+          times_per_day?: number
+        }
+        Relationships: []
+      }
+      drug_brands: {
+        Row: {
+          brand_name: string
+          country: string | null
+          created_at: string
+          generic_name: string
+          id: string
+          manufacturer: string | null
+          strength: string | null
+        }
+        Insert: {
+          brand_name: string
+          country?: string | null
+          created_at?: string
+          generic_name: string
+          id?: string
+          manufacturer?: string | null
+          strength?: string | null
+        }
+        Update: {
+          brand_name?: string
+          country?: string | null
+          created_at?: string
+          generic_name?: string
+          id?: string
+          manufacturer?: string | null
+          strength?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_brands_generic_name_fkey"
+            columns: ["generic_name"]
+            isOneToOne: false
+            referencedRelation: "drug_master"
+            referencedColumns: ["generic_name"]
+          },
+        ]
+      }
+      drug_interactions: {
+        Row: {
+          created_at: string
+          drug_a: string
+          drug_b: string
+          id: string
+          interaction_description: string
+          recommended_action: string | null
+          severity: string
+        }
+        Insert: {
+          created_at?: string
+          drug_a: string
+          drug_b: string
+          id?: string
+          interaction_description?: string
+          recommended_action?: string | null
+          severity?: string
+        }
+        Update: {
+          created_at?: string
+          drug_a?: string
+          drug_b?: string
+          id?: string
+          interaction_description?: string
+          recommended_action?: string | null
+          severity?: string
+        }
+        Relationships: []
+      }
+      drug_master: {
+        Row: {
+          common_indications: string[] | null
+          created_at: string
+          drug_class: string
+          generic_name: string
+          hepatic_adjustment: string | null
+          id: string
+          max_daily_dose_mg: number | null
+          mechanism: string
+          pregnancy_category: string | null
+          renal_adjustment: string | null
+        }
+        Insert: {
+          common_indications?: string[] | null
+          created_at?: string
+          drug_class?: string
+          generic_name: string
+          hepatic_adjustment?: string | null
+          id?: string
+          max_daily_dose_mg?: number | null
+          mechanism?: string
+          pregnancy_category?: string | null
+          renal_adjustment?: string | null
+        }
+        Update: {
+          common_indications?: string[] | null
+          created_at?: string
+          drug_class?: string
+          generic_name?: string
+          hepatic_adjustment?: string | null
+          id?: string
+          max_daily_dose_mg?: number | null
+          mechanism?: string
+          pregnancy_category?: string | null
+          renal_adjustment?: string | null
+        }
+        Relationships: []
+      }
       drug_safety_updates: {
         Row: {
           affected_populations: string[] | null
