@@ -834,11 +834,10 @@ export default function Clinical() {
   };
 
   // Helper: add prior med to patient meds section
-  const addPriorMedToPatient = (medName: string, dose: string = "") => {
-    // Add to priorMeds with dose
+  const addPriorMedToPatient = (medName: string, dose: string = "", frequency: string = "") => {
     setPriorMeds(prev => {
       if (prev.some(m => m.name === medName)) return prev;
-      return [...prev, { name: medName, dose }];
+      return [...prev, { name: medName, dose, frequency }];
     });
   };
 
@@ -848,6 +847,10 @@ export default function Clinical() {
 
   const updatePriorMedDose = (medName: string, newDose: string) => {
     setPriorMeds(prev => prev.map(m => m.name === medName ? { ...m, dose: newDose } : m));
+  };
+
+  const updatePriorMedFrequency = (medName: string, newFreq: string) => {
+    setPriorMeds(prev => prev.map(m => m.name === medName ? { ...m, frequency: newFreq } : m));
   };
 
   // Copilot props builder
