@@ -558,6 +558,33 @@ export type Database = {
           },
         ]
       }
+      clinical_condition_map: {
+        Row: {
+          canonical_condition: string
+          condition_id: string
+          created_at: string
+          icd10_codes: string[]
+          id: string
+          synonyms: string[]
+        }
+        Insert: {
+          canonical_condition: string
+          condition_id: string
+          created_at?: string
+          icd10_codes?: string[]
+          id?: string
+          synonyms?: string[]
+        }
+        Update: {
+          canonical_condition?: string
+          condition_id?: string
+          created_at?: string
+          icd10_codes?: string[]
+          id?: string
+          synonyms?: string[]
+        }
+        Relationships: []
+      }
       clinical_guidelines: {
         Row: {
           applicable_drugs: string[]
@@ -2263,6 +2290,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      lab_test_equivalence: {
+        Row: {
+          aliases: string[]
+          canonical_name: string
+          category: string
+          created_at: string
+          id: string
+          loinc_code: string | null
+        }
+        Insert: {
+          aliases?: string[]
+          canonical_name: string
+          category?: string
+          created_at?: string
+          id?: string
+          loinc_code?: string | null
+        }
+        Update: {
+          aliases?: string[]
+          canonical_name?: string
+          category?: string
+          created_at?: string
+          id?: string
+          loinc_code?: string | null
+        }
+        Relationships: []
       }
       lab_tests: {
         Row: {
