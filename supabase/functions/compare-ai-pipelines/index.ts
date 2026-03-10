@@ -40,6 +40,90 @@ function computeMedicationOverlap(a: string[], b: string[]): number {
   return Math.round((matches / union) * 100);
 }
 
+// ─── Semantic matching using ontology tables ───
+
+interface ConditionMapEntry {
+  canonical_condition: string;
+  synonyms: string[];
+}
+
+interface LabEquivEntry {
+  canonical_name: string;
+  aliases: string[];
+}
+
+function resolveCanonicalCondition(diagnosis: string, conditionMap: ConditionMapEntry[]): string {
+  const lower = diagnosis.toLowerCase().trim();
+  for (const entry of conditionMap) {
+    if (entry.canonical_condition.toLowerCase() === lower) return entry.canonical_condition;
+    for (const syn of entry.synonyms) {
+      if (lower.includes(syn.toLowerCase()) || syn.toLowerCase().includes(lower)) {
+        return entry.canonical_condition;
+      }
+    }
+  }
+  return lower; // fallback to raw string
+}
+
+function resolveCanonicalLab(testName: string, labEquiv: LabEquivEntry[]): string {
+  const lower = testName.toLowerCase().trim();
+  for (const entry of labEquiv) {
+    if (entry.canonical_name.toLowerCase() === lower) return entry.canonical_name;
+    for (const alias of entry.aliases) {
+      if (lower.includes(alias.toLowerCase()) || alias.toLowerCase().includes(lower)) {
+        return entry.canonical_name;
+      }
+    }
+  }
+  return lower;
+}
+
+function computeSemanticDiagnosisOverlap(a: string[], b: string[], conditionMap: ConditionMapEntry[]): number {
+  if (a.length === 0 && b.length === 0) return 100;
+  if (a.length === 0 || b.length === 0) return 0;
+  const canonA = new Set(a.map(d => resolveCanonicalCondition(d, conditionMap)));
+  const canonB = new Set(b.map(d => resolveCanonicalCondition(d, conditionMap)));
+  let matches = 0;
+  for (const item of canonA) {
+    if (canonB.has(item)) matches++;
+  }
+  const union = new Set([...canonA, ...canonB]).size;
+  return Math.round((matches / union) * 100);
+}
+
+function computeSemanticLabOverlap(a: string[], b: string[], labEquiv: LabEquivEntry[]): number {
+  if (a.length === 0 && b.length === 0) return 100;
+  if (a.length === 0 || b.length === 0) return 0;
+  const canonA = new Set(a.map(l => resolveCanonicalLab(l, labEquiv)));
+  const canonB = new Set(b.map(l => resolveCanonicalLab(l, labEquiv)));
+  let matches = 0;
+  for (const item of canonA) {
+    if (canonB.has(item)) matches++;
+  }
+  const union = new Set([...canonA, ...canonB]).size;
+  return Math.round((matches / union) * 100);
+}
+
+function computeGenericMedOverlap(a: string[], b: string[], brandGenericMap: Array<{brand_name: string; generic_name: string}>): number {
+  if (a.length === 0 && b.length === 0) return 100;
+  if (a.length === 0 || b.length === 0) return 0;
+
+  const resolveGeneric = (name: string) => {
+    const lower = name.toLowerCase().trim();
+    const mapped = brandGenericMap.find(m => m.brand_name.toLowerCase() === lower);
+    return mapped ? mapped.generic_name.toLowerCase() : extractGenericName(name);
+  };
+
+  const setA = new Set(a.map(resolveGeneric));
+  const setB = new Set(b.map(resolveGeneric));
+  let matches = 0;
+  for (const item of setA) {
+    if (setB.has(item)) matches++;
+  }
+  const union = new Set([...setA, ...setB]).size;
+  return Math.round((matches / union) * 100);
+}
+
 interface ModuleLog {
   module: string;
   status: "success" | "error" | "skipped";
@@ -676,12 +760,52 @@ Generate differential diagnoses as JSON array.`,
     modularOutput.latency_ms = Date.now() - modularStart;
 
     // ══════════════════════════════════════
-    // STEP 3: COMPARISON
+    // STEP 3: COMPARISON (Semantic Matching)
     // ══════════════════════════════════════
+
+    // Load ontology tables for semantic matching
+    const { data: conditionMap } = await admin
+      .from("clinical_condition_map")
+      .select("canonical_condition, synonyms");
+
+    const { data: labEquiv } = await admin
+      .from("lab_test_equivalence")
+      .select("canonical_name, aliases");
+
+    const { data: brandGenericMap } = await admin
+      .from("drug_brand_generic_map")
+      .select("brand_name, generic_name")
+      .limit(500);
+
+    // Text-based (legacy) overlap for reference
+    const text_diagnosis_overlap = computeOverlap(legacyOutput.diagnoses, modularOutput.diagnoses);
+    const text_lab_overlap = computeOverlap(legacyOutput.labs || [], modularOutput.labs);
+    const text_medication_overlap = computeMedicationOverlap(legacyOutput.medications, modularOutput.medications);
+
+    // Semantic overlap using ontology
+    const semantic_diagnosis_overlap = computeSemanticDiagnosisOverlap(
+      legacyOutput.diagnoses, modularOutput.diagnoses, conditionMap || []
+    );
+    const semantic_lab_overlap = computeSemanticLabOverlap(
+      legacyOutput.labs || [], modularOutput.labs, labEquiv || []
+    );
+    const semantic_medication_overlap = computeGenericMedOverlap(
+      legacyOutput.medications, modularOutput.medications, brandGenericMap || []
+    );
+
     const comparison = {
-      diagnosis_overlap: computeOverlap(legacyOutput.diagnoses, modularOutput.diagnoses),
-      lab_overlap: computeOverlap(legacyOutput.labs || [], modularOutput.labs),
-      medication_overlap: computeMedicationOverlap(legacyOutput.medications, modularOutput.medications),
+      // Primary metrics (semantic)
+      diagnosis_overlap: semantic_diagnosis_overlap,
+      lab_overlap: semantic_lab_overlap,
+      medication_overlap: semantic_medication_overlap,
+      // Text-based metrics for reference
+      text_diagnosis_overlap,
+      text_lab_overlap,
+      text_medication_overlap,
+      // Semantic vs text delta
+      semantic_diagnosis_delta: semantic_diagnosis_overlap - text_diagnosis_overlap,
+      semantic_lab_delta: semantic_lab_overlap - text_lab_overlap,
+      semantic_medication_delta: semantic_medication_overlap - text_medication_overlap,
       latency_difference_ms: legacyOutput.latency_ms - modularOutput.latency_ms,
       legacy_faster: legacyOutput.latency_ms < modularOutput.latency_ms,
       modules_executed: moduleLogs.filter(l => l.status === "success").length,

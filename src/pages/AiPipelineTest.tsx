@@ -282,17 +282,17 @@ export default function AiPipelineTest() {
                     <SummaryStatCard label="Tests Run" value={`${benchmarkSummary.successful}/${benchmarkSummary.total_tests}`} />
                     <SummaryStatCard label="Avg Legacy Latency" value={`${benchmarkSummary.legacy_pipeline.avg_latency_ms}ms`} />
                     <SummaryStatCard label="Avg Modular Latency" value={`${benchmarkSummary.modular_pipeline.avg_latency_ms}ms`} />
-                    <SummaryStatCard label="Diagnosis Agreement" value={`${benchmarkSummary.diagnosis_agreement_rate}%`} highlight />
+                    <SummaryStatCard label="Semantic Dx Match" value={`${benchmarkSummary.diagnosis_agreement_rate}%`} highlight />
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <SummaryStatCard label="Lab Agreement" value={`${benchmarkSummary.lab_agreement_rate}%`} />
-                    <SummaryStatCard label="Med Agreement" value={`${benchmarkSummary.medication_agreement_rate}%`} />
+                    <SummaryStatCard label="Lab Equivalence" value={`${benchmarkSummary.lab_agreement_rate}%`} />
+                    <SummaryStatCard label="Med Equivalence" value={`${benchmarkSummary.medication_agreement_rate}%`} />
                     <SummaryStatCard label="Avg Guideline Citations" value={String(benchmarkSummary.modular_pipeline.avg_guideline_citations)} />
                     <SummaryStatCard label="Avg Safety Alerts" value={String(benchmarkSummary.modular_pipeline.avg_safety_alerts)} />
                   </div>
-                  <MetricBar label="Diagnosis Agreement Rate" value={benchmarkSummary.diagnosis_agreement_rate} />
-                  <MetricBar label="Lab Agreement Rate" value={benchmarkSummary.lab_agreement_rate} />
-                  <MetricBar label="Medication Agreement Rate" value={benchmarkSummary.medication_agreement_rate} />
+                  <MetricBar label="Semantic Diagnosis Match Rate" value={benchmarkSummary.diagnosis_agreement_rate} />
+                  <MetricBar label="Lab Equivalence Match Rate" value={benchmarkSummary.lab_agreement_rate} />
+                  <MetricBar label="Medication Equivalence Match Rate" value={benchmarkSummary.medication_agreement_rate} />
                 </CardContent>
               </Card>
             )}
@@ -338,17 +338,43 @@ function SummaryStatCard({ label, value, highlight }: { label: string; value: st
 }
 
 function ComparisonMetrics({ comp }: { comp: any }) {
+  const hasSemanticDelta = comp.semantic_diagnosis_delta !== undefined;
   return (
     <Card className="border-primary/30">
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <BarChart3 className="h-4 w-4" /> Comparison Metrics
+          {hasSemanticDelta && <Badge variant="secondary" className="text-[9px]">Semantic Matching</Badge>}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <MetricBar label="Diagnosis Overlap" value={comp.diagnosis_overlap} />
-        <MetricBar label="Lab Overlap" value={comp.lab_overlap} />
-        <MetricBar label="Medication Overlap" value={comp.medication_overlap} />
+        <MetricBar label="Semantic Diagnosis Match" value={comp.diagnosis_overlap} />
+        {hasSemanticDelta && comp.text_diagnosis_overlap !== undefined && (
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground -mt-1 ml-1">
+            <span>Text-only: {comp.text_diagnosis_overlap}%</span>
+            {comp.semantic_diagnosis_delta > 0 && (
+              <Badge variant="outline" className="text-[9px] text-green-600">+{comp.semantic_diagnosis_delta}% semantic boost</Badge>
+            )}
+          </div>
+        )}
+        <MetricBar label="Lab Equivalence Match" value={comp.lab_overlap} />
+        {hasSemanticDelta && comp.text_lab_overlap !== undefined && (
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground -mt-1 ml-1">
+            <span>Text-only: {comp.text_lab_overlap}%</span>
+            {comp.semantic_lab_delta > 0 && (
+              <Badge variant="outline" className="text-[9px] text-green-600">+{comp.semantic_lab_delta}% semantic boost</Badge>
+            )}
+          </div>
+        )}
+        <MetricBar label="Medication Equivalence Match" value={comp.medication_overlap} />
+        {hasSemanticDelta && comp.text_medication_overlap !== undefined && (
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground -mt-1 ml-1">
+            <span>Text-only: {comp.text_medication_overlap}%</span>
+            {comp.semantic_medication_delta > 0 && (
+              <Badge variant="outline" className="text-[9px] text-green-600">+{comp.semantic_medication_delta}% semantic boost</Badge>
+            )}
+          </div>
+        )}
         <div className="flex justify-between text-xs text-muted-foreground pt-2 border-t">
           <span>Latency Diff: {comp.latency_difference_ms}ms</span>
           <span>{comp.legacy_faster ? "Legacy faster" : "Modular faster"}</span>
