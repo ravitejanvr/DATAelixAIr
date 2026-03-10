@@ -84,6 +84,10 @@ interface ClinicalCopilotProps {
   visitId?: string | null;
   consultationId?: string | null;
   clinicId?: string | null;
+  /** Current streaming stage for progressive display */
+  pipelineStage?: string | null;
+  /** Per-stage latency map */
+  stageLatencies?: Record<string, number>;
 }
 
 const fadeIn = {
