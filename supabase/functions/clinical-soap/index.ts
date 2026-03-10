@@ -132,9 +132,42 @@ Generate the concise clinical summary following the format exactly.`;
       sections[heading] = match ? match[1].trim() : "Not discussed";
     }
 
+    // Normalize any medications mentioned in Treatment Plan via normalize-drug-name
+    let drug_normalization: any[] = [];
+    const treatmentPlan = sections["Treatment Plan"] || "";
+    if (treatmentPlan && treatmentPlan !== "Not discussed") {
+      const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+      const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (SUPABASE_URL && SERVICE_KEY) {
+        // Extract potential drug names (words that look like medication names)
+        const drugCandidates = treatmentPlan
+          .split(/[\n,;•\-]/)
+          .map(line => line.trim().split(/\s+/)[0])
+          .filter(w => w && w.length > 2 && /^[A-Za-z]/.test(w))
+          .slice(0, 5);
+
+        for (const candidate of drugCandidates) {
+          try {
+            const normResp = await fetch(`${SUPABASE_URL}/functions/v1/normalize-drug-name`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+              body: JSON.stringify({ drug_input: candidate }),
+            });
+            if (normResp.ok) {
+              const normData = await normResp.json();
+              if (normData.match_type !== "unresolved") {
+                drug_normalization.push(normData);
+              }
+            }
+          } catch { /* non-blocking */ }
+        }
+      }
+    }
+
     return new Response(JSON.stringify({
       soap_text: content,
       sections,
+      drug_normalization,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
