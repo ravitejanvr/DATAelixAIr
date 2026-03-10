@@ -22,6 +22,24 @@ function computeOverlap(a: string[], b: string[]): number {
   return Math.round((matches / union) * 100);
 }
 
+// Extract generic name from a medication string (first word before dose)
+function extractGenericName(med: string): string {
+  return med.trim().split(/\s+\d/)[0].toLowerCase().trim();
+}
+
+function computeMedicationOverlap(a: string[], b: string[]): number {
+  if (a.length === 0 && b.length === 0) return 100;
+  if (a.length === 0 || b.length === 0) return 0;
+  const setA = new Set(a.map(extractGenericName));
+  const setB = new Set(b.map(extractGenericName));
+  let matches = 0;
+  for (const item of setA) {
+    if (setB.has(item)) matches++;
+  }
+  const union = new Set([...setA, ...setB]).size;
+  return Math.round((matches / union) * 100);
+}
+
 interface ModuleLog {
   module: string;
   status: "success" | "error" | "skipped";
