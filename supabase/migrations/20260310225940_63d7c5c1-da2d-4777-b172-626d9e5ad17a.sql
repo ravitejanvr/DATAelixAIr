@@ -1,0 +1,1 @@
+ALTER TABLE public.drug_brands ADD COLUMN IF NOT EXISTS ingredient_cui text;

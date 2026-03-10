@@ -1184,6 +1184,7 @@ export type Database = {
           created_at: string
           generic_name: string
           id: string
+          ingredient_cui: string | null
           manufacturer: string | null
           rxnorm_id: string | null
           strength: string | null
@@ -1194,6 +1195,7 @@ export type Database = {
           created_at?: string
           generic_name: string
           id?: string
+          ingredient_cui?: string | null
           manufacturer?: string | null
           rxnorm_id?: string | null
           strength?: string | null
@@ -1204,6 +1206,7 @@ export type Database = {
           created_at?: string
           generic_name?: string
           id?: string
+          ingredient_cui?: string | null
           manufacturer?: string | null
           rxnorm_id?: string | null
           strength?: string | null
