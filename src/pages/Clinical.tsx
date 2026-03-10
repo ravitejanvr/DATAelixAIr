@@ -293,6 +293,8 @@ export default function Clinical() {
   const [pipelineHypotheses, setPipelineHypotheses] = useState<HypothesisEntry[]>([]);
   const [pipelineEvidence, setPipelineEvidence] = useState<PipelineEvidence | null>(null);
   const [pipelineCompliance, setPipelineCompliance] = useState<PipelineCompliance | null>(null);
+  const [pipelineStage, setPipelineStage] = useState<string | null>(null);
+  const [stageLatencies, setStageLatencies] = useState<Record<string, number>>({});
 
   // Consultation summary & copilot selections
   const [consultationSummary, setConsultationSummary] = useState("");
@@ -640,6 +642,9 @@ export default function Clinical() {
     // If modular pipeline is enabled, run it for enriched outputs
     if (isNewPipelineEnabled()) {
       try {
+        setPipelineStage("hypotheses");
+        setStageLatencies({});
+
         // Run modular pipeline via compare function (which runs both)
         const { data, error } = await supabase.functions.invoke("compare-ai-pipelines", {
           body: {
@@ -665,12 +670,16 @@ export default function Clinical() {
 
         const modular = data?.modular_pipeline;
         if (modular) {
-          // Hypotheses
+          // Stream: Hypotheses
           if (modular.hypotheses?.length > 0) {
             setPipelineHypotheses(modular.hypotheses);
           }
+          setPipelineStage("evidence");
+          if (modular.stage_latencies) {
+            setStageLatencies(prev => ({ ...prev, ...modular.stage_latencies }));
+          }
 
-          // Evidence
+          // Stream: Evidence
           if (modular.evidence) {
             setPipelineEvidence({
               citations: modular.evidence.citations || [],
@@ -678,11 +687,13 @@ export default function Clinical() {
               retrieval_confidence: modular.evidence.retrieval_confidence || "low",
             });
           }
+          setPipelineStage("guidelines");
 
-          // Compliance
+          // Stream: Compliance
           if (modular.compliance) {
             setPipelineCompliance(modular.compliance);
           }
+          setPipelineStage("safety");
 
           // Safety
           if (modular.oversight) {
@@ -716,18 +727,27 @@ export default function Clinical() {
             setAiSoapBaseline({ ...modular.soap_sections });
           }
           setIsGeneratingSoap(false);
+
+          // Record final latencies
+          if (modular.stage_latencies) {
+            setStageLatencies(modular.stage_latencies);
+          }
         }
 
+        setPipelineStage("complete");
         setIsStabilizing(false); setIsExtracting(false);
         timer.stop(true, { pipeline: "modular", latency_ms: modular?.latency_ms });
         setPipelineComplete(true);
       } catch (err: any) {
         console.warn("[ModularPipeline] Failed, falling back to legacy:", err.message);
+        setPipelineStage(null);
         // Fall through to legacy pipeline below
         await runLegacyPipeline(effectiveTranscript, timer);
       } finally {
         setPipelineRunning(false);
         setIsStabilizing(false); setIsExtracting(false); setIsRunningSafety(false); setIsGeneratingSoap(false);
+        // Clear stage after a short delay so user sees "complete"
+        setTimeout(() => setPipelineStage(null), 2000);
       }
       return;
     }
@@ -1024,6 +1044,7 @@ export default function Clinical() {
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedAdvice([]);
     setSelectedInstructions([]);
     setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
+    setPipelineStage(null); setStageLatencies({});
   };
 
   const updateSoapSection = (section: keyof SoapSections, value: string) => setSoapSections(prev => ({ ...prev, [section]: value }));
@@ -1233,6 +1254,8 @@ export default function Clinical() {
     visitId,
     consultationId: savedSessionId,
     clinicId: profileClinicId,
+    pipelineStage: pipelineRunning ? pipelineStage : null,
+    stageLatencies,
   };
 
   // ═══════════════════════════════════════════════════════════
