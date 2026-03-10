@@ -771,12 +771,172 @@ export default function Clinical() {
     ? COMMON_SYMPTOMS.filter(s => s.toLowerCase().includes(symptomSearch.toLowerCase()))
     : COMMON_SYMPTOMS;
 
+  const progressiveStage = getConsultationStage({
+    symptomsCount: selectedSymptoms.length,
+    diagnosisCount: selectedDiagnoses.length,
+    labsCount: selectedTests.length,
+    medicationCount: pendingRxFromSuggestions.length,
+    hasAssessment: soapSections["Provisional Diagnosis"].trim().length > 0,
+    hasPlan: soapSections["Treatment Plan"].trim().length > 0,
+    pipelineComplete,
+  });
+  const nextAction = getNextProgressiveAction(progressiveStage);
+
   // Helper: update a vital field
   const updateVital = (field: string, value: string) => {
     setPatientVitals((prev: any) => ({
       ...(prev || {}),
       [field]: value === "" ? null : isNaN(Number(value)) ? value : Number(value),
     }));
+  };
+
+  const updateSoapForProgressive = (section: keyof SoapSections, value: string) => {
+    setSoapSections((prev) => ({ ...prev, [section]: value }));
+  };
+
+  const handleMedicationLookup = useCallback(async (query: string) => {
+    if (query.trim().length < 2) {
+      setMedicationSuggestions([]);
+      return;
+    }
+
+    setMedicationLoading(true);
+    try {
+      const [brandsRes, masterRes] = await Promise.all([
+        supabase
+          .from("drug_brands")
+          .select("brand_name,generic_name,strength")
+          .or(`brand_name.ilike.%${query}%,generic_name.ilike.%${query}%`)
+          .limit(5),
+        supabase
+          .from("drug_master")
+          .select("generic_name")
+          .ilike("generic_name", `%${query}%`)
+          .limit(5),
+      ]);
+
+      const merged = [
+        ...(brandsRes.data || []).map((row: any) => ({
+          label: `${row.brand_name}${row.strength ? ` ${row.strength}` : ""} (${row.generic_name})`,
+          genericName: row.generic_name,
+        })),
+        ...(masterRes.data || []).map((row: any) => ({
+          label: row.generic_name,
+          genericName: row.generic_name,
+        })),
+      ];
+
+      const deduped = Array.from(new Map(merged.map((item) => [item.label.toLowerCase(), item])).values()).slice(0, 6);
+      setMedicationSuggestions(deduped);
+    } finally {
+      setMedicationLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleMedicationLookup(medicationQuery);
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [medicationQuery, handleMedicationLookup]);
+
+  const handleMedicationSuggestionSelect = async (item: { label: string; genericName: string }) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("normalize-medication", {
+        body: { input: item.label },
+      });
+      if (error) throw error;
+
+      const normalized = data?.normalized_medication || {};
+      const drugName = normalized.generic_name || item.genericName;
+      const alreadyAdded = pendingRxFromSuggestions.some((rx) => rx.drug_name === drugName);
+      if (!alreadyAdded) {
+        setPendingRxFromSuggestions((prev) => ([
+          ...prev,
+          {
+            drug_name: drugName,
+            dose: normalized.dose || "",
+            frequency: normalized.frequency || "",
+            duration: normalized.duration || "",
+          },
+        ]));
+        setSoapSections((prev) => ({
+          ...prev,
+          "Treatment Plan": prev["Treatment Plan"]
+            ? `${prev["Treatment Plan"]}\n${drugName}`
+            : drugName,
+        }));
+      }
+
+      emitMonitoringEvent({
+        event_type: "copilot_action",
+        agent_name: "progressive_action_engine",
+        success: true,
+        metadata: { action: "medication_normalized", input: item.label, output: drugName },
+      });
+      setMedicationQuery("");
+      setMedicationSuggestions([]);
+    } catch (error: any) {
+      toast({ title: "Medication normalization failed", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleProgressiveAction = async () => {
+    emitMonitoringEvent({
+      event_type: "action_bar_click",
+      agent_name: "progressive_action_engine",
+      success: true,
+      metadata: { stage: progressiveStage, action: nextAction.label },
+    });
+
+    if (progressiveStage === "treatment_selected") {
+      setActionBusy(true);
+      const timer = startPipelineTimer("clinical_reasoning_engine");
+      try {
+        const { data, error } = await supabase.functions.invoke("clinical_reasoning_engine", {
+          body: {
+            patient_id: selectedPatient?.id,
+            symptoms: selectedSymptoms,
+            diagnoses: selectedDiagnoses,
+            labs: selectedTests,
+            medications: pendingRxFromSuggestions,
+            vitals: patientVitals,
+          },
+        });
+
+        if (error || !data) {
+          await runFullPipeline();
+        } else {
+          setSoapSections((prev) => ({
+            ...prev,
+            "Treatment Plan": data?.care_plan?.treatment_plan || prev["Treatment Plan"],
+            "Advice": data?.care_plan?.advice || prev["Advice"],
+            "Visit Summary": data?.care_plan?.summary || prev["Visit Summary"],
+          }));
+        }
+
+        emitMonitoringEvent({
+          event_type: "care_plan_generation",
+          agent_name: "clinical_reasoning_engine",
+          success: true,
+          metadata: { stage: progressiveStage },
+        });
+        timer.stop(true);
+      } catch {
+        await runFullPipeline();
+        timer.stop(false);
+      } finally {
+        setActionBusy(false);
+      }
+      return;
+    }
+
+    if (progressiveStage === "final_review") {
+      await approveAndSave();
+      return;
+    }
+
+    toast({ title: nextAction.label, description: nextAction.description });
   };
 
   // ═══════════════════════════════════════════════════════════
