@@ -1010,7 +1010,7 @@ export default function Clinical() {
                       </div>
                     )}
 
-                    {/* Conditions / Allergies / Meds */}
+                    {/* Conditions / Allergies */}
                     <div className="flex flex-wrap gap-x-3 gap-y-1">
                       {selectedPatient.medical_history && Array.isArray(selectedPatient.medical_history) && (selectedPatient.medical_history as any[]).length > 0 && (
                         <div className="flex items-center gap-1 flex-wrap">
@@ -1026,18 +1026,90 @@ export default function Clinical() {
                           {selectedPatient.allergies.map(a => <Chip key={a} variant="alert" size="sm">{a}</Chip>)}
                         </div>
                       ) : null}
-                      {/* Current + Prior Medications with dose */}
-                      {(selectedPatient.current_medications?.length || priorMeds.length > 0) ? (
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className="text-[9px] font-semibold text-muted-foreground uppercase flex items-center gap-0.5"><Pill className="h-2.5 w-2.5" />Meds:</span>
-                          {selectedPatient.current_medications?.map(m => <Chip key={m} variant="medication" size="sm">{m}</Chip>)}
-                          {priorMeds.map(m => (
-                            <Chip key={m.name} variant="medication" size="sm" removable onRemove={() => removePriorMed(m.name)}>
-                              {m.name}{m.dose ? ` ${m.dose}` : ""}
+                    </div>
+
+                    {/* Current Medication */}
+                    <div>
+                      <span className="text-[9px] font-semibold text-muted-foreground uppercase flex items-center gap-0.5 mb-1"><Pill className="h-2.5 w-2.5" />Current Medication</span>
+                      <div className="flex flex-wrap gap-1 mb-1.5">
+                        {selectedPatient.current_medications?.map(m => <Chip key={m} variant="medication" size="sm">{m}</Chip>)}
+                        {priorMeds.map(m => (
+                          <div key={m.name} className="flex items-center gap-0.5">
+                            <Chip variant="medication" size="sm" removable onRemove={() => removePriorMed(m.name)}>
+                              {m.name}
                             </Chip>
-                          ))}
+                            <input
+                              type="text"
+                              value={m.dose}
+                              onChange={e => updatePriorMedDose(m.name, e.target.value)}
+                              placeholder="dose"
+                              className="h-5 w-14 px-1 text-[9px] rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                            />
+                            <input
+                              type="text"
+                              value={m.frequency}
+                              onChange={e => updatePriorMedFrequency(m.name, e.target.value)}
+                              placeholder="freq"
+                              className="h-5 w-12 px-1 text-[9px] rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={medSearch}
+                          onChange={e => setMedSearch(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter" && medSearch.trim()) { addPriorMedToPatient(medSearch.trim()); setMedSearch(""); } }}
+                          placeholder="+ Add medication…"
+                          className="w-full h-7 px-2.5 text-[11px] rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                        />
+                        {filteredMedSuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-0.5 bg-popover border border-border rounded-lg shadow-md z-10 max-h-32 overflow-y-auto">
+                            {filteredMedSuggestions.map(med => (
+                              <button key={med} className="w-full text-left px-2.5 py-1.5 text-[11px] text-foreground hover:bg-muted transition-colors" onClick={() => { addPriorMedToPatient(med); setMedSearch(""); }}>
+                                {med}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Chief Complaint */}
+                    <div>
+                      <span className="text-[9px] font-semibold text-primary uppercase flex items-center gap-0.5 mb-1">
+                        <Stethoscope className="h-2.5 w-2.5" /> Chief Complaint
+                      </span>
+                      {chiefComplaint ? (
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Chip variant="symptom" selected removable onRemove={() => { setChiefComplaint(""); }}>{chiefComplaint}</Chip>
+                          {intakeData?.symptom_duration && <span className="text-[10px] text-muted-foreground">· {intakeData.symptom_duration}</span>}
+                        </div>
+                      ) : intakeData?.chief_complaint ? (
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Chip variant="symptom" selected onClick={() => setChiefComplaint(intakeData.chief_complaint!)}>{intakeData.chief_complaint}</Chip>
                         </div>
                       ) : null}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={chiefComplaintSearch}
+                          onChange={e => setChiefComplaintSearch(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter" && chiefComplaintSearch.trim()) { setChiefComplaint(chiefComplaintSearch.trim()); setChiefComplaintSearch(""); } }}
+                          placeholder="+ Add chief complaint…"
+                          className="w-full h-7 px-2.5 text-[11px] rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                        />
+                        {filteredCcSuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-0.5 bg-popover border border-border rounded-lg shadow-md z-10 max-h-32 overflow-y-auto">
+                            {filteredCcSuggestions.map(cc => (
+                              <button key={cc} className="w-full text-left px-2.5 py-1.5 text-[11px] text-foreground hover:bg-muted transition-colors" onClick={() => { setChiefComplaint(cc); setChiefComplaintSearch(""); }}>
+                                {cc}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
