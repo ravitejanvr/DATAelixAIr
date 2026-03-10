@@ -842,7 +842,69 @@ Generate differential diagnoses as JSON array.`,
         });
       }
 
-      // ─── MODULE 6: Final SOAP Generator ────────────────
+      // ─── MODULE 5.5: Uncertainty Engine ─────────────────
+      const uncStart = Date.now();
+      let uncertaintyOutput: any = null;
+      try {
+        const safetyFlagsList = modularOutput.safety_flags || [];
+        const uncUrl = `${supabaseUrl}/functions/v1/uncertainty-engine`;
+        const uncResp = await fetch(uncUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            symptoms: structuredContext.symptoms,
+            vitals: structuredContext.vitals,
+            differential_diagnoses: (modularOutput.ddx?.differential_diagnoses || modularOutput.hypotheses || []).map((d: any) => ({
+              diagnosis_name: d.diagnosis_name || d.diagnosis,
+              probability: d.probability || (d.confidence ? Math.round(d.confidence * 100) : 0),
+              must_not_miss: d.must_not_miss || false,
+              supporting_symptoms: d.supporting_symptoms || d.supporting_factors || [],
+            })),
+            suggested_labs: (modularOutput.ddx?.recommended_labs || []),
+            guideline_sources: (modularOutput.compliance?.guideline_sources_used || []),
+            guideline_recommendations: (modularOutput.ddx?.guideline_recommendations || []).map((g: any) => ({
+              authority: g.authority,
+              evidence_level: g.evidence_level,
+            })),
+            safety_flags: safetyFlagsList,
+            safety_score: modularOutput.safety_score,
+            medical_history: structuredContext.medical_history,
+            current_medications: structuredContext.medications,
+            allergies: structuredContext.allergies,
+            matched_symptoms: modularOutput.ddx?.matched_symptoms || [],
+            unmatched_symptoms: modularOutput.ddx?.unmatched_symptoms || [],
+          }),
+        });
+
+        if (uncResp.ok) {
+          uncertaintyOutput = await uncResp.json();
+          moduleLogs.push({
+            module: "uncertainty_engine",
+            status: "success",
+            latency_ms: Date.now() - uncStart,
+            details: `Confidence: ${uncertaintyOutput.confidence_score} (${uncertaintyOutput.confidence_label}). Missing: ${uncertaintyOutput.missing_evidence?.length || 0} items. Conflicts: ${uncertaintyOutput.diagnostic_conflict ? "yes" : "no"}`,
+          });
+        } else {
+          moduleLogs.push({
+            module: "uncertainty_engine",
+            status: "error",
+            latency_ms: Date.now() - uncStart,
+            details: `HTTP ${uncResp.status}`,
+          });
+        }
+      } catch (e) {
+        moduleLogs.push({
+          module: "uncertainty_engine",
+          status: "error",
+          latency_ms: Date.now() - uncStart,
+          details: e instanceof Error ? e.message : "Unknown error",
+        });
+      }
+      modularOutput.uncertainty = uncertaintyOutput;
+
+
       // Calls clinical-soap edge function with combined context from all previous modules
       const soapStart = Date.now();
       try {
