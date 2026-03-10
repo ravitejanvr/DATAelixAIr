@@ -510,7 +510,51 @@ function PipelineCard({ title, data, variant }: { title: string; data: any; vari
               </div>
             )}
 
-            {data.hypotheses?.length > 0 && (
+            {/* Uncertainty Engine Results */}
+            {data.uncertainty && (
+              <div>
+                <p className="font-semibold mb-1 flex items-center gap-1">
+                  Uncertainty Calibration
+                  <Badge variant="secondary" className="text-[9px]">{data.uncertainty.execution_ms}ms</Badge>
+                  <Badge
+                    variant={data.uncertainty.confidence_label === "High" ? "default" : data.uncertainty.confidence_label === "Moderate" ? "secondary" : "destructive"}
+                    className="text-[9px]"
+                  >
+                    {data.uncertainty.confidence_label} ({data.uncertainty.confidence_score})
+                  </Badge>
+                </p>
+                {/* Scoring breakdown */}
+                <div className="grid grid-cols-2 gap-1 mb-1">
+                  {Object.entries(data.uncertainty.scoring_breakdown || {}).map(([key, val]: [string, any]) => (
+                    <div key={key} className="flex justify-between text-[10px] text-muted-foreground px-1">
+                      <span>{key.replace(/_/g, " ")}</span>
+                      <span className="font-mono">{val}</span>
+                    </div>
+                  ))}
+                </div>
+                {data.uncertainty.missing_evidence?.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">Missing Evidence:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {data.uncertainty.missing_evidence.map((m: string, i: number) => (
+                        <Badge key={i} variant="outline" className="text-[9px] text-yellow-600">{m}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {data.uncertainty.diagnostic_conflict && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-destructive mb-0.5">Diagnostic Conflicts:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {(data.uncertainty.conflict_details || []).map((c: string, i: number) => (
+                        <Badge key={i} variant="destructive" className="text-[9px]">{c}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
               <div>
                 <p className="font-semibold mb-1">AI Hypotheses</p>
                 {data.hypotheses.map((h: any, i: number) => (
