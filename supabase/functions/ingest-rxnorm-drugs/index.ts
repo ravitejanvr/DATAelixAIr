@@ -75,19 +75,28 @@ serve(async (req) => {
       let skipped = 0;
       const BATCH = 500;
 
-      for (let i = 0; i < ingredients.length; i += BATCH) {
-        const batch = ingredients.slice(i, i + BATCH).map((c) => ({
+      // Deduplicate by generic_name (RxNorm can have multiple rxcuis for same name)
+      const seen = new Set<string>();
+      const dedupedIngredients = ingredients.filter((c) => {
+        const key = c.name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      for (let i = 0; i < dedupedIngredients.length; i += BATCH) {
+        const batch = dedupedIngredients.slice(i, i + BATCH).map((c) => ({
           generic_name: c.name,
           rxnorm_id: c.rxcui,
           drug_class: "",
           mechanism: "",
         }));
 
-        const { error, count } = await supabase
+        const { error } = await supabase
           .from("drug_master")
           .upsert(batch, {
-            onConflict: "rxnorm_id",
-            ignoreDuplicates: true,
+            onConflict: "generic_name",
+            ignoreDuplicates: false,
           });
 
         if (error) {
