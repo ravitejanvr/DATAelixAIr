@@ -939,6 +939,31 @@ export default function Clinical() {
     toast({ title: nextAction.label, description: nextAction.description });
   };
 
+  useEffect(() => {
+    if (selectedSymptoms.length === 0) return;
+    const summary = `${selectedSymptoms.join(", ")}${selectedDuration ? ` for ${selectedDuration}` : ""}`;
+    setSoapSections((prev) => ({
+      ...prev,
+      "Visit Summary": prev["Visit Summary"].trim() ? prev["Visit Summary"] : summary,
+    }));
+  }, [selectedSymptoms, selectedDuration]);
+
+  useEffect(() => {
+    if (!patientVitals) return;
+    const objective = [
+      patientVitals.temperature ? `Temp ${patientVitals.temperature}°F` : null,
+      patientVitals.bp_systolic ? `BP ${patientVitals.bp_systolic}/${patientVitals.bp_diastolic || ""}` : null,
+      patientVitals.pulse ? `Pulse ${patientVitals.pulse}` : null,
+      patientVitals.spo2 ? `SpO₂ ${patientVitals.spo2}%` : null,
+    ].filter(Boolean).join(", ");
+
+    if (!objective) return;
+    setSoapSections((prev) => ({
+      ...prev,
+      "Findings": objective,
+    }));
+  }, [patientVitals]);
+
   // ═══════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════
