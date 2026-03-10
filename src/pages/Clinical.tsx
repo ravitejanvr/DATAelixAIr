@@ -241,6 +241,8 @@ export default function Clinical() {
   // Validation state
   const [isValidating, setIsValidating] = useState(false);
   const [validationComplete, setValidationComplete] = useState(false);
+  const [complianceResults, setComplianceResults] = useState<any[] | null>(null);
+  const [evidenceResults, setEvidenceResults] = useState<any | null>(null);
 
   // Command bar state
   const [commandQuery, setCommandQuery] = useState("");
