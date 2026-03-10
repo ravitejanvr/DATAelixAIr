@@ -31,6 +31,7 @@ import {
 import { queryEvidence, type EvidenceQueryResult } from "@/services/knowledge_ingestion";
 import { getCached, setCache } from "@/services/knowledge_cache";
 import { runDDXEngine, type DDXResult } from "@/services/ddx_engine/client";
+import { runUncertaintyEngine, type UncertaintyResult } from "@/services/uncertainty_engine/client";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PipelineInput {
