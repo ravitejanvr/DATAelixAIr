@@ -289,15 +289,17 @@ export default function AiPipelineTest() {
                     <SummaryStatCard label="Avg Modular Latency" value={`${benchmarkSummary.modular_pipeline.avg_latency_ms}ms`} />
                     <SummaryStatCard label="Semantic Dx Match" value={`${benchmarkSummary.diagnosis_agreement_rate}%`} highlight />
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <SummaryStatCard label="Lab Equivalence" value={`${benchmarkSummary.lab_agreement_rate}%`} />
                     <SummaryStatCard label="Med Equivalence" value={`${benchmarkSummary.medication_agreement_rate}%`} />
                     <SummaryStatCard label="Avg Guideline Citations" value={String(benchmarkSummary.modular_pipeline.avg_guideline_citations)} />
                     <SummaryStatCard label="Avg Safety Alerts" value={String(benchmarkSummary.modular_pipeline.avg_safety_alerts)} />
+                    <SummaryStatCard label="Avg Confidence" value={String(benchmarkSummary.modular_pipeline.avg_confidence_score)} highlight />
                   </div>
                   <MetricBar label="Semantic Diagnosis Match Rate" value={benchmarkSummary.diagnosis_agreement_rate} />
                   <MetricBar label="Lab Equivalence Match Rate" value={benchmarkSummary.lab_agreement_rate} />
                   <MetricBar label="Medication Equivalence Match Rate" value={benchmarkSummary.medication_agreement_rate} />
+                  <MetricBar label="Avg Diagnostic Confidence" value={Math.round(benchmarkSummary.modular_pipeline.avg_confidence_score * 100)} />
                 </CardContent>
               </Card>
             )}
