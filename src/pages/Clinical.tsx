@@ -699,10 +699,10 @@ export default function Clinical() {
       const alertCount = (results.interaction_flags?.length || 0) + (results.allergy_flags?.length || 0) +
         (results.dose_warnings?.length || 0) + (results.vitals_dangers?.length || 0) + (results.emergency_patterns?.length || 0);
 
-      // 2. Guideline compliance check (non-blocking)
+      // 2. Guideline compliance check
       if (selectedDiagnoses.length > 0 || pendingRxFromSuggestions.length > 0 || selectedTests.length > 0) {
         try {
-          await supabase.functions.invoke("guideline-compliance", {
+          const { data: compData } = await supabase.functions.invoke("guideline-compliance", {
             body: {
               diagnoses: selectedDiagnoses,
               medications: pendingRxFromSuggestions,
@@ -712,15 +712,17 @@ export default function Clinical() {
               chief_complaint: chiefComplaint || selectedDiagnoses[0] || "",
             },
           });
+          if (compData?.results) setComplianceResults(compData.results);
         } catch { /* non-blocking */ }
       }
 
-      // 3. Evidence retrieval (non-blocking)
+      // 3. Evidence retrieval
       if (chiefComplaint || selectedDiagnoses.length > 0) {
         try {
-          await supabase.functions.invoke("retrieve-guideline-recommendation", {
+          const { data: evData } = await supabase.functions.invoke("retrieve-guideline-recommendation", {
             body: { diagnosis: selectedDiagnoses[0] || chiefComplaint },
           });
+          if (evData) setEvidenceResults(evData);
         } catch { /* non-blocking */ }
       }
 
