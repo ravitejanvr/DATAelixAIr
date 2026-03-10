@@ -200,9 +200,47 @@ function PipelineCard({ title, data, variant }: { title: string; data: any; vari
 
         {variant === "modular" && (
           <>
+            {data.hypotheses?.length > 0 && (
+              <div>
+                <p className="font-semibold mb-1">Differential Diagnoses (Hypothesis Engine)</p>
+                {data.hypotheses.map((h: any, i: number) => (
+                  <div key={i} className="p-1.5 bg-muted/50 rounded mb-1 flex justify-between">
+                    <span>{h.diagnosis}</span>
+                    <Badge variant="secondary" className="text-[10px]">{Math.round((h.confidence || 0) * 100)}%</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {data.evidence && (
+              <div>
+                <p className="font-semibold mb-1">Evidence (Knowledge Retrieval)</p>
+                <div className="text-muted-foreground">
+                  {data.evidence.citation_count} citations from {(data.evidence.sources_queried || []).join(", ")} · Confidence: {data.evidence.retrieval_confidence}
+                </div>
+              </div>
+            )}
+
+            {data.compliance && (
+              <div>
+                <p className="font-semibold mb-1">Guideline Compliance</p>
+                <div className="text-muted-foreground">
+                  {data.compliance.guidelines_matched} guidelines matched from {(data.compliance.guidelines_sources || []).join(", ")}
+                </div>
+                {data.compliance.results?.map((r: any, i: number) => (
+                  <div key={i} className="flex items-center gap-1 mt-0.5">
+                    <Badge variant={r.compliance_status === "guideline_aligned" ? "default" : r.compliance_status === "evidence_supported" ? "secondary" : "destructive"} className="text-[10px]">
+                      {r.compliance_status}
+                    </Badge>
+                    <span>{r.item}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {data.guidelines?.length > 0 && (
               <div>
-                <p className="font-semibold mb-1">Guidelines</p>
+                <p className="font-semibold mb-1">Guidelines Referenced</p>
                 {data.guidelines.map((g: any, i: number) => (
                   <div key={i} className="p-1.5 bg-muted/50 rounded mb-1">
                     <span className="font-medium">{g.title}</span>
@@ -211,21 +249,16 @@ function PipelineCard({ title, data, variant }: { title: string; data: any; vari
                 ))}
               </div>
             )}
+
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4" />
-              <span>Safety Score: <strong>{data.safety_score}/100</strong></span>
+              <span>Safety Score (Oversight Engine): <strong>{data.safety_score}/100</strong></span>
             </div>
             {data.safety_flags?.length > 0 && (
               <div className="space-y-1">
                 {data.safety_flags.map((f: string, i: number) => (
                   <Badge key={i} variant="destructive" className="text-[10px] mr-1">{f}</Badge>
                 ))}
-              </div>
-            )}
-            {data.reasoning && (
-              <div>
-                <p className="font-semibold mb-1">Clinical Reasoning</p>
-                <p className="text-muted-foreground">{data.reasoning}</p>
               </div>
             )}
           </>
