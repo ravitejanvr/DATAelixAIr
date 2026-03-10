@@ -1339,7 +1339,7 @@ export default function Clinical() {
                     }
                   }}
                   onInsertIntoSoap={(text) => {
-                    setSoapSections(prev => ({ ...prev, plan: prev.plan ? `${prev.plan}\n${text}` : text }));
+                    setSoapSections(prev => ({ ...prev, "Treatment Plan": prev["Treatment Plan"] ? `${prev["Treatment Plan"]}\n${text}` : text }));
                     toast({ title: "Inserted into SOAP" });
                   }}
                   safetyResults={safetyResults}
