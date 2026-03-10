@@ -1327,21 +1327,21 @@ export default function Clinical() {
                 {/* SOAP Sections */}
                 <div className="space-y-4">
                   {/* Subjective */}
-                  <div className="rounded-xl border p-3 bg-blue-500/5 border-blue-500/15">
+                  <div className="rounded-xl border p-3 bg-primary/[0.03] border-primary/15">
                     <div className="flex items-center gap-1.5 mb-2">
-                      <User className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                      <span className="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">Subjective</span>
+                      <User className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-bold uppercase tracking-wide text-primary">Subjective</span>
                     </div>
                     <Textarea
                       value={(() => {
-                        // Build subjective from structured data
                         const parts: string[] = [];
                         if (soapSections["Visit Summary"]?.trim()) parts.push(soapSections["Visit Summary"]);
                         else {
                           if (selectedSymptoms.length > 0) parts.push(`c/o ${selectedSymptoms.join(", ")}`);
                           if (selectedDuration) parts.push(`Duration: ${selectedDuration}`);
-                          if (priorMeds.length > 0) parts.push(`Prior meds: ${priorMeds.map(m => `${m.name}${m.dose ? ` ${m.dose}` : ""}`).join(", ")}`);
+                          if (priorMeds.length > 0) parts.push(`Current meds: ${priorMeds.map(m => `${m.name}${m.dose ? ` ${m.dose}` : ""}${m.frequency ? ` ${m.frequency}` : ""}`).join(", ")}`);
                         }
+                        if (transcript.trim()) parts.push(transcript.trim());
                         return parts.join("\n");
                       })()}
                       onChange={e => updateSoapSection("Visit Summary", e.target.value)}
@@ -1349,10 +1349,6 @@ export default function Clinical() {
                       className="text-xs min-h-[36px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
                       placeholder="Patient's subjective complaints..."
                     />
-                    {/* Record + Add a note at bottom */}
-                    <div className="mt-2 flex items-center gap-2">
-                      <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
-                    </div>
                   </div>
 
                   {/* Objective */}
