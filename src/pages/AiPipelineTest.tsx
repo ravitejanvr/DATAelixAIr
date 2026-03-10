@@ -96,6 +96,10 @@ export default function AiPipelineTest() {
                     <span>Latency Diff: {comp.latency_difference_ms}ms</span>
                     <span>{comp.legacy_faster ? "Legacy faster" : "Modular faster"}</span>
                   </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Modules: {comp.modules_executed}/{comp.modules_total} executed</span>
+                    {comp.modules_failed > 0 && <span className="text-destructive">{comp.modules_failed} failed</span>}
+                  </div>
                 </CardContent>
               </Card>
             )}
