@@ -205,8 +205,13 @@ export default function Clinical() {
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [selectedDuration, setSelectedDuration] = useState<string>("");
   const [expansionSelections, setExpansionSelections] = useState<Record<string, string[]>>({});
-  const [priorMeds, setPriorMeds] = useState<{ name: string; dose: string }[]>([]);
+  const [priorMeds, setPriorMeds] = useState<{ name: string; dose: string; frequency: string }[]>([]);
   const [symptomSearch, setSymptomSearch] = useState("");
+  const [chiefComplaint, setChiefComplaint] = useState("");
+  const [chiefComplaintSearch, setChiefComplaintSearch] = useState("");
+  const [medSearch, setMedSearch] = useState("");
+  const [medSuggestions, setMedSuggestions] = useState<string[]>([]);
+  const [ccSuggestions, setCcSuggestions] = useState<string[]>([]);
 
   // Clinical Context
   const [clinicalContext, setClinicalContext] = useState<ClinicalContext>(EMPTY_CLINICAL_CONTEXT);
