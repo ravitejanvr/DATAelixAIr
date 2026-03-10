@@ -54,6 +54,12 @@ export interface PipelineResult {
   guideline_alignment: GuidelineAlignmentResult | null;
   evidence: EvidenceQueryResult | null;
   oversight: OversightReport | null;
+  /** Structured guideline output for downstream consumers */
+  guideline_summary: {
+    guideline_sources_used: string[];
+    guideline_compliance_score: number;
+    conflicts_detected: Array<{ recommendation: string; conflicting_guideline: string; organization: string; severity: string; explanation: string }>;
+  } | null;
   logs: ReturnType<typeof getPipelineLogs>;
 }
 
@@ -71,6 +77,7 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
       guideline_alignment: null,
       evidence: null,
       oversight: null,
+      guideline_summary: null,
       logs: [],
     };
   }
@@ -155,6 +162,15 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
 
   console.log(`[Pipeline] Complete. Safety score: ${oversight.safety_score}/100`);
 
+  // Build guideline summary for downstream consumers
+  const guideline_summary = guidelineAlignment
+    ? {
+        guideline_sources_used: guidelineAlignment.guideline_sources_used,
+        guideline_compliance_score: guidelineAlignment.guideline_compliance_score,
+        conflicts_detected: guidelineAlignment.conflicts_detected,
+      }
+    : null;
+
   return {
     enabled: true,
     enriched_context: enrichedContext,
@@ -162,6 +178,7 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
     guideline_alignment: guidelineAlignment,
     evidence,
     oversight,
+    guideline_summary,
     logs: getPipelineLogs(),
   };
 }
