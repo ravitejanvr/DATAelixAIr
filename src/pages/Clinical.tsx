@@ -18,6 +18,7 @@ import ConsultationInput from "@/components/ConsultationInput";
 import PatientSelector, { type SelectedPatient } from "@/components/PatientSelector";
 import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import FollowUpPanel from "@/components/clinical/FollowUpPanel";
+import AdaptiveAICopilotPanel from "@/components/clinical/AdaptiveAICopilotPanel";
 import ClinicalCopilot from "@/components/clinical/ClinicalCopilot";
 import AiDisclosureBadge from "@/components/AiDisclosureBadge";
 
