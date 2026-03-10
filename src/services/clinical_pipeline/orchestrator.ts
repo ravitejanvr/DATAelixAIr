@@ -108,6 +108,7 @@ export async function runClinicalPipeline(
       enabled: false,
       enriched_context: null,
       ddx: null,
+      uncertainty: null,
       hypotheses: null,
       guideline_alignment: null,
       evidence: null,
