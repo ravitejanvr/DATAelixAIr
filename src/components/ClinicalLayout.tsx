@@ -112,7 +112,20 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        {/* Search bar removed — use command bar in clinical footer */}
+        {/* Search trigger */}
+        <div className="px-2 pt-2">
+          <button
+            onClick={() => {
+              const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true });
+              window.dispatchEvent(event);
+            }}
+            className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs text-muted-foreground bg-muted/50 hover:bg-muted border border-border/50 transition-colors"
+          >
+            <Search className="h-3 w-3" />
+            <span className="text-[10px]">Search…</span>
+            <kbd className="ml-auto text-[8px] bg-background px-1 py-0.5 rounded border border-border font-mono">⌘K</kbd>
+          </button>
+        </div>
 
         {/* Quick Action Button */}
         {showQuickAction && (
