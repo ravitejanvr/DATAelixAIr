@@ -1176,81 +1176,63 @@ export default function Clinical() {
                     icon={<ClipboardCheck className="h-3.5 w-3.5" />}
                     badge={selectedSymptoms.length > 0 ? <Badge variant="outline" className="text-xs">{selectedSymptoms.length}</Badge> : undefined}
                   />
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {filteredSymptoms.map(s => (
-                      <Chip key={s} variant="symptom" selected={selectedSymptoms.includes(s)} onClick={() => toggleSymptom(s)}>{s}</Chip>
-                    ))}
-                  </div>
-                  <div className="mt-2">
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <input
-                        type="text" value={symptomSearch} onChange={e => setSymptomSearch(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter" && symptomSearch.trim()) { toggleSymptom(symptomSearch.trim()); setSymptomSearch(""); } }}
-                        placeholder="Search or add…"
-                        className="w-full h-8 pl-8 pr-3 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-                      />
-                    </div>
-                  </div>
 
-                  {/* Expansions */}
-                  <AnimatePresence>
-                    {activeExpansions.filter(s => SYMPTOM_EXPANSIONS[s]?.chips.length > 0).map(symptom => {
-                      const expansion = SYMPTOM_EXPANSIONS[symptom];
-                      return (
-                        <motion.div key={`exp-${symptom}`} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mt-1">
-                          <div className="pl-2 border-l-2 border-primary/20">
-                            <ChipGroup label={`${symptom} → ${expansion.label}`}>
-                              {expansion.chips.map(chip => (
-                                <Chip key={chip} variant={expansion.variant} selected={(expansionSelections[symptom] || []).includes(chip)} onClick={() => toggleExpansionChip(symptom, chip)} size="sm">{chip}</Chip>
-                              ))}
-                            </ChipGroup>
+                  {/* Selected symptoms with inline expansions */}
+                  {selectedSymptoms.length > 0 && (
+                    <div className="space-y-1 mt-1.5">
+                      {selectedSymptoms.map(symptom => {
+                        const expansion = SYMPTOM_EXPANSIONS[symptom];
+                        return (
+                          <div key={symptom} className="flex items-start gap-1 flex-wrap">
+                            <Chip variant="symptom" selected removable onRemove={() => toggleSymptom(symptom)}>{symptom}</Chip>
+                            {expansion && expansion.chips.map(chip => (
+                              <Chip key={chip} variant="neutral" size="sm" selected={(expansionSelections[symptom] || []).includes(chip)} onClick={() => toggleExpansionChip(symptom, chip)}>{chip}</Chip>
+                            ))}
                           </div>
-                        </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                  {/* Duration + Prior Meds inline */}
+                  {/* Recommended symptoms based on chief complaint */}
+                  {recommendedSymptoms.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Recommended</p>
+                      <div className="flex flex-wrap gap-1">
+                        {recommendedSymptoms.slice(0, 5).map(s => (
+                          <Chip key={s} variant="symptom" onClick={() => toggleSymptom(s)}>{s}</Chip>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add symptom - autosuggest after 3 chars */}
+                  <div className="mt-2 relative">
+                    <input
+                      type="text" value={symptomSearch} onChange={e => setSymptomSearch(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && symptomSearch.trim()) { toggleSymptom(symptomSearch.trim()); setSymptomSearch(""); } }}
+                      placeholder="+ Add symptom…"
+                      className="w-full h-7 px-2.5 text-[11px] rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                    />
+                    {filteredSymptoms.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-0.5 bg-popover border border-border rounded-lg shadow-md z-10 max-h-32 overflow-y-auto">
+                        {filteredSymptoms.map(s => (
+                          <button key={s} className="w-full text-left px-2.5 py-1.5 text-[11px] text-foreground hover:bg-muted transition-colors" onClick={() => { toggleSymptom(s); setSymptomSearch(""); }}>
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Duration */}
                   <AnimatePresence>
                     {selectedSymptoms.length > 0 && (
-                      <motion.div {...fadeIn} className="mt-1.5 space-y-1">
+                      <motion.div {...fadeIn} className="mt-1.5">
                         <ChipGroup label="Duration">
                           {DURATION_PRESETS.map(d => (
                             <Chip key={d} variant="neutral" selected={selectedDuration === d} onClick={() => setSelectedDuration(selectedDuration === d ? "" : d)}>{d}</Chip>
                           ))}
-                        </ChipGroup>
-                        {/* Medication taken - clicking adds to patient meds */}
-                        <ChipGroup label="Medication taken">
-                          {MEDICATION_PRESETS.map(med => (
-                            <Chip
-                              key={med}
-                              variant="medication"
-                              selected={priorMeds.some(m => m.name === med)}
-                              onClick={() => {
-                                if (priorMeds.some(m => m.name === med)) {
-                                  removePriorMed(med);
-                                } else {
-                                  addPriorMedToPatient(med);
-                                }
-                              }}
-                            >
-                              {med}
-                            </Chip>
-                          ))}
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="text"
-                              placeholder="+Add"
-                              className="h-7 px-2 text-[11px] rounded-full border border-border bg-background w-20 focus:outline-none focus:ring-1 focus:ring-primary/30"
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && (e.target as HTMLInputElement).value.trim()) {
-                                  addPriorMedToPatient((e.target as HTMLInputElement).value.trim());
-                                  (e.target as HTMLInputElement).value = "";
-                                }
-                              }}
-                            />
-                          </div>
                         </ChipGroup>
                       </motion.div>
                     )}
