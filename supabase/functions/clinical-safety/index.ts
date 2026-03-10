@@ -519,7 +519,7 @@ serve(async (req) => {
     const allergy_flags = checkAllergies(medications, allergyList);
 
     // 4. Dose sanity
-    const dose_warnings = checkDoseSanity(medications);
+    const dose_warnings = [...checkDoseSanity(medications), ...enhanced_dose_warnings];
 
     // 5. Vitals danger detection
     const vitals_dangers = checkVitalsDangers(vitalsObj);
@@ -531,7 +531,7 @@ serve(async (req) => {
     const hasUnrecognized = normalized_drugs.some(d => !d.rxnorm_id);
     const hasSevereInteraction = interaction_flags.some(f => f.severity === "severe");
     const hasAllergyConflict = allergy_flags.length > 0;
-    const hasDoseIssue = dose_warnings.some(w => w.issue === "high_dosage" || w.issue === "duplicate");
+    const hasDoseIssue = dose_warnings.some(w => w.issue === "high_dosage" || w.issue === "duplicate" || w.issue === "exceeds_max_daily_dose");
     const hasCriticalVitals = vitals_dangers.some(v => v.severity === "critical");
     const hasCriticalEmergency = emergency_patterns.some(p => p.severity === "critical");
 
