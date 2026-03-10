@@ -119,6 +119,36 @@ export default function AiPipelineTest() {
               </div>
             )}
 
+            {result?.module_execution_logs?.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Clock className="h-4 w-4" /> Module Execution Logs
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {result.module_execution_logs.map((log: any, i: number) => (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/30 text-xs">
+                        {log.status === "success" ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-semibold">{log.module}</span>
+                            <Badge variant="secondary" className="text-[10px]">{log.latency_ms}ms</Badge>
+                          </div>
+                          {log.details && <p className="text-muted-foreground mt-0.5 break-words">{log.details}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {!result && !loading && (
               <Card className="flex items-center justify-center min-h-[300px] text-muted-foreground">
                 <div className="text-center space-y-2">
