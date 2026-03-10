@@ -83,3 +83,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.guideline-compliance]
     verify_jwt = false
+  [functions.normalize-medication]
+    verify_jwt = false
