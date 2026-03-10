@@ -89,3 +89,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.query-clinical-graph]
     verify_jwt = false
+  [functions.retrieve-guideline-recommendation]
+    verify_jwt = false
