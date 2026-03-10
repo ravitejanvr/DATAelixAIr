@@ -1088,6 +1088,7 @@ Generate differential diagnoses as JSON array.`,
         safety_score: modularOutput.safety_score,
         safety_flags: modularOutput.safety_flags,
         ddx: modularOutput.ddx || null,
+        uncertainty: modularOutput.uncertainty || null,
         hypotheses: modularOutput.hypotheses,
         evidence: modularOutput.evidence ? {
           citation_count: modularOutput.evidence.citations?.length || 0,
