@@ -7,10 +7,12 @@
 
 export interface FeatureFlags {
   enable_new_clinical_pipeline: boolean;
+  use_ddx_engine: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
   enable_new_clinical_pipeline: false,
+  use_ddx_engine: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -29,4 +31,8 @@ export function setFeatureFlag<K extends keyof FeatureFlags>(
 
 export function isNewPipelineEnabled(): boolean {
   return currentFlags.enable_new_clinical_pipeline;
+}
+
+export function isDdxEngineEnabled(): boolean {
+  return currentFlags.use_ddx_engine;
 }
