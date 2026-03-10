@@ -821,9 +821,37 @@ export default function Clinical() {
   const toggleAdvice = (a: string) => setSelectedAdvice(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
   const toggleInstruction = (inst: string) => setSelectedInstructions(prev => prev.includes(inst) ? prev.filter(x => x !== inst) : [...prev, inst]);
 
-  const filteredSymptoms = symptomSearch
-    ? COMMON_SYMPTOMS.filter(s => s.toLowerCase().includes(symptomSearch.toLowerCase()))
-    : COMMON_SYMPTOMS;
+  // Symptom suggestions: show recommended based on chief complaint, or filtered search
+  const recommendedSymptoms = useMemo(() => {
+    if (chiefComplaint && CHIEF_COMPLAINT_SYMPTOMS[chiefComplaint]) {
+      return CHIEF_COMPLAINT_SYMPTOMS[chiefComplaint].filter(s => !selectedSymptoms.includes(s));
+    }
+    return [];
+  }, [chiefComplaint, selectedSymptoms]);
+
+  const filteredSymptoms = useMemo(() => {
+    if (symptomSearch.length >= 3) {
+      return COMMON_SYMPTOMS.filter(s => s.toLowerCase().includes(symptomSearch.toLowerCase()) && !selectedSymptoms.includes(s));
+    }
+    return [];
+  }, [symptomSearch, selectedSymptoms]);
+
+  // Chief complaint suggestions
+  const filteredCcSuggestions = useMemo(() => {
+    if (chiefComplaintSearch.length >= 3) {
+      return Object.keys(CHIEF_COMPLAINT_SYMPTOMS).filter(cc => cc.toLowerCase().includes(chiefComplaintSearch.toLowerCase()) && cc !== chiefComplaint);
+    }
+    return [];
+  }, [chiefComplaintSearch, chiefComplaint]);
+
+  // Medication suggestions
+  const filteredMedSuggestions = useMemo(() => {
+    if (medSearch.length >= 3) {
+      return MEDICATION_PRESETS.filter(m => m.toLowerCase().includes(medSearch.toLowerCase()) && !priorMeds.some(pm => pm.name === m));
+    }
+    return [];
+  }, [medSearch, priorMeds]);
+
 
   // Helper: update a vital field
   const updateVital = (field: string, value: string) => {
