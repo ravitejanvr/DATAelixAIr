@@ -1023,6 +1023,7 @@ export default function Clinical() {
     setConsultationSummary(""); setSummaryManuallyEdited(false);
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedAdvice([]);
     setSelectedInstructions([]);
+    setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
   };
 
   const updateSoapSection = (section: keyof SoapSections, value: string) => setSoapSections(prev => ({ ...prev, [section]: value }));
