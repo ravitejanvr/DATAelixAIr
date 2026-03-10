@@ -475,7 +475,7 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const { medications, allergies, vitals, symptoms, clinical_context, actor_id,
-            normalized_medications } = body;
+            normalized_medications, structured_prescriptions } = body;
 
     if (!medications || !Array.isArray(medications)) {
       return new Response(JSON.stringify({ error: "medications array required" }), {
@@ -513,8 +513,6 @@ serve(async (req) => {
     const normalized_drugs = await Promise.all(medications.map((m: string) => normalizeDrug(m)));
 
     // 1b. Enhanced dose validation using normalized medication data
-    // If caller provides normalized_medications (from normalize-medication function),
-    // perform max daily dose checks against drug_master limits
     let enhanced_dose_warnings: DoseWarning[] = [];
     if (Array.isArray(normalized_medications)) {
       for (const nm of normalized_medications) {
@@ -527,6 +525,79 @@ serve(async (req) => {
               message: `Daily dose ${dailyDose}mg exceeds max ${nm.max_daily_dose_mg}mg/day for ${nm.generic_name}.`,
             });
           }
+        }
+      }
+    }
+
+    // 1c. Structured prescription validation (new structured fields)
+    let structured_warnings: DoseWarning[] = [];
+    let duplicate_therapy_flags: { drug_a: string; drug_b: string; message: string }[] = [];
+    let contraindication_flags: { drug: string; condition: string; message: string }[] = [];
+
+    if (Array.isArray(structured_prescriptions) && structured_prescriptions.length > 0) {
+      const freqMultiplier: Record<string, number> = {
+        "OD": 1, "BD": 2, "TID": 3, "QID": 4, "SOS": 0, "HS": 1, "STAT": 1,
+        "once daily": 1, "twice daily": 2, "three times daily": 3,
+      };
+
+      const seenGenerics = new Map<string, string>(); // generic_name -> original drug_name
+
+      for (const rx of structured_prescriptions) {
+        const generic = (rx.generic_name || "").toLowerCase().trim();
+        const doseVal = rx.dose_value ? parseFloat(rx.dose_value) : null;
+        const freq = (rx.frequency || "OD").toUpperCase();
+        const maxDaily = rx.max_daily_dose ? parseFloat(rx.max_daily_dose) : null;
+
+        // Max daily dose check
+        if (doseVal && maxDaily) {
+          const timesPerDay = freqMultiplier[freq] || freqMultiplier[rx.frequency] || 1;
+          const dailyTotal = doseVal * timesPerDay;
+          if (dailyTotal > maxDaily) {
+            structured_warnings.push({
+              medication: rx.generic_name || rx.drug_name,
+              issue: "exceeds_max_daily_dose",
+              message: `${rx.generic_name}: ${dailyTotal}${rx.dose_unit || "mg"}/day exceeds max ${maxDaily}${rx.dose_unit || "mg"}/day.`,
+            });
+          }
+        }
+
+        // Duplicate therapy detection (same generic name)
+        if (generic && seenGenerics.has(generic)) {
+          duplicate_therapy_flags.push({
+            drug_a: seenGenerics.get(generic)!,
+            drug_b: rx.drug_name || rx.generic_name,
+            message: `Duplicate therapy: "${generic}" prescribed more than once. Verify if intentional.`,
+          });
+        }
+        if (generic) seenGenerics.set(generic, rx.drug_name || rx.generic_name);
+
+        // Contraindication checks against patient conditions
+        if (rx.drug_cui && SUPABASE_URL && SERVICE_KEY) {
+          try {
+            const adminClient = createClient(SUPABASE_URL, SERVICE_KEY);
+            const { data: guidelines } = await adminClient
+              .from("drug_dose_guidelines")
+              .select("contraindications")
+              .eq("ingredient_cui", rx.drug_cui)
+              .limit(1)
+              .maybeSingle();
+
+            if (guidelines?.contraindications && Array.isArray(guidelines.contraindications)) {
+              const patientConditions = (clinical_context?.conditions || []).map((c: string) => c.toLowerCase());
+              for (const ci of guidelines.contraindications) {
+                const ciLower = String(ci).toLowerCase();
+                for (const cond of patientConditions) {
+                  if (ciLower.includes(cond) || cond.includes(ciLower)) {
+                    contraindication_flags.push({
+                      drug: rx.generic_name || rx.drug_name,
+                      condition: cond,
+                      message: `⚠ ${rx.generic_name} is contraindicated in patients with "${cond}".`,
+                    });
+                  }
+                }
+              }
+            }
+          } catch { /* non-blocking */ }
         }
       }
     }
@@ -553,10 +624,12 @@ serve(async (req) => {
     const hasDoseIssue = dose_warnings.some(w => w.issue === "high_dosage" || w.issue === "duplicate" || w.issue === "exceeds_max_daily_dose");
     const hasCriticalVitals = vitals_dangers.some(v => v.severity === "critical");
     const hasCriticalEmergency = emergency_patterns.some(p => p.severity === "critical");
+    const hasDuplicateTherapy = duplicate_therapy_flags.length > 0;
+    const hasContraindication = contraindication_flags.length > 0;
 
     let confidence_level: "low" | "moderate" | "high" = "high";
-    if (hasAllergyConflict || hasSevereInteraction || hasCriticalVitals || hasCriticalEmergency) confidence_level = "low";
-    else if (hasUnrecognized || hasDoseIssue || dose_warnings.length > 0 || vitals_dangers.length > 0 || emergency_patterns.length > 0) confidence_level = "moderate";
+    if (hasAllergyConflict || hasSevereInteraction || hasCriticalVitals || hasCriticalEmergency || hasContraindication) confidence_level = "low";
+    else if (hasUnrecognized || hasDoseIssue || hasDuplicateTherapy || dose_warnings.length > 0 || vitals_dangers.length > 0 || emergency_patterns.length > 0) confidence_level = "moderate";
 
     // If context is incomplete, lower confidence
     if (!context_completeness.context_complete) confidence_level = "low";
@@ -564,10 +637,12 @@ serve(async (req) => {
     const requires_manual_review = confidence_level !== "high" ||
       interaction_flags.length > 0 || allergy_flags.length > 0 || dose_warnings.length > 0 ||
       vitals_dangers.length > 0 || emergency_patterns.length > 0 ||
+      duplicate_therapy_flags.length > 0 || contraindication_flags.length > 0 ||
       !context_completeness.context_complete;
 
     const result = {
       normalized_drugs, drug_normalization_results, interaction_flags, allergy_flags, dose_warnings,
+      structured_warnings, duplicate_therapy_flags, contraindication_flags,
       vitals_dangers, emergency_patterns, context_completeness,
       confidence_level, requires_manual_review,
       ai_suggestions_blocked: context_completeness.ai_suggestions_blocked,
