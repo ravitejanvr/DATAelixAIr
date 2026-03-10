@@ -510,15 +510,22 @@ export default function Clinical() {
 
   const copilotDiagnoses = useMemo(() => {
     const set = new Set<string>();
+    // Include chief complaint as a source for diagnoses
+    if (chiefComplaint && DIAGNOSIS_MAP[chiefComplaint]) {
+      DIAGNOSIS_MAP[chiefComplaint].forEach(d => set.add(d));
+    }
     selectedSymptoms.forEach(s => (DIAGNOSIS_MAP[s] || []).forEach(d => set.add(d)));
     return Array.from(set);
-  }, [selectedSymptoms]);
+  }, [chiefComplaint, selectedSymptoms]);
 
   const copilotTests = useMemo(() => {
     const set = new Set<string>();
+    if (chiefComplaint && TEST_MAP[chiefComplaint]) {
+      TEST_MAP[chiefComplaint].forEach(t => set.add(t));
+    }
     selectedSymptoms.forEach(s => (TEST_MAP[s] || []).forEach(t => set.add(t)));
     return Array.from(set);
-  }, [selectedSymptoms]);
+  }, [chiefComplaint, selectedSymptoms]);
 
   // Generate instruction suggestions based on symptoms + diagnoses
   const copilotInstructions = useMemo(() => {
