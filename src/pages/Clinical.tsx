@@ -1656,6 +1656,48 @@ export default function Clinical() {
                     )}
                   </Button>
 
+                  {/* Compliance Results */}
+                  {validationComplete && complianceResults && complianceResults.length > 0 && (
+                    <div className="space-y-1.5 p-2 rounded-lg bg-muted/40 border border-border">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Guideline Compliance</span>
+                      {complianceResults.map((r: any, i: number) => (
+                        <div key={i} className="flex items-start gap-1.5 text-xs">
+                          {r.compliance_status === "guideline_aligned" ? (
+                            <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
+                          ) : r.compliance_status === "evidence_supported" ? (
+                            <Scale className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />
+                          ) : (
+                            <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />
+                          )}
+                          <div>
+                            <span className="font-medium">{r.item}</span>
+                            <span className="text-muted-foreground ml-1">— {r.explanation}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Evidence Results */}
+                  {validationComplete && evidenceResults && evidenceResults.recommended_treatment && (
+                    <div className="space-y-1 p-2 rounded-lg bg-muted/40 border border-border">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Evidence</span>
+                      <div className="text-xs">
+                        <span className="font-medium">{evidenceResults.diagnosis}</span>
+                        <span className="text-muted-foreground"> — Recommended: </span>
+                        <span className="font-medium text-primary">{evidenceResults.recommended_treatment}</span>
+                        {evidenceResults.authority && (
+                          <span className="text-muted-foreground"> ({evidenceResults.authority}, {evidenceResults.evidence_level})</span>
+                        )}
+                      </div>
+                      {evidenceResults.all_recommendations?.length > 1 && (
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          +{evidenceResults.all_recommendations.length - 1} more recommendation(s)
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-start gap-1.5">
                     <Checkbox id="final-review" checked={reviewConfirmed} onCheckedChange={(c) => setReviewConfirmed(c === true)} className="mt-0.5 h-3.5 w-3.5" />
                     <label htmlFor="final-review" className="text-xs text-muted-foreground cursor-pointer select-none leading-relaxed">
