@@ -91,3 +91,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.retrieve-guideline-recommendation]
     verify_jwt = false
+  [functions.compare-ai-pipelines]
+    verify_jwt = false
