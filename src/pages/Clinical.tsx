@@ -192,6 +192,12 @@ export default function Clinical() {
   const [isValidating, setIsValidating] = useState(false);
   const [validationComplete, setValidationComplete] = useState(false);
 
+  // Progressive cockpit helpers
+  const [medicationQuery, setMedicationQuery] = useState("");
+  const [medicationSuggestions, setMedicationSuggestions] = useState<Array<{ label: string; genericName: string }>>([]);
+  const [medicationLoading, setMedicationLoading] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+
   // Toggle dark mode
   const toggleDarkMode = useCallback(() => {
     const next = !darkMode;
