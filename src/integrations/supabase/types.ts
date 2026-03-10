@@ -1333,6 +1333,30 @@ export type Database = {
         }
         Relationships: []
       }
+      guideline_authorities: {
+        Row: {
+          authority_name: string
+          country: string
+          created_at: string
+          id: string
+          priority: number
+        }
+        Insert: {
+          authority_name: string
+          country?: string
+          created_at?: string
+          id?: string
+          priority?: number
+        }
+        Update: {
+          authority_name?: string
+          country?: string
+          created_at?: string
+          id?: string
+          priority?: number
+        }
+        Relationships: []
+      }
       guideline_registry: {
         Row: {
           applicable_drugs: string[]
@@ -1395,6 +1419,58 @@ export type Database = {
           version?: string
         }
         Relationships: []
+      }
+      guideline_rules: {
+        Row: {
+          authority_id: string
+          created_at: string
+          diagnosis_id: string
+          evidence_level: string
+          id: string
+          recommendation: string
+          treatment_generic_name: string
+        }
+        Insert: {
+          authority_id: string
+          created_at?: string
+          diagnosis_id: string
+          evidence_level?: string
+          id?: string
+          recommendation?: string
+          treatment_generic_name: string
+        }
+        Update: {
+          authority_id?: string
+          created_at?: string
+          diagnosis_id?: string
+          evidence_level?: string
+          id?: string
+          recommendation?: string
+          treatment_generic_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guideline_rules_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "guideline_authorities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guideline_rules_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guideline_rules_treatment_generic_name_fkey"
+            columns: ["treatment_generic_name"]
+            isOneToOne: false
+            referencedRelation: "drug_master"
+            referencedColumns: ["generic_name"]
+          },
+        ]
       }
       guideline_updates: {
         Row: {
