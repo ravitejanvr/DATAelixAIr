@@ -554,7 +554,7 @@ function PipelineCard({ title, data, variant }: { title: string; data: any; vari
                 )}
               </div>
             )}
-
+            {data.hypotheses?.length > 0 && (
               <div>
                 <p className="font-semibold mb-1">AI Hypotheses</p>
                 {data.hypotheses.map((h: any, i: number) => (
