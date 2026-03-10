@@ -374,9 +374,16 @@ Generate differential diagnoses as JSON array.`,
       }
 
       // ─── MODULE 4: Guideline Engine ─────────────────────
-      // Calls guideline-compliance edge function to check against WHO, NICE, ICMR, CDC
+      // Calls guideline-compliance edge function to check against ICMR > WHO > NICE > CDC > specialty
       const glStart = Date.now();
       try {
+        // First, fetch guideline_sources to get priority ordering
+        const { data: guidelineSources } = await admin
+          .from("guideline_sources")
+          .select("organization, priority, disease_category, region")
+          .eq("is_active", true)
+          .order("priority", { ascending: true });
+
         const complianceUrl = `${supabaseUrl}/functions/v1/guideline-compliance`;
         const complianceResp = await fetch(complianceUrl, {
           method: "POST",
@@ -403,14 +410,51 @@ Generate differential diagnoses as JSON array.`,
 
         if (complianceResp.ok) {
           const compData = await complianceResp.json();
+
+          // Build priority map from guideline_sources
+          const priorityMap: Record<string, number> = {};
+          for (const gs of (guidelineSources || [])) {
+            priorityMap[gs.organization.toUpperCase()] = gs.priority;
+          }
+
+          // Sort results by source priority
+          const sortedResults = (compData.results || []).sort((a: any, b: any) => {
+            const aPriority = a.matching_guidelines?.[0]?.source_organization
+              ? (priorityMap[a.matching_guidelines[0].source_organization.toUpperCase()] ?? 10) : 10;
+            const bPriority = b.matching_guidelines?.[0]?.source_organization
+              ? (priorityMap[b.matching_guidelines[0].source_organization.toUpperCase()] ?? 10) : 10;
+            return aPriority - bPriority;
+          });
+
+          // Detect conflicts
+          const conflicts = sortedResults
+            .filter((r: any) => r.compliance_status === "review_suggested")
+            .map((r: any) => ({
+              recommendation: r.item,
+              conflicting_guideline: r.matching_guidelines?.[0]?.title || "Unknown",
+              organization: r.matching_guidelines?.[0]?.source_organization || "Unknown",
+              severity: r.matching_guidelines?.length > 1 ? "high" : "moderate",
+              explanation: r.explanation || "",
+            }));
+
+          // Compute compliance score
+          const totalEvaluated = sortedResults.length || 1;
+          const alignedCount = sortedResults.filter(
+            (r: any) => r.compliance_status === "guideline_aligned" || r.compliance_status === "evidence_supported"
+          ).length;
+          const complianceScore = Math.round((alignedCount / totalEvaluated) * 100);
+
           modularOutput.compliance = {
-            results: compData.results || [],
+            results: sortedResults,
             guidelines_matched: compData.guidelines_matched || 0,
             guidelines_sources: compData.guidelines_sources || [],
+            guideline_sources_used: (guidelineSources || []).map((gs: any) => gs.organization),
+            guideline_compliance_score: complianceScore,
+            conflicts_detected: conflicts,
           };
 
           // Extract guideline references
-          modularOutput.guidelines = (compData.results || [])
+          modularOutput.guidelines = sortedResults
             .filter((r: any) => r.matching_guidelines?.length > 0)
             .flatMap((r: any) => r.matching_guidelines.map((g: any) => ({
               title: g.title,
@@ -419,11 +463,30 @@ Generate differential diagnoses as JSON array.`,
               evidence_grade: g.evidence_grade,
             })));
 
+          // Log guideline citations to guideline_usage_logs
+          for (const result of sortedResults) {
+            for (const gl of (result.matching_guidelines || [])) {
+              if (gl.guideline_id) {
+                await admin.from("guideline_usage_logs").insert({
+                  guideline_id: gl.guideline_id,
+                  visit_id: "00000000-0000-0000-0000-000000000000", // benchmark placeholder
+                  clinic_id: "00000000-0000-0000-0000-000000000000",
+                  tier: priorityMap[gl.source_organization?.toUpperCase()] ?? 5,
+                  matched_condition: result.item,
+                  recommendation_used: gl.recommendation_text?.substring(0, 500),
+                  guideline_name: gl.title,
+                  recommendation_checked: result.item,
+                  compliance_result: result.compliance_status,
+                }).catch(() => {}); // non-critical
+              }
+            }
+          }
+
           moduleLogs.push({
             module: "guideline_engine",
             status: "success",
             latency_ms: Date.now() - glStart,
-            details: `Evaluated ${(compData.results || []).length} items against ${compData.guidelines_matched || 0} guidelines from ${(compData.guidelines_sources || []).join(", ")}`,
+            details: `Evaluated ${sortedResults.length} items against ${compData.guidelines_matched || 0} guidelines. Compliance: ${complianceScore}%. Conflicts: ${conflicts.length}. Sources: ${(compData.guidelines_sources || []).join(", ")}`,
           });
         } else {
           const errText = await complianceResp.text();
