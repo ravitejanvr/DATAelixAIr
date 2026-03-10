@@ -1,17 +1,16 @@
 /**
- * Clinical Pipeline Orchestrator
+ * Clinical Pipeline Orchestrator (Optimized)
  * 
- * Modular pipeline that coordinates all service layers in sequence.
- * Each stage is optional and logged. The orchestrator checks the
- * feature flag before running — if disabled, it no-ops gracefully.
+ * Modular pipeline that coordinates all service layers.
+ * Key optimization: After hypothesis_engine, runs knowledge_retrieval,
+ * guideline_engine, and oversight_engine in PARALLEL.
+ * 
+ * Target latency: < 8 seconds (down from ~25s).
  * 
  * Pipeline stages:
- *   1. build_context()        → Clinical Context Engine
+ *   1. build_context()        → Clinical Context Engine (sync)
  *   2. generate_hypotheses()  → Diagnostic Hypothesis Engine
- *   3. retrieve_guidelines()  → Guideline Alignment Engine
- *   4. validate_safety()      → Existing clinical-safety edge function
- *   5. generate_suggestions() → Existing smart-suggestions edge function
- *   6. oversight_report()     → Clinical Oversight Engine
+ *   3. [PARALLEL] retrieve_evidence() + evaluate_guidelines() + oversight_report()
  */
 
 import { isNewPipelineEnabled } from "@/services/feature_flags";
@@ -31,6 +30,8 @@ import {
   type OversightReport 
 } from "@/services/oversight_engine";
 import { queryEvidence, type EvidenceQueryResult } from "@/services/knowledge_ingestion";
+import { getCached, setCache } from "@/services/knowledge_cache";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface PipelineInput {
   clinical_context: ClinicalContext;
@@ -38,7 +39,6 @@ export interface PipelineInput {
   consultation_id?: string | null;
   clinic_id?: string | null;
   intake_approved?: boolean;
-  /** Optional: pre-extracted recommendations to evaluate */
   recommendations?: {
     diagnosis?: string;
     drugs?: string[];
@@ -54,20 +54,51 @@ export interface PipelineResult {
   guideline_alignment: GuidelineAlignmentResult | null;
   evidence: EvidenceQueryResult | null;
   oversight: OversightReport | null;
-  /** Structured guideline output for downstream consumers */
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
     conflicts_detected: Array<{ recommendation: string; conflicting_guideline: string; organization: string; severity: string; explanation: string }>;
   } | null;
   logs: ReturnType<typeof getPipelineLogs>;
+  /** Per-stage latency in ms */
+  stage_latencies: Record<string, number>;
+  total_latency_ms: number;
+}
+
+/** Callback for streaming partial results to the UI */
+export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
+
+const STAGE_TIMEOUT_MS = 5000; // 5 second timeout per stage
+
+/**
+ * Race a promise against a timeout. Returns null on timeout.
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  stageName: string
+): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) =>
+      setTimeout(() => {
+        console.warn(`[Pipeline] ⏱️ ${stageName} timed out after ${timeoutMs}ms`);
+        resolve(null);
+      }, timeoutMs)
+    ),
+  ]);
 }
 
 /**
- * Run the full clinical pipeline.
- * Returns immediately with { enabled: false } if the feature flag is off.
+ * Run the full clinical pipeline with parallelization and caching.
  */
-export async function runClinicalPipeline(input: PipelineInput): Promise<PipelineResult> {
+export async function runClinicalPipeline(
+  input: PipelineInput,
+  onProgress?: PipelineProgressCallback
+): Promise<PipelineResult> {
+  const pipelineStart = performance.now();
+  const stageLatencies: Record<string, number> = {};
+
   if (!isNewPipelineEnabled()) {
     console.log("[Pipeline] New clinical pipeline is disabled. Using legacy flow.");
     return {
@@ -79,14 +110,17 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
       oversight: null,
       guideline_summary: null,
       logs: [],
+      stage_latencies: {},
+      total_latency_ms: 0,
     };
   }
 
   clearPipelineLogs();
   clearOversightEvents();
-  console.log("[Pipeline] Starting modular clinical pipeline...");
+  console.log("[Pipeline] Starting optimized modular pipeline...");
 
-  // Stage 1: Build Context
+  // ── Stage 1: Build Context (sync, fast) ──
+  const ctxStart = performance.now();
   const enrichedContext = await withStageLogging("build_context", async () => {
     const ctx = buildEnrichedContext(input.clinical_context, {
       visit_id: input.visit_id,
@@ -94,7 +128,6 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
       clinic_id: input.clinic_id,
       intake_approved: input.intake_approved,
     });
-
     const missing = validateContextCompleteness(input.clinical_context);
     if (missing.length > 0) {
       recordOversightEvent({
@@ -105,12 +138,13 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
         metadata: { missing_fields: missing },
       });
     }
-
     return ctx;
   });
+  stageLatencies.build_context = Math.round(performance.now() - ctxStart);
 
-  // Stage 2: Generate Hypotheses
+  // ── Stage 2: Generate Hypotheses ──
   let hypotheses: HypothesisResult | null = null;
+  const hypStart = performance.now();
   try {
     hypotheses = await withStageLogging("generate_hypotheses", async () => {
       const result = await generateHypotheses(enrichedContext);
@@ -127,42 +161,133 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
   } catch {
     hypotheses = null;
   }
+  stageLatencies.generate_hypotheses = Math.round(performance.now() - hypStart);
 
-  // Stage 3: Retrieve Evidence
-  let evidence: EvidenceQueryResult | null = null;
-  if (input.clinical_context.chief_complaint) {
-    try {
-      evidence = await withStageLogging("retrieve_evidence", async () => {
-        return await queryEvidence(input.clinical_context.chief_complaint, { maxResults: 5 });
-      });
-    } catch {
-      evidence = null;
-    }
-  }
+  // Stream hypotheses to UI immediately
+  onProgress?.("hypotheses", { hypotheses });
 
-  // Stage 4: Guideline Alignment
-  let guidelineAlignment: GuidelineAlignmentResult | null = null;
-  if (input.recommendations) {
-    try {
-      guidelineAlignment = await withStageLogging("retrieve_guidelines", async () => {
-        return await evaluateGuidelineAlignment(input.recommendations!, enrichedContext);
-      });
-    } catch {
-      guidelineAlignment = null;
-    }
-  }
+  // ── Stage 3: PARALLEL — Evidence + Guidelines + Oversight ──
+  const parallelStart = performance.now();
 
-  // Stage 5: Oversight Report
-  const oversight = await withStageLogging("oversight_report", async () => {
-    return generateOversightReport(
-      input.visit_id ?? null,
-      input.consultation_id ?? null
-    );
-  });
+  const [evidence, guidelineAlignment, oversight] = await Promise.all([
+    // 3a: Evidence retrieval with caching + timeout
+    (async (): Promise<EvidenceQueryResult | null> => {
+      if (!input.clinical_context.chief_complaint) return null;
+      const query = input.clinical_context.chief_complaint;
+      const start = performance.now();
+      try {
+        // Check cache first
+        const cached = await getCached<EvidenceQueryResult>(query, "evidence");
+        if (cached.hit && cached.data) {
+          console.log("[Pipeline] Cache HIT for evidence query");
+          stageLatencies.retrieve_evidence = Math.round(performance.now() - start);
+          return cached.data;
+        }
 
-  console.log(`[Pipeline] Complete. Safety score: ${oversight.safety_score}/100`);
+        // Fetch with timeout
+        const result = await withTimeout(
+          withStageLogging("retrieve_evidence", () => queryEvidence(query, { maxResults: 5 })),
+          STAGE_TIMEOUT_MS,
+          "retrieve_evidence"
+        );
 
-  // Build guideline summary for downstream consumers
+        if (result) {
+          // Cache result (non-blocking)
+          setCache(query, "evidence", result, 12);
+          stageLatencies.retrieve_evidence = Math.round(performance.now() - start);
+          return result;
+        }
+
+        // Timeout: try cache even if expired
+        const staleCache = await getCached<EvidenceQueryResult>(query, "evidence_stale");
+        stageLatencies.retrieve_evidence = Math.round(performance.now() - start);
+        return staleCache.data;
+      } catch {
+        stageLatencies.retrieve_evidence = Math.round(performance.now() - start);
+        return null;
+      }
+    })(),
+
+    // 3b: Guideline alignment with caching + timeout
+    (async (): Promise<GuidelineAlignmentResult | null> => {
+      if (!input.recommendations) return null;
+      const start = performance.now();
+      const cacheKey = JSON.stringify(input.recommendations);
+      try {
+        const cached = await getCached<GuidelineAlignmentResult>(cacheKey, "guideline");
+        if (cached.hit && cached.data) {
+          console.log("[Pipeline] Cache HIT for guideline query");
+          stageLatencies.retrieve_guidelines = Math.round(performance.now() - start);
+          return cached.data;
+        }
+
+        const result = await withTimeout(
+          withStageLogging("retrieve_guidelines", () =>
+            evaluateGuidelineAlignment(input.recommendations!, enrichedContext)
+          ),
+          STAGE_TIMEOUT_MS,
+          "retrieve_guidelines"
+        );
+
+        if (result) {
+          setCache(cacheKey, "guideline", result, 6);
+          stageLatencies.retrieve_guidelines = Math.round(performance.now() - start);
+          return result;
+        }
+
+        stageLatencies.retrieve_guidelines = Math.round(performance.now() - start);
+        return null;
+      } catch {
+        stageLatencies.retrieve_guidelines = Math.round(performance.now() - start);
+        return null;
+      }
+    })(),
+
+    // 3c: Oversight report (fast, in-memory)
+    (async (): Promise<OversightReport> => {
+      const start = performance.now();
+      const report = await withStageLogging("oversight_report", async () =>
+        generateOversightReport(input.visit_id ?? null, input.consultation_id ?? null)
+      );
+      stageLatencies.oversight_report = Math.round(performance.now() - start);
+      return report;
+    })(),
+  ]);
+
+  stageLatencies.parallel_total = Math.round(performance.now() - parallelStart);
+
+  // Stream evidence + guidelines to UI
+  onProgress?.("evidence", { evidence });
+  onProgress?.("guidelines", { guideline_alignment: guidelineAlignment });
+  onProgress?.("safety", { oversight });
+
+  const totalLatency = Math.round(performance.now() - pipelineStart);
+  stageLatencies.total = totalLatency;
+
+  console.log(`[Pipeline] Complete in ${totalLatency}ms. Safety score: ${oversight.safety_score}/100`);
+
+  // Record latency metrics (non-blocking)
+  supabase
+    .from("monitoring_events")
+    .insert({
+      event_type: "pipeline_latency",
+      pipeline_type: "modular",
+      total_latency_ms: totalLatency,
+      stage_latencies: stageLatencies,
+      visit_id: input.visit_id || null,
+      clinic_id: input.clinic_id || null,
+      metadata: {
+        cache_hits: {
+          evidence: !!(evidence && stageLatencies.retrieve_evidence && stageLatencies.retrieve_evidence < 100),
+          guideline: !!(guidelineAlignment && stageLatencies.retrieve_guidelines && stageLatencies.retrieve_guidelines < 100),
+        },
+        hypothesis_count: hypotheses?.hypotheses.length || 0,
+        evidence_count: evidence?.items.length || 0,
+        safety_score: oversight.safety_score,
+      },
+    })
+    .then(() => {});
+
   const guideline_summary = guidelineAlignment
     ? {
         guideline_sources_used: guidelineAlignment.guideline_sources_used,
@@ -180,5 +305,7 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
     oversight,
     guideline_summary,
     logs: getPipelineLogs(),
+    stage_latencies: stageLatencies,
+    total_latency_ms: totalLatency,
   };
 }
