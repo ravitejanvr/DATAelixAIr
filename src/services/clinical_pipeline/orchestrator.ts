@@ -161,6 +161,15 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
 
   console.log(`[Pipeline] Complete. Safety score: ${oversight.safety_score}/100`);
 
+  // Build guideline summary for downstream consumers
+  const guideline_summary = guidelineAlignment
+    ? {
+        guideline_sources_used: guidelineAlignment.guideline_sources_used,
+        guideline_compliance_score: guidelineAlignment.guideline_compliance_score,
+        conflicts_detected: guidelineAlignment.conflicts_detected,
+      }
+    : null;
+
   return {
     enabled: true,
     enriched_context: enrichedContext,
@@ -168,6 +177,7 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
     guideline_alignment: guidelineAlignment,
     evidence,
     oversight,
+    guideline_summary,
     logs: getPipelineLogs(),
   };
 }
