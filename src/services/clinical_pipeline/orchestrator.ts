@@ -319,6 +319,61 @@ export async function runClinicalPipeline(
   onProgress?.("guidelines", { guideline_alignment: guidelineAlignment });
   onProgress?.("safety", { oversight });
 
+  // ── Stage 5: Uncertainty Engine (after safety, before SOAP) ──
+  let uncertaintyResult: UncertaintyResult | null = null;
+  const uncStart = performance.now();
+  try {
+    const safetyFlagsList: string[] = [];
+    if (oversight.events) {
+      for (const ev of oversight.events) {
+        if (ev.severity === "critical" || ev.severity === "warning") {
+          safetyFlagsList.push(ev.message);
+        }
+      }
+    }
+
+    uncertaintyResult = await runUncertaintyEngine({
+      symptoms: ddxResult?.matched_symptoms || (input.clinical_context.chief_complaint ? [input.clinical_context.chief_complaint] : []),
+      vitals: {
+        temperature: input.clinical_context.temperature,
+        spo2: input.clinical_context.oxygen_saturation,
+        pulse: input.clinical_context.pulse,
+        bp: input.clinical_context.blood_pressure,
+      },
+      differential_diagnoses: ddxResult?.differential_diagnoses || [],
+      suggested_labs: ddxResult?.recommended_labs || [],
+      guideline_sources: guidelineAlignment?.guideline_sources_used || [],
+      guideline_recommendations: ddxResult?.guideline_recommendations?.map(g => ({
+        authority: g.authority,
+        evidence_level: g.evidence_level,
+      })) || [],
+      safety_flags: safetyFlagsList,
+      safety_score: oversight.safety_score,
+      medical_history: input.clinical_context.medical_history,
+      current_medications: input.clinical_context.current_medications,
+      allergies: input.clinical_context.allergies,
+      matched_symptoms: ddxResult?.matched_symptoms || [],
+      unmatched_symptoms: ddxResult?.unmatched_symptoms || [],
+    });
+
+    if (uncertaintyResult) {
+      console.log(`[Pipeline] Uncertainty: ${uncertaintyResult.confidence_label} (${uncertaintyResult.confidence_score}) in ${uncertaintyResult.execution_ms}ms`);
+      if (uncertaintyResult.confidence_label === "Low" || uncertaintyResult.confidence_label === "Very Uncertain") {
+        recordOversightEvent({
+          event_type: "context_incomplete",
+          severity: "warning",
+          stage: "uncertainty_engine",
+          message: `Low confidence (${uncertaintyResult.confidence_score}): ${uncertaintyResult.missing_evidence.slice(0, 3).join(", ")}`,
+          metadata: { confidence: uncertaintyResult.confidence_score, missing: uncertaintyResult.missing_evidence },
+        });
+      }
+    }
+  } catch {
+    uncertaintyResult = null;
+  }
+  stageLatencies.uncertainty_engine = Math.round(performance.now() - uncStart);
+  onProgress?.("uncertainty", { uncertainty: uncertaintyResult });
+
   const totalLatency = Math.round(performance.now() - pipelineStart);
   stageLatencies.total = totalLatency;
 
@@ -338,6 +393,8 @@ export async function runClinicalPipeline(
         ddx_enabled: !!ddxResult,
         ddx_diagnoses: ddxResult?.differential_diagnoses.length || 0,
         ddx_latency_ms: ddxResult?.execution_ms || 0,
+        uncertainty_score: uncertaintyResult?.confidence_score || null,
+        uncertainty_label: uncertaintyResult?.confidence_label || null,
         cache_hits: {
           evidence: !!(evidence && stageLatencies.retrieve_evidence && stageLatencies.retrieve_evidence < 100),
           guideline: !!(guidelineAlignment && stageLatencies.retrieve_guidelines && stageLatencies.retrieve_guidelines < 100),
@@ -361,6 +418,7 @@ export async function runClinicalPipeline(
     enabled: true,
     enriched_context: enrichedContext,
     ddx: ddxResult,
+    uncertainty: uncertaintyResult,
     hypotheses,
     guideline_alignment: guidelineAlignment,
     evidence,
