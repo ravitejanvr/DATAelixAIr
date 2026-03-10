@@ -54,6 +54,12 @@ export interface PipelineResult {
   guideline_alignment: GuidelineAlignmentResult | null;
   evidence: EvidenceQueryResult | null;
   oversight: OversightReport | null;
+  /** Structured guideline output for downstream consumers */
+  guideline_summary: {
+    guideline_sources_used: string[];
+    guideline_compliance_score: number;
+    conflicts_detected: Array<{ recommendation: string; conflicting_guideline: string; organization: string; severity: string; explanation: string }>;
+  } | null;
   logs: ReturnType<typeof getPipelineLogs>;
 }
 
