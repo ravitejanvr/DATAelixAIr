@@ -814,6 +814,41 @@ export type Database = {
           },
         ]
       }
+      dangerous_diagnoses: {
+        Row: {
+          created_at: string
+          diagnosis_id: string
+          id: string
+          notes: string | null
+          priority: number
+          trigger_symptom: string
+        }
+        Insert: {
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+          notes?: string | null
+          priority?: number
+          trigger_symptom: string
+        }
+        Update: {
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+          notes?: string | null
+          priority?: number
+          trigger_symptom?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dangerous_diagnoses_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diagnoses: {
         Row: {
           category: string
@@ -1245,6 +1280,51 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "drug_master"
             referencedColumns: ["generic_name"]
+          },
+        ]
+      }
+      drug_contraindication_map: {
+        Row: {
+          condition_id: string
+          created_at: string
+          drug_id: string
+          id: string
+          notes: string | null
+          severity: string
+          source_guideline: string | null
+        }
+        Insert: {
+          condition_id: string
+          created_at?: string
+          drug_id: string
+          id?: string
+          notes?: string | null
+          severity?: string
+          source_guideline?: string | null
+        }
+        Update: {
+          condition_id?: string
+          created_at?: string
+          drug_id?: string
+          id?: string
+          notes?: string | null
+          severity?: string
+          source_guideline?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_contraindication_map_condition_id_fkey"
+            columns: ["condition_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drug_contraindication_map_drug_id_fkey"
+            columns: ["drug_id"]
+            isOneToOne: false
+            referencedRelation: "drug_master"
+            referencedColumns: ["id"]
           },
         ]
       }

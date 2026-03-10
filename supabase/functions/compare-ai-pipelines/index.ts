@@ -298,9 +298,69 @@ serve(async (req) => {
       });
 
       // ─── MODULE 2: Hypothesis Engine ────────────────────
-      // Calls generate-hypotheses via AI to produce ranked differential diagnoses
+      // Calls query-clinical-graph for knowledge graph results + AI for hypothesis generation
       const hypStart = Date.now();
       try {
+        // Step 2a: Query knowledge graph
+        let graphDiagnoses: any[] = [];
+        let graphLabs: any[] = [];
+        try {
+          const graphUrl = `${supabaseUrl}/functions/v1/query-clinical-graph`;
+          const graphResp = await fetch(graphUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${serviceKey}`,
+            },
+            body: JSON.stringify({ symptoms: structuredContext.symptoms }),
+          });
+          if (graphResp.ok) {
+            const graphData = await graphResp.json();
+            graphDiagnoses = graphData.diagnoses || [];
+            graphLabs = (graphData.suggested_labs || []).map((l: any) => l.test_name);
+          }
+        } catch (e) {
+          console.warn("Knowledge graph query failed:", e);
+        }
+
+        // Step 2b: Fetch dangerous diagnoses
+        let dangerousDiags: any[] = [];
+        try {
+          const { data: dangerousRows } = await admin
+            .from("dangerous_diagnoses")
+            .select("*, diagnoses(id, diagnosis_name)")
+            .order("priority", { ascending: true });
+
+          if (dangerousRows) {
+            const symptomsLower = structuredContext.symptoms.map((s: string) => s.toLowerCase());
+            for (const row of dangerousRows) {
+              const trigger = row.trigger_symptom.toLowerCase();
+              if (symptomsLower.some((s: string) => s.includes(trigger) || trigger.includes(s))) {
+                if ((row as any).diagnoses) {
+                  dangerousDiags.push({
+                    diagnosis_name: (row as any).diagnoses.diagnosis_name,
+                    trigger_symptom: row.trigger_symptom,
+                    must_not_miss: true,
+                  });
+                }
+              }
+            }
+          }
+        } catch { /* non-blocking */ }
+
+        // Step 2c: AI hypothesis generation with graph context
+        const graphContext = graphDiagnoses.length > 0
+          ? `\n\nKnowledge Graph Results:\n${graphDiagnoses.slice(0, 6).map((d: any) =>
+              `- ${d.diagnosis_name} (confidence: ${d.confidence}, matching symptoms: ${d.matching_symptoms})`
+            ).join("\n")}`
+          : "";
+
+        const dangerousContext = dangerousDiags.length > 0
+          ? `\n\nMust-Not-Miss Diagnoses:\n${dangerousDiags.map((d: any) =>
+              `- ${d.diagnosis_name} (trigger: ${d.trigger_symptom})`
+            ).join("\n")}`
+          : "";
+
         const hypothesisResp = await fetch(GATEWAY_URL, {
           method: "POST",
           headers: {
@@ -313,16 +373,16 @@ serve(async (req) => {
             messages: [
               {
                 role: "system",
-                content: `You are a clinical reasoning assistant. Given patient context, generate a ranked list of differential diagnoses.
+                content: `You are a clinical reasoning assistant. Given patient context and knowledge graph results, generate a ranked list of differential diagnoses.
 
 RULES:
 - Output ONLY valid JSON array, no markdown, no explanation.
-- Each item: { "diagnosis": string, "confidence": number (0-1), "supporting_factors": string[], "contradicting_factors": string[], "recommended_tests": string[] }
+- Each item: { "diagnosis": string, "confidence": number (0-1), "supporting_factors": string[], "contradicting_factors": string[], "recommended_tests": string[], "must_not_miss": boolean }
 - Maximum 6 diagnoses, ordered by confidence descending.
-- Base confidence on symptom-diagnosis correlation, age/sex epidemiology, and vitals.
+- Use knowledge graph results to inform and validate confidence scores.
+- Include must-not-miss dangerous diagnoses even at low confidence. Mark them with "must_not_miss": true.
 - Be conservative. If data is insufficient, reflect lower confidence.
-- NEVER state a definitive diagnosis. These are hypotheses for clinician review.
-- Include at least one "must-not-miss" dangerous diagnosis if clinically relevant.`,
+- NEVER state a definitive diagnosis. These are hypotheses for clinician review.`,
               },
               {
                 role: "user",
@@ -335,7 +395,7 @@ RULES:
 - Vitals: ${JSON.stringify(structuredContext.vitals)}
 - Medical History: ${structuredContext.medical_history.join(", ") || "none"}
 - Medications: ${structuredContext.medications.join(", ") || "none"}
-- Allergies: ${structuredContext.allergies.join(", ") || "none"}
+- Allergies: ${structuredContext.allergies.join(", ") || "none"}${graphContext}${dangerousContext}
 
 Generate differential diagnoses as JSON array.`,
               },
@@ -351,11 +411,29 @@ Generate differential diagnoses as JSON array.`,
             const parsed = JSON.parse(cleaned);
             modularOutput.hypotheses = Array.isArray(parsed) ? parsed : [];
             modularOutput.diagnoses = modularOutput.hypotheses.map((h: any) => h.diagnosis);
-            // Extract recommended tests from hypotheses
+
+            // Inject must-not-miss if missing
+            const existingNames = new Set(modularOutput.diagnoses.map((d: string) => d.toLowerCase()));
+            for (const dd of dangerousDiags) {
+              if (!existingNames.has(dd.diagnosis_name.toLowerCase())) {
+                modularOutput.hypotheses.push({
+                  diagnosis: dd.diagnosis_name,
+                  confidence: 0.15,
+                  supporting_factors: [`Trigger symptom: ${dd.trigger_symptom}`],
+                  contradicting_factors: ["Low prior probability but must not miss"],
+                  recommended_tests: [],
+                  must_not_miss: true,
+                });
+                modularOutput.diagnoses.push(dd.diagnosis_name);
+              }
+            }
+
+            // Extract recommended tests from hypotheses + graph labs
             const allTests = new Set<string>();
             for (const h of modularOutput.hypotheses) {
               for (const t of (h.recommended_tests || [])) allTests.add(t);
             }
+            for (const l of graphLabs) allTests.add(l);
             modularOutput.labs = [...allTests];
           } catch {
             modularOutput.hypotheses = [];
@@ -365,7 +443,7 @@ Generate differential diagnoses as JSON array.`,
           module: "hypothesis_engine",
           status: modularOutput.hypotheses.length > 0 ? "success" : "error",
           latency_ms: Date.now() - hypStart,
-          details: `Generated ${modularOutput.hypotheses.length} hypotheses, top: ${modularOutput.hypotheses[0]?.diagnosis || "none"}`,
+          details: `Generated ${modularOutput.hypotheses.length} hypotheses (graph: ${graphDiagnoses.length} diagnoses, dangerous: ${dangerousDiags.length}). Source: ${graphDiagnoses.length > 0 ? "knowledge_graph+ai" : "ai_only"}. Top: ${modularOutput.hypotheses[0]?.diagnosis || "none"}`,
         });
       } catch (e) {
         moduleLogs.push({
