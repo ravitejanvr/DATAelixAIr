@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Brain, FlaskConical, Pill, Shield, CheckCircle, AlertTriangle,
-  ChevronDown, ChevronRight, FileText, Loader2, Scale, BookOpen, ExternalLink
+  ChevronDown, ChevronRight, FileText, Loader2, Scale, BookOpen, ExternalLink,
+  MessageSquare
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,6 +51,9 @@ interface ClinicalCopilotProps {
   chiefComplaint?: string;
   patientSex?: string;
   carePlan?: string;
+  instructions: string[];
+  selectedInstructions: string[];
+  onToggleInstruction: (instruction: string) => void;
 }
 
 const fadeIn = {
@@ -94,6 +98,9 @@ export default function ClinicalCopilot({
   chiefComplaint,
   patientSex,
   carePlan,
+  instructions,
+  selectedInstructions,
+  onToggleInstruction,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -171,12 +178,12 @@ export default function ClinicalCopilot({
 
   return (
     <div className="space-y-2.5">
-      {/* Diagnosis */}
+      {/* Possible Diagnosis */}
       {diagnoses.length > 0 && (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <Brain className="h-3 w-3 text-primary" /> Diagnosis
+              <Brain className="h-3 w-3 text-primary" /> Possible Diagnosis
             </p>
             <div className="flex flex-wrap gap-1">
               {diagnoses.slice(0, 3).map(d => (
@@ -195,12 +202,12 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Tests */}
+      {/* Recommended Tests */}
       {tests.length > 0 && (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <FlaskConical className="h-3 w-3 text-chip-lab-text" /> Tests
+              <FlaskConical className="h-3 w-3 text-chip-lab-text" /> Recommended Tests
             </p>
             <div className="flex flex-wrap gap-1">
               {tests.map(t => (
@@ -219,12 +226,12 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Medications */}
+      {/* Recommended Medications */}
       {medications.length > 0 && (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <Pill className="h-3 w-3 text-chip-medication-text" /> Medications
+              <Pill className="h-3 w-3 text-chip-medication-text" /> Recommended Medications
             </p>
             <div className="flex flex-wrap gap-1">
               {medications.map((rx, i) => (
@@ -236,7 +243,31 @@ export default function ClinicalCopilot({
                   selected={selectedMedications.some(p => p.drug_name === rx.drug)}
                   onClick={() => onToggleMedication(rx)}
                 >
-                  {rx.drug} {rx.dose}
+                  {rx.drug} {rx.dose} {rx.freq}
+                </Chip>
+              ))}
+            </div>
+          </ClinicalCard>
+        </motion.div>
+      )}
+
+      {/* Instructions to Patients */}
+      {instructions.length > 0 && (
+        <motion.div {...fadeIn}>
+          <ClinicalCard className="p-2.5 border-primary/10">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+              <MessageSquare className="h-3 w-3 text-primary" /> Instructions to Patients
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {instructions.map((inst, i) => (
+                <Chip
+                  key={i}
+                  variant="action"
+                  size="sm"
+                  selected={selectedInstructions.includes(inst)}
+                  onClick={() => onToggleInstruction(inst)}
+                >
+                  {inst}
                 </Chip>
               ))}
             </div>
@@ -351,7 +382,6 @@ export default function ClinicalCopilot({
                 </Button>
               ) : (
                 <div className="space-y-2">
-                  {/* Sources summary */}
                   {complianceSources.length > 0 && (
                     <div className="flex flex-wrap gap-1 text-[9px] text-muted-foreground">
                       <span className="font-semibold">Sources:</span>
@@ -361,7 +391,6 @@ export default function ClinicalCopilot({
                     </div>
                   )}
 
-                  {/* Results */}
                   {complianceResults.map((result, i) => {
                     const config = COMPLIANCE_CONFIG[result.compliance_status] || COMPLIANCE_CONFIG.review_suggested;
                     const StatusIcon = config.icon;
@@ -378,7 +407,6 @@ export default function ClinicalCopilot({
                             <p className="text-xs font-medium truncate">{result.item}</p>
                             <p className="text-[10px] mt-0.5 opacity-80">{result.explanation}</p>
 
-                            {/* Matching guidelines */}
                             {result.matching_guidelines.length > 0 && (
                               <div className="mt-1.5 space-y-1">
                                 {result.matching_guidelines.map((g, j) => (
@@ -404,7 +432,6 @@ export default function ClinicalCopilot({
                             )}
                           </div>
 
-                          {/* Override button for review_suggested items */}
                           {result.compliance_status === "review_suggested" && (
                             <Button
                               size="sm"
@@ -420,7 +447,6 @@ export default function ClinicalCopilot({
                     );
                   })}
 
-                  {/* Re-check button */}
                   <Button
                     size="sm"
                     variant="ghost"
