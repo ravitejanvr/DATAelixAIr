@@ -141,6 +141,8 @@ export default function ClinicalCopilot({
   visitId,
   consultationId,
   clinicId,
+  pipelineStage,
+  stageLatencies,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
