@@ -53,6 +53,20 @@ const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", 
 const DURATION_PRESETS = ["Today", "2 days", "3 days", "5 days", "1 week", "2 weeks", "1 month"];
 const MEDICATION_PRESETS = ["Paracetamol", "Ibuprofen", "Azithromycin", "Amoxicillin", "ORS", "Pantoprazole", "Cetirizine"];
 
+// Chief complaint → recommended symptoms map
+const CHIEF_COMPLAINT_SYMPTOMS: Record<string, string[]> = {
+  "Fever": ["Headache", "Body ache", "Cold", "Fatigue", "Cough"],
+  "Cough": ["Fever", "Sore throat", "Breathlessness", "Cold", "Chest pain"],
+  "Headache": ["Fever", "Vomiting", "Fatigue", "Dizziness", "Neck stiffness"],
+  "Chest pain": ["Breathlessness", "Sweating", "Nausea", "Palpitations", "Dizziness"],
+  "Abdominal pain": ["Vomiting", "Diarrhea", "Fever", "Bloating", "Loss of appetite"],
+  "Vomiting": ["Fever", "Abdominal pain", "Diarrhea", "Headache", "Dehydration"],
+  "Diarrhea": ["Vomiting", "Fever", "Abdominal pain", "Dehydration", "Body ache"],
+  "Breathlessness": ["Chest pain", "Cough", "Fever", "Wheezing", "Fatigue"],
+  "Cold": ["Fever", "Cough", "Sore throat", "Headache", "Sneezing"],
+  "Sore throat": ["Fever", "Cough", "Cold", "Difficulty swallowing", "Headache"],
+};
+
 // Dynamic expansions
 const SYMPTOM_EXPANSIONS: Record<string, { label: string; chips: string[]; variant: "symptom" | "neutral" }> = {
   "Fever": { label: "Fever Type", chips: ["Low-grade", "High", "Intermittent", "Continuous"], variant: "neutral" },
@@ -191,8 +205,13 @@ export default function Clinical() {
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [selectedDuration, setSelectedDuration] = useState<string>("");
   const [expansionSelections, setExpansionSelections] = useState<Record<string, string[]>>({});
-  const [priorMeds, setPriorMeds] = useState<{ name: string; dose: string }[]>([]);
+  const [priorMeds, setPriorMeds] = useState<{ name: string; dose: string; frequency: string }[]>([]);
   const [symptomSearch, setSymptomSearch] = useState("");
+  const [chiefComplaint, setChiefComplaint] = useState("");
+  const [chiefComplaintSearch, setChiefComplaintSearch] = useState("");
+  const [medSearch, setMedSearch] = useState("");
+  const [medSuggestions, setMedSuggestions] = useState<string[]>([]);
+  const [ccSuggestions, setCcSuggestions] = useState<string[]>([]);
 
   // Clinical Context
   const [clinicalContext, setClinicalContext] = useState<ClinicalContext>(EMPTY_CLINICAL_CONTEXT);
@@ -232,6 +251,19 @@ export default function Clinical() {
     setDarkMode(next);
     document.documentElement.classList.toggle("dark", next);
   }, [darkMode]);
+
+  // Cmd+K / Ctrl+K shortcut to focus command bar
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        const input = document.getElementById("command-bar-input");
+        if (input) (input as HTMLInputElement).focus();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // ── Auto-generate consultation summary (SOAP-like transcript) ──
   const generatedSummary = useMemo(() => {
@@ -275,7 +307,7 @@ export default function Clinical() {
 
     // Known history
     const histParts: string[] = [];
-    if (priorMeds.length > 0) histParts.push(`Prior meds: ${priorMeds.map(m => `${m.name}${m.dose ? ` ${m.dose}` : ""}`).join(", ")}`);
+    if (priorMeds.length > 0) histParts.push(`Current meds: ${priorMeds.map(m => `${m.name}${m.dose ? ` ${m.dose}` : ""}${m.frequency ? ` ${m.frequency}` : ""}`).join(", ")}`);
     if (selectedPatient?.allergies?.length) histParts.push(`Allergies: ${selectedPatient.allergies.join(", ")}`);
     if (selectedPatient?.current_medications?.length) histParts.push(`Current meds: ${selectedPatient.current_medications.join(", ")}`);
     const conditions = selectedPatient?.medical_history;
@@ -423,6 +455,7 @@ export default function Clinical() {
     if (state?.intakeData) {
       setIntakeData(state.intakeData as IntakeData);
       const id = state.intakeData as IntakeData;
+      if (id.chief_complaint) setChiefComplaint(id.chief_complaint);
       setExtractedData(prev => ({
         ...prev,
         chief_complaint: id.chief_complaint || prev.chief_complaint,
@@ -802,9 +835,37 @@ export default function Clinical() {
   const toggleAdvice = (a: string) => setSelectedAdvice(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
   const toggleInstruction = (inst: string) => setSelectedInstructions(prev => prev.includes(inst) ? prev.filter(x => x !== inst) : [...prev, inst]);
 
-  const filteredSymptoms = symptomSearch
-    ? COMMON_SYMPTOMS.filter(s => s.toLowerCase().includes(symptomSearch.toLowerCase()))
-    : COMMON_SYMPTOMS;
+  // Symptom suggestions: show recommended based on chief complaint, or filtered search
+  const recommendedSymptoms = useMemo(() => {
+    if (chiefComplaint && CHIEF_COMPLAINT_SYMPTOMS[chiefComplaint]) {
+      return CHIEF_COMPLAINT_SYMPTOMS[chiefComplaint].filter(s => !selectedSymptoms.includes(s));
+    }
+    return [];
+  }, [chiefComplaint, selectedSymptoms]);
+
+  const filteredSymptoms = useMemo(() => {
+    if (symptomSearch.length >= 3) {
+      return COMMON_SYMPTOMS.filter(s => s.toLowerCase().includes(symptomSearch.toLowerCase()) && !selectedSymptoms.includes(s));
+    }
+    return [];
+  }, [symptomSearch, selectedSymptoms]);
+
+  // Chief complaint suggestions
+  const filteredCcSuggestions = useMemo(() => {
+    if (chiefComplaintSearch.length >= 3) {
+      return Object.keys(CHIEF_COMPLAINT_SYMPTOMS).filter(cc => cc.toLowerCase().includes(chiefComplaintSearch.toLowerCase()) && cc !== chiefComplaint);
+    }
+    return [];
+  }, [chiefComplaintSearch, chiefComplaint]);
+
+  // Medication suggestions
+  const filteredMedSuggestions = useMemo(() => {
+    if (medSearch.length >= 3) {
+      return MEDICATION_PRESETS.filter(m => m.toLowerCase().includes(medSearch.toLowerCase()) && !priorMeds.some(pm => pm.name === m));
+    }
+    return [];
+  }, [medSearch, priorMeds]);
+
 
   // Helper: update a vital field
   const updateVital = (field: string, value: string) => {
@@ -815,11 +876,10 @@ export default function Clinical() {
   };
 
   // Helper: add prior med to patient meds section
-  const addPriorMedToPatient = (medName: string, dose: string = "") => {
-    // Add to priorMeds with dose
+  const addPriorMedToPatient = (medName: string, dose: string = "", frequency: string = "") => {
     setPriorMeds(prev => {
       if (prev.some(m => m.name === medName)) return prev;
-      return [...prev, { name: medName, dose }];
+      return [...prev, { name: medName, dose, frequency }];
     });
   };
 
@@ -829,6 +889,10 @@ export default function Clinical() {
 
   const updatePriorMedDose = (medName: string, newDose: string) => {
     setPriorMeds(prev => prev.map(m => m.name === medName ? { ...m, dose: newDose } : m));
+  };
+
+  const updatePriorMedFrequency = (medName: string, newFreq: string) => {
+    setPriorMeds(prev => prev.map(m => m.name === medName ? { ...m, frequency: newFreq } : m));
   };
 
   // Copilot props builder
@@ -960,7 +1024,7 @@ export default function Clinical() {
                       </div>
                     )}
 
-                    {/* Conditions / Allergies / Meds */}
+                    {/* Conditions / Allergies */}
                     <div className="flex flex-wrap gap-x-3 gap-y-1">
                       {selectedPatient.medical_history && Array.isArray(selectedPatient.medical_history) && (selectedPatient.medical_history as any[]).length > 0 && (
                         <div className="flex items-center gap-1 flex-wrap">
@@ -976,18 +1040,90 @@ export default function Clinical() {
                           {selectedPatient.allergies.map(a => <Chip key={a} variant="alert" size="sm">{a}</Chip>)}
                         </div>
                       ) : null}
-                      {/* Current + Prior Medications with dose */}
-                      {(selectedPatient.current_medications?.length || priorMeds.length > 0) ? (
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className="text-[9px] font-semibold text-muted-foreground uppercase flex items-center gap-0.5"><Pill className="h-2.5 w-2.5" />Meds:</span>
-                          {selectedPatient.current_medications?.map(m => <Chip key={m} variant="medication" size="sm">{m}</Chip>)}
-                          {priorMeds.map(m => (
-                            <Chip key={m.name} variant="medication" size="sm" removable onRemove={() => removePriorMed(m.name)}>
-                              {m.name}{m.dose ? ` ${m.dose}` : ""}
+                    </div>
+
+                    {/* Current Medication */}
+                    <div>
+                      <span className="text-[9px] font-semibold text-muted-foreground uppercase flex items-center gap-0.5 mb-1"><Pill className="h-2.5 w-2.5" />Current Medication</span>
+                      <div className="flex flex-wrap gap-1 mb-1.5">
+                        {selectedPatient.current_medications?.map(m => <Chip key={m} variant="medication" size="sm">{m}</Chip>)}
+                        {priorMeds.map(m => (
+                          <div key={m.name} className="flex items-center gap-0.5">
+                            <Chip variant="medication" size="sm" removable onRemove={() => removePriorMed(m.name)}>
+                              {m.name}
                             </Chip>
-                          ))}
+                            <input
+                              type="text"
+                              value={m.dose}
+                              onChange={e => updatePriorMedDose(m.name, e.target.value)}
+                              placeholder="dose"
+                              className="h-5 w-14 px-1 text-[9px] rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                            />
+                            <input
+                              type="text"
+                              value={m.frequency}
+                              onChange={e => updatePriorMedFrequency(m.name, e.target.value)}
+                              placeholder="freq"
+                              className="h-5 w-12 px-1 text-[9px] rounded border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={medSearch}
+                          onChange={e => setMedSearch(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter" && medSearch.trim()) { addPriorMedToPatient(medSearch.trim()); setMedSearch(""); } }}
+                          placeholder="+ Add medication…"
+                          className="w-full h-7 px-2.5 text-[11px] rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                        />
+                        {filteredMedSuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-0.5 bg-popover border border-border rounded-lg shadow-md z-10 max-h-32 overflow-y-auto">
+                            {filteredMedSuggestions.map(med => (
+                              <button key={med} className="w-full text-left px-2.5 py-1.5 text-[11px] text-foreground hover:bg-muted transition-colors" onClick={() => { addPriorMedToPatient(med); setMedSearch(""); }}>
+                                {med}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Chief Complaint */}
+                    <div>
+                      <span className="text-[9px] font-semibold text-primary uppercase flex items-center gap-0.5 mb-1">
+                        <Stethoscope className="h-2.5 w-2.5" /> Chief Complaint
+                      </span>
+                      {chiefComplaint ? (
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Chip variant="symptom" selected removable onRemove={() => { setChiefComplaint(""); }}>{chiefComplaint}</Chip>
+                          {intakeData?.symptom_duration && <span className="text-[10px] text-muted-foreground">· {intakeData.symptom_duration}</span>}
+                        </div>
+                      ) : intakeData?.chief_complaint ? (
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Chip variant="symptom" selected onClick={() => setChiefComplaint(intakeData.chief_complaint!)}>{intakeData.chief_complaint}</Chip>
                         </div>
                       ) : null}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={chiefComplaintSearch}
+                          onChange={e => setChiefComplaintSearch(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter" && chiefComplaintSearch.trim()) { setChiefComplaint(chiefComplaintSearch.trim()); setChiefComplaintSearch(""); } }}
+                          placeholder="+ Add chief complaint…"
+                          className="w-full h-7 px-2.5 text-[11px] rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                        />
+                        {filteredCcSuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-0.5 bg-popover border border-border rounded-lg shadow-md z-10 max-h-32 overflow-y-auto">
+                            {filteredCcSuggestions.map(cc => (
+                              <button key={cc} className="w-full text-left px-2.5 py-1.5 text-[11px] text-foreground hover:bg-muted transition-colors" onClick={() => { setChiefComplaint(cc); setChiefComplaintSearch(""); }}>
+                                {cc}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1054,81 +1190,63 @@ export default function Clinical() {
                     icon={<ClipboardCheck className="h-3.5 w-3.5" />}
                     badge={selectedSymptoms.length > 0 ? <Badge variant="outline" className="text-xs">{selectedSymptoms.length}</Badge> : undefined}
                   />
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {filteredSymptoms.map(s => (
-                      <Chip key={s} variant="symptom" selected={selectedSymptoms.includes(s)} onClick={() => toggleSymptom(s)}>{s}</Chip>
-                    ))}
-                  </div>
-                  <div className="mt-2">
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <input
-                        type="text" value={symptomSearch} onChange={e => setSymptomSearch(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter" && symptomSearch.trim()) { toggleSymptom(symptomSearch.trim()); setSymptomSearch(""); } }}
-                        placeholder="Search or add…"
-                        className="w-full h-8 pl-8 pr-3 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-                      />
-                    </div>
-                  </div>
 
-                  {/* Expansions */}
-                  <AnimatePresence>
-                    {activeExpansions.filter(s => SYMPTOM_EXPANSIONS[s]?.chips.length > 0).map(symptom => {
-                      const expansion = SYMPTOM_EXPANSIONS[symptom];
-                      return (
-                        <motion.div key={`exp-${symptom}`} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mt-1">
-                          <div className="pl-2 border-l-2 border-primary/20">
-                            <ChipGroup label={`${symptom} → ${expansion.label}`}>
-                              {expansion.chips.map(chip => (
-                                <Chip key={chip} variant={expansion.variant} selected={(expansionSelections[symptom] || []).includes(chip)} onClick={() => toggleExpansionChip(symptom, chip)} size="sm">{chip}</Chip>
-                              ))}
-                            </ChipGroup>
+                  {/* Selected symptoms with inline expansions */}
+                  {selectedSymptoms.length > 0 && (
+                    <div className="space-y-1 mt-1.5">
+                      {selectedSymptoms.map(symptom => {
+                        const expansion = SYMPTOM_EXPANSIONS[symptom];
+                        return (
+                          <div key={symptom} className="flex items-start gap-1 flex-wrap">
+                            <Chip variant="symptom" selected removable onRemove={() => toggleSymptom(symptom)}>{symptom}</Chip>
+                            {expansion && expansion.chips.map(chip => (
+                              <Chip key={chip} variant="neutral" size="sm" selected={(expansionSelections[symptom] || []).includes(chip)} onClick={() => toggleExpansionChip(symptom, chip)}>{chip}</Chip>
+                            ))}
                           </div>
-                        </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                  {/* Duration + Prior Meds inline */}
+                  {/* Recommended symptoms based on chief complaint */}
+                  {recommendedSymptoms.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Recommended</p>
+                      <div className="flex flex-wrap gap-1">
+                        {recommendedSymptoms.slice(0, 5).map(s => (
+                          <Chip key={s} variant="symptom" onClick={() => toggleSymptom(s)}>{s}</Chip>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add symptom - autosuggest after 3 chars */}
+                  <div className="mt-2 relative">
+                    <input
+                      type="text" value={symptomSearch} onChange={e => setSymptomSearch(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && symptomSearch.trim()) { toggleSymptom(symptomSearch.trim()); setSymptomSearch(""); } }}
+                      placeholder="+ Add symptom…"
+                      className="w-full h-7 px-2.5 text-[11px] rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                    />
+                    {filteredSymptoms.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-0.5 bg-popover border border-border rounded-lg shadow-md z-10 max-h-32 overflow-y-auto">
+                        {filteredSymptoms.map(s => (
+                          <button key={s} className="w-full text-left px-2.5 py-1.5 text-[11px] text-foreground hover:bg-muted transition-colors" onClick={() => { toggleSymptom(s); setSymptomSearch(""); }}>
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Duration */}
                   <AnimatePresence>
                     {selectedSymptoms.length > 0 && (
-                      <motion.div {...fadeIn} className="mt-1.5 space-y-1">
+                      <motion.div {...fadeIn} className="mt-1.5">
                         <ChipGroup label="Duration">
                           {DURATION_PRESETS.map(d => (
                             <Chip key={d} variant="neutral" selected={selectedDuration === d} onClick={() => setSelectedDuration(selectedDuration === d ? "" : d)}>{d}</Chip>
                           ))}
-                        </ChipGroup>
-                        {/* Medication taken - clicking adds to patient meds */}
-                        <ChipGroup label="Medication taken">
-                          {MEDICATION_PRESETS.map(med => (
-                            <Chip
-                              key={med}
-                              variant="medication"
-                              selected={priorMeds.some(m => m.name === med)}
-                              onClick={() => {
-                                if (priorMeds.some(m => m.name === med)) {
-                                  removePriorMed(med);
-                                } else {
-                                  addPriorMedToPatient(med);
-                                }
-                              }}
-                            >
-                              {med}
-                            </Chip>
-                          ))}
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="text"
-                              placeholder="+Add"
-                              className="h-7 px-2 text-[11px] rounded-full border border-border bg-background w-20 focus:outline-none focus:ring-1 focus:ring-primary/30"
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && (e.target as HTMLInputElement).value.trim()) {
-                                  addPriorMedToPatient((e.target as HTMLInputElement).value.trim());
-                                  (e.target as HTMLInputElement).value = "";
-                                }
-                              }}
-                            />
-                          </div>
                         </ChipGroup>
                       </motion.div>
                     )}
@@ -1223,21 +1341,21 @@ export default function Clinical() {
                 {/* SOAP Sections */}
                 <div className="space-y-4">
                   {/* Subjective */}
-                  <div className="rounded-xl border p-3 bg-blue-500/5 border-blue-500/15">
+                  <div className="rounded-xl border p-3 bg-primary/[0.03] border-primary/15">
                     <div className="flex items-center gap-1.5 mb-2">
-                      <User className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                      <span className="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">Subjective</span>
+                      <User className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-bold uppercase tracking-wide text-primary">Subjective</span>
                     </div>
                     <Textarea
                       value={(() => {
-                        // Build subjective from structured data
                         const parts: string[] = [];
                         if (soapSections["Visit Summary"]?.trim()) parts.push(soapSections["Visit Summary"]);
                         else {
                           if (selectedSymptoms.length > 0) parts.push(`c/o ${selectedSymptoms.join(", ")}`);
                           if (selectedDuration) parts.push(`Duration: ${selectedDuration}`);
-                          if (priorMeds.length > 0) parts.push(`Prior meds: ${priorMeds.map(m => `${m.name}${m.dose ? ` ${m.dose}` : ""}`).join(", ")}`);
+                          if (priorMeds.length > 0) parts.push(`Current meds: ${priorMeds.map(m => `${m.name}${m.dose ? ` ${m.dose}` : ""}${m.frequency ? ` ${m.frequency}` : ""}`).join(", ")}`);
                         }
+                        if (transcript.trim()) parts.push(transcript.trim());
                         return parts.join("\n");
                       })()}
                       onChange={e => updateSoapSection("Visit Summary", e.target.value)}
@@ -1245,10 +1363,6 @@ export default function Clinical() {
                       className="text-xs min-h-[36px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
                       placeholder="Patient's subjective complaints..."
                     />
-                    {/* Record + Add a note at bottom */}
-                    <div className="mt-2 flex items-center gap-2">
-                      <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
-                    </div>
                   </div>
 
                   {/* Objective */}
@@ -1428,39 +1542,7 @@ export default function Clinical() {
             </div>
             )}
 
-            {/* Command Bar at bottom */}
-            {selectedPatient && (
-              <div className="shrink-0 p-3 border-t border-border bg-card/80 backdrop-blur-sm">
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl border border-border bg-background shadow-sm hover:border-primary/30 transition-colors">
-                  <Sparkles className="h-4 w-4 text-primary/50 shrink-0" />
-                  <input
-                    type="text"
-                    value={commandQuery}
-                    onChange={e => setCommandQuery(e.target.value)}
-                    placeholder="Ask anything!"
-                    className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
-                    onKeyDown={e => {
-                      if (e.key === "Enter" && commandQuery.trim()) {
-                        // Future: handle command
-                        toast({ title: "Command received", description: commandQuery });
-                        setCommandQuery("");
-                      }
-                    }}
-                  />
-                  <button
-                    className="h-7 w-7 rounded-xl bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors"
-                    onClick={() => {
-                      if (commandQuery.trim()) {
-                        toast({ title: "Command received", description: commandQuery });
-                        setCommandQuery("");
-                      }
-                    }}
-                  >
-                    <Mic className="h-3.5 w-3.5 text-primary" />
-                  </button>
-                </div>
-              </div>
-            )}
+
           </div>
           )}
 
@@ -1513,6 +1595,33 @@ export default function Clinical() {
               )}
             </div>
           )}
+        </div>
+
+        {/* ═══ FOOTER: Command Bar — always visible ═══ */}
+        <div className="shrink-0 px-4 py-2 border-t border-border bg-card/90 backdrop-blur-sm">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-border bg-background shadow-sm hover:border-primary/30 transition-colors max-w-3xl mx-auto">
+            <Sparkles className="h-4 w-4 text-primary/50 shrink-0" />
+            <input
+              id="command-bar-input"
+              type="text"
+              value={commandQuery}
+              onChange={e => setCommandQuery(e.target.value)}
+              placeholder="Ask anything!"
+              className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
+              onKeyDown={e => {
+                if (e.key === "Enter" && commandQuery.trim()) {
+                  toast({ title: "Command received", description: commandQuery });
+                  setCommandQuery("");
+                }
+              }}
+            />
+            <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-border bg-muted px-1.5 text-[10px] font-mono text-muted-foreground">
+              ⌘K
+            </kbd>
+            <div className="shrink-0">
+              <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
+            </div>
+          </div>
         </div>
       </div>
     </>
