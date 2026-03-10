@@ -527,14 +527,16 @@ export default function Clinical() {
     return Array.from(set);
   }, [chiefComplaint, selectedSymptoms]);
 
-  // Generate instruction suggestions based on symptoms + diagnoses
+  // Generate instruction suggestions based on chief complaint + symptoms + diagnoses
   const copilotInstructions = useMemo(() => {
     const set = new Set<string>();
-    [...selectedSymptoms, ...selectedDiagnoses].forEach(key => {
+    const keys = [...selectedSymptoms, ...selectedDiagnoses];
+    if (chiefComplaint) keys.push(chiefComplaint);
+    keys.forEach(key => {
       (INSTRUCTION_MAP[key] || []).forEach(inst => set.add(inst));
     });
     return Array.from(set);
-  }, [selectedSymptoms, selectedDiagnoses]);
+  }, [chiefComplaint, selectedSymptoms, selectedDiagnoses]);
 
   const safetyAlertCount = safetyResults ? (safetyResults.interaction_flags.length + safetyResults.allergy_flags.length + safetyResults.dose_warnings.length + (safetyResults.vitals_dangers?.length || 0) + (safetyResults.emergency_patterns?.length || 0)) : 0;
 
