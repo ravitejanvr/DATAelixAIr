@@ -30,7 +30,7 @@ import {
   Sparkles, RotateCcw, Clock, ClipboardCheck, Brain, CalendarDays,
   Zap, Activity, Stethoscope, Eye, Search, Moon, Sun,
   Heart, Thermometer, Wind, Droplets, Shield, Mic, PenLine,
-  ChevronDown, ChevronUp, Phone, FileUp, X, Send, MessageSquare
+  ChevronDown, ChevronUp, Phone, FileUp, X, Send, MessageSquare, Scale
 } from "lucide-react";
 import type { ExtractedData, SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_EXTRACTED, EMPTY_SOAP } from "@/layers/ai-agents/api";
