@@ -1377,7 +1377,17 @@ export default function Clinical() {
                       </Button>
                     </div>
                     <div className="p-3">
-                      <ClinicalCopilot
+                      <AdaptiveAICopilotPanel
+                        selectedSymptoms={selectedSymptoms}
+                        selectedDuration={selectedDuration}
+                        patientAge={selectedPatient?.age}
+                        patientGender={selectedPatient?.gender}
+                        allergies={selectedPatient?.allergies || []}
+                        currentMedications={selectedPatient?.current_medications || []}
+                        vitalsRecorded={!!patientVitals}
+                        vitalsData={patientVitals}
+                        soapAssessment={soapSections["Provisional Diagnosis"]}
+                        soapPlan={soapSections["Treatment Plan"]}
                         diagnoses={copilotDiagnoses}
                         selectedDiagnoses={selectedDiagnoses}
                         onToggleDiagnosis={toggleDiagnosis}
@@ -1394,10 +1404,25 @@ export default function Clinical() {
                             toast({ title: `+ ${rx.drug}` });
                           }
                         }}
+                        onAddPrescription={(rx) => {
+                          if (!pendingRxFromSuggestions.some(p => p.drug_name === rx.drug_name)) {
+                            setPendingRxFromSuggestions(prev => [...prev, rx]);
+                            toast({ title: `+ ${rx.drug_name}` });
+                          }
+                        }}
+                        onAddLabTest={(test) => {
+                          if (!selectedTests.includes(test)) {
+                            setSelectedTests(prev => [...prev, test]);
+                            toast({ title: `+ ${test}` });
+                          }
+                        }}
+                        onInsertIntoSoap={(text) => {
+                          setSoapSections(prev => ({ ...prev, "Treatment Plan": prev["Treatment Plan"] ? `${prev["Treatment Plan"]}\n${text}` : text }));
+                          toast({ title: "Inserted into SOAP" });
+                        }}
                         safetyResults={safetyResults}
-                        patientAge={selectedPatient?.age}
-                        allergies={selectedPatient?.allergies || []}
-                        diagnosis={selectedDiagnoses[0]}
+                        pipelineComplete={pipelineComplete}
+                        pendingRxCount={pendingRxFromSuggestions.length}
                       />
                     </div>
                   </div>
