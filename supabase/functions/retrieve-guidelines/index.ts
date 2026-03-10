@@ -71,110 +71,186 @@ Deno.serve(async (req) => {
     const clinicCountry = (visit as any).clinics?.country || "IN";
     const clinicSpecialty = (visit as any).clinics?.specialty || "general";
 
-    // Build search terms from context + hypotheses
-    const searchTerms: string[] = [];
-    if (patient_context.chief_complaint) searchTerms.push(patient_context.chief_complaint);
-    if (hypotheses?.length) {
-      hypotheses.slice(0, 3).forEach((h: any) => {
-        if (h.diagnosis) searchTerms.push(h.diagnosis);
-      });
-    }
-    if (patient_context.medications?.length) {
-      searchTerms.push(...patient_context.medications.slice(0, 3));
+    // ══════════════════════════════════════════════
+    // PRIMARY PATH: Relational traversal via guideline_rules
+    // diagnoses → guideline_rules → guideline_authorities
+    // ══════════════════════════════════════════════
+    let relationalGuidelines: any[] = [];
+    const diagnosisNames = (hypotheses || [])
+      .slice(0, 5)
+      .map((h: any) => h.diagnosis)
+      .filter(Boolean);
+
+    if (diagnosisNames.length > 0) {
+      // Look up diagnosis IDs from diagnoses table
+      const { data: diagRows } = await supabase
+        .from("diagnoses")
+        .select("id, diagnosis_name")
+        .or(diagnosisNames.map((d: string) => `diagnosis_name.ilike.%${d.replace(/'/g, "''")}%`).join(","));
+
+      const diagnosisIds = (diagRows || []).map((d: any) => d.id);
+
+      if (diagnosisIds.length > 0) {
+        // Traverse: guideline_rules → guideline_authorities
+        const { data: rules } = await supabase
+          .from("guideline_rules")
+          .select(`
+            id,
+            recommendation,
+            evidence_level,
+            treatment_generic_name,
+            diagnosis_id,
+            diagnoses(diagnosis_name),
+            guideline_authorities(authority_name, country, priority)
+          `)
+          .in("diagnosis_id", diagnosisIds)
+          .order("created_at", { ascending: false });
+
+        if (rules && rules.length > 0) {
+          relationalGuidelines = rules.map((r: any) => ({
+            guideline_source: `${(r as any).guideline_authorities?.authority_name || "Unknown"} — ${(r as any).diagnoses?.diagnosis_name || ""}`,
+            authority: (r as any).guideline_authorities?.authority_name || "Unknown",
+            authority_priority: (r as any).guideline_authorities?.priority ?? 10,
+            recommendation: r.recommendation,
+            evidence_level: r.evidence_level,
+            treatment: r.treatment_generic_name,
+            condition: (r as any).diagnoses?.diagnosis_name || "",
+            country: (r as any).guideline_authorities?.country || "global",
+            source: "guideline_rules",
+          }));
+
+          // Sort by authority priority (WHO=1, NICE=2, etc.)
+          relationalGuidelines.sort((a: any, b: any) => a.authority_priority - b.authority_priority);
+        }
+      }
     }
 
-    // Query guideline_registry with tier-priority ranking
-    // Step 1: Match by country (national tier) or global
-    const { data: guidelines } = await supabase
-      .from("guideline_registry")
-      .select("*")
-      .eq("is_active", true)
-      .or(`country.eq.${clinicCountry},country.eq.global`)
-      .order("tier", { ascending: true })
-      .limit(50);
+    // ══════════════════════════════════════════════
+    // FALLBACK: guideline_registry keyword matching
+    // ══════════════════════════════════════════════
+    let registryGuidelines: any[] = [];
+    if (relationalGuidelines.length < 3) {
+      const searchTerms: string[] = [];
+      if (patient_context.chief_complaint) searchTerms.push(patient_context.chief_complaint);
+      if (hypotheses?.length) {
+        hypotheses.slice(0, 3).forEach((h: any) => {
+          if (h.diagnosis) searchTerms.push(h.diagnosis);
+        });
+      }
+      if (patient_context.medications?.length) {
+        searchTerms.push(...patient_context.medications.slice(0, 3));
+      }
 
-    if (!guidelines || guidelines.length === 0) {
-      // Also try the legacy clinical_guidelines table
+      const { data: guidelines } = await supabase
+        .from("guideline_registry")
+        .select("*")
+        .eq("is_active", true)
+        .or(`country.eq.${clinicCountry},country.eq.global`)
+        .order("tier", { ascending: true })
+        .limit(50);
+
+      if (guidelines && guidelines.length > 0) {
+        const scored = guidelines.map((g: any) => {
+          let relevance = 0;
+          const gText = `${g.title} ${g.condition} ${g.summary} ${(g.keywords || []).join(" ")} ${(g.applicable_drugs || []).join(" ")} ${(g.applicable_tests || []).join(" ")}`.toLowerCase();
+          for (const term of searchTerms) {
+            if (gText.includes(term.toLowerCase())) relevance += 1;
+          }
+          if (g.specialty === clinicSpecialty || g.specialty === "general") relevance += 0.5;
+          if (g.country === clinicCountry) relevance += 1;
+          return { ...g, relevance_score: relevance };
+        })
+          .filter((g: any) => g.relevance_score > 0)
+          .sort((a: any, b: any) => {
+            if (a.tier !== b.tier) return a.tier - b.tier;
+            return b.relevance_score - a.relevance_score;
+          })
+          .slice(0, 5);
+
+        registryGuidelines = scored.map((g: any) => ({
+          guideline_id: g.id,
+          guideline_source: `${g.organization} — ${g.title}`,
+          authority: g.organization,
+          tier: g.tier,
+          tier_label: tierLabel(g.tier),
+          country: g.country,
+          recommendation: g.recommendation_text,
+          evidence_level: g.evidence_grade || "N/A",
+          condition: g.condition,
+          version: g.version,
+          relevance_score: g.relevance_score,
+          source: "guideline_registry",
+        }));
+      }
+    }
+
+    // Also check legacy clinical_guidelines if still thin
+    if (relationalGuidelines.length + registryGuidelines.length < 2) {
+      const searchTerms = diagnosisNames.length > 0 ? diagnosisNames : [patient_context.chief_complaint].filter(Boolean);
       const { data: legacyGuidelines } = await supabase
         .from("clinical_guidelines")
         .select("*")
         .eq("is_active", true)
         .limit(50);
 
-      const matched = matchGuidelines(legacyGuidelines || [], searchTerms, clinicSpecialty);
-
-      const duration_ms = Date.now() - start;
-      await logMonitoring(supabase, visit.clinic_id, visit_id, matched.length, duration_ms, "legacy");
-
-      return new Response(JSON.stringify({
-        guidelines: matched.map((g: any) => ({
-          guideline_source: `${g.source_organization} — ${g.title}`,
-          tier: mapLegacyTier(g.source),
-          recommendation: g.recommendation_text,
-          evidence_grade: g.evidence_grade,
-          condition: g.condition,
-        })),
-        source: "legacy_clinical_guidelines",
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (legacyGuidelines) {
+        const matched = matchGuidelines(legacyGuidelines, searchTerms, clinicSpecialty);
+        for (const g of matched.slice(0, 3)) {
+          registryGuidelines.push({
+            guideline_source: `${g.source_organization} — ${g.title}`,
+            authority: g.source_organization,
+            tier: mapLegacyTier(g.source),
+            recommendation: g.recommendation_text,
+            evidence_level: g.evidence_grade,
+            condition: g.condition,
+            source: "legacy_clinical_guidelines",
+          });
+        }
+      }
     }
 
-    // Score and rank guidelines by relevance + tier
-    const scored = guidelines.map((g) => {
-      let relevance = 0;
-      const gText = `${g.title} ${g.condition} ${g.summary} ${(g.keywords || []).join(" ")} ${(g.applicable_drugs || []).join(" ")} ${(g.applicable_tests || []).join(" ")}`.toLowerCase();
+    // Combine all guidelines, deduplicate, sort by priority
+    const allGuidelines = [...relationalGuidelines, ...registryGuidelines]
+      .slice(0, 10);
 
-      for (const term of searchTerms) {
-        if (gText.includes(term.toLowerCase())) relevance += 1;
-      }
-
-      // Specialty match bonus
-      if (g.specialty === clinicSpecialty || g.specialty === "general") relevance += 0.5;
-
-      // Country match bonus (national guidelines prioritized)
-      if (g.country === clinicCountry) relevance += 1;
-
-      return { ...g, relevance_score: relevance };
-    })
-      .filter((g) => g.relevance_score > 0)
-      .sort((a, b) => {
-        // Primary: tier (ascending = higher priority)
-        if (a.tier !== b.tier) return a.tier - b.tier;
-        // Secondary: relevance (descending)
-        return b.relevance_score - a.relevance_score;
-      })
-      .slice(0, 5);
-
-    // Log usage
-    for (const g of scored) {
-      await supabase.from("guideline_usage_logs").insert({
-        visit_id,
-        guideline_id: g.id,
-        clinic_id: visit.clinic_id,
-        tier: g.tier,
-        matched_condition: g.condition,
-        recommendation_used: g.recommendation_text,
-      });
+    // Log guideline usage
+    for (const g of allGuidelines.slice(0, 5)) {
+      try {
+        if (g.guideline_id) {
+          await supabase.from("guideline_usage_logs").insert({
+            visit_id,
+            guideline_id: g.guideline_id,
+            clinic_id: visit.clinic_id,
+            tier: g.tier || g.authority_priority || 5,
+            matched_condition: g.condition,
+            recommendation_used: typeof g.recommendation === "string" ? g.recommendation.substring(0, 500) : "",
+            guideline_name: g.guideline_source,
+          });
+        }
+      } catch { /* non-critical */ }
     }
 
     const duration_ms = Date.now() - start;
-    await logMonitoring(supabase, visit.clinic_id, visit_id, scored.length, duration_ms, "registry");
+    await supabase.from("monitoring_events").insert({
+      event_type: "guideline_retrieval",
+      agent_name: "retrieve-guidelines",
+      clinic_id: visit.clinic_id,
+      success: true,
+      duration_ms,
+      metadata: {
+        visit_id,
+        relational_count: relationalGuidelines.length,
+        registry_count: registryGuidelines.length,
+        total_count: allGuidelines.length,
+        source: relationalGuidelines.length > 0 ? "guideline_rules+registry" : "registry_only",
+      },
+    });
 
     return new Response(JSON.stringify({
-      guidelines: scored.map((g) => ({
-        guideline_id: g.id,
-        guideline_source: `${g.organization} — ${g.title}`,
-        tier: g.tier,
-        tier_label: tierLabel(g.tier),
-        country: g.country,
-        recommendation: g.recommendation_text,
-        condition: g.condition,
-        version: g.version,
-        relevance_score: g.relevance_score,
-      })),
-      source: "guideline_registry",
+      guidelines: allGuidelines,
+      source: relationalGuidelines.length > 0 ? "guideline_rules" : "guideline_registry",
+      relational_matches: relationalGuidelines.length,
+      registry_matches: registryGuidelines.length,
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -209,7 +285,7 @@ function mapLegacyTier(source: string): number {
 
 function matchGuidelines(guidelines: any[], searchTerms: string[], specialty: string): any[] {
   return guidelines
-    .map((g) => {
+    .map((g: any) => {
       let score = 0;
       const text = `${g.title} ${g.condition} ${g.summary} ${(g.keywords || []).join(" ")}`.toLowerCase();
       for (const term of searchTerms) {
@@ -218,25 +294,7 @@ function matchGuidelines(guidelines: any[], searchTerms: string[], specialty: st
       if (g.clinical_topic === specialty) score += 0.5;
       return { ...g, score };
     })
-    .filter((g) => g.score > 0)
-    .sort((a, b) => b.score - a.score)
+    .filter((g: any) => g.score > 0)
+    .sort((a: any, b: any) => b.score - a.score)
     .slice(0, 5);
-}
-
-async function logMonitoring(
-  supabase: any,
-  clinicId: string,
-  visitId: string,
-  matchCount: number,
-  durationMs: number,
-  source: string
-) {
-  await supabase.from("monitoring_events").insert({
-    event_type: "guideline_retrieval",
-    agent_name: "retrieve-guidelines",
-    clinic_id: clinicId,
-    success: true,
-    duration_ms: durationMs,
-    metadata: { visit_id: visitId, match_count: matchCount, source },
-  });
 }
