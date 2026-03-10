@@ -1308,8 +1308,8 @@ export default function Clinical() {
                   currentMedications={selectedPatient?.current_medications || []}
                   vitalsRecorded={!!patientVitals}
                   vitalsData={patientVitals}
-                  soapAssessment={soapSections.assessment}
-                  soapPlan={soapSections.plan}
+                  soapAssessment={soapSections["Provisional Diagnosis"]}
+                  soapPlan={soapSections["Treatment Plan"]}
                   diagnoses={copilotDiagnoses}
                   selectedDiagnoses={selectedDiagnoses}
                   onToggleDiagnosis={toggleDiagnosis}
