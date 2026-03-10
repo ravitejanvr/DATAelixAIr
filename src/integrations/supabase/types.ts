@@ -1142,6 +1142,41 @@ export type Database = {
         }
         Relationships: []
       }
+      drug_brand_generic_map: {
+        Row: {
+          brand_name: string
+          created_at: string
+          generic_name: string
+          id: string
+          ingredient_cui: string | null
+          rxnorm_cui: string | null
+        }
+        Insert: {
+          brand_name: string
+          created_at?: string
+          generic_name: string
+          id?: string
+          ingredient_cui?: string | null
+          rxnorm_cui?: string | null
+        }
+        Update: {
+          brand_name?: string
+          created_at?: string
+          generic_name?: string
+          id?: string
+          ingredient_cui?: string | null
+          rxnorm_cui?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_brand_generic_map_ingredient_cui_fkey"
+            columns: ["ingredient_cui"]
+            isOneToOne: false
+            referencedRelation: "drug_ingredients"
+            referencedColumns: ["rxnorm_cui"]
+          },
+        ]
+      }
       drug_brands: {
         Row: {
           brand_name: string
@@ -1182,6 +1217,121 @@ export type Database = {
             referencedColumns: ["generic_name"]
           },
         ]
+      }
+      drug_dosage_forms: {
+        Row: {
+          created_at: string
+          dose: string
+          form: string
+          id: string
+          ingredient_cui: string
+          route: string
+          unit: string
+        }
+        Insert: {
+          created_at?: string
+          dose?: string
+          form?: string
+          id?: string
+          ingredient_cui: string
+          route?: string
+          unit?: string
+        }
+        Update: {
+          created_at?: string
+          dose?: string
+          form?: string
+          id?: string
+          ingredient_cui?: string
+          route?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_dosage_forms_ingredient_cui_fkey"
+            columns: ["ingredient_cui"]
+            isOneToOne: false
+            referencedRelation: "drug_ingredients"
+            referencedColumns: ["rxnorm_cui"]
+          },
+        ]
+      }
+      drug_dose_guidelines: {
+        Row: {
+          adult_max_dose: string
+          adult_standard_dose: string
+          contraindications: Json
+          created_at: string
+          duration_defaults: Json
+          frequency_options: Json
+          hepatic_adjustment: string
+          id: string
+          ingredient_cui: string
+          pediatric_dose: string
+          renal_adjustment: string
+          updated_at: string
+        }
+        Insert: {
+          adult_max_dose?: string
+          adult_standard_dose?: string
+          contraindications?: Json
+          created_at?: string
+          duration_defaults?: Json
+          frequency_options?: Json
+          hepatic_adjustment?: string
+          id?: string
+          ingredient_cui: string
+          pediatric_dose?: string
+          renal_adjustment?: string
+          updated_at?: string
+        }
+        Update: {
+          adult_max_dose?: string
+          adult_standard_dose?: string
+          contraindications?: Json
+          created_at?: string
+          duration_defaults?: Json
+          frequency_options?: Json
+          hepatic_adjustment?: string
+          id?: string
+          ingredient_cui?: string
+          pediatric_dose?: string
+          renal_adjustment?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_dose_guidelines_ingredient_cui_fkey"
+            columns: ["ingredient_cui"]
+            isOneToOne: false
+            referencedRelation: "drug_ingredients"
+            referencedColumns: ["rxnorm_cui"]
+          },
+        ]
+      }
+      drug_ingredients: {
+        Row: {
+          created_at: string
+          generic_name: string
+          id: string
+          ingredient_type: string
+          rxnorm_cui: string
+        }
+        Insert: {
+          created_at?: string
+          generic_name: string
+          id?: string
+          ingredient_type?: string
+          rxnorm_cui: string
+        }
+        Update: {
+          created_at?: string
+          generic_name?: string
+          id?: string
+          ingredient_type?: string
+          rxnorm_cui?: string
+        }
+        Relationships: []
       }
       drug_interactions: {
         Row: {
