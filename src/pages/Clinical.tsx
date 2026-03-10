@@ -1299,7 +1299,17 @@ export default function Clinical() {
                 <Badge className="bg-chip-medication border-chip-medication-border text-chip-medication-text text-[10px] ml-auto">Active</Badge>
               </div>
               {selectedPatient && (
-                <ClinicalCopilot
+                <AdaptiveAICopilotPanel
+                  selectedSymptoms={selectedSymptoms}
+                  selectedDuration={selectedDuration}
+                  patientAge={selectedPatient?.age}
+                  patientGender={selectedPatient?.gender}
+                  allergies={selectedPatient?.allergies || []}
+                  currentMedications={selectedPatient?.current_medications || []}
+                  vitalsRecorded={!!patientVitals}
+                  vitalsData={patientVitals}
+                  soapAssessment={soapSections.assessment}
+                  soapPlan={soapSections.plan}
                   diagnoses={copilotDiagnoses}
                   selectedDiagnoses={selectedDiagnoses}
                   onToggleDiagnosis={toggleDiagnosis}
@@ -1316,10 +1326,25 @@ export default function Clinical() {
                       toast({ title: `+ ${rx.drug}` });
                     }
                   }}
+                  onAddPrescription={(rx) => {
+                    if (!pendingRxFromSuggestions.some(p => p.drug_name === rx.drug_name)) {
+                      setPendingRxFromSuggestions(prev => [...prev, rx]);
+                      toast({ title: `+ ${rx.drug_name}` });
+                    }
+                  }}
+                  onAddLabTest={(test) => {
+                    if (!selectedTests.includes(test)) {
+                      setSelectedTests(prev => [...prev, test]);
+                      toast({ title: `+ ${test}` });
+                    }
+                  }}
+                  onInsertIntoSoap={(text) => {
+                    setSoapSections(prev => ({ ...prev, plan: prev.plan ? `${prev.plan}\n${text}` : text }));
+                    toast({ title: "Inserted into SOAP" });
+                  }}
                   safetyResults={safetyResults}
-                  patientAge={selectedPatient?.age}
-                  allergies={selectedPatient?.allergies || []}
-                  diagnosis={selectedDiagnoses[0]}
+                  pipelineComplete={pipelineComplete}
+                  pendingRxCount={pendingRxFromSuggestions.length}
                 />
               )}
             </div>
