@@ -85,3 +85,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.normalize-medication]
     verify_jwt = false
+  [functions.ingest-rxnorm-drugs]
+    verify_jwt = false
