@@ -563,7 +563,21 @@ export default function Clinical() {
   ];
 
   const activeExpansions = selectedSymptoms.filter(s => SYMPTOM_EXPANSIONS[s]);
-  const contextualRx = selectedSymptoms.flatMap(s => QUICK_RX_TEMPLATES[s] || []);
+  const contextualRx = useMemo(() => {
+    const seen = new Set<string>();
+    const result: { drug: string; dose: string; freq: string; dur: string }[] = [];
+    const sources = [chiefComplaint, ...selectedSymptoms, ...selectedDiagnoses];
+    sources.forEach(key => {
+      if (!key) return;
+      (QUICK_RX_TEMPLATES[key] || []).forEach(rx => {
+        if (!seen.has(rx.drug)) {
+          seen.add(rx.drug);
+          result.push(rx);
+        }
+      });
+    });
+    return result;
+  }, [chiefComplaint, selectedSymptoms, selectedDiagnoses]);
 
   const copilotDiagnoses = useMemo(() => {
     const set = new Set<string>();
