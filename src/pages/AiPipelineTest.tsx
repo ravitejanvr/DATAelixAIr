@@ -144,8 +144,11 @@ export default function AiPipelineTest() {
       const medOverlaps = successful.map(r => r.result.comparison?.medication_overlap || 0);
       const guidelineCounts = successful.map(r => r.result.modular_pipeline?.guidelines?.length || 0);
       const safetyAlerts = successful.map(r => r.result.modular_pipeline?.safety_flags?.length || 0);
+      const confidenceScores = successful.map(r => r.result.modular_pipeline?.uncertainty?.confidence_score ?? null).filter((v: any) => v !== null);
+      const confidenceLabels = successful.map(r => r.result.modular_pipeline?.uncertainty?.confidence_label || "N/A");
 
       const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+      const avgFloat = (arr: number[]) => arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 100) / 100 : 0;
 
       setBenchmarkSummary({
         total_tests: BENCHMARK_TESTS.length,
@@ -156,6 +159,8 @@ export default function AiPipelineTest() {
           avg_latency_ms: avg(modularLatencies),
           avg_guideline_citations: avg(guidelineCounts),
           avg_safety_alerts: avg(safetyAlerts),
+          avg_confidence_score: avgFloat(confidenceScores as number[]),
+          confidence_labels: confidenceLabels,
         },
         diagnosis_agreement_rate: avg(diagOverlaps),
         lab_agreement_rate: avg(labOverlaps),
