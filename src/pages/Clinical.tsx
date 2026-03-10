@@ -1641,11 +1641,11 @@ export default function Clinical() {
               type="text"
               value={commandQuery}
               onChange={e => setCommandQuery(e.target.value)}
-              placeholder="Ask anything!"
+              placeholder="Input anything!"
               className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
               onKeyDown={e => {
                 if (e.key === "Enter" && commandQuery.trim()) {
-                  toast({ title: "Command received", description: commandQuery });
+                  handleCommandBarInput(commandQuery.trim());
                   setCommandQuery("");
                 }
               }}
