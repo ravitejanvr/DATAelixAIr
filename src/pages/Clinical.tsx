@@ -53,6 +53,20 @@ const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", 
 const DURATION_PRESETS = ["Today", "2 days", "3 days", "5 days", "1 week", "2 weeks", "1 month"];
 const MEDICATION_PRESETS = ["Paracetamol", "Ibuprofen", "Azithromycin", "Amoxicillin", "ORS", "Pantoprazole", "Cetirizine"];
 
+// Chief complaint → recommended symptoms map
+const CHIEF_COMPLAINT_SYMPTOMS: Record<string, string[]> = {
+  "Fever": ["Headache", "Body ache", "Cold", "Fatigue", "Cough"],
+  "Cough": ["Fever", "Sore throat", "Breathlessness", "Cold", "Chest pain"],
+  "Headache": ["Fever", "Vomiting", "Fatigue", "Dizziness", "Neck stiffness"],
+  "Chest pain": ["Breathlessness", "Sweating", "Nausea", "Palpitations", "Dizziness"],
+  "Abdominal pain": ["Vomiting", "Diarrhea", "Fever", "Bloating", "Loss of appetite"],
+  "Vomiting": ["Fever", "Abdominal pain", "Diarrhea", "Headache", "Dehydration"],
+  "Diarrhea": ["Vomiting", "Fever", "Abdominal pain", "Dehydration", "Body ache"],
+  "Breathlessness": ["Chest pain", "Cough", "Fever", "Wheezing", "Fatigue"],
+  "Cold": ["Fever", "Cough", "Sore throat", "Headache", "Sneezing"],
+  "Sore throat": ["Fever", "Cough", "Cold", "Difficulty swallowing", "Headache"],
+};
+
 // Dynamic expansions
 const SYMPTOM_EXPANSIONS: Record<string, { label: string; chips: string[]; variant: "symptom" | "neutral" }> = {
   "Fever": { label: "Fever Type", chips: ["Low-grade", "High", "Intermittent", "Continuous"], variant: "neutral" },
