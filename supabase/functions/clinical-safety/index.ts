@@ -490,7 +490,26 @@ serve(async (req) => {
     // 0. Context completeness validation
     const context_completeness = checkContextCompleteness(clinical_context || {});
 
-    // 1. Normalize drugs via RxNorm
+    // 0b. Normalize drug names via normalize-drug-name service
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    let drug_normalization_results: any[] = [];
+    if (SUPABASE_URL && SERVICE_KEY) {
+      for (const med of medications) {
+        try {
+          const normResp = await fetch(`${SUPABASE_URL}/functions/v1/normalize-drug-name`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+            body: JSON.stringify({ drug_input: med }),
+          });
+          if (normResp.ok) {
+            drug_normalization_results.push(await normResp.json());
+          }
+        } catch { /* non-blocking */ }
+      }
+    }
+
+    // 1. Normalize drugs via RxNorm (existing inline normalization)
     const normalized_drugs = await Promise.all(medications.map((m: string) => normalizeDrug(m)));
 
     // 1b. Enhanced dose validation using normalized medication data
@@ -548,7 +567,7 @@ serve(async (req) => {
       !context_completeness.context_complete;
 
     const result = {
-      normalized_drugs, interaction_flags, allergy_flags, dose_warnings,
+      normalized_drugs, drug_normalization_results, interaction_flags, allergy_flags, dose_warnings,
       vitals_dangers, emergency_patterns, context_completeness,
       confidence_level, requires_manual_review,
       ai_suggestions_blocked: context_completeness.ai_suggestions_blocked,
