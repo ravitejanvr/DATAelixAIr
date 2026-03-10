@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { isNewPipelineEnabled } from "@/services/feature_flags";
+import type { HypothesisEntry, PipelineEvidence, PipelineCompliance } from "@/components/clinical/ClinicalCopilot";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -286,6 +288,11 @@ export default function Clinical() {
   // Auto-generate trigger
   const [autoGenerateTriggered, setAutoGenerateTriggered] = useState(false);
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
+
+  // Modular pipeline outputs
+  const [pipelineHypotheses, setPipelineHypotheses] = useState<HypothesisEntry[]>([]);
+  const [pipelineEvidence, setPipelineEvidence] = useState<PipelineEvidence | null>(null);
+  const [pipelineCompliance, setPipelineCompliance] = useState<PipelineCompliance | null>(null);
 
   // Consultation summary & copilot selections
   const [consultationSummary, setConsultationSummary] = useState("");
@@ -629,6 +636,107 @@ export default function Clinical() {
     setIsStabilizing(true); setIsExtracting(true); setIsRunningSafety(true); setIsGeneratingSoap(true);
 
     const timer = startPipelineTimer("full_pipeline");
+
+    // If modular pipeline is enabled, run it for enriched outputs
+    if (isNewPipelineEnabled()) {
+      try {
+        // Run modular pipeline via compare function (which runs both)
+        const { data, error } = await supabase.functions.invoke("compare-ai-pipelines", {
+          body: {
+            patient_context: {
+              age: selectedPatient?.age,
+              gender: selectedPatient?.gender,
+              symptoms: selectedSymptoms.length > 0 ? selectedSymptoms : [clinicalContext.chief_complaint].filter(Boolean),
+              duration: selectedDuration || clinicalContext.symptom_duration || "",
+              vitals: patientVitals ? {
+                temperature: patientVitals.temperature,
+                bp: patientVitals.bp_systolic ? `${patientVitals.bp_systolic}/${patientVitals.bp_diastolic}` : undefined,
+                pulse: patientVitals.pulse,
+                spo2: patientVitals.spo2,
+              } : undefined,
+              allergies: selectedPatient?.allergies || [],
+              conditions: selectedPatient?.medical_history ? (Array.isArray(selectedPatient.medical_history) ? (selectedPatient.medical_history as any[]).map((h: any) => typeof h === "string" ? h : h?.condition || String(h)) : []) : [],
+              current_medications: selectedPatient?.current_medications || [],
+            },
+          },
+        });
+
+        if (error) throw error;
+
+        const modular = data?.modular_pipeline;
+        if (modular) {
+          // Hypotheses
+          if (modular.hypotheses?.length > 0) {
+            setPipelineHypotheses(modular.hypotheses);
+          }
+
+          // Evidence
+          if (modular.evidence) {
+            setPipelineEvidence({
+              citations: modular.evidence.citations || [],
+              sources_queried: modular.evidence.sources_queried || [],
+              retrieval_confidence: modular.evidence.retrieval_confidence || "low",
+            });
+          }
+
+          // Compliance
+          if (modular.compliance) {
+            setPipelineCompliance(modular.compliance);
+          }
+
+          // Safety
+          if (modular.oversight) {
+            setSafetyResults({
+              normalized_drugs: [],
+              interaction_flags: modular.oversight.interaction_flags || [],
+              allergy_flags: modular.oversight.allergy_flags || [],
+              dose_warnings: modular.oversight.dose_warnings || [],
+              vitals_dangers: modular.oversight.vitals_dangers || [],
+              emergency_patterns: modular.oversight.emergency_patterns || [],
+              context_completeness: { issues: [], context_complete: true, ai_suggestions_blocked: false },
+              confidence_level: modular.oversight.confidence_level || "moderate",
+              requires_manual_review: modular.oversight.requires_manual_review || false,
+              ai_suggestions_blocked: false,
+              output_policy: { label: AI_DRAFT_LABEL, conservative_language: true, evidence_required: true },
+              timestamp: new Date().toISOString(),
+            } as SafetyResults);
+            emitSafetyAlertMetric({
+              interactions: modular.oversight.interaction_flags?.length || 0,
+              allergies: modular.oversight.allergy_flags?.length || 0,
+              dose_warnings: modular.oversight.dose_warnings?.length || 0,
+              vitals_dangers: modular.oversight.vitals_dangers?.length || 0,
+              emergency_patterns: modular.oversight.emergency_patterns?.length || 0,
+            });
+          }
+          setIsRunningSafety(false);
+
+          // SOAP sections from modular
+          if (modular.soap_sections) {
+            setSoapSections(modular.soap_sections);
+            setAiSoapBaseline({ ...modular.soap_sections });
+          }
+          setIsGeneratingSoap(false);
+        }
+
+        setIsStabilizing(false); setIsExtracting(false);
+        timer.stop(true, { pipeline: "modular", latency_ms: modular?.latency_ms });
+        setPipelineComplete(true);
+      } catch (err: any) {
+        console.warn("[ModularPipeline] Failed, falling back to legacy:", err.message);
+        // Fall through to legacy pipeline below
+        await runLegacyPipeline(effectiveTranscript, timer);
+      } finally {
+        setPipelineRunning(false);
+        setIsStabilizing(false); setIsExtracting(false); setIsRunningSafety(false); setIsGeneratingSoap(false);
+      }
+      return;
+    }
+
+    // Legacy pipeline path
+    await runLegacyPipeline(effectiveTranscript, timer);
+  };
+
+  const runLegacyPipeline = async (effectiveTranscript: string, timer: ReturnType<typeof startPipelineTimer>) => {
     try {
       const { data, error } = await supabase.functions.invoke("run-ai-pipeline", {
         body: {
@@ -915,6 +1023,7 @@ export default function Clinical() {
     setConsultationSummary(""); setSummaryManuallyEdited(false);
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedAdvice([]);
     setSelectedInstructions([]);
+    setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
   };
 
   const updateSoapSection = (section: keyof SoapSections, value: string) => setSoapSections(prev => ({ ...prev, [section]: value }));
@@ -1117,6 +1226,13 @@ export default function Clinical() {
     instructions: copilotInstructions,
     selectedInstructions,
     onToggleInstruction: toggleInstruction,
+    // Modular pipeline enrichments
+    hypotheses: pipelineHypotheses.length > 0 ? pipelineHypotheses : undefined,
+    pipelineEvidence: pipelineEvidence,
+    pipelineCompliance: pipelineCompliance,
+    visitId,
+    consultationId: savedSessionId,
+    clinicId: profileClinicId,
   };
 
   // ═══════════════════════════════════════════════════════════
