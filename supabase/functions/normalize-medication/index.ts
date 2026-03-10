@@ -24,12 +24,25 @@ serve(async (req) => {
 
     const input = drug_input.trim();
 
-    // Step 1: Parse strength from input (e.g. "Crocin 650" → name="Crocin", strength="650")
-    const strengthMatch = input.match(/^(.+?)\s+(\d+\s*(?:mg|mcg|g|ml|iu|%)?)\s*$/i);
-    const parsedName = strengthMatch ? strengthMatch[1].trim() : input;
-    const parsedStrength = strengthMatch ? strengthMatch[2].trim() : null;
+    // --- STEP 1: Extract dose, frequency code, and drug name ---
+    // Known frequency codes
+    const freqCodes = ["QID", "TID", "BD", "OD", "SOS"];
+    const freqPattern = new RegExp(`\\b(${freqCodes.join("|")})\\b`, "i");
+    const freqMatch = input.match(freqPattern);
+    const parsedFreqCode = freqMatch ? freqMatch[1].toUpperCase() : null;
 
-    // Step 2: Check drug_brands for brand match (case-insensitive)
+    // Remove frequency code from input for further parsing
+    const inputWithoutFreq = parsedFreqCode
+      ? input.replace(freqPattern, "").trim()
+      : input;
+
+    // Extract numeric dose + optional unit
+    const doseMatch = inputWithoutFreq.match(/^(.+?)\s+(\d+)\s*(mg|mcg|g|ml|iu|%)?$/i);
+    const parsedName = doseMatch ? doseMatch[1].trim() : inputWithoutFreq.replace(/\s+$/, "");
+    const parsedDose = doseMatch ? parseInt(doseMatch[2], 10) : null;
+    const parsedUnit = doseMatch && doseMatch[3] ? doseMatch[3].toLowerCase() : (parsedDose ? "mg" : null);
+
+    // --- STEP 2: Identify Brand ---
     const { data: brandRows } = await supabase
       .from("drug_brands")
       .select("brand_name, generic_name, strength, manufacturer, country")
@@ -37,21 +50,22 @@ serve(async (req) => {
 
     let brandDetected: string | null = null;
     let genericName: string | null = null;
-    let matchedStrength: string | null = parsedStrength;
 
     if (brandRows && brandRows.length > 0) {
-      // If strength was parsed, try to match exact strength first
-      let match = parsedStrength
-        ? brandRows.find(b => b.strength?.replace(/\s/g, "").toLowerCase() === parsedStrength!.replace(/\s/g, "").toLowerCase())
+      // Try to match exact strength if dose was parsed
+      let match = parsedDose
+        ? brandRows.find(b => {
+            const s = b.strength?.replace(/\s/g, "").toLowerCase() || "";
+            return s === `${parsedDose}${parsedUnit}` || s === `${parsedDose}`;
+          })
         : null;
       if (!match) match = brandRows[0];
-      
+
       brandDetected = match.brand_name;
       genericName = match.generic_name;
-      matchedStrength = parsedStrength || match.strength || null;
     }
 
-    // Step 3: If no brand match, check if input is itself a generic name
+    // --- STEP 3: Identify Generic ---
     if (!genericName) {
       const { data: genericRows } = await supabase
         .from("drug_master")
@@ -64,52 +78,50 @@ serve(async (req) => {
       }
     }
 
-    // Step 4: Retrieve drug_master data
-    let drugMaster: any = null;
-    if (genericName) {
-      const { data: masterRows } = await supabase
-        .from("drug_master")
-        .select("*")
-        .eq("generic_name", genericName)
+    // --- STEP 4: Extract Frequency from dictionary ---
+    let frequency: string | null = null;
+    let timesPerDay: number | null = null;
+
+    if (parsedFreqCode) {
+      const { data: freqRows } = await supabase
+        .from("dose_frequency_dictionary")
+        .select("code, meaning, times_per_day")
+        .ilike("code", parsedFreqCode)
         .limit(1);
 
-      if (masterRows && masterRows.length > 0) {
-        drugMaster = masterRows[0];
+      if (freqRows && freqRows.length > 0) {
+        frequency = freqRows[0].meaning;
+        timesPerDay = freqRows[0].times_per_day;
+      } else {
+        frequency = parsedFreqCode;
       }
     }
 
-    // Step 5: Check interactions from drug_interactions table
-    let interactions: any[] = [];
-    if (genericName) {
-      const { data: interactionRows } = await supabase
-        .from("drug_interactions")
-        .select("*")
-        .or(`drug_a.ilike.${genericName},drug_b.ilike.${genericName}`);
-
-      interactions = interactionRows || [];
-    }
-
+    // --- STEP 5: Build structured result ---
     const result = {
       resolved: !!genericName,
-      input: input,
-      brand_detected: brandDetected,
+      input,
       generic_name: genericName,
-      strength: matchedStrength,
-      drug_class: drugMaster?.drug_class || null,
-      mechanism: drugMaster?.mechanism || null,
-      max_daily_dose_mg: drugMaster?.max_daily_dose_mg || null,
-      pregnancy_category: drugMaster?.pregnancy_category || null,
-      renal_adjustment: drugMaster?.renal_adjustment || null,
-      hepatic_adjustment: drugMaster?.hepatic_adjustment || null,
-      common_indications: drugMaster?.common_indications || [],
-      known_interactions: interactions.map(i => ({
-        drug_a: i.drug_a,
-        drug_b: i.drug_b,
-        severity: i.severity,
-        description: i.interaction_description,
-        recommended_action: i.recommended_action,
-      })),
+      brand_name: brandDetected,
+      dose: parsedDose,
+      unit: parsedUnit,
+      frequency,
+      times_per_day: timesPerDay,
     };
+
+    // --- STEP 6: Log to monitoring_events ---
+    await supabase.from("monitoring_events").insert({
+      event_type: "medication_normalized",
+      success: !!genericName,
+      metadata: {
+        drug_input: input,
+        generic_name: genericName,
+        brand_name: brandDetected,
+        dose: parsedDose,
+        unit: parsedUnit,
+        frequency,
+      },
+    });
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
