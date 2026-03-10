@@ -40,6 +40,90 @@ function computeMedicationOverlap(a: string[], b: string[]): number {
   return Math.round((matches / union) * 100);
 }
 
+// ─── Semantic matching using ontology tables ───
+
+interface ConditionMapEntry {
+  canonical_condition: string;
+  synonyms: string[];
+}
+
+interface LabEquivEntry {
+  canonical_name: string;
+  aliases: string[];
+}
+
+function resolveCanonicalCondition(diagnosis: string, conditionMap: ConditionMapEntry[]): string {
+  const lower = diagnosis.toLowerCase().trim();
+  for (const entry of conditionMap) {
+    if (entry.canonical_condition.toLowerCase() === lower) return entry.canonical_condition;
+    for (const syn of entry.synonyms) {
+      if (lower.includes(syn.toLowerCase()) || syn.toLowerCase().includes(lower)) {
+        return entry.canonical_condition;
+      }
+    }
+  }
+  return lower; // fallback to raw string
+}
+
+function resolveCanonicalLab(testName: string, labEquiv: LabEquivEntry[]): string {
+  const lower = testName.toLowerCase().trim();
+  for (const entry of labEquiv) {
+    if (entry.canonical_name.toLowerCase() === lower) return entry.canonical_name;
+    for (const alias of entry.aliases) {
+      if (lower.includes(alias.toLowerCase()) || alias.toLowerCase().includes(lower)) {
+        return entry.canonical_name;
+      }
+    }
+  }
+  return lower;
+}
+
+function computeSemanticDiagnosisOverlap(a: string[], b: string[], conditionMap: ConditionMapEntry[]): number {
+  if (a.length === 0 && b.length === 0) return 100;
+  if (a.length === 0 || b.length === 0) return 0;
+  const canonA = new Set(a.map(d => resolveCanonicalCondition(d, conditionMap)));
+  const canonB = new Set(b.map(d => resolveCanonicalCondition(d, conditionMap)));
+  let matches = 0;
+  for (const item of canonA) {
+    if (canonB.has(item)) matches++;
+  }
+  const union = new Set([...canonA, ...canonB]).size;
+  return Math.round((matches / union) * 100);
+}
+
+function computeSemanticLabOverlap(a: string[], b: string[], labEquiv: LabEquivEntry[]): number {
+  if (a.length === 0 && b.length === 0) return 100;
+  if (a.length === 0 || b.length === 0) return 0;
+  const canonA = new Set(a.map(l => resolveCanonicalLab(l, labEquiv)));
+  const canonB = new Set(b.map(l => resolveCanonicalLab(l, labEquiv)));
+  let matches = 0;
+  for (const item of canonA) {
+    if (canonB.has(item)) matches++;
+  }
+  const union = new Set([...canonA, ...canonB]).size;
+  return Math.round((matches / union) * 100);
+}
+
+function computeGenericMedOverlap(a: string[], b: string[], brandGenericMap: Array<{brand_name: string; generic_name: string}>): number {
+  if (a.length === 0 && b.length === 0) return 100;
+  if (a.length === 0 || b.length === 0) return 0;
+
+  const resolveGeneric = (name: string) => {
+    const lower = name.toLowerCase().trim();
+    const mapped = brandGenericMap.find(m => m.brand_name.toLowerCase() === lower);
+    return mapped ? mapped.generic_name.toLowerCase() : extractGenericName(name);
+  };
+
+  const setA = new Set(a.map(resolveGeneric));
+  const setB = new Set(b.map(resolveGeneric));
+  let matches = 0;
+  for (const item of setA) {
+    if (setB.has(item)) matches++;
+  }
+  const union = new Set([...setA, ...setB]).size;
+  return Math.round((matches / union) * 100);
+}
+
 interface ModuleLog {
   module: string;
   status: "success" | "error" | "skipped";
