@@ -77,6 +77,7 @@ export async function runClinicalPipeline(input: PipelineInput): Promise<Pipelin
       guideline_alignment: null,
       evidence: null,
       oversight: null,
+      guideline_summary: null,
       logs: [],
     };
   }
