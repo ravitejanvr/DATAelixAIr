@@ -52,7 +52,10 @@ export type MonitoringEventType =
   | "safety_alert_triggered"
   | "session_completed"
   | "transcription_confidence"
-  | "system_error";
+  | "system_error"
+  | "copilot_graph_query"
+  | "copilot_guideline_query"
+  | "copilot_action";
 
 export interface MonitoringEvent {
   event_type: MonitoringEventType;
