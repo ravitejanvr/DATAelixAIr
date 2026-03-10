@@ -567,7 +567,7 @@ serve(async (req) => {
       !context_completeness.context_complete;
 
     const result = {
-      normalized_drugs, interaction_flags, allergy_flags, dose_warnings,
+      normalized_drugs, drug_normalization_results, interaction_flags, allergy_flags, dose_warnings,
       vitals_dangers, emergency_patterns, context_completeness,
       confidence_level, requires_manual_review,
       ai_suggestions_blocked: context_completeness.ai_suggestions_blocked,
