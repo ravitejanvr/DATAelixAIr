@@ -455,6 +455,7 @@ export default function Clinical() {
     if (state?.intakeData) {
       setIntakeData(state.intakeData as IntakeData);
       const id = state.intakeData as IntakeData;
+      if (id.chief_complaint) setChiefComplaint(id.chief_complaint);
       setExtractedData(prev => ({
         ...prev,
         chief_complaint: id.chief_complaint || prev.chief_complaint,
