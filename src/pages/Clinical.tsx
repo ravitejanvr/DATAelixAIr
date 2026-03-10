@@ -1044,6 +1044,7 @@ export default function Clinical() {
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedAdvice([]);
     setSelectedInstructions([]);
     setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
+    setPipelineStage(null); setStageLatencies({});
   };
 
   const updateSoapSection = (section: keyof SoapSections, value: string) => setSoapSections(prev => ({ ...prev, [section]: value }));
