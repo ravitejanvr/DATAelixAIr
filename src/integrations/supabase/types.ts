@@ -1018,6 +1018,7 @@ export type Database = {
           generic_name: string
           id: string
           manufacturer: string | null
+          rxnorm_id: string | null
           strength: string | null
         }
         Insert: {
@@ -1027,6 +1028,7 @@ export type Database = {
           generic_name: string
           id?: string
           manufacturer?: string | null
+          rxnorm_id?: string | null
           strength?: string | null
         }
         Update: {
@@ -1036,6 +1038,7 @@ export type Database = {
           generic_name?: string
           id?: string
           manufacturer?: string | null
+          rxnorm_id?: string | null
           strength?: string | null
         }
         Relationships: [
@@ -1090,6 +1093,7 @@ export type Database = {
           mechanism: string
           pregnancy_category: string | null
           renal_adjustment: string | null
+          rxnorm_id: string | null
         }
         Insert: {
           common_indications?: string[] | null
@@ -1102,6 +1106,7 @@ export type Database = {
           mechanism?: string
           pregnancy_category?: string | null
           renal_adjustment?: string | null
+          rxnorm_id?: string | null
         }
         Update: {
           common_indications?: string[] | null
@@ -1114,6 +1119,7 @@ export type Database = {
           mechanism?: string
           pregnancy_category?: string | null
           renal_adjustment?: string | null
+          rxnorm_id?: string | null
         }
         Relationships: []
       }
