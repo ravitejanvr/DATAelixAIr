@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Mic, Square, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -20,9 +19,7 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
   const [showConsent, setShowConsent] = useState(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number>(0);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
-  const cursorRef = useRef<number | null>(null);
 
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
@@ -30,14 +27,8 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
     onPartialTranscript: () => {},
     onCommittedTranscript: (data) => {
       if (data.text) {
-        const pos = cursorRef.current ?? transcript.length;
-        const before = transcript.slice(0, pos);
-        const after = transcript.slice(pos);
-        const separator = before.length > 0 && !before.endsWith(" ") && !before.endsWith("\n") ? " " : "";
-        const newText = before + separator + data.text.trim() + " " + after;
-        onTranscriptChange(newText);
-        const newPos = pos + separator.length + data.text.trim().length + 1;
-        cursorRef.current = newPos;
+        const separator = transcript.length > 0 && !transcript.endsWith(" ") && !transcript.endsWith("\n") ? " " : "";
+        onTranscriptChange(transcript + separator + data.text.trim() + " ");
       }
     },
   });
@@ -63,8 +54,6 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
 
       const { data, error } = await supabase.functions.invoke("elevenlabs-scribe-token");
       if (error || !data?.token) throw new Error(error?.message || "Failed to get transcription token");
-
-      cursorRef.current = textareaRef.current?.selectionStart ?? transcript.length;
 
       await scribe.connect({
         token: data.token,
@@ -100,7 +89,7 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
 
   const isRecording = scribe.isConnected;
 
-  const bars = 16;
+  const bars = 12;
   const waveformBars = Array.from({ length: bars }, (_, i) => {
     const center = bars / 2;
     const dist = Math.abs(i - center) / center;
@@ -108,77 +97,44 @@ export default function ConsultationInput({ transcript, onTranscriptChange, disa
   });
 
   return (
-    <div className="space-y-1.5">
+    <div className="flex items-center gap-1.5">
       <VoiceRecordingConsent
         open={showConsent}
         onConsent={() => { setShowConsent(false); setVoiceConsent(); doStartRecording(); }}
         onDecline={() => setShowConsent(false)}
       />
-      {/* Controls row */}
-      <div className="flex items-center gap-2">
-        {!isRecording ? (
-          <Button
-            onClick={requestRecording}
-            size="sm"
-            variant="outline"
-            className="h-7 text-[11px] gap-1"
-            disabled={disabled || isConnecting}
-          >
-            {isConnecting ? (
-              <><Loader2 className="h-2.5 w-2.5 animate-spin" /> Connecting…</>
-            ) : (
-              <><Mic className="h-2.5 w-2.5" /> Record</>
-            )}
-          </Button>
-        ) : (
-          <Button onClick={stopRecording} size="sm" variant="destructive" className="h-7 text-[11px] gap-1">
-            <Square className="h-2 w-2" /> Stop
-          </Button>
-        )}
-
-        {isRecording && (
-          <>
-            <div className="flex items-center gap-[1px] h-4">
-              {waveformBars.map((h, i) => (
-                <div
-                  key={i}
-                  className="w-[1.5px] rounded-full bg-primary transition-all duration-75"
-                  style={{ height: `${h * 100}%`, minHeight: "2px" }}
-                />
-              ))}
-            </div>
-            <Badge variant="outline" className="text-[9px] border-destructive/40 text-destructive animate-pulse gap-0.5 h-5">
-              <span className="h-1 w-1 rounded-full bg-destructive inline-block" />
-              Live
-            </Badge>
-          </>
-        )}
-      </div>
-
-      {/* Textarea */}
-      <div className="relative">
-        <Textarea
-          ref={textareaRef}
-          value={transcript}
-          onChange={(e) => {
-            onTranscriptChange(e.target.value);
-            cursorRef.current = e.target.selectionStart;
-          }}
-          onSelect={(e) => {
-            cursorRef.current = (e.target as HTMLTextAreaElement).selectionStart;
-          }}
-          placeholder="Click Record to start capturing…"
-          rows={4}
-          className="text-xs pr-3 resize-none min-h-[72px] font-mono bg-background"
-          disabled={disabled}
-        />
-
-        {isRecording && scribe.partialTranscript && (
-          <div className="absolute bottom-1.5 left-2 right-2 rounded-md bg-primary/10 border border-primary/20 px-2 py-1 text-[11px] text-primary italic truncate">
-            {scribe.partialTranscript}
+      {!isRecording ? (
+        <button
+          onClick={requestRecording}
+          disabled={disabled || isConnecting}
+          className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors disabled:opacity-50"
+        >
+          {isConnecting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+          ) : (
+            <Mic className="h-3.5 w-3.5 text-primary" />
+          )}
+        </button>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <button onClick={stopRecording} className="h-8 w-8 rounded-xl bg-destructive/10 flex items-center justify-center hover:bg-destructive/20 transition-colors">
+            <Square className="h-3 w-3 text-destructive" />
+          </button>
+          <div className="flex items-center gap-[1px] h-4">
+            {waveformBars.map((h, i) => (
+              <div
+                key={i}
+                className="w-[1.5px] rounded-full bg-primary transition-all duration-75"
+                style={{ height: `${h * 100}%`, minHeight: "2px" }}
+              />
+            ))}
           </div>
-        )}
-      </div>
+          <Badge variant="outline" className="text-[9px] border-destructive/40 text-destructive animate-pulse gap-0.5 h-5">
+            <span className="h-1 w-1 rounded-full bg-destructive inline-block" />
+            Live
+          </Badge>
+        </div>
+      )}
     </div>
   );
 }
