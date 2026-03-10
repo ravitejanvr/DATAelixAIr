@@ -910,6 +910,96 @@ export default function Clinical() {
     }));
   };
 
+  // ── Command bar NLP parser ──
+  const handleCommandBarInput = (input: string) => {
+    const lower = input.toLowerCase().trim();
+
+    // BP pattern: "bp 120/80" or "BP 130/85"
+    const bpMatch = lower.match(/bp\s*(\d{2,3})\s*\/\s*(\d{2,3})/);
+    if (bpMatch) {
+      const sys = Number(bpMatch[1]);
+      const dia = Number(bpMatch[2]);
+      setPatientVitals((prev: any) => ({ ...(prev || {}), bp_systolic: sys, bp_diastolic: dia }));
+      toast({ title: "BP updated", description: `${sys}/${dia} mmHg` });
+      return;
+    }
+
+    // Vitals: "pulse 80", "hr 72", "spo2 98", "temp 101", "rr 18", "sugar 120", "weight 70"
+    const vitalPatterns: [RegExp, string][] = [
+      [/(?:pulse|hr|heart\s*rate)\s*(\d+)/i, "pulse"],
+      [/(?:spo2|sp02|oxygen|o2)\s*(\d+)/i, "spo2"],
+      [/(?:temp|temperature)\s*([\d.]+)/i, "temperature"],
+      [/(?:rr|respiratory)\s*(\d+)/i, "respiratory_rate"],
+      [/(?:sugar|glucose|bs|rbs)\s*(\d+)/i, "blood_sugar"],
+      [/(?:weight|wt)\s*([\d.]+)/i, "weight_kg"],
+      [/(?:height|ht)\s*([\d.]+)/i, "height_cm"],
+    ];
+    for (const [pattern, field] of vitalPatterns) {
+      const match = lower.match(pattern);
+      if (match) {
+        const val = Number(match[1]);
+        setPatientVitals((prev: any) => ({ ...(prev || {}), [field]: val }));
+        toast({ title: `${field.replace("_", " ")} updated`, description: `${val}` });
+        return;
+      }
+    }
+
+    // Chief complaint: "chief complaint fever" or "cc headache"
+    const ccMatch = lower.match(/(?:chief\s*complaint|cc)\s+(.+)/);
+    if (ccMatch) {
+      const cc = ccMatch[1].trim().charAt(0).toUpperCase() + ccMatch[1].trim().slice(1);
+      setChiefComplaint(cc);
+      toast({ title: "Chief complaint set", description: cc });
+      return;
+    }
+
+    // Symptoms: "symptoms head ache body pains" or "symptom cough"
+    const sympMatch = lower.match(/(?:symptoms?)\s+(.+)/);
+    if (sympMatch) {
+      const sympList = sympMatch[1].split(/,|and/).map(s => s.trim()).filter(Boolean);
+      sympList.forEach(s => {
+        const capitalized = s.charAt(0).toUpperCase() + s.slice(1);
+        if (!selectedSymptoms.includes(capitalized)) {
+          setSelectedSymptoms(prev => [...prev, capitalized]);
+        }
+      });
+      toast({ title: "Symptoms added", description: sympList.join(", ") });
+      return;
+    }
+
+    // Assessment: "assessment viral fever" or "diagnosis viral fever"
+    const assessMatch = lower.match(/(?:assessment|diagnosis|dx)\s+(.+)/);
+    if (assessMatch) {
+      const diag = assessMatch[1].trim();
+      const capitalized = diag.charAt(0).toUpperCase() + diag.slice(1);
+      updateSoapSection("Provisional Diagnosis", (soapSections["Provisional Diagnosis"] || "") + (soapSections["Provisional Diagnosis"] ? "\n" : "") + capitalized);
+      if (!selectedDiagnoses.includes(capitalized)) {
+        setSelectedDiagnoses(prev => [...prev, capitalized]);
+      }
+      toast({ title: "Assessment updated", description: capitalized });
+      return;
+    }
+
+    // Prescribe: "prescribe paracetamol 650 three times a day" or "rx amoxicillin 500mg bd 5 days"
+    const rxMatch = lower.match(/(?:prescribe|rx)\s+(.+)/);
+    if (rxMatch) {
+      const rxText = rxMatch[1].trim();
+      // Try to parse: drug dose frequency [x duration]
+      const parts = rxText.split(/\s+/);
+      const drugName = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : rxText;
+      const dose = parts[1] || "";
+      const freq = parts.slice(2, parts.indexOf("x") > 0 ? parts.indexOf("x") : parts.length - 1).join(" ") || parts[2] || "";
+      const dur = parts.slice(-2).join(" ") || "";
+      setPendingRxFromSuggestions(prev => [...prev, { drug_name: drugName, dose, frequency: freq, duration: dur }]);
+      toast({ title: "Prescription added", description: `${drugName} ${dose} ${freq}` });
+      return;
+    }
+
+    // Default: append to transcript / subjective notes
+    setTranscript(prev => prev + (prev ? "\n" : "") + input);
+    toast({ title: "Added to notes", description: input.slice(0, 50) + (input.length > 50 ? "…" : "") });
+  };
+
   // Helper: add prior med to patient meds section
   const addPriorMedToPatient = (medName: string, dose: string = "", frequency: string = "") => {
     setPriorMeds(prev => {
