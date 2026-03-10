@@ -38,3 +38,7 @@ export function isNewPipelineEnabled(): boolean {
 export function isDdxEngineEnabled(): boolean {
   return currentFlags.use_ddx_engine;
 }
+
+export function isUncertaintyEngineEnabled(): boolean {
+  return currentFlags.enable_uncertainty_engine;
+}
