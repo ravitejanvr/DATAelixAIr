@@ -2988,51 +2988,69 @@ export type Database = {
       }
       prescriptions: {
         Row: {
+          brand_name: string | null
           clinic_id: string | null
           consultation_id: string
           created_at: string
           doctor_id: string
           dosage: string
+          dose_unit: string | null
+          dose_value: number | null
+          drug_cui: string | null
           drug_name: string
           duration: string | null
           frequency: string | null
+          generic_name: string | null
           id: string
           instructions: string | null
           interactions: Json | null
+          max_daily_dose: number | null
           patient_id: string
           route: string | null
           severity: string | null
           visit_id: string | null
         }
         Insert: {
+          brand_name?: string | null
           clinic_id?: string | null
           consultation_id: string
           created_at?: string
           doctor_id: string
           dosage: string
+          dose_unit?: string | null
+          dose_value?: number | null
+          drug_cui?: string | null
           drug_name: string
           duration?: string | null
           frequency?: string | null
+          generic_name?: string | null
           id?: string
           instructions?: string | null
           interactions?: Json | null
+          max_daily_dose?: number | null
           patient_id: string
           route?: string | null
           severity?: string | null
           visit_id?: string | null
         }
         Update: {
+          brand_name?: string | null
           clinic_id?: string | null
           consultation_id?: string
           created_at?: string
           doctor_id?: string
           dosage?: string
+          dose_unit?: string | null
+          dose_value?: number | null
+          drug_cui?: string | null
           drug_name?: string
           duration?: string | null
           frequency?: string | null
+          generic_name?: string | null
           id?: string
           instructions?: string | null
           interactions?: Json | null
+          max_daily_dose?: number | null
           patient_id?: string
           route?: string | null
           severity?: string | null
