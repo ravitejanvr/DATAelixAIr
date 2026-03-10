@@ -624,10 +624,12 @@ serve(async (req) => {
     const hasDoseIssue = dose_warnings.some(w => w.issue === "high_dosage" || w.issue === "duplicate" || w.issue === "exceeds_max_daily_dose");
     const hasCriticalVitals = vitals_dangers.some(v => v.severity === "critical");
     const hasCriticalEmergency = emergency_patterns.some(p => p.severity === "critical");
+    const hasDuplicateTherapy = duplicate_therapy_flags.length > 0;
+    const hasContraindication = contraindication_flags.length > 0;
 
     let confidence_level: "low" | "moderate" | "high" = "high";
-    if (hasAllergyConflict || hasSevereInteraction || hasCriticalVitals || hasCriticalEmergency) confidence_level = "low";
-    else if (hasUnrecognized || hasDoseIssue || dose_warnings.length > 0 || vitals_dangers.length > 0 || emergency_patterns.length > 0) confidence_level = "moderate";
+    if (hasAllergyConflict || hasSevereInteraction || hasCriticalVitals || hasCriticalEmergency || hasContraindication) confidence_level = "low";
+    else if (hasUnrecognized || hasDoseIssue || hasDuplicateTherapy || dose_warnings.length > 0 || vitals_dangers.length > 0 || emergency_patterns.length > 0) confidence_level = "moderate";
 
     // If context is incomplete, lower confidence
     if (!context_completeness.context_complete) confidence_level = "low";
