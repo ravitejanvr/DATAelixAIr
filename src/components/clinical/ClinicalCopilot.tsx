@@ -84,6 +84,10 @@ interface ClinicalCopilotProps {
   visitId?: string | null;
   consultationId?: string | null;
   clinicId?: string | null;
+  /** Current streaming stage for progressive display */
+  pipelineStage?: string | null;
+  /** Per-stage latency map */
+  stageLatencies?: Record<string, number>;
 }
 
 const fadeIn = {
@@ -137,6 +141,8 @@ export default function ClinicalCopilot({
   visitId,
   consultationId,
   clinicId,
+  pipelineStage,
+  stageLatencies,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -256,8 +262,58 @@ export default function ClinicalCopilot({
 
   const hasHypotheses = hypotheses && hypotheses.length > 0;
 
+  const PIPELINE_STAGES = [
+    { key: "hypotheses", label: "Diagnoses", icon: Brain },
+    { key: "evidence", label: "Evidence", icon: BookOpen },
+    { key: "guidelines", label: "Guidelines", icon: Scale },
+    { key: "safety", label: "Safety", icon: Shield },
+  ];
+
+  const stageIndex = pipelineStage ? PIPELINE_STAGES.findIndex(s => s.key === pipelineStage) : -1;
+
   return (
     <div className="space-y-2.5">
+      {/* Pipeline Progress Indicator */}
+      {pipelineStage && (
+        <motion.div {...fadeIn}>
+          <ClinicalCard className="p-2 border-primary/20">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              <span className="text-[10px] font-semibold text-primary uppercase tracking-widest">AI Pipeline</span>
+              {stageLatencies?.total && (
+                <Badge variant="outline" className="text-[8px] ml-auto">{stageLatencies.total}ms</Badge>
+              )}
+            </div>
+            <div className="flex gap-1">
+              {PIPELINE_STAGES.map((stage, i) => {
+                const isDone = stageIndex > i || (pipelineStage === "complete");
+                const isActive = stageIndex === i;
+                const Icon = stage.icon;
+                return (
+                  <div
+                    key={stage.key}
+                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] transition-colors ${
+                      isDone ? "bg-primary/10 text-primary" :
+                      isActive ? "bg-primary/20 text-primary font-semibold" :
+                      "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {isDone ? <CheckCircle className="h-2.5 w-2.5" /> :
+                     isActive ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> :
+                     <Icon className="h-2.5 w-2.5" />}
+                    {stage.label}
+                    {isDone && stageLatencies?.[stage.key === "hypotheses" ? "generate_hypotheses" : stage.key === "evidence" ? "retrieve_evidence" : stage.key === "guidelines" ? "retrieve_guidelines" : "oversight_report"] && (
+                      <span className="text-[7px] text-muted-foreground ml-0.5">
+                        {stageLatencies[stage.key === "hypotheses" ? "generate_hypotheses" : stage.key === "evidence" ? "retrieve_evidence" : stage.key === "guidelines" ? "retrieve_guidelines" : "oversight_report"]}ms
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </ClinicalCard>
+        </motion.div>
+      )}
       {/* Differential Diagnoses (from modular pipeline hypotheses) */}
       {hasHypotheses ? (
         <motion.div {...fadeIn}>
