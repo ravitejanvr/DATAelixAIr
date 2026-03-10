@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { isNewPipelineEnabled } from "@/services/feature_flags";
+import type { HypothesisEntry, PipelineEvidence, PipelineCompliance } from "@/components/clinical/ClinicalCopilot";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
