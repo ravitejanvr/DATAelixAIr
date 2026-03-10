@@ -1235,6 +1235,8 @@ export default function Clinical() {
     visitId,
     consultationId: savedSessionId,
     clinicId: profileClinicId,
+    pipelineStage: pipelineRunning ? pipelineStage : null,
+    stageLatencies,
   };
 
   // ═══════════════════════════════════════════════════════════
