@@ -1582,6 +1582,33 @@ export default function Clinical() {
             </div>
           )}
         </div>
+
+        {/* ═══ FOOTER: Command Bar — always visible ═══ */}
+        <div className="shrink-0 px-4 py-2 border-t border-border bg-card/90 backdrop-blur-sm">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-border bg-background shadow-sm hover:border-primary/30 transition-colors max-w-3xl mx-auto">
+            <Sparkles className="h-4 w-4 text-primary/50 shrink-0" />
+            <input
+              id="command-bar-input"
+              type="text"
+              value={commandQuery}
+              onChange={e => setCommandQuery(e.target.value)}
+              placeholder="Ask anything!"
+              className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
+              onKeyDown={e => {
+                if (e.key === "Enter" && commandQuery.trim()) {
+                  toast({ title: "Command received", description: commandQuery });
+                  setCommandQuery("");
+                }
+              }}
+            />
+            <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-border bg-muted px-1.5 text-[10px] font-mono text-muted-foreground">
+              ⌘K
+            </kbd>
+            <div className="shrink-0">
+              <ConsultationInput transcript={transcript} onTranscriptChange={setTranscript} disabled={pipelineRunning} />
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );
