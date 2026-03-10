@@ -252,6 +252,19 @@ export default function Clinical() {
     document.documentElement.classList.toggle("dark", next);
   }, [darkMode]);
 
+  // Cmd+K / Ctrl+K shortcut to focus command bar
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        const input = document.getElementById("command-bar-input");
+        if (input) (input as HTMLInputElement).focus();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   // ── Auto-generate consultation summary (SOAP-like transcript) ──
   const generatedSummary = useMemo(() => {
     const lines: string[] = [];
