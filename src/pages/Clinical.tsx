@@ -48,8 +48,10 @@ import {
 import {
   startPipelineTimer,
   emitSafetyAlertMetric,
+  emitMonitoringEvent,
 } from "@/layers/monitoring/api";
 import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext } from "@/lib/clinical-context";
+import { getConsultationStage, getNextProgressiveAction } from "@/services/progressiveActionEngine";
 
 // Symptom presets
 const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain"];
