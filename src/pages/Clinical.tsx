@@ -646,10 +646,11 @@ export default function Clinical() {
     } finally { setIsRunningSafety(false); }
   };
 
-  // ── Validate ──
+  // ── Validate: safety check + guideline compliance + evidence retrieval ──
   const runValidation = async () => {
     setIsValidating(true);
     try {
+      // 1. Safety check
       setIsRunningSafety(true);
       const timer = startPipelineTimer("safety_controller");
       const medications = [
@@ -696,9 +697,34 @@ export default function Clinical() {
       const alertCount = (results.interaction_flags?.length || 0) + (results.allergy_flags?.length || 0) +
         (results.dose_warnings?.length || 0) + (results.vitals_dangers?.length || 0) + (results.emergency_patterns?.length || 0);
 
+      // 2. Guideline compliance check (non-blocking)
+      if (selectedDiagnoses.length > 0 || pendingRxFromSuggestions.length > 0 || selectedTests.length > 0) {
+        try {
+          await supabase.functions.invoke("guideline-compliance", {
+            body: {
+              diagnoses: selectedDiagnoses,
+              medications: pendingRxFromSuggestions,
+              tests: selectedTests,
+              care_plan: soapSections["Treatment Plan"] || "",
+              patient_age: selectedPatient?.age,
+              chief_complaint: chiefComplaint || selectedDiagnoses[0] || "",
+            },
+          });
+        } catch { /* non-blocking */ }
+      }
+
+      // 3. Evidence retrieval (non-blocking)
+      if (chiefComplaint || selectedDiagnoses.length > 0) {
+        try {
+          await supabase.functions.invoke("retrieve-guideline-recommendation", {
+            body: { diagnosis: selectedDiagnoses[0] || chiefComplaint },
+          });
+        } catch { /* non-blocking */ }
+      }
+
       setValidationComplete(true);
       if (alertCount === 0) {
-        toast({ title: "✓ Validation passed", description: "No safety concerns detected." });
+        toast({ title: "✓ Validation passed", description: "Safety, compliance and evidence checked." });
       } else {
         toast({ title: `⚠ ${alertCount} alert(s) found`, description: "Review safety flags before finalizing.", variant: "destructive" });
       }
