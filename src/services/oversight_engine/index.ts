@@ -15,7 +15,8 @@ export interface OversightEvent {
     | "guideline_deviation"
     | "context_incomplete"
     | "hypothesis_low_confidence"
-    | "pipeline_error";
+    | "pipeline_error"
+    | "dangerous_diagnosis_injected";
   severity: "info" | "warning" | "critical";
   stage: string;
   message: string;
