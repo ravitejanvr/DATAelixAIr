@@ -93,3 +93,9 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.compare-ai-pipelines]
     verify_jwt = false
+  [functions.normalize-drug-name]
+    verify_jwt = false
+  [functions.rxnorm-ingest-ingredients]
+    verify_jwt = false
+  [functions.rxnorm-ingest-brands]
+    verify_jwt = false

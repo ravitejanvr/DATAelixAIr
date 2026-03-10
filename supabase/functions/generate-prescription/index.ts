@@ -149,6 +149,35 @@ Return prescriptions using the suggest_prescriptions tool.`;
       prescriptions = parsed.prescriptions || [];
     }
 
+    // Normalize each drug name via normalize-drug-name
+    for (let i = 0; i < prescriptions.length; i++) {
+      try {
+        const normResp = await fetch(`${supabaseUrl}/functions/v1/normalize-drug-name`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({ drug_input: prescriptions[i].drug_name }),
+        });
+        if (normResp.ok) {
+          const normData = await normResp.json();
+          prescriptions[i].normalized = {
+            generic_name: normData.generic_name,
+            rxnorm_cui: normData.rxnorm_cui,
+            ingredient_cui: normData.ingredient_cui,
+            confidence: normData.confidence,
+            match_type: normData.match_type,
+          };
+          if (normData.recommended_dose_options?.length) {
+            prescriptions[i].dose_options = normData.recommended_dose_options;
+          }
+          if (normData.recommended_frequency_options?.length) {
+            prescriptions[i].frequency_options = normData.recommended_frequency_options;
+          }
+        }
+      } catch (e) {
+        console.warn(`Normalization failed for ${prescriptions[i].drug_name}:`, e);
+      }
+    }
+
     // Run safety check on generated prescriptions
     const medications = prescriptions.map((p: any) => `${p.drug_name} ${p.dosage}`);
     const safetyResp = await fetch(`${supabaseUrl}/functions/v1/clinical-safety`, {
