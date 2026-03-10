@@ -1225,6 +1225,13 @@ export default function Clinical() {
     instructions: copilotInstructions,
     selectedInstructions,
     onToggleInstruction: toggleInstruction,
+    // Modular pipeline enrichments
+    hypotheses: pipelineHypotheses.length > 0 ? pipelineHypotheses : undefined,
+    pipelineEvidence: pipelineEvidence,
+    pipelineCompliance: pipelineCompliance,
+    visitId,
+    consultationId: savedSessionId,
+    clinicId: profileClinicId,
   };
 
   // ═══════════════════════════════════════════════════════════
