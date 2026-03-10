@@ -52,6 +52,7 @@ export interface PipelineResult {
   enabled: boolean;
   enriched_context: EnrichedClinicalContext | null;
   ddx: DDXResult | null;
+  uncertainty: UncertaintyResult | null;
   hypotheses: HypothesisResult | null;
   guideline_alignment: GuidelineAlignmentResult | null;
   evidence: EvidenceQueryResult | null;
