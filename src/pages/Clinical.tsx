@@ -294,7 +294,7 @@ export default function Clinical() {
 
     // Known history
     const histParts: string[] = [];
-    if (priorMeds.length > 0) histParts.push(`Prior meds: ${priorMeds.map(m => `${m.name}${m.dose ? ` ${m.dose}` : ""}`).join(", ")}`);
+    if (priorMeds.length > 0) histParts.push(`Current meds: ${priorMeds.map(m => `${m.name}${m.dose ? ` ${m.dose}` : ""}${m.frequency ? ` ${m.frequency}` : ""}`).join(", ")}`);
     if (selectedPatient?.allergies?.length) histParts.push(`Allergies: ${selectedPatient.allergies.join(", ")}`);
     if (selectedPatient?.current_medications?.length) histParts.push(`Current meds: ${selectedPatient.current_medications.join(", ")}`);
     const conditions = selectedPatient?.medical_history;
