@@ -474,7 +474,8 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { medications, allergies, vitals, symptoms, clinical_context, actor_id } = body;
+    const { medications, allergies, vitals, symptoms, clinical_context, actor_id,
+            normalized_medications } = body;
 
     if (!medications || !Array.isArray(medications)) {
       return new Response(JSON.stringify({ error: "medications array required" }), {
@@ -489,8 +490,27 @@ serve(async (req) => {
     // 0. Context completeness validation
     const context_completeness = checkContextCompleteness(clinical_context || {});
 
-    // 1. Normalize drugs
+    // 1. Normalize drugs via RxNorm
     const normalized_drugs = await Promise.all(medications.map((m: string) => normalizeDrug(m)));
+
+    // 1b. Enhanced dose validation using normalized medication data
+    // If caller provides normalized_medications (from normalize-medication function),
+    // perform max daily dose checks against drug_master limits
+    let enhanced_dose_warnings: DoseWarning[] = [];
+    if (Array.isArray(normalized_medications)) {
+      for (const nm of normalized_medications) {
+        if (nm.generic_name && nm.dose_mg && nm.max_daily_dose_mg && nm.frequency_times_per_day) {
+          const dailyDose = nm.dose_mg * nm.frequency_times_per_day;
+          if (dailyDose > nm.max_daily_dose_mg) {
+            enhanced_dose_warnings.push({
+              medication: nm.generic_name,
+              issue: "exceeds_max_daily_dose",
+              message: `Daily dose ${dailyDose}mg exceeds max ${nm.max_daily_dose_mg}mg/day for ${nm.generic_name}.`,
+            });
+          }
+        }
+      }
+    }
 
     // 2. Check interactions
     const interaction_flags = await checkInteractions(normalized_drugs);
@@ -499,7 +519,7 @@ serve(async (req) => {
     const allergy_flags = checkAllergies(medications, allergyList);
 
     // 4. Dose sanity
-    const dose_warnings = checkDoseSanity(medications);
+    const dose_warnings = [...checkDoseSanity(medications), ...enhanced_dose_warnings];
 
     // 5. Vitals danger detection
     const vitals_dangers = checkVitalsDangers(vitalsObj);
@@ -511,7 +531,7 @@ serve(async (req) => {
     const hasUnrecognized = normalized_drugs.some(d => !d.rxnorm_id);
     const hasSevereInteraction = interaction_flags.some(f => f.severity === "severe");
     const hasAllergyConflict = allergy_flags.length > 0;
-    const hasDoseIssue = dose_warnings.some(w => w.issue === "high_dosage" || w.issue === "duplicate");
+    const hasDoseIssue = dose_warnings.some(w => w.issue === "high_dosage" || w.issue === "duplicate" || w.issue === "exceeds_max_daily_dose");
     const hasCriticalVitals = vitals_dangers.some(v => v.severity === "critical");
     const hasCriticalEmergency = emergency_patterns.some(p => p.severity === "critical");
 
