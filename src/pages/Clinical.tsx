@@ -293,6 +293,8 @@ export default function Clinical() {
   const [pipelineHypotheses, setPipelineHypotheses] = useState<HypothesisEntry[]>([]);
   const [pipelineEvidence, setPipelineEvidence] = useState<PipelineEvidence | null>(null);
   const [pipelineCompliance, setPipelineCompliance] = useState<PipelineCompliance | null>(null);
+  const [pipelineStage, setPipelineStage] = useState<string | null>(null);
+  const [stageLatencies, setStageLatencies] = useState<Record<string, number>>({});
 
   // Consultation summary & copilot selections
   const [consultationSummary, setConsultationSummary] = useState("");
