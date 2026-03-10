@@ -510,24 +510,33 @@ export default function Clinical() {
 
   const copilotDiagnoses = useMemo(() => {
     const set = new Set<string>();
+    // Include chief complaint as a source for diagnoses
+    if (chiefComplaint && DIAGNOSIS_MAP[chiefComplaint]) {
+      DIAGNOSIS_MAP[chiefComplaint].forEach(d => set.add(d));
+    }
     selectedSymptoms.forEach(s => (DIAGNOSIS_MAP[s] || []).forEach(d => set.add(d)));
     return Array.from(set);
-  }, [selectedSymptoms]);
+  }, [chiefComplaint, selectedSymptoms]);
 
   const copilotTests = useMemo(() => {
     const set = new Set<string>();
+    if (chiefComplaint && TEST_MAP[chiefComplaint]) {
+      TEST_MAP[chiefComplaint].forEach(t => set.add(t));
+    }
     selectedSymptoms.forEach(s => (TEST_MAP[s] || []).forEach(t => set.add(t)));
     return Array.from(set);
-  }, [selectedSymptoms]);
+  }, [chiefComplaint, selectedSymptoms]);
 
-  // Generate instruction suggestions based on symptoms + diagnoses
+  // Generate instruction suggestions based on chief complaint + symptoms + diagnoses
   const copilotInstructions = useMemo(() => {
     const set = new Set<string>();
-    [...selectedSymptoms, ...selectedDiagnoses].forEach(key => {
+    const keys = [...selectedSymptoms, ...selectedDiagnoses];
+    if (chiefComplaint) keys.push(chiefComplaint);
+    keys.forEach(key => {
       (INSTRUCTION_MAP[key] || []).forEach(inst => set.add(inst));
     });
     return Array.from(set);
-  }, [selectedSymptoms, selectedDiagnoses]);
+  }, [chiefComplaint, selectedSymptoms, selectedDiagnoses]);
 
   const safetyAlertCount = safetyResults ? (safetyResults.interaction_flags.length + safetyResults.allergy_flags.length + safetyResults.dose_warnings.length + (safetyResults.vitals_dangers?.length || 0) + (safetyResults.emergency_patterns?.length || 0)) : 0;
 
@@ -637,10 +646,11 @@ export default function Clinical() {
     } finally { setIsRunningSafety(false); }
   };
 
-  // ── Validate ──
+  // ── Validate: safety check + guideline compliance + evidence retrieval ──
   const runValidation = async () => {
     setIsValidating(true);
     try {
+      // 1. Safety check
       setIsRunningSafety(true);
       const timer = startPipelineTimer("safety_controller");
       const medications = [
@@ -687,9 +697,34 @@ export default function Clinical() {
       const alertCount = (results.interaction_flags?.length || 0) + (results.allergy_flags?.length || 0) +
         (results.dose_warnings?.length || 0) + (results.vitals_dangers?.length || 0) + (results.emergency_patterns?.length || 0);
 
+      // 2. Guideline compliance check (non-blocking)
+      if (selectedDiagnoses.length > 0 || pendingRxFromSuggestions.length > 0 || selectedTests.length > 0) {
+        try {
+          await supabase.functions.invoke("guideline-compliance", {
+            body: {
+              diagnoses: selectedDiagnoses,
+              medications: pendingRxFromSuggestions,
+              tests: selectedTests,
+              care_plan: soapSections["Treatment Plan"] || "",
+              patient_age: selectedPatient?.age,
+              chief_complaint: chiefComplaint || selectedDiagnoses[0] || "",
+            },
+          });
+        } catch { /* non-blocking */ }
+      }
+
+      // 3. Evidence retrieval (non-blocking)
+      if (chiefComplaint || selectedDiagnoses.length > 0) {
+        try {
+          await supabase.functions.invoke("retrieve-guideline-recommendation", {
+            body: { diagnosis: selectedDiagnoses[0] || chiefComplaint },
+          });
+        } catch { /* non-blocking */ }
+      }
+
       setValidationComplete(true);
       if (alertCount === 0) {
-        toast({ title: "✓ Validation passed", description: "No safety concerns detected." });
+        toast({ title: "✓ Validation passed", description: "Safety, compliance and evidence checked." });
       } else {
         toast({ title: `⚠ ${alertCount} alert(s) found`, description: "Review safety flags before finalizing.", variant: "destructive" });
       }
@@ -873,6 +908,96 @@ export default function Clinical() {
       ...(prev || {}),
       [field]: value === "" ? null : isNaN(Number(value)) ? value : Number(value),
     }));
+  };
+
+  // ── Command bar NLP parser ──
+  const handleCommandBarInput = (input: string) => {
+    const lower = input.toLowerCase().trim();
+
+    // BP pattern: "bp 120/80" or "BP 130/85"
+    const bpMatch = lower.match(/bp\s*(\d{2,3})\s*\/\s*(\d{2,3})/);
+    if (bpMatch) {
+      const sys = Number(bpMatch[1]);
+      const dia = Number(bpMatch[2]);
+      setPatientVitals((prev: any) => ({ ...(prev || {}), bp_systolic: sys, bp_diastolic: dia }));
+      toast({ title: "BP updated", description: `${sys}/${dia} mmHg` });
+      return;
+    }
+
+    // Vitals: "pulse 80", "hr 72", "spo2 98", "temp 101", "rr 18", "sugar 120", "weight 70"
+    const vitalPatterns: [RegExp, string][] = [
+      [/(?:pulse|hr|heart\s*rate)\s*(\d+)/i, "pulse"],
+      [/(?:spo2|sp02|oxygen|o2)\s*(\d+)/i, "spo2"],
+      [/(?:temp|temperature)\s*([\d.]+)/i, "temperature"],
+      [/(?:rr|respiratory)\s*(\d+)/i, "respiratory_rate"],
+      [/(?:sugar|glucose|bs|rbs)\s*(\d+)/i, "blood_sugar"],
+      [/(?:weight|wt)\s*([\d.]+)/i, "weight_kg"],
+      [/(?:height|ht)\s*([\d.]+)/i, "height_cm"],
+    ];
+    for (const [pattern, field] of vitalPatterns) {
+      const match = lower.match(pattern);
+      if (match) {
+        const val = Number(match[1]);
+        setPatientVitals((prev: any) => ({ ...(prev || {}), [field]: val }));
+        toast({ title: `${field.replace("_", " ")} updated`, description: `${val}` });
+        return;
+      }
+    }
+
+    // Chief complaint: "chief complaint fever" or "cc headache"
+    const ccMatch = lower.match(/(?:chief\s*complaint|cc)\s+(.+)/);
+    if (ccMatch) {
+      const cc = ccMatch[1].trim().charAt(0).toUpperCase() + ccMatch[1].trim().slice(1);
+      setChiefComplaint(cc);
+      toast({ title: "Chief complaint set", description: cc });
+      return;
+    }
+
+    // Symptoms: "symptoms head ache body pains" or "symptom cough"
+    const sympMatch = lower.match(/(?:symptoms?)\s+(.+)/);
+    if (sympMatch) {
+      const sympList = sympMatch[1].split(/,|and/).map(s => s.trim()).filter(Boolean);
+      sympList.forEach(s => {
+        const capitalized = s.charAt(0).toUpperCase() + s.slice(1);
+        if (!selectedSymptoms.includes(capitalized)) {
+          setSelectedSymptoms(prev => [...prev, capitalized]);
+        }
+      });
+      toast({ title: "Symptoms added", description: sympList.join(", ") });
+      return;
+    }
+
+    // Assessment: "assessment viral fever" or "diagnosis viral fever"
+    const assessMatch = lower.match(/(?:assessment|diagnosis|dx)\s+(.+)/);
+    if (assessMatch) {
+      const diag = assessMatch[1].trim();
+      const capitalized = diag.charAt(0).toUpperCase() + diag.slice(1);
+      updateSoapSection("Provisional Diagnosis", (soapSections["Provisional Diagnosis"] || "") + (soapSections["Provisional Diagnosis"] ? "\n" : "") + capitalized);
+      if (!selectedDiagnoses.includes(capitalized)) {
+        setSelectedDiagnoses(prev => [...prev, capitalized]);
+      }
+      toast({ title: "Assessment updated", description: capitalized });
+      return;
+    }
+
+    // Prescribe: "prescribe paracetamol 650 three times a day" or "rx amoxicillin 500mg bd 5 days"
+    const rxMatch = lower.match(/(?:prescribe|rx)\s+(.+)/);
+    if (rxMatch) {
+      const rxText = rxMatch[1].trim();
+      // Try to parse: drug dose frequency [x duration]
+      const parts = rxText.split(/\s+/);
+      const drugName = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : rxText;
+      const dose = parts[1] || "";
+      const freq = parts.slice(2, parts.indexOf("x") > 0 ? parts.indexOf("x") : parts.length - 1).join(" ") || parts[2] || "";
+      const dur = parts.slice(-2).join(" ") || "";
+      setPendingRxFromSuggestions(prev => [...prev, { drug_name: drugName, dose, frequency: freq, duration: dur }]);
+      toast({ title: "Prescription added", description: `${drugName} ${dose} ${freq}` });
+      return;
+    }
+
+    // Default: append to transcript / subjective notes
+    setTranscript(prev => prev + (prev ? "\n" : "") + input);
+    toast({ title: "Added to notes", description: input.slice(0, 50) + (input.length > 50 ? "…" : "") });
   };
 
   // Helper: add prior med to patient meds section
@@ -1606,11 +1731,11 @@ export default function Clinical() {
               type="text"
               value={commandQuery}
               onChange={e => setCommandQuery(e.target.value)}
-              placeholder="Ask anything!"
+              placeholder="Input anything!"
               className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
               onKeyDown={e => {
                 if (e.key === "Enter" && commandQuery.trim()) {
-                  toast({ title: "Command received", description: commandQuery });
+                  handleCommandBarInput(commandQuery.trim());
                   setCommandQuery("");
                 }
               }}
