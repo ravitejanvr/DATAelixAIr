@@ -466,9 +466,53 @@ function PipelineCard({ title, data, variant }: { title: string; data: any; vari
 
         {variant === "modular" && (
           <>
+            {/* DDX Engine Results */}
+            {data.ddx?.differential_diagnoses?.length > 0 && (
+              <div>
+                <p className="font-semibold mb-1 flex items-center gap-1">
+                  DDX Engine
+                  <Badge variant="secondary" className="text-[9px]">{data.ddx.execution_ms}ms</Badge>
+                  {data.ddx.dangerous_diagnoses_injected > 0 && (
+                    <Badge variant="destructive" className="text-[9px]">{data.ddx.dangerous_diagnoses_injected} must-not-miss</Badge>
+                  )}
+                </p>
+                {data.ddx.differential_diagnoses.map((d: any, i: number) => (
+                  <div key={i} className="p-1.5 bg-muted/50 rounded mb-1 flex justify-between items-center">
+                    <span className="flex items-center gap-1">
+                      {d.must_not_miss && <Badge variant="destructive" className="text-[8px] px-1">⚠</Badge>}
+                      {d.diagnosis_name}
+                    </span>
+                    <Badge variant="secondary" className="text-[10px]">{d.probability}%</Badge>
+                  </div>
+                ))}
+                {data.ddx.recommended_labs?.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">DDX Labs:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {data.ddx.recommended_labs.map((l: any, i: number) => (
+                        <Badge key={i} variant="outline" className="text-[9px]">{l.test_name} ({l.priority})</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {data.ddx.suggested_medications?.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">DDX Meds:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {data.ddx.suggested_medications.map((m: any, i: number) => (
+                        <Badge key={i} variant={m.safe ? "outline" : "destructive"} className="text-[9px]">
+                          {m.generic_name} {!m.safe && "(unsafe)"}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {data.hypotheses?.length > 0 && (
               <div>
-                <p className="font-semibold mb-1">Differential Diagnoses</p>
+                <p className="font-semibold mb-1">AI Hypotheses</p>
                 {data.hypotheses.map((h: any, i: number) => (
                   <div key={i} className="p-1.5 bg-muted/50 rounded mb-1 flex justify-between">
                     <span>{h.diagnosis}</span>
