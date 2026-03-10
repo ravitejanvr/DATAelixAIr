@@ -618,7 +618,7 @@ Generate differential diagnoses as JSON array.`,
     const comparison = {
       diagnosis_overlap: computeOverlap(legacyOutput.diagnoses, modularOutput.diagnoses),
       lab_overlap: computeOverlap(legacyOutput.labs || [], modularOutput.labs),
-      medication_overlap: computeOverlap(legacyOutput.medications, modularOutput.medications),
+      medication_overlap: computeMedicationOverlap(legacyOutput.medications, modularOutput.medications),
       latency_difference_ms: legacyOutput.latency_ms - modularOutput.latency_ms,
       legacy_faster: legacyOutput.latency_ms < modularOutput.latency_ms,
       modules_executed: moduleLogs.filter(l => l.status === "success").length,
