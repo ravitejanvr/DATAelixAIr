@@ -55,9 +55,7 @@ export type MonitoringEventType =
   | "system_error"
   | "copilot_graph_query"
   | "copilot_guideline_query"
-  | "copilot_action"
-  | "action_bar_click"
-  | "care_plan_generation";
+  | "copilot_action";
 
 export interface MonitoringEvent {
   event_type: MonitoringEventType;

@@ -235,7 +235,7 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* Main content */}
-      <main className={`flex-1 min-w-0 ${location.pathname === "/clinical" ? "h-screen overflow-hidden lg:pt-0 pt-14" : "lg:pt-0 pt-14"}`}>
+      <main className="flex-1 min-w-0 lg:pt-0 pt-14">
         {children}
       </main>
     </div>
