@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Brain, FlaskConical, Pill, Shield, CheckCircle, AlertTriangle,
   ChevronDown, ChevronRight, FileText, Loader2, Scale, BookOpen, ExternalLink,
-  MessageSquare
+  MessageSquare, Zap, Target
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +34,29 @@ interface ComplianceResult {
   matching_guidelines: GuidelineMatch[];
 }
 
+export interface HypothesisEntry {
+  diagnosis: string;
+  confidence: number;
+  supporting_factors: string[];
+  contradicting_factors: string[];
+  recommended_tests: string[];
+}
+
+export interface PipelineEvidence {
+  citations: Array<{ title: string; source: string; year: number; url?: string }>;
+  sources_queried: string[];
+  retrieval_confidence: string;
+}
+
+export interface PipelineCompliance {
+  results: ComplianceResult[];
+  guidelines_matched: number;
+  guidelines_sources: string[];
+  guideline_sources_used?: string[];
+  guideline_compliance_score?: number;
+  conflicts_detected?: Array<{ recommendation: string; conflicting_guideline: string; organization: string; severity: string; explanation: string }>;
+}
+
 interface ClinicalCopilotProps {
   diagnoses: string[];
   selectedDiagnoses: string[];
@@ -54,6 +77,13 @@ interface ClinicalCopilotProps {
   instructions: string[];
   selectedInstructions: string[];
   onToggleInstruction: (instruction: string) => void;
+  // Modular pipeline enrichments
+  hypotheses?: HypothesisEntry[];
+  pipelineEvidence?: PipelineEvidence | null;
+  pipelineCompliance?: PipelineCompliance | null;
+  visitId?: string | null;
+  consultationId?: string | null;
+  clinicId?: string | null;
 }
 
 const fadeIn = {
@@ -101,6 +131,12 @@ export default function ClinicalCopilot({
   instructions,
   selectedInstructions,
   onToggleInstruction,
+  hypotheses,
+  pipelineEvidence,
+  pipelineCompliance,
+  visitId,
+  consultationId,
+  clinicId,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -109,6 +145,10 @@ export default function ClinicalCopilot({
   const [complianceResults, setComplianceResults] = useState<ComplianceResult[] | null>(null);
   const [loadingCompliance, setLoadingCompliance] = useState(false);
   const [complianceSources, setComplianceSources] = useState<string[]>([]);
+
+  // Use pipeline compliance if available
+  const effectiveCompliance = pipelineCompliance?.results || complianceResults;
+  const effectiveSources = pipelineCompliance?.guidelines_sources || complianceSources;
 
   const safetyAlertCount = safetyResults
     ? (safetyResults.allergy_flags?.length || 0) +
@@ -152,34 +192,134 @@ export default function ClinicalCopilot({
     }
   };
 
-  const logComplianceOverride = async (result: ComplianceResult) => {
+  /** Log override to ai_decision_ledger */
+  const logOverrideToLedger = async (
+    aiOutput: string,
+    aiOutputType: string,
+    doctorAction: "accepted" | "rejected" | "modified" | "overridden",
+    overrideReason?: string,
+  ) => {
     try {
-      await supabase.from("audit_logs").insert({
-        actor_id: (await supabase.auth.getUser()).data.user?.id || "",
-        event_type: "guideline_compliance_override",
-        target_type: "compliance_check",
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase.from("ai_decision_ledger").insert({
+        doctor_id: user.id,
+        visit_id: visitId || "00000000-0000-0000-0000-000000000000",
+        consultation_id: consultationId || null,
+        clinic_id: clinicId || "00000000-0000-0000-0000-000000000000",
+        ai_output: aiOutput,
+        ai_output_type: aiOutputType,
+        doctor_action: doctorAction,
+        override_reason: overrideReason || null,
+        safety_status: safetyAlertCount > 0 ? "alerts_present" : "safe",
         metadata: {
-          item: result.item,
-          item_type: result.item_type,
-          compliance_status: result.compliance_status,
-          explanation: result.explanation,
-          guidelines: result.matching_guidelines.map(g => g.title),
           override_timestamp: new Date().toISOString(),
+          pipeline: "modular",
         },
       });
-      toast.success("Override logged to audit trail");
     } catch {
-      toast.error("Failed to log override");
+      // non-blocking
     }
   };
 
-  const alignedCount = complianceResults?.filter(r => r.compliance_status === "guideline_aligned").length || 0;
-  const reviewCount = complianceResults?.filter(r => r.compliance_status === "review_suggested").length || 0;
+  const logComplianceOverride = async (result: ComplianceResult) => {
+    await logOverrideToLedger(
+      `${result.item} — ${result.compliance_status}: ${result.explanation}`,
+      "guideline_compliance",
+      "overridden",
+      `Doctor overrode ${result.compliance_status} for ${result.item_type}: ${result.item}`,
+    );
+    toast.success("Override logged to audit trail");
+  };
+
+  const handleDiagnosisToggle = (d: string) => {
+    const isRemoving = selectedDiagnoses.includes(d);
+    onToggleDiagnosis(d);
+    logOverrideToLedger(d, "diagnosis", isRemoving ? "rejected" : "accepted");
+  };
+
+  const handleTestToggle = (t: string) => {
+    const isRemoving = selectedTests.includes(t);
+    onToggleTest(t);
+    logOverrideToLedger(t, "lab_test", isRemoving ? "rejected" : "accepted");
+  };
+
+  const handleMedicationToggle = (rx: { drug: string; dose: string; freq: string; dur: string }) => {
+    const isRemoving = selectedMedications.some(p => p.drug_name === rx.drug);
+    onToggleMedication(rx);
+    logOverrideToLedger(`${rx.drug} ${rx.dose} ${rx.freq}`, "medication", isRemoving ? "rejected" : "accepted");
+  };
+
+  const alignedCount = effectiveCompliance?.filter(r => r.compliance_status === "guideline_aligned").length || 0;
+  const reviewCount = effectiveCompliance?.filter(r => r.compliance_status === "review_suggested").length || 0;
+
+  const hasHypotheses = hypotheses && hypotheses.length > 0;
 
   return (
     <div className="space-y-2.5">
-      {/* Possible Diagnosis */}
-      {diagnoses.length > 0 && (
+      {/* Differential Diagnoses (from modular pipeline hypotheses) */}
+      {hasHypotheses ? (
+        <motion.div {...fadeIn}>
+          <ClinicalCard className="p-2.5 border-primary/10">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+              <Brain className="h-3 w-3 text-primary" /> Differential Diagnoses
+              <Badge variant="outline" className="text-[8px] ml-auto">AI</Badge>
+            </p>
+            <div className="space-y-1">
+              {hypotheses!.slice(0, 5).map((h, i) => {
+                const confidencePercent = Math.round((h.confidence || 0) * 100);
+                const isSelected = selectedDiagnoses.includes(h.diagnosis);
+                return (
+                  <div key={i} className="group">
+                    <div className="flex items-center gap-1">
+                      <Chip
+                        variant="diagnosis"
+                        size="sm"
+                        selected={isSelected}
+                        onClick={() => handleDiagnosisToggle(h.diagnosis)}
+                      >
+                        {h.diagnosis}
+                      </Chip>
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] shrink-0 ${
+                          confidencePercent >= 70 ? "text-emerald-600 border-emerald-200" :
+                          confidencePercent >= 40 ? "text-amber-600 border-amber-200" :
+                          "text-muted-foreground"
+                        }`}
+                      >
+                        {confidencePercent}%
+                      </Badge>
+                    </div>
+                    {/* Supporting factors (visible on hover/always for top) */}
+                    {i === 0 && h.supporting_factors?.length > 0 && (
+                      <div className="mt-0.5 ml-1 text-[9px] text-muted-foreground">
+                        <span className="font-medium">Supports:</span> {h.supporting_factors.slice(0, 3).join(", ")}
+                      </div>
+                    )}
+                    {h.recommended_tests?.length > 0 && i < 2 && (
+                      <div className="mt-0.5 ml-1 flex flex-wrap gap-0.5">
+                        {h.recommended_tests.slice(0, 3).map((t, j) => (
+                          <button
+                            key={j}
+                            className="text-[8px] px-1.5 py-0.5 rounded bg-chip-lab/50 text-chip-lab-text border border-chip-lab-border hover:bg-chip-lab transition-colors"
+                            onClick={() => {
+                              if (!selectedTests.includes(t)) handleTestToggle(t);
+                            }}
+                          >
+                            + {t}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </ClinicalCard>
+        </motion.div>
+      ) : diagnoses.length > 0 ? (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
@@ -187,20 +327,14 @@ export default function ClinicalCopilot({
             </p>
             <div className="flex flex-wrap gap-1">
               {diagnoses.slice(0, 3).map(d => (
-                <Chip
-                  key={d}
-                  variant="diagnosis"
-                  size="sm"
-                  selected={selectedDiagnoses.includes(d)}
-                  onClick={() => onToggleDiagnosis(d)}
-                >
+                <Chip key={d} variant="diagnosis" size="sm" selected={selectedDiagnoses.includes(d)} onClick={() => handleDiagnosisToggle(d)}>
                   {d}
                 </Chip>
               ))}
             </div>
           </ClinicalCard>
         </motion.div>
-      )}
+      ) : null}
 
       {/* Recommended Tests */}
       {tests.length > 0 && (
@@ -211,13 +345,7 @@ export default function ClinicalCopilot({
             </p>
             <div className="flex flex-wrap gap-1">
               {tests.map(t => (
-                <Chip
-                  key={t}
-                  variant="lab"
-                  size="sm"
-                  selected={selectedTests.includes(t)}
-                  onClick={() => onToggleTest(t)}
-                >
+                <Chip key={t} variant="lab" size="sm" selected={selectedTests.includes(t)} onClick={() => handleTestToggle(t)}>
                   {t}
                 </Chip>
               ))}
@@ -231,22 +359,16 @@ export default function ClinicalCopilot({
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <Pill className="h-3 w-3 text-chip-medication-text" /> Recommended Medications
+              <Pill className="h-3 w-3 text-chip-medication-text" /> Medication Suggestions
             </p>
             <div className="flex flex-wrap gap-1">
               {medications.map((rx, i) => (
-                <Chip
-                  key={i}
-                  variant="medication"
-                  size="sm"
-                  addable
-                  selected={selectedMedications.some(p => p.drug_name === rx.drug)}
-                  onClick={() => onToggleMedication(rx)}
-                >
+                <Chip key={i} variant="medication" size="sm" addable selected={selectedMedications.some(p => p.drug_name === rx.drug)} onClick={() => handleMedicationToggle(rx)}>
                   {rx.drug} {rx.dose} {rx.freq}
                 </Chip>
               ))}
             </div>
+            <p className="text-[8px] text-muted-foreground mt-1 italic">Tap to add. AI never auto-finalizes prescriptions.</p>
           </ClinicalCard>
         </motion.div>
       )}
@@ -260,13 +382,7 @@ export default function ClinicalCopilot({
             </p>
             <div className="flex flex-wrap gap-1">
               {instructions.map((inst, i) => (
-                <Chip
-                  key={i}
-                  variant="action"
-                  size="sm"
-                  selected={selectedInstructions.includes(inst)}
-                  onClick={() => onToggleInstruction(inst)}
-                >
+                <Chip key={i} variant="action" size="sm" selected={selectedInstructions.includes(inst)} onClick={() => onToggleInstruction(inst)}>
                   {inst}
                 </Chip>
               ))}
@@ -275,66 +391,93 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Safety */}
+      {/* Safety Alerts — Enhanced with detailed categories */}
       {safetyResults && (
         <motion.div {...fadeIn}>
-          <ClinicalCard className={`p-2.5 ${safetyAlertCount === 0 ? "border-emerald-500/20" : "border-amber-500/20"}`}>
+          <ClinicalCard className={`p-2.5 ${safetyAlertCount === 0 ? "border-emerald-500/20" : "border-destructive/30"}`}>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <Shield className="h-3 w-3 text-primary" /> Safety
+              <Shield className="h-3 w-3 text-primary" /> Safety Alerts
+              {safetyAlertCount > 0 && (
+                <Badge variant="destructive" className="text-[9px] ml-auto">{safetyAlertCount}</Badge>
+              )}
             </p>
             <div className="space-y-1">
-              <div className="flex items-center gap-1.5 text-xs">
-                {safetyResults.allergy_flags && safetyResults.allergy_flags.length > 0 ? (
-                  <>
-                    <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span className="text-amber-700 dark:text-amber-400">Allergy conflict detected</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <span className="text-emerald-700 dark:text-emerald-400">No allergy conflicts</span>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 text-xs">
-                {safetyResults.dose_warnings && safetyResults.dose_warnings.length > 0 ? (
-                  <>
-                    <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span className="text-amber-700 dark:text-amber-400">Dose concern flagged</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <span className="text-emerald-700 dark:text-emerald-400">Dose within limits</span>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 text-xs">
-                {safetyResults.vitals_dangers && safetyResults.vitals_dangers.length > 0 ? (
-                  <>
-                    <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
-                    <span className="text-destructive font-semibold">Dangerous vitals</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <span className="text-emerald-700 dark:text-emerald-400">No dangerous vitals</span>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 text-xs">
-                {safetyResults.interaction_flags && safetyResults.interaction_flags.length > 0 ? (
-                  <>
-                    <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span className="text-amber-700 dark:text-amber-400">Drug interaction detected</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <span className="text-emerald-700 dark:text-emerald-400">No drug interactions</span>
-                  </>
-                )}
-              </div>
+              {/* Drug Interactions */}
+              {safetyResults.interaction_flags?.length > 0 ? (
+                safetyResults.interaction_flags.map((f, i) => (
+                  <div key={`int-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                    <Shield className="h-3 w-3 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold text-amber-700 dark:text-amber-400">{f.drug_a} ↔ {f.drug_b}</span>
+                      <span className="text-amber-600 dark:text-amber-400 ml-1">({f.severity})</span>
+                      {f.description && <p className="text-[10px] text-amber-600 dark:text-amber-400">{f.description}</p>}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-emerald-700 dark:text-emerald-400">No drug interactions</span>
+                </div>
+              )}
+
+              {/* Allergy Conflicts */}
+              {safetyResults.allergy_flags?.length > 0 ? (
+                safetyResults.allergy_flags.map((f, i) => (
+                  <div key={`allergy-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-chip-alert border border-chip-alert-border">
+                    <AlertTriangle className="h-3 w-3 text-chip-alert-text shrink-0 mt-0.5" />
+                    <span className="text-chip-alert-text font-medium">{f.message}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-emerald-700 dark:text-emerald-400">No allergy conflicts</span>
+                </div>
+              )}
+
+              {/* Dose Warnings */}
+              {safetyResults.dose_warnings?.length > 0 ? (
+                safetyResults.dose_warnings.map((w, i) => (
+                  <div key={`dose-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                    <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0 mt-0.5" />
+                    <span className="text-amber-700 dark:text-amber-400">{w.message}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-emerald-700 dark:text-emerald-400">Dose within limits</span>
+                </div>
+              )}
+
+              {/* Dangerous Vitals */}
+              {(safetyResults.vitals_dangers?.length || 0) > 0 ? (
+                safetyResults.vitals_dangers!.map((v, i) => (
+                  <div key={`vital-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-destructive/10 border border-destructive/30">
+                    <AlertTriangle className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
+                    <span className="text-destructive font-semibold">{v.message}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-emerald-700 dark:text-emerald-400">No dangerous vitals</span>
+                </div>
+              )}
+
+              {/* Emergency Signals */}
+              {(safetyResults.emergency_patterns?.length || 0) > 0 && (
+                safetyResults.emergency_patterns!.map((ep, i) => (
+                  <div key={`em-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-destructive/10 border border-destructive/30">
+                    <Zap className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-destructive font-bold">{ep.pattern}</span>
+                      <p className="text-[10px] text-destructive">{ep.message}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </ClinicalCard>
         </motion.div>
@@ -342,14 +485,19 @@ export default function ClinicalCopilot({
 
       {/* Guideline Compliance */}
       <motion.div {...fadeIn}>
-        <Collapsible open={complianceExpanded} onOpenChange={setComplianceExpanded}>
+        <Collapsible open={complianceExpanded || !!pipelineCompliance} onOpenChange={setComplianceExpanded}>
           <CollapsibleTrigger asChild>
             <button className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors text-left">
               <Scale className="h-3 w-3 text-primary shrink-0" />
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex-1">
                 Guideline Compliance
               </span>
-              {complianceResults && (
+              {pipelineCompliance?.guideline_compliance_score != null && (
+                <Badge variant="outline" className={`text-[9px] ${pipelineCompliance.guideline_compliance_score >= 75 ? "text-emerald-600 border-emerald-200" : pipelineCompliance.guideline_compliance_score >= 40 ? "text-amber-600 border-amber-200" : "text-destructive"}`}>
+                  {pipelineCompliance.guideline_compliance_score}%
+                </Badge>
+              )}
+              {effectiveCompliance && (
                 <div className="flex gap-1">
                   {alignedCount > 0 && (
                     <Badge variant="outline" className="text-[9px] text-emerald-600 border-emerald-200 dark:border-emerald-800">{alignedCount} aligned</Badge>
@@ -359,7 +507,7 @@ export default function ClinicalCopilot({
                   )}
                 </div>
               )}
-              {complianceExpanded ? (
+              {complianceExpanded || pipelineCompliance ? (
                 <ChevronDown className="h-3 w-3 text-muted-foreground" />
               ) : (
                 <ChevronRight className="h-3 w-3 text-muted-foreground" />
@@ -368,7 +516,7 @@ export default function ClinicalCopilot({
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1">
             <ClinicalCard className="p-2.5 space-y-2">
-              {!complianceResults ? (
+              {!effectiveCompliance ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -382,16 +530,28 @@ export default function ClinicalCopilot({
                 </Button>
               ) : (
                 <div className="space-y-2">
-                  {complianceSources.length > 0 && (
+                  {effectiveSources.length > 0 && (
                     <div className="flex flex-wrap gap-1 text-[9px] text-muted-foreground">
                       <span className="font-semibold">Sources:</span>
-                      {complianceSources.map((src, i) => (
+                      {effectiveSources.map((src, i) => (
                         <Badge key={i} variant="outline" className="text-[8px]">{src}</Badge>
                       ))}
                     </div>
                   )}
 
-                  {complianceResults.map((result, i) => {
+                  {/* Conflicts from pipeline */}
+                  {pipelineCompliance?.conflicts_detected && pipelineCompliance.conflicts_detected.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[9px] font-semibold text-destructive uppercase">Conflicts Detected</p>
+                      {pipelineCompliance.conflicts_detected.map((c, i) => (
+                        <div key={i} className="text-[10px] p-1.5 rounded border border-destructive/30 bg-destructive/5 text-destructive">
+                          <span className="font-semibold">{c.organization}</span>: {c.explanation.substring(0, 150)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {effectiveCompliance.map((result, i) => {
                     const config = COMPLIANCE_CONFIG[result.compliance_status] || COMPLIANCE_CONFIG.review_suggested;
                     const StatusIcon = config.icon;
 
@@ -447,14 +607,16 @@ export default function ClinicalCopilot({
                     );
                   })}
 
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="w-full text-xs h-6"
-                    onClick={() => { setComplianceResults(null); setComplianceSources([]); }}
-                  >
-                    Reset & Re-check
-                  </Button>
+                  {!pipelineCompliance && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full text-xs h-6"
+                      onClick={() => { setComplianceResults(null); setComplianceSources([]); }}
+                    >
+                      Reset & Re-check
+                    </Button>
+                  )}
 
                   <p className="text-[9px] text-muted-foreground italic pt-1 border-t border-border">
                     Guideline compliance is advisory. Clinical judgment required for all decisions.
@@ -466,19 +628,21 @@ export default function ClinicalCopilot({
         </Collapsible>
       </motion.div>
 
-      {/* Evidence (collapsed by default) */}
+      {/* Evidence Sources */}
       <motion.div {...fadeIn}>
-        <Collapsible open={evidenceExpanded} onOpenChange={setEvidenceExpanded}>
+        <Collapsible open={evidenceExpanded || !!pipelineEvidence} onOpenChange={setEvidenceExpanded}>
           <CollapsibleTrigger asChild>
             <button className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors text-left">
               <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex-1">
-                Evidence
+                Evidence Sources
               </span>
-              {evidence && (
-                <Badge variant="outline" className="text-[10px]">{evidence.total_citations}</Badge>
+              {(pipelineEvidence || evidence) && (
+                <Badge variant="outline" className="text-[10px]">
+                  {pipelineEvidence ? pipelineEvidence.citations.length : evidence?.total_citations}
+                </Badge>
               )}
-              {evidenceExpanded ? (
+              {evidenceExpanded || pipelineEvidence ? (
                 <ChevronDown className="h-3 w-3 text-muted-foreground" />
               ) : (
                 <ChevronRight className="h-3 w-3 text-muted-foreground" />
@@ -487,7 +651,36 @@ export default function ClinicalCopilot({
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1">
             <ClinicalCard className="p-2.5 space-y-2">
-              {!evidence ? (
+              {/* Pipeline evidence auto-loaded */}
+              {pipelineEvidence && pipelineEvidence.citations.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <Badge variant="outline" className="text-[9px]">
+                      {pipelineEvidence.citations.length} citations
+                    </Badge>
+                    <span>•</span>
+                    <span>{pipelineEvidence.sources_queried.join(", ")}</span>
+                    <Badge variant="outline" className={`text-[8px] ml-auto ${
+                      pipelineEvidence.retrieval_confidence === "high" ? "text-emerald-600" :
+                      pipelineEvidence.retrieval_confidence === "moderate" ? "text-amber-600" : "text-muted-foreground"
+                    }`}>
+                      {pipelineEvidence.retrieval_confidence}
+                    </Badge>
+                  </div>
+                  {pipelineEvidence.citations.slice(0, 5).map((cit, i) => (
+                    <div key={i} className="text-[10px] text-muted-foreground">
+                      <span className="font-medium text-foreground">{cit.title}</span>
+                      <span className="ml-1">({cit.source}, {cit.year})</span>
+                      {cit.url && (
+                        <a href={cit.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">→</a>
+                      )}
+                    </div>
+                  ))}
+                  <p className="text-[9px] text-muted-foreground italic pt-1 border-t border-border">
+                    Evidence is advisory only. Clinical judgment required.
+                  </p>
+                </div>
+              ) : !evidence ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -527,39 +720,21 @@ export default function ClinicalCopilot({
               ) : (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <Badge variant="outline" className="text-[9px]">
-                      {evidence.total_citations} citations
-                    </Badge>
+                    <Badge variant="outline" className="text-[9px]">{evidence.total_citations} citations</Badge>
                     <span>•</span>
                     <span>{evidence.sources_queried.join(", ")}</span>
                   </div>
-
                   {evidence.medication_evidence.length > 0 && (
                     <div className="space-y-1.5">
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-                        Medication Evidence
-                      </p>
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Medication Evidence</p>
                       {evidence.medication_evidence.map((med, i) => (
                         <div key={i} className="text-xs space-y-0.5">
                           <p className="font-semibold text-foreground">{med.drug}</p>
                           <p className="text-muted-foreground text-[11px]">{med.summary}</p>
-                          {med.citations.map((cit, j) => (
-                            <div key={j} className="text-[10px] text-muted-foreground">
-                              {cit.title && (
-                                <>
-                                  <span>{cit.title}</span>
-                                  {cit.url && (
-                                    <a href={cit.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">→</a>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          ))}
                         </div>
                       ))}
                     </div>
                   )}
-
                   {evidence.guidelines.length > 0 && (
                     <div className="space-y-1.5 pt-2 border-t border-border">
                       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Guidelines</p>
@@ -571,23 +746,6 @@ export default function ClinicalCopilot({
                       ))}
                     </div>
                   )}
-
-                  {(evidence as any).platform_evidence?.length > 0 && (
-                    <div className="space-y-1.5 pt-2 border-t border-border">
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Platform Research</p>
-                      {(evidence as any).platform_evidence.map((pe: any, i: number) => (
-                        <div key={i} className="text-xs">
-                          <p className="font-semibold text-foreground">{pe.title}</p>
-                          <p className="text-muted-foreground text-[11px]">{pe.journal} · {pe.year}</p>
-                          <p className="text-muted-foreground text-[10px] mt-0.5">{pe.summary}</p>
-                          {pe.source_link && (
-                            <a href={pe.source_link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-[10px]">View source →</a>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
                   <p className="text-[9px] text-muted-foreground italic pt-1 border-t border-border">
                     Evidence is advisory only. Clinical judgment required.
                   </p>
