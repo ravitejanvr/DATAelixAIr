@@ -6,32 +6,35 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// ─── Weights ────────────────────────────────────────────────
+// ─── Evidence-Weighted Confidence Model ─────────────────────
+// confidence = 0.35 * graph_support
+//            + 0.25 * evidence_support
+//            + 0.20 * guideline_support
+//            + 0.20 * data_completeness
 const WEIGHTS = {
-  symptom_match: 0.35,
-  vital_support: 0.15,
-  guideline_strength: 0.20,
-  lab_confirmation: 0.20,
-  missing_data_penalty: 0.05,
-  conflict_penalty: 0.05,
+  graph_support: 0.35,
+  evidence_support: 0.25,
+  guideline_support: 0.20,
+  data_completeness: 0.20,
 };
 
-// ─── Authority strength map ─────────────────────────────────
 const AUTHORITY_STRENGTH: Record<string, number> = {
-  WHO: 1.0,
+  ICMR: 1.0,
+  WHO: 0.95,
   NICE: 0.9,
-  ICMR: 0.8,
-  CDC: 0.75,
-  IDSA: 0.7,
-  AHA: 0.7,
-  ESC: 0.7,
-  ADA: 0.7,
+  CDC: 0.85,
+  IDSA: 0.8,
+  AHA: 0.8,
+  ESC: 0.8,
+  ADA: 0.75,
+  ACOG: 0.75,
+  ATLS: 0.75,
 };
 
 function classifyConfidence(score: number): string {
-  if (score > 0.75) return "High";
-  if (score >= 0.50) return "Moderate";
-  if (score >= 0.25) return "Low";
+  if (score >= 0.80) return "High";
+  if (score >= 0.60) return "Moderate";
+  if (score >= 0.40) return "Low";
   return "Very Uncertain";
 }
 
@@ -42,6 +45,7 @@ interface Diagnosis {
   confidence?: number;
   supporting_symptoms?: string[];
   must_not_miss?: boolean;
+  symptom_coverage?: string;
 }
 
 interface UncertaintyInput {
@@ -50,7 +54,9 @@ interface UncertaintyInput {
   differential_diagnoses: Diagnosis[];
   suggested_labs?: Array<{ test_name: string; priority?: string }>;
   guideline_sources?: string[];
-  guideline_recommendations?: Array<{ authority?: string; evidence_level?: string }>;
+  guideline_recommendations?: Array<{ authority?: string; evidence_level?: string; guideline_name?: string }>;
+  evidence_citations?: Array<{ source?: string; title?: string }>;
+  pubmed_citations?: any[];
   safety_flags?: string[];
   safety_score?: number;
   medical_history?: string[];
@@ -58,6 +64,7 @@ interface UncertaintyInput {
   allergies?: string[];
   matched_symptoms?: string[];
   unmatched_symptoms?: string[];
+  dangerous_diagnoses?: any[];
 }
 
 serve(async (req) => {
@@ -72,107 +79,172 @@ serve(async (req) => {
     const suggestedLabs = input.suggested_labs || [];
     const guidelineSources = input.guideline_sources || [];
     const guidelineRecs = input.guideline_recommendations || [];
+    const evidenceCitations = input.evidence_citations || input.pubmed_citations || [];
     const safetyFlags = input.safety_flags || [];
     const matchedSymptoms = input.matched_symptoms || [];
     const unmatchedSymptoms = input.unmatched_symptoms || [];
     const vitals = input.vitals || {};
+    const dangerousDx = input.dangerous_diagnoses || [];
 
-    // ─── 1. Symptom match score ───────────────────────────
+    // ═══════════════════════════════════════════════════════
+    // COMPONENT 1: Graph Support (0.35)
+    // How well do the patient's symptoms map to the knowledge graph?
+    // ═══════════════════════════════════════════════════════
     const totalSymptoms = symptoms.length || 1;
-    const matchedCount = matchedSymptoms.length || Math.min(symptoms.length, diagnoses.length > 0 ? symptoms.length : 0);
-    const symptom_match_score = matchedCount / totalSymptoms;
+    const matchedCount = matchedSymptoms.length || 0;
+    const symptomMatchRatio = matchedCount / totalSymptoms;
 
-    // ─── 2. Vital support score ───────────────────────────
-    let vital_support_score = 0;
-    const vitalKeys = Object.keys(vitals).filter(k => vitals[k] != null);
-    const expectedVitals = ["temperature", "spo2", "pulse", "bp", "bp_systolic", "bp_diastolic"];
-    const presentVitals = expectedVitals.filter(v => vitals[v] != null);
-    vital_support_score = presentVitals.length / Math.max(expectedVitals.length, 1);
-
-    // ─── 3. Guideline strength score ──────────────────────
-    let guideline_score = 0;
-    if (guidelineSources.length > 0 || guidelineRecs.length > 0) {
-      const sources = guidelineSources.length > 0 ? guidelineSources : guidelineRecs.map(g => g.authority || "");
-      const strengths = sources
-        .map(s => AUTHORITY_STRENGTH[s.toUpperCase()] || 0.5)
-        .filter(s => s > 0);
-      guideline_score = strengths.length > 0
-        ? strengths.reduce((a, b) => a + b, 0) / strengths.length
-        : 0;
-    }
-
-    // ─── 4. Lab confirmation score ────────────────────────
-    // Higher if labs are available that can confirm top diagnoses
-    const lab_confirmation_score = suggestedLabs.length > 0
-      ? Math.min(suggestedLabs.length / 3, 1) * 0.5  // Labs suggested but not yet confirmed = partial
+    // Top diagnosis probability as a signal of graph confidence
+    const topDxProbability = diagnoses.length > 0
+      ? (diagnoses[0].probability || 0) / 100
       : 0;
 
-    // ─── 5. Missing data detection ────────────────────────
-    const missing_evidence: string[] = [];
-    if (!vitals.temperature && !vitals.temp) missing_evidence.push("Temperature not recorded");
-    if (!vitals.spo2) missing_evidence.push("SpO2 not recorded");
-    if (!vitals.pulse) missing_evidence.push("Pulse not recorded");
-    if (!vitals.bp && !vitals.bp_systolic) missing_evidence.push("Blood pressure not recorded");
-    if (!input.medical_history?.length) missing_evidence.push("Medical history not provided");
-    if (!input.allergies?.length) missing_evidence.push("Allergy information not provided");
-    if (!input.current_medications?.length) missing_evidence.push("Current medications not listed");
-    if (unmatchedSymptoms.length > 0) missing_evidence.push(`${unmatchedSymptoms.length} symptom(s) not mapped in knowledge graph`);
-    if (suggestedLabs.length > 0) {
-      const highPriorityLabs = suggestedLabs.filter(l => l.priority === "essential" || l.priority === "high");
-      if (highPriorityLabs.length > 0) {
-        missing_evidence.push(`Lab confirmation needed: ${highPriorityLabs.map(l => l.test_name).join(", ")}`);
-      }
-    }
-    if (guidelineSources.length === 0 && guidelineRecs.length === 0) {
-      missing_evidence.push("No guideline sources matched");
+    // Diagnosis count signal: having multiple plausible diagnoses = good graph coverage
+    const dxCountSignal = Math.min(diagnoses.length / 3, 1.0);
+
+    // Weighted graph support: symptom match is primary, dx probability secondary
+    const graph_support = (symptomMatchRatio * 0.50) + (topDxProbability * 0.30) + (dxCountSignal * 0.20);
+
+    // ═══════════════════════════════════════════════════════
+    // COMPONENT 2: Evidence Support (0.25)
+    // Citations from medical literature, PubMed, evidence sources
+    // ═══════════════════════════════════════════════════════
+    let evidence_support = 0;
+
+    // Each citation adds credibility, up to a cap
+    const citationCount = evidenceCitations.length;
+    if (citationCount > 0) {
+      evidence_support = Math.min(citationCount / 3, 1.0); // 3+ citations = full score
     }
 
-    const missing_data_penalty_score = Math.min(missing_evidence.length * 0.08, 1);
-
-    // ─── 6. Conflict detection ────────────────────────────
-    let diagnostic_conflict = false;
-    const conflict_details: string[] = [];
-
-    // Check if top diagnoses have contradicting categories
-    if (diagnoses.length >= 2) {
-      const top = diagnoses[0];
-      const second = diagnoses[1];
-      const topProb = top.probability || (top.confidence ? top.confidence * 100 : 0);
-      const secondProb = second.probability || (second.confidence ? second.confidence * 100 : 0);
-      if (topProb > 0 && secondProb > 0 && (topProb - secondProb) < 15) {
-        diagnostic_conflict = true;
-        conflict_details.push(`Close differential: ${top.diagnosis_name || top.diagnosis} (${topProb}%) vs ${second.diagnosis_name || second.diagnosis} (${secondProb}%)`);
-      }
+    // If we have suggested labs that can differentiate, that's partial evidence
+    if (suggestedLabs.length > 0 && evidence_support < 1.0) {
+      const labBoost = Math.min(suggestedLabs.length / 4, 0.5);
+      evidence_support = Math.min(evidence_support + labBoost, 1.0);
     }
 
-    // Check if safety flags contradict treatment plan
-    if (safetyFlags.length > 0) {
-      diagnostic_conflict = true;
-      conflict_details.push(`${safetyFlags.length} safety flag(s) active`);
+    // Dangerous diagnosis detection counts as evidence strength
+    if (dangerousDx.length > 0) {
+      evidence_support = Math.min(evidence_support + 0.2, 1.0);
     }
 
-    const conflict_penalty_score = diagnostic_conflict ? Math.min(conflict_details.length * 0.15, 1) : 0;
+    // ═══════════════════════════════════════════════════════
+    // COMPONENT 3: Guideline Support (0.20)
+    // Authoritative clinical guidelines backing the recommendation
+    // ═══════════════════════════════════════════════════════
+    let guideline_support = 0;
 
-    // ─── 7. Safety risk adjustment ────────────────────────
-    const safety_penalty = safetyFlags.length > 0 ? Math.min(safetyFlags.length * 0.10, 0.30) : 0;
+    const allAuthorities = [
+      ...guidelineSources,
+      ...guidelineRecs.map(g => g.authority || g.guideline_name || ""),
+    ].filter(Boolean);
 
-    // ─── 8. Compute final confidence ──────────────────────
+    if (allAuthorities.length > 0) {
+      // Map each authority to its strength
+      const strengths = allAuthorities.map(s => {
+        const upper = s.toUpperCase();
+        // Check for partial matches (e.g., "AHA/ACC STEMI Guidelines" → AHA)
+        for (const [key, val] of Object.entries(AUTHORITY_STRENGTH)) {
+          if (upper.includes(key)) return val;
+        }
+        return 0.5; // Unknown authority still counts
+      });
+
+      // Use max authority strength (strongest guideline matters most)
+      const maxStrength = Math.max(...strengths);
+      // Coverage: how many guidelines matched
+      const coverageBonus = Math.min((strengths.length - 1) * 0.1, 0.2);
+
+      guideline_support = Math.min(maxStrength + coverageBonus, 1.0);
+    }
+
+    // Evidence level boost (A > B > C)
+    const evidenceLevels = guidelineRecs
+      .map(g => (g.evidence_level || "").toUpperCase())
+      .filter(Boolean);
+    if (evidenceLevels.includes("A")) {
+      guideline_support = Math.min(guideline_support + 0.1, 1.0);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // COMPONENT 4: Data Completeness (0.20)
+    // Presence of vitals, labs, history, allergies
+    // ═══════════════════════════════════════════════════════
+    let completenessChecks = 0;
+    let completenessTotal = 0;
+
+    // Vitals (5 checks)
+    const vitalChecks = ["temperature", "spo2", "pulse", "bp_systolic", "respiratory_rate"];
+    for (const v of vitalChecks) {
+      completenessTotal++;
+      if (vitals[v] != null) completenessChecks++;
+    }
+
+    // History
+    completenessTotal++;
+    if (input.medical_history && input.medical_history.length > 0) completenessChecks++;
+
+    // Allergies
+    completenessTotal++;
+    if (input.allergies && input.allergies.length > 0) completenessChecks++;
+
+    // Current medications
+    completenessTotal++;
+    if (input.current_medications && input.current_medications.length > 0) completenessChecks++;
+
+    // Symptoms provided
+    completenessTotal++;
+    if (symptoms.length > 0) completenessChecks++;
+
+    const data_completeness = completenessChecks / completenessTotal;
+
+    // ═══════════════════════════════════════════════════════
+    // FINAL CONFIDENCE SCORE
+    // ═══════════════════════════════════════════════════════
     let confidence_score =
-      (WEIGHTS.symptom_match * symptom_match_score) +
-      (WEIGHTS.vital_support * vital_support_score) +
-      (WEIGHTS.guideline_strength * guideline_score) +
-      (WEIGHTS.lab_confirmation * lab_confirmation_score) -
-      (WEIGHTS.missing_data_penalty * missing_data_penalty_score) -
-      (WEIGHTS.conflict_penalty * conflict_penalty_score) -
-      safety_penalty;
+      (WEIGHTS.graph_support * graph_support) +
+      (WEIGHTS.evidence_support * evidence_support) +
+      (WEIGHTS.guideline_support * guideline_support) +
+      (WEIGHTS.data_completeness * data_completeness);
 
-    // Clamp 0–1
+    // Clamp and round
     confidence_score = Math.max(0, Math.min(1, confidence_score));
     confidence_score = Math.round(confidence_score * 100) / 100;
 
     const confidence_label = classifyConfidence(confidence_score);
 
-    // ─── 9. Build output ──────────────────────────────────
+    // ─── Missing evidence gaps ────────────────────────────
+    const missing_evidence: string[] = [];
+    if (matchedCount === 0 && symptoms.length > 0) missing_evidence.push("No symptoms matched in knowledge graph");
+    if (unmatchedSymptoms.length > 0) missing_evidence.push(`${unmatchedSymptoms.length} symptom(s) not mapped in knowledge graph`);
+    if (!vitals.temperature) missing_evidence.push("Temperature not recorded");
+    if (!vitals.spo2) missing_evidence.push("SpO2 not recorded");
+    if (!vitals.pulse) missing_evidence.push("Pulse not recorded");
+    if (!vitals.bp_systolic) missing_evidence.push("Blood pressure not recorded");
+    if (!input.medical_history?.length) missing_evidence.push("Medical history not provided");
+    if (!input.allergies?.length) missing_evidence.push("Allergy information not provided");
+    if (citationCount === 0) missing_evidence.push("No evidence citations available");
+    if (allAuthorities.length === 0) missing_evidence.push("No guideline sources matched");
+
+    // ─── Diagnostic conflict detection ────────────────────
+    let diagnostic_conflict = false;
+    const conflict_details: string[] = [];
+    if (diagnoses.length >= 2) {
+      const topProb = diagnoses[0].probability || 0;
+      const secondProb = diagnoses[1].probability || 0;
+      if (topProb > 0 && secondProb > 0 && (topProb - secondProb) < 15) {
+        diagnostic_conflict = true;
+        conflict_details.push(
+          `Close differential: ${diagnoses[0].diagnosis_name || diagnoses[0].diagnosis} (${topProb}%) vs ${diagnoses[1].diagnosis_name || diagnoses[1].diagnosis} (${secondProb}%)`
+        );
+      }
+    }
+    if (safetyFlags.length > 0) {
+      diagnostic_conflict = true;
+      conflict_details.push(`${safetyFlags.length} safety flag(s) active`);
+    }
+
+    // ─── Build output ─────────────────────────────────────
     const topDiagnosis = diagnoses[0];
     const mustNotMiss = diagnoses.filter(d => d.must_not_miss).map(d => d.diagnosis_name || d.diagnosis || "");
 
@@ -188,16 +260,13 @@ serve(async (req) => {
       missing_evidence,
       diagnostic_conflict,
       conflict_details,
-      guideline_sources: guidelineSources,
+      guideline_sources: allAuthorities,
       safety_flags: safetyFlags,
       scoring_breakdown: {
-        symptom_match: Math.round(symptom_match_score * 100) / 100,
-        vital_support: Math.round(vital_support_score * 100) / 100,
-        guideline_strength: Math.round(guideline_score * 100) / 100,
-        lab_confirmation: Math.round(lab_confirmation_score * 100) / 100,
-        missing_data_penalty: Math.round(missing_data_penalty_score * 100) / 100,
-        conflict_penalty: Math.round(conflict_penalty_score * 100) / 100,
-        safety_penalty: Math.round(safety_penalty * 100) / 100,
+        graph_support: Math.round(graph_support * 100) / 100,
+        evidence_support: Math.round(evidence_support * 100) / 100,
+        guideline_support: Math.round(guideline_support * 100) / 100,
+        data_completeness: Math.round(data_completeness * 100) / 100,
       },
       execution_ms: Math.round(performance.now() - startMs),
     };
