@@ -371,6 +371,17 @@ Deno.serve(async (req) => {
     }
 
     // Final selection: top 4 by probability + up to 2 must-not-miss
+    // If physiological context provides candidate IDs, boost those diagnoses
+    if (physioFilter.length > 0) {
+      for (const d of bayesianScores) {
+        if (physioFilter.includes(d.diagnosis_id)) {
+          d.probability = Math.min(100, Math.round(d.probability * 1.2));
+        }
+      }
+      // Re-sort after boost
+      bayesianScores.sort((a, b) => b.probability - a.probability);
+    }
+
     const topByProb = bayesianScores.filter(d => !d.must_not_miss).slice(0, 4);
     const mustNotMiss = bayesianScores.filter(d => d.must_not_miss).slice(0, 3);
     const finalDifferential = [...topByProb, ...mustNotMiss]
