@@ -105,3 +105,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.bias-monitoring]
     verify_jwt = false
+  [functions.generate-physiological-context]
+    verify_jwt = false
