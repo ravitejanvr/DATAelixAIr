@@ -8,8 +8,9 @@
  *   2. run_ddx_engine()       → Structured Differential Diagnosis (graph traversal)
  *   3. generate_hypotheses()  → AI Hypothesis Engine (augmented by DDX)
  *   4. [PARALLEL] retrieve_evidence() + evaluate_guidelines() + oversight_report()
+ *   5. hybrid_reasoning()     → Fused symbolic + probabilistic + neural reasoning
  *
- * Target latency: < 8 seconds.
+ * Target latency: < 12 seconds.
  */
 
 import { isNewPipelineEnabled } from "@/services/feature_flags";
@@ -32,6 +33,7 @@ import { queryEvidence, type EvidenceQueryResult } from "@/services/knowledge_in
 import { getCached, setCache } from "@/services/knowledge_cache";
 import { runDDXEngine, type DDXResult } from "@/services/ddx_engine/client";
 import { runUncertaintyEngine, type UncertaintyResult } from "@/services/uncertainty_engine/client";
+import { runHybridReasoning, type HybridReasoningResult } from "@/services/reasoning_engine/client";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PipelineInput {
@@ -57,6 +59,7 @@ export interface PipelineResult {
   guideline_alignment: GuidelineAlignmentResult | null;
   evidence: EvidenceQueryResult | null;
   oversight: OversightReport | null;
+  hybrid_reasoning: HybridReasoningResult | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
