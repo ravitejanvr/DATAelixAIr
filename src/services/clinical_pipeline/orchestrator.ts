@@ -122,7 +122,7 @@ export async function runClinicalPipeline(
   const cacheStats = { reasoning_hit: false, preindexed_hit: false, evidence_hit: false, guideline_hit: false };
 
   const emptyResult: PipelineResult = {
-    enabled: false, enriched_context: null, ddx: null, uncertainty: null,
+    enabled: false, enriched_context: null, physiological_context: null, ddx: null, uncertainty: null,
     hypotheses: null, guideline_alignment: null, evidence: null, oversight: null,
     hybrid_reasoning: null, multi_agent: null, guideline_summary: null,
     logs: [], stage_latencies: {}, total_latency_ms: 0, cache_stats: cacheStats,
