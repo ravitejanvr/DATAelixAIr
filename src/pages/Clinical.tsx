@@ -1050,6 +1050,7 @@ export default function Clinical() {
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedAdvice([]);
     setSelectedInstructions([]);
     setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
+    setPipelinePhysiology(null); setPipelineBayesian(null);
     setPipelineStage(null); setStageLatencies({});
   };
 
