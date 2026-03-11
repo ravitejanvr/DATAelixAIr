@@ -13,10 +13,11 @@ import {
   Building2, Users, FileText, Check, X, Loader2, ShieldAlert, Ban,
   Activity, TrendingUp, Clock, AlertTriangle, CheckCircle, XCircle, Zap,
   Shield, Cpu, Lock, Eye, UserCheck, UserX, MessageSquare, Flag,
-  BarChart3, Mail, Phone, MapPin, BookOpen, Lightbulb
+  BarChart3, Mail, Phone, MapPin, BookOpen, Lightbulb, Database
 } from "lucide-react";
 import AdminArticleEditor from "@/components/blog/AdminArticleEditor";
 import InnovationDashboard from "@/components/admin/InnovationDashboard";
+import TerminologyAdmin from "@/pages/TerminologyAdmin";
 import type { MonitoringDashboardData } from "@/layers/monitoring/api";
 import { fetchMonitoringDashboard } from "@/layers/monitoring/api";
 import { MODEL_REGISTRY, DATA_ACCESS_MATRIX, ROLE_LABELS } from "@/layers/governance/api";
@@ -110,7 +111,7 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
-type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation";
+type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation" | "terminology";
 
 const getTabFromPath = (pathname: string): AdminTab => {
   const tabSegment = pathname.split("/")[2];
@@ -122,6 +123,7 @@ const getTabFromPath = (pathname: string): AdminTab => {
   if (tabSegment === "safety") return "safety";
   if (tabSegment === "articles") return "articles";
   if (tabSegment === "innovation") return "innovation";
+  if (tabSegment === "terminology") return "terminology";
   return "pilots";
 };
 
@@ -337,6 +339,7 @@ export default function PlatformAdmin() {
             <TabsTrigger value="audit"><FileText className="h-3.5 w-3.5 mr-1" /> Audit</TabsTrigger>
             <TabsTrigger value="articles"><BookOpen className="h-3.5 w-3.5 mr-1" /> Articles</TabsTrigger>
             <TabsTrigger value="innovation"><Lightbulb className="h-3.5 w-3.5 mr-1" /> Innovation</TabsTrigger>
+            <TabsTrigger value="terminology"><Database className="h-3.5 w-3.5 mr-1" /> Terminology</TabsTrigger>
           </TabsList>
 
           {/* Pilots Tab */}
@@ -630,6 +633,11 @@ export default function PlatformAdmin() {
           {/* Innovation Tab */}
           <TabsContent value="innovation" className="mt-4">
             <InnovationDashboard />
+          </TabsContent>
+
+          {/* Terminology Tab */}
+          <TabsContent value="terminology" className="mt-4">
+            <TerminologyAdmin />
           </TabsContent>
         </Tabs>
       </div>
