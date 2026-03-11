@@ -61,6 +61,7 @@ export interface PipelineResult {
   evidence: EvidenceQueryResult | null;
   oversight: OversightReport | null;
   hybrid_reasoning: HybridReasoningResult | null;
+  multi_agent: OrchestratorResponse | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
