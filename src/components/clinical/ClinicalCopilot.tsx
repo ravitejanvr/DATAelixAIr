@@ -278,6 +278,7 @@ export default function ClinicalCopilot({
 
   const PIPELINE_STAGES = [
     { key: "context", label: "Context", icon: Target },
+    { key: "physiology", label: "Physiology", icon: Activity },
     { key: "ddx", label: "DDX", icon: Brain },
     { key: "evidence", label: "Evidence", icon: BookOpen },
     { key: "hypotheses", label: "Diagnoses", icon: Brain },
