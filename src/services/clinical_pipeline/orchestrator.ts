@@ -119,6 +119,7 @@ export async function runClinicalPipeline(
       evidence: null,
       oversight: null,
       hybrid_reasoning: null,
+      multi_agent: null,
       guideline_summary: null,
       logs: [],
       stage_latencies: {},
