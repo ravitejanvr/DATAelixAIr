@@ -99,20 +99,60 @@ export default function AiPipelineTest() {
   const runV3Benchmark = async () => {
     setV3Loading(true);
     setV3Results(null);
-    setV3Progress(10);
-    try {
-      const { data, error } = await supabase.functions.invoke("run-clinical-benchmark-suite", {
-        body: { benchmark_version: "benchmark_v4_full_reasoning" },
-      });
-      if (error) throw error;
-      setV3Results(data);
-      setV3Progress(100);
-      toast.success(`Benchmark v3 complete: ${data.summary?.passed}/${data.summary?.total_tests} passed`);
-    } catch (e: any) {
-      toast.error(e.message || "Benchmark failed");
-    } finally {
-      setV3Loading(false);
+    setV3Progress(0);
+    const totalTests = 8;
+    const allResults: any[] = [];
+    let passed = 0;
+    let failed = 0;
+    let errors = 0;
+
+    for (let i = 0; i < totalTests; i++) {
+      setV3Progress(Math.round(((i) / totalTests) * 100));
+      try {
+        const { data, error } = await supabase.functions.invoke("run-clinical-benchmark-suite", {
+          body: { benchmark_version: "benchmark_v4_full_reasoning", test_indices: [i] },
+        });
+        if (error) {
+          errors++;
+          allResults.push({ test_case: `Test ${i + 1}`, error: error.message, passed: false, failure_reasons: [error.message] });
+          continue;
+        }
+        const testResult = data?.results?.[0];
+        if (testResult) {
+          allResults.push(testResult);
+          if (testResult.passed) passed++;
+          else failed++;
+        } else {
+          errors++;
+          allResults.push({ test_case: `Test ${i + 1}`, error: "No result returned", passed: false, failure_reasons: ["No result"] });
+        }
+      } catch (e: any) {
+        errors++;
+        allResults.push({ test_case: `Test ${i + 1}`, error: e.message, passed: false, failure_reasons: [e.message] });
+      }
     }
+
+    setV3Progress(100);
+
+    // Build aggregate summary
+    const successful = allResults.filter(r => !r.error);
+    const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+    const summary = {
+      benchmark_version: "benchmark_v4_full_reasoning",
+      total_tests: totalTests,
+      passed,
+      failed,
+      errors,
+      avg_diagnosis_agreement: avg(successful.map(r => r.diagnosis_agreement ?? 0)),
+      avg_lab_agreement: avg(successful.map(r => r.lab_agreement ?? 0)),
+      avg_medication_agreement: avg(successful.map(r => r.medication_agreement ?? 0)),
+      avg_guideline_citations: avg(successful.map(r => r.guideline_citations ?? 0)),
+      avg_latency_ms: avg(successful.map(r => r.latency_ms ?? 0)),
+    };
+
+    setV3Results({ summary, results: allResults });
+    toast.success(`Benchmark v3 complete: ${passed}/${totalTests} passed`);
+    setV3Loading(false);
   };
 
   const runComparison = async () => {
