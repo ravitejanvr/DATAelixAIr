@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { SafetyResults } from "@/layers/safety/api";
 import type { EvidenceData } from "@/layers/evidence/api";
+import type { MedicationValidationResult, MedicationWarning } from "@/services/medication_intelligence/client";
+import { sortWarnings, safetyScoreColor } from "@/services/medication_intelligence/client";
 
 interface GuidelineMatch {
   guideline_id: string;
@@ -88,6 +90,8 @@ interface ClinicalCopilotProps {
   pipelineStage?: string | null;
   /** Per-stage latency map */
   stageLatencies?: Record<string, number>;
+  /** Medication intelligence validation results */
+  medicationValidation?: MedicationValidationResult | null;
 }
 
 const fadeIn = {
@@ -143,6 +147,7 @@ export default function ClinicalCopilot({
   clinicId,
   pipelineStage,
   stageLatencies,
+  medicationValidation,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -429,7 +434,78 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Instructions to Patients */}
+      {/* Medication Intelligence Panel */}
+      {medicationValidation && medicationValidation.warnings.length > 0 && (
+        <motion.div {...fadeIn}>
+          <ClinicalCard className={`p-2.5 ${medicationValidation.summary.critical_warnings > 0 ? "border-destructive/40" : "border-amber-400/30"}`}>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+              <Pill className="h-3 w-3 text-chip-medication-text" /> Medication Intelligence
+              <Badge variant={medicationValidation.summary.critical_warnings > 0 ? "destructive" : "outline"} className="text-[9px] ml-auto">
+                {medicationValidation.summary.total_warnings} alert{medicationValidation.summary.total_warnings !== 1 ? "s" : ""}
+              </Badge>
+              <Badge variant="outline" className={`text-[9px] ${safetyScoreColor(medicationValidation.summary.safety_score)}`}>
+                Safety: {medicationValidation.summary.safety_score}%
+              </Badge>
+            </p>
+            <div className="space-y-1">
+              {sortWarnings(medicationValidation.warnings).map((w, i) => {
+                const isAllergy = w.type === "allergy";
+                const isCritical = w.severity === "critical";
+                const isInteraction = w.type === "interaction";
+                const isPediatric = w.type === "pediatric_dose";
+                const bgClass = isCritical
+                  ? "bg-destructive/10 border-destructive/30"
+                  : w.severity === "high"
+                  ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+                  : "bg-muted border-border";
+                const textClass = isCritical
+                  ? "text-destructive"
+                  : w.severity === "high"
+                  ? "text-amber-700 dark:text-amber-400"
+                  : "text-muted-foreground";
+
+                return (
+                  <div key={i} className={`flex items-start gap-1.5 text-xs p-1.5 rounded border ${bgClass}`}>
+                    {isAllergy ? (
+                      <AlertTriangle className={`h-3 w-3 shrink-0 mt-0.5 ${textClass}`} />
+                    ) : isInteraction ? (
+                      <Shield className={`h-3 w-3 shrink-0 mt-0.5 ${textClass}`} />
+                    ) : isPediatric ? (
+                      <Target className={`h-3 w-3 shrink-0 mt-0.5 ${textClass}`} />
+                    ) : (
+                      <AlertTriangle className={`h-3 w-3 shrink-0 mt-0.5 ${textClass}`} />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <Badge variant="outline" className="text-[8px]">{w.type.replace(/_/g, " ")}</Badge>
+                        <Badge variant="outline" className={`text-[8px] ${isCritical ? "border-destructive/50 text-destructive" : ""}`}>
+                          {w.severity}
+                        </Badge>
+                      </div>
+                      <p className={`text-[10px] mt-0.5 ${textClass}`}>{w.message}</p>
+                      {w.details?.recommended_action && (
+                        <p className="text-[9px] mt-0.5 text-muted-foreground italic">
+                          Action: {String(w.details.recommended_action)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {medicationValidation.summary.is_pediatric && (
+              <p className="text-[8px] text-muted-foreground mt-1 italic flex items-center gap-1">
+                <Target className="h-2.5 w-2.5" /> Pediatric dose validation active
+              </p>
+            )}
+            <p className="text-[8px] text-muted-foreground mt-1 italic">
+              Validated in {medicationValidation.summary.validation_ms}ms. Clinical judgment required.
+            </p>
+          </ClinicalCard>
+        </motion.div>
+      )}
+
+
       {instructions.length > 0 && (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
