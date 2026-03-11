@@ -249,15 +249,16 @@ Deno.serve(async (req) => {
     // STEP 3: DANGEROUS DIAGNOSIS INJECTION
     // ════════════════════════════════════════════════════
     let dangerousInjected = 0;
+    const dangerousDiagnosisDetails: any[] = []; // collect for output
     try {
       const { data: dangerousRows } = await supabase
         .from("dangerous_diagnoses")
         .select("*, diagnoses(id, diagnosis_name, icd10_code, category)")
+        .eq("must_not_miss", true)
         .order("priority", { ascending: true });
 
       if (dangerousRows) {
         for (const row of dangerousRows) {
-          if (dangerousInjected >= 2) break;
           const trigger = row.trigger_symptom.toLowerCase();
           const matched = normalizedSymptoms.some(
             (s: string) => s.includes(trigger) || trigger.includes(s)
@@ -272,6 +273,9 @@ Deno.serve(async (req) => {
           );
           if (existingIdx >= 0) {
             scoredDiagnoses[existingIdx].must_not_miss = true;
+            scoredDiagnoses[existingIdx].emergency_protocol = row.emergency_protocol;
+            scoredDiagnoses[existingIdx].guideline_source = row.guideline_source;
+            scoredDiagnoses[existingIdx].severity_level = row.severity_level;
           } else {
             scoredDiagnoses.push({
               diagnosis_id: diagInfo.id,
@@ -282,8 +286,24 @@ Deno.serve(async (req) => {
               supporting_symptoms: [row.trigger_symptom],
               symptom_coverage: `trigger:${row.trigger_symptom}`,
               must_not_miss: true,
+              emergency_protocol: row.emergency_protocol,
+              guideline_source: row.guideline_source,
+              severity_level: row.severity_level,
             });
             dangerousInjected++;
+          }
+
+          // Track for output (deduplicate by diagnosis_id)
+          if (!dangerousDiagnosisDetails.find((d: any) => d.diagnosis_id === diagInfo.id)) {
+            dangerousDiagnosisDetails.push({
+              diagnosis_id: diagInfo.id,
+              diagnosis_name: row.diagnosis_name || diagInfo.diagnosis_name,
+              severity_level: row.severity_level,
+              must_not_miss: true,
+              emergency_protocol: row.emergency_protocol,
+              guideline_source: row.guideline_source,
+              trigger_symptom: row.trigger_symptom,
+            });
           }
         }
       }
@@ -538,13 +558,15 @@ Deno.serve(async (req) => {
       recommended_labs: recommendedLabs,
       suggested_medications: suggestedMedications,
       guideline_recommendations: guidelineRecommendations,
+      dangerous_diagnoses: dangerousDiagnosisDetails,
       matched_symptoms: matchedSymptoms?.map((s: any) => s.symptom_name) || [],
       unmatched_symptoms: normalizedSymptoms.filter(
         (s: string) => !matchedSymptoms?.some((ms: any) => ms.symptom_name === s)
       ),
       dangerous_diagnoses_injected: dangerousInjected,
+      must_not_miss_count: dangerousDiagnosisDetails.length,
       execution_ms: duration_ms,
-      source: "ddx_engine_v1",
+      source: "ddx_engine_v2",
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

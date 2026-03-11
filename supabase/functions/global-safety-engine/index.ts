@@ -731,6 +731,60 @@ function createOutcomeTracking(context: ConsultationContext): OutcomeTracking {
 }
 
 // ============================================================
+// Module 6: Must-Not-Miss Dangerous Diagnosis Detection
+// ============================================================
+async function detectMustNotMissDiagnoses(
+  supabaseAdmin: any,
+  context: ConsultationContext
+): Promise<ClinicalAlert[]> {
+  const alerts: ClinicalAlert[] = [];
+  const symptoms = normalizeSymptoms(context);
+  const diagnosis = (context.diagnosis || context.soap_assessment || "").toLowerCase();
+
+  try {
+    const { data: dangerousRows } = await supabaseAdmin
+      .from("dangerous_diagnoses")
+      .select("diagnosis_name, severity_level, must_not_miss, emergency_protocol, guideline_source, trigger_symptom")
+      .eq("must_not_miss", true);
+
+    if (!dangerousRows || dangerousRows.length === 0) return alerts;
+
+    // Deduplicate by diagnosis_name
+    const seen = new Set<string>();
+    for (const row of dangerousRows) {
+      const dxName = (row.diagnosis_name || "").toLowerCase();
+      if (seen.has(dxName)) continue;
+
+      const trigger = row.trigger_symptom.toLowerCase();
+      const symptomMatch = symptoms.some(
+        (s) => s.includes(trigger) || trigger.includes(s)
+      );
+      if (!symptomMatch) continue;
+
+      // Check if this dangerous diagnosis is NOT in the current assessment
+      const addressedInDiagnosis = diagnosis.includes(dxName);
+
+      seen.add(dxName);
+      alerts.push({
+        alert_type: "emergency",
+        severity: "critical",
+        category: "must_not_miss",
+        title: `MUST NOT MISS: ${row.diagnosis_name}`,
+        message: addressedInDiagnosis
+          ? `Must-not-miss diagnosis "${row.diagnosis_name}" is present and addressed. Protocol: ${row.emergency_protocol || "Follow standard emergency protocol."}`
+          : `Must-not-miss diagnosis "${row.diagnosis_name}" triggered by symptom "${row.trigger_symptom}" but may not be addressed in current assessment. Protocol: ${row.emergency_protocol || "Follow standard emergency protocol."}`,
+        matched_indicators: [row.trigger_symptom],
+        action_hint: row.emergency_protocol || `Review ${row.guideline_source || "clinical guidelines"} for ${row.diagnosis_name}.`,
+      });
+    }
+  } catch (e) {
+    console.error("[SafetyEngine] Must-not-miss lookup failed:", e);
+  }
+
+  return alerts;
+}
+
+// ============================================================
 // Main Handler
 // ============================================================
 Deno.serve(async (req) => {
@@ -761,6 +815,11 @@ Deno.serve(async (req) => {
 
     // Run all safety modules
     const clinicalAlerts = detectClinicalRisks(context, riskPatterns || []);
+
+    // Module: Must-Not-Miss Dangerous Diagnosis Detection
+    const mustNotMissAlerts = await detectMustNotMissDiagnoses(supabaseAdmin, context);
+    clinicalAlerts.push(...mustNotMissAlerts);
+
     const medicationAlerts = await checkMedicationSafety(context);
     const diagnosticFlags = checkDiagnosticConsistency(context);
     const populationSignal = await checkPopulationPatterns(supabaseAdmin, context);
