@@ -281,16 +281,16 @@ export default function ClinicalCopilot({
   const hasHypotheses = hypotheses && hypotheses.length > 0;
 
   const PIPELINE_STAGES = [
-    { key: "context", label: "Context", icon: Target },
-    { key: "physiology", label: "Physiology", icon: Activity },
-    { key: "ddx", label: "DDX", icon: Brain },
-    { key: "bayesian", label: "Bayesian", icon: TrendingUp },
-    { key: "evidence", label: "Evidence", icon: BookOpen },
-    { key: "hypotheses", label: "Diagnoses", icon: Brain },
-    { key: "guidelines", label: "Guidelines", icon: Scale },
-    { key: "safety", label: "Safety", icon: Shield },
-    { key: "uncertainty", label: "Confidence", icon: Target },
-    { key: "reasoning", label: "Reasoning", icon: Zap },
+    { key: "context", label: "W1: Context", icon: Target },
+    { key: "physiology", label: "W2: Physiology", icon: Activity },
+    { key: "ddx", label: "W2: DDX", icon: Brain },
+    { key: "evidence", label: "W2: Evidence", icon: BookOpen },
+    { key: "bayesian", label: "W3: Bayesian", icon: TrendingUp },
+    { key: "guidelines", label: "W3: Guidelines", icon: Scale },
+    { key: "hypotheses", label: "W3: Diagnoses", icon: Brain },
+    { key: "safety", label: "W4: Safety", icon: Shield },
+    { key: "uncertainty", label: "W5: Confidence", icon: Target },
+    { key: "reasoning", label: "W5: Reasoning", icon: Zap },
   ];
 
   const stageIndex = pipelineStage ? PIPELINE_STAGES.findIndex(s => s.key === pipelineStage) : -1;
