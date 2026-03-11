@@ -295,6 +295,8 @@ export default function Clinical() {
   const [pipelineCompliance, setPipelineCompliance] = useState<PipelineCompliance | null>(null);
   const [pipelineStage, setPipelineStage] = useState<string | null>(null);
   const [stageLatencies, setStageLatencies] = useState<Record<string, number>>({});
+  const [pipelinePhysiology, setPipelinePhysiology] = useState<any>(null);
+  const [pipelineBayesian, setPipelineBayesian] = useState<any>(null);
 
   // Consultation summary & copilot selections
   const [consultationSummary, setConsultationSummary] = useState("");
