@@ -1,8 +1,7 @@
 /**
- * DDX Engine — Client Service
+ * DDX Engine v3 — Client Service
  *
- * Invokes the ddx-engine edge function to produce structured
- * differential diagnoses from patient context.
+ * Invokes the Bayesian DDX engine for structured differential diagnosis.
  * Gated by USE_DDX_ENGINE feature flag.
  */
 
@@ -16,8 +15,12 @@ export interface DDXDiagnosis {
   category: string;
   probability: number;
   supporting_symptoms: string[];
+  contradicting_factors: string[];
   symptom_coverage: string;
   must_not_miss: boolean;
+  emergency_protocol?: string;
+  severity_level?: string;
+  guideline_source?: string;
 }
 
 export interface DDXLabRecommendation {
@@ -46,6 +49,8 @@ export interface DDXGuideline {
   evidence_level: string;
   treatment: string;
   for_diagnosis: string;
+  source?: string;
+  guideline_url?: string;
 }
 
 export interface DDXResult {
@@ -53,11 +58,28 @@ export interface DDXResult {
   recommended_labs: DDXLabRecommendation[];
   suggested_medications: DDXMedication[];
   guideline_recommendations: DDXGuideline[];
+  dangerous_diagnoses: Array<{
+    diagnosis_id: string;
+    diagnosis_name: string;
+    severity_level: string;
+    must_not_miss: boolean;
+    emergency_protocol: string;
+    trigger_symptom: string;
+  }>;
   matched_symptoms: string[];
   unmatched_symptoms: string[];
   dangerous_diagnoses_injected: number;
+  must_not_miss_count: number;
   execution_ms: number;
+  stage_latencies: {
+    symptom_resolution: number;
+    bayesian_scoring: number;
+    dangerous_injection: number;
+    enrichment: number;
+  };
+  bayesian_model: boolean;
   source: string;
+  graph_miss: boolean;
 }
 
 export interface DDXInput {
@@ -65,16 +87,18 @@ export interface DDXInput {
   vitals?: Record<string, any>;
   age?: number | null;
   sex?: string | null;
+  weight_kg?: number | null;
   medical_history?: string[];
   current_medications?: string[];
   allergies?: string[];
   risk_factors?: string[];
   visit_id?: string | null;
   clinic_id?: string | null;
+  cco_id?: string | null;
 }
 
 /**
- * Run the DDX engine. Returns null if disabled or on error.
+ * Run the Bayesian DDX engine. Returns null if disabled or on error.
  */
 export async function runDDXEngine(input: DDXInput): Promise<DDXResult | null> {
   if (!isDdxEngineEnabled()) {

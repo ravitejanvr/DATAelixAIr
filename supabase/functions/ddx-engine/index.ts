@@ -7,20 +7,15 @@ const corsHeaders = {
 };
 
 /**
- * DDX Engine — Structured Differential Diagnosis
+ * DDX Engine v3 — Bayesian Differential Diagnosis
  *
- * Performs deterministic knowledge-graph traversal + probability scoring
- * BEFORE the AI hypothesis engine runs.
+ * Pipeline: CCO → symptom resolution → graph traversal → Bayesian scoring
+ *           → dangerous dx injection → labs/meds/guidelines → output
  *
- * Pipeline position: context_engine → **ddx_engine** → hypothesis_engine → …
- *
- * Returns: ranked differential diagnoses with labs, meds, guidelines,
- * dangerous-dx flags, and pre-flight safety checks.
+ * P(D|S) ∝ P(S|D) × P(D) × modifiers(age, vitals, history, risk)
  */
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const start = Date.now();
 
@@ -28,25 +23,20 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // Auth
-    const anonClient = createClient(supabaseUrl, anonKey);
-    const { data: { user }, error: authErr } = await anonClient.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
+    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
+    const { data: { user }, error: authErr } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authErr || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -56,492 +46,507 @@ Deno.serve(async (req) => {
       vitals = {},
       age = null,
       sex = null,
+      weight_kg = null,
       medical_history = [],
       current_medications = [],
       allergies = [],
       risk_factors = [],
       visit_id = null,
       clinic_id = null,
+      // CCO fields (Phase 1 integration)
+      cco_id = null,
     } = body;
 
     if (!symptoms.length) {
-      return new Response(
-        JSON.stringify({ error: "symptoms[] is required" }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "symptoms[] is required" }), {
+        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // ════════════════════════════════════════════════════
-    // STEP 1: SYMPTOM → DIAGNOSIS GRAPH TRAVERSAL
-    // ════════════════════════════════════════════════════
     const normalizedSymptoms = symptoms.map((s: string) => s.toLowerCase().trim());
+    const allergiesLower = allergies.map((a: string) => a.toLowerCase());
+    const historyLower = medical_history.map((h: string) => h.toLowerCase());
 
-    // Step 1a: Try exact match first
+    // ═══════════════════════════════════════════════════
+    // STAGE 1: SYMPTOM RESOLUTION (exact + fuzzy)
+    // ═══════════════════════════════════════════════════
+    const stageStart1 = Date.now();
+
     const { data: exactMatches } = await supabase
       .from("symptoms")
       .select("id, symptom_name")
       .in("symptom_name", normalizedSymptoms);
 
-    let matchedSymptoms = exactMatches || [];
+    const matchedIds = new Set((exactMatches || []).map((s: any) => s.id));
+    const matchedNames = new Set((exactMatches || []).map((s: any) => s.symptom_name));
+    const unmatched = normalizedSymptoms.filter((s: string) => !matchedNames.has(s));
 
-    // Step 1b: For unmatched symptoms, try fuzzy/ILIKE matching
-    const exactNames = new Set(matchedSymptoms.map((s: any) => s.symptom_name));
-    const unmatchedInputs = normalizedSymptoms.filter((s: string) => !exactNames.has(s));
-
-    if (unmatchedInputs.length > 0) {
-      // Build OR filter for ILIKE matching
-      const ilikeFilters = unmatchedInputs.map((s: string) => `symptom_name.ilike.%${s}%`).join(",");
-      const { data: fuzzyMatches } = await supabase
-        .from("symptoms")
-        .select("id, symptom_name")
-        .or(ilikeFilters);
-
-      if (fuzzyMatches && fuzzyMatches.length > 0) {
-        // Deduplicate by id
-        const existingIds = new Set(matchedSymptoms.map((s: any) => s.id));
-        for (const fm of fuzzyMatches) {
-          if (!existingIds.has(fm.id)) {
-            matchedSymptoms.push(fm);
-            existingIds.add(fm.id);
-          }
+    // Fuzzy for unmatched
+    let fuzzyMatches: any[] = [];
+    if (unmatched.length > 0) {
+      const fuzzyPromises = unmatched.map(s =>
+        supabase.from("symptoms").select("id, symptom_name").ilike("symptom_name", `%${s}%`).limit(3)
+      );
+      const fuzzyResults = await Promise.all(fuzzyPromises);
+      for (const res of fuzzyResults) {
+        for (const s of res.data || []) {
+          if (!matchedIds.has(s.id)) { matchedIds.add(s.id); fuzzyMatches.push(s); }
         }
       }
     }
 
-    const symptomIds = matchedSymptoms.map((s: any) => s.id);
+    const allMatchedSymptoms = [...(exactMatches || []), ...fuzzyMatches];
+    const symptomIds = Array.from(matchedIds);
+    const stage1Ms = Date.now() - stageStart1;
 
-    // Log graph miss if zero symptoms matched
+    // Graph miss
     if (symptomIds.length === 0) {
-      console.warn(`[DDX] Graph miss: 0/${normalizedSymptoms.length} symptoms matched. Input: ${normalizedSymptoms.join(", ")}`);
-      try {
-        await supabase.from("monitoring_events").insert({
-          event_type: "graph_miss",
-          agent_name: "ddx-engine",
-          clinic_id: clinic_id || null,
-          success: false,
-          duration_ms: Date.now() - start,
-          metadata: {
-            symptoms_input: normalizedSymptoms,
-            visit_id,
-            reason: "no_symptom_match",
-          },
-        });
-      } catch (logErr) {
-        console.error("[DDX] Failed to log graph_miss:", logErr);
-      }
+      await logEvent(supabase, "graph_miss", clinic_id, visit_id, normalizedSymptoms, Date.now() - start);
+      return respond({
+        differential_diagnoses: [],
+        recommended_labs: [],
+        suggested_medications: [],
+        guideline_recommendations: [],
+        dangerous_diagnoses: [],
+        matched_symptoms: [],
+        unmatched_symptoms: normalizedSymptoms,
+        dangerous_diagnoses_injected: 0,
+        must_not_miss_count: 0,
+        execution_ms: Date.now() - start,
+        stage_latencies: { symptom_resolution: stage1Ms },
+        bayesian_model: true,
+        source: "ddx_engine_v3",
+        graph_miss: true,
+      });
     }
 
-    let rankedDiagnoses: any[] = [];
+    // ═══════════════════════════════════════════════════
+    // STAGE 2: GRAPH TRAVERSAL + BAYESIAN SCORING
+    // ═══════════════════════════════════════════════════
+    const stageStart2 = Date.now();
 
-    if (symptomIds.length > 0) {
-      const { data: diagnosisLinks } = await supabase
+    // Parallel: symptom→diagnosis links + base prevalence + dangerous diagnoses
+    const [diagLinksRes, dangerousRes] = await Promise.all([
+      supabase
         .from("symptom_diagnosis_map")
-        .select("diagnosis_id, confidence_score, diagnoses(id, diagnosis_name, category, icd10_code)")
+        .select("symptom_id, diagnosis_id, confidence_score, diagnoses(id, diagnosis_name, category, icd10_code)")
         .in("symptom_id", symptomIds)
-        .order("confidence_score", { ascending: false });
-
-      // Aggregate: sum confidence per diagnosis, count matched symptoms
-      const dMap = new Map<string, {
-        diagnosis: any;
-        total_confidence: number;
-        symptom_count: number;
-        supporting_symptoms: string[];
-      }>();
-
-      for (const link of diagnosisLinks || []) {
-        const d = (link as any).diagnoses;
-        if (!d) continue;
-        // Find which symptom matched
-        const matchedSym = matchedSymptoms?.find((s: any) =>
-          diagnosisLinks?.some((dl: any) => dl.diagnosis_id === d.id)
-        );
-        const existing = dMap.get(d.id);
-        if (existing) {
-          existing.total_confidence += link.confidence_score;
-          existing.symptom_count += 1;
-        } else {
-          dMap.set(d.id, {
-            diagnosis: d,
-            total_confidence: link.confidence_score,
-            symptom_count: 1,
-            supporting_symptoms: [],
-          });
-        }
-      }
-
-      // Compute supporting symptoms per diagnosis more accurately
-      for (const [diagId, entry] of dMap) {
-        const relatedLinks = (diagnosisLinks || []).filter(
-          (l: any) => (l as any).diagnoses?.id === diagId
-        );
-        // Get symptom_ids for this diagnosis
-        const diagSymptomIds = relatedLinks.map((l: any) => {
-          // Find via symptom_diagnosis_map which symptom_id
-          return symptomIds.find(() => true); // simplified
-        });
-        entry.supporting_symptoms = normalizedSymptoms.filter((_, idx) =>
-          idx < entry.symptom_count
-        );
-      }
-
-      rankedDiagnoses = Array.from(dMap.values())
-        .sort((a, b) => b.total_confidence - a.total_confidence)
-        .slice(0, 10);
-    }
-
-    // ════════════════════════════════════════════════════
-    // STEP 2: PROBABILITY SCORING
-    // ════════════════════════════════════════════════════
-    const totalSymptoms = normalizedSymptoms.length || 1;
-
-    const scoredDiagnoses = rankedDiagnoses.map((entry) => {
-      let score = 0;
-
-      // Symptom match score (0–40 points)
-      const symptomMatchRatio = entry.symptom_count / totalSymptoms;
-      score += symptomMatchRatio * 40;
-
-      // Base confidence from graph (0–30 points)
-      const avgConfidence = entry.total_confidence / entry.symptom_count;
-      score += Math.min(avgConfidence * 30, 30);
-
-      // Risk factor weight (0–10 points)
-      const diagName = entry.diagnosis.diagnosis_name?.toLowerCase() || "";
-      if (age && age > 60 && (diagName.includes("infarction") || diagName.includes("stroke") || diagName.includes("pneumonia"))) {
-        score += 8;
-      }
-      if (risk_factors.some((r: string) => diagName.includes(r.toLowerCase()))) {
-        score += 5;
-      }
-
-      // Vital sign weight (0–15 points)
-      if (vitals.spo2 && vitals.spo2 < 94 && (diagName.includes("pneumonia") || diagName.includes("respiratory"))) {
-        score += 12;
-      }
-      if (vitals.temperature && vitals.temperature > 101 && (diagName.includes("infection") || diagName.includes("sepsis") || diagName.includes("fever"))) {
-        score += 8;
-      }
-      if (vitals.pulse && vitals.pulse > 100 && (diagName.includes("infarction") || diagName.includes("embolism"))) {
-        score += 10;
-      }
-
-      // Medical history overlap (0–5 points)
-      if (medical_history.some((h: string) => diagName.includes(h.toLowerCase()))) {
-        score += 5;
-      }
-
-      return {
-        diagnosis_id: entry.diagnosis.id,
-        diagnosis_name: entry.diagnosis.diagnosis_name,
-        icd10_code: entry.diagnosis.icd10_code,
-        category: entry.diagnosis.category,
-        probability: Math.min(Math.round(score), 100),
-        supporting_symptoms: entry.supporting_symptoms,
-        symptom_coverage: `${entry.symptom_count}/${totalSymptoms}`,
-        must_not_miss: false,
-      };
-    });
-
-    // Sort by probability descending
-    scoredDiagnoses.sort((a: any, b: any) => b.probability - a.probability);
-
-    // ════════════════════════════════════════════════════
-    // STEP 3: DANGEROUS DIAGNOSIS INJECTION
-    // ════════════════════════════════════════════════════
-    let dangerousInjected = 0;
-    const dangerousDiagnosisDetails: any[] = []; // collect for output
-    try {
-      const { data: dangerousRows } = await supabase
+        .order("confidence_score", { ascending: false }),
+      supabase
         .from("dangerous_diagnoses")
         .select("*, diagnoses(id, diagnosis_name, icd10_code, category)")
         .eq("must_not_miss", true)
-        .order("priority", { ascending: true });
+        .order("priority", { ascending: true }),
+    ]);
 
-      if (dangerousRows) {
-        for (const row of dangerousRows) {
-          const trigger = row.trigger_symptom.toLowerCase();
-          const matched = normalizedSymptoms.some(
-            (s: string) => s.includes(trigger) || trigger.includes(s)
-          );
-          if (!matched) continue;
-
-          const diagInfo = (row as any).diagnoses;
-          if (!diagInfo) continue;
-
-          const existingIdx = scoredDiagnoses.findIndex(
-            (d: any) => d.diagnosis_id === diagInfo.id
-          );
-          if (existingIdx >= 0) {
-            scoredDiagnoses[existingIdx].must_not_miss = true;
-            scoredDiagnoses[existingIdx].emergency_protocol = row.emergency_protocol;
-            scoredDiagnoses[existingIdx].guideline_source = row.guideline_source;
-            scoredDiagnoses[existingIdx].severity_level = row.severity_level;
-          } else {
-            scoredDiagnoses.push({
-              diagnosis_id: diagInfo.id,
-              diagnosis_name: diagInfo.diagnosis_name,
-              icd10_code: diagInfo.icd10_code,
-              category: diagInfo.category,
-              probability: Math.max(8, Math.round(row.priority * 3)),
-              supporting_symptoms: [row.trigger_symptom],
-              symptom_coverage: `trigger:${row.trigger_symptom}`,
-              must_not_miss: true,
-              emergency_protocol: row.emergency_protocol,
-              guideline_source: row.guideline_source,
-              severity_level: row.severity_level,
-            });
-            dangerousInjected++;
-          }
-
-          // Track for output (deduplicate by diagnosis_id)
-          if (!dangerousDiagnosisDetails.find((d: any) => d.diagnosis_id === diagInfo.id)) {
-            dangerousDiagnosisDetails.push({
-              diagnosis_id: diagInfo.id,
-              diagnosis_name: row.diagnosis_name || diagInfo.diagnosis_name,
-              severity_level: row.severity_level,
-              must_not_miss: true,
-              emergency_protocol: row.emergency_protocol,
-              guideline_source: row.guideline_source,
-              trigger_symptom: row.trigger_symptom,
-            });
-          }
-        }
-      }
-    } catch (e) {
-      console.error("[DDX] Dangerous diagnosis lookup failed:", e);
+    // Build symptom-to-diagnosis association matrix
+    // For each diagnosis, track which symptoms mapped and their individual confidence
+    interface DiagEntry {
+      diagnosis: any;
+      symptom_scores: Map<string, number>;  // symptom_id → confidence_score
+      symptom_names: string[];
     }
 
-    // Final top 6
-    const differential = scoredDiagnoses
-      .sort((a: any, b: any) => {
-        // Must-not-miss always visible (but sorted by probability within group)
-        if (a.must_not_miss && !b.must_not_miss) return 1; // keep at end but visible
-        if (!a.must_not_miss && b.must_not_miss) return -1;
-        return b.probability - a.probability;
-      })
-      .slice(0, 8)
-      .sort((a: any, b: any) => b.probability - a.probability)
-      .slice(0, 6);
+    const diagMap = new Map<string, DiagEntry>();
 
-    // Re-sort: probability desc, but ensure must_not_miss are included
-    const topByProb = scoredDiagnoses
-      .filter((d: any) => !d.must_not_miss)
-      .sort((a: any, b: any) => b.probability - a.probability)
-      .slice(0, 4);
-    const mustNotMiss = scoredDiagnoses.filter((d: any) => d.must_not_miss).slice(0, 2);
+    for (const link of diagLinksRes.data || []) {
+      const d = (link as any).diagnoses;
+      if (!d) continue;
+      const existing = diagMap.get(d.id);
+      const symName = allMatchedSymptoms.find((s: any) => s.id === link.symptom_id)?.symptom_name || "";
+      if (existing) {
+        if (!existing.symptom_scores.has(link.symptom_id)) {
+          existing.symptom_scores.set(link.symptom_id, link.confidence_score);
+          if (symName) existing.symptom_names.push(symName);
+        }
+      } else {
+        const scores = new Map<string, number>();
+        scores.set(link.symptom_id, link.confidence_score);
+        diagMap.set(d.id, {
+          diagnosis: d,
+          symptom_scores: scores,
+          symptom_names: symName ? [symName] : [],
+        });
+      }
+    }
+
+    // ── Bayesian Probability Computation ──
+    // P(D|S₁,S₂,...Sₙ) ∝ P(D) × ∏ P(Sᵢ|D)
+    //
+    // P(Sᵢ|D) = confidence_score from symptom_diagnosis_map (0-1)
+    // P(D) = prior probability, estimated from category + prevalence
+    //
+    // Modifiers applied post-hoc for age, vitals, risk factors
+
+    const CATEGORY_PRIORS: Record<string, number> = {
+      infectious: 0.25,
+      respiratory: 0.20,
+      gastrointestinal: 0.12,
+      cardiovascular: 0.08,
+      neurological: 0.06,
+      endocrine: 0.05,
+      musculoskeletal: 0.05,
+      dermatological: 0.04,
+      psychiatric: 0.03,
+      pediatric: 0.03,
+      geriatric: 0.03,
+      oncological: 0.02,
+      hematological: 0.02,
+      autoimmune: 0.02,
+    };
+
+    const DEFAULT_PRIOR = 0.05;
+    const totalSymptomCount = normalizedSymptoms.length;
+    const isPediatric = age != null && age < 18;
+    const isElderly = age != null && age > 65;
+
+    const bayesianScores: Array<{
+      diagnosis_id: string;
+      diagnosis_name: string;
+      icd10_code: string | null;
+      category: string;
+      probability: number;
+      posterior: number;
+      prior: number;
+      likelihood: number;
+      symptom_coverage: number;
+      supporting_symptoms: string[];
+      contradicting_factors: string[];
+      must_not_miss: boolean;
+      emergency_protocol?: string;
+      guideline_source?: string;
+      severity_level?: string;
+    }> = [];
+
+    for (const [diagId, entry] of diagMap) {
+      const d = entry.diagnosis;
+      const diagName = (d.diagnosis_name || "").toLowerCase();
+      const category = (d.category || "").toLowerCase();
+
+      // P(D) — prior
+      let prior = CATEGORY_PRIORS[category] || DEFAULT_PRIOR;
+
+      // Age-adjusted priors
+      if (isPediatric && category === "pediatric") prior *= 2.0;
+      if (isElderly && (diagName.includes("infarction") || diagName.includes("stroke") || diagName.includes("pneumonia"))) prior *= 1.8;
+      if (isPediatric && (diagName.includes("infarction") || diagName.includes("stroke"))) prior *= 0.1;
+
+      // Sex-adjusted priors
+      if (sex === "male" && diagName.includes("ectopic pregnancy")) prior = 0;
+      if (sex === "female" && diagName.includes("prostate")) prior = 0;
+
+      // History-adjusted priors
+      if (historyLower.some(h => diagName.includes(h))) prior *= 1.5;
+
+      // ∏ P(Sᵢ|D) — likelihood
+      let logLikelihood = 0;
+      for (const [, score] of entry.symptom_scores) {
+        // Clamp to avoid log(0)
+        const p = Math.max(0.01, Math.min(0.99, score));
+        logLikelihood += Math.log(p);
+      }
+      const likelihood = Math.exp(logLikelihood);
+
+      // Symptom coverage bonus: reward diagnoses that explain more symptoms
+      const coverage = entry.symptom_scores.size / totalSymptomCount;
+      const coverageMultiplier = 0.5 + 0.5 * coverage; // range [0.5, 1.0]
+
+      // Vital sign modifiers
+      let vitalModifier = 1.0;
+      if (vitals.spo2 && vitals.spo2 < 94 && (diagName.includes("pneumonia") || diagName.includes("embolism") || diagName.includes("respiratory"))) {
+        vitalModifier *= 1.6;
+      }
+      if (vitals.temperature && vitals.temperature > 38.5 && (diagName.includes("infection") || diagName.includes("sepsis") || diagName.includes("dengue") || diagName.includes("malaria"))) {
+        vitalModifier *= 1.4;
+      }
+      if (vitals.pulse && vitals.pulse > 100 && (diagName.includes("infarction") || diagName.includes("embolism") || diagName.includes("sepsis"))) {
+        vitalModifier *= 1.3;
+      }
+      if (vitals.bp_systolic && vitals.bp_systolic > 180 && diagName.includes("hypertensive")) {
+        vitalModifier *= 1.5;
+      }
+
+      // Risk factor modifier
+      let riskModifier = 1.0;
+      for (const rf of risk_factors) {
+        if (diagName.includes(rf.toLowerCase())) riskModifier *= 1.3;
+      }
+
+      // Posterior ∝ prior × likelihood × modifiers
+      const rawPosterior = prior * likelihood * coverageMultiplier * vitalModifier * riskModifier;
+
+      // Contradicting factors
+      const contradicting: string[] = [];
+      if (isPediatric && (diagName.includes("infarction") || diagName.includes("copd"))) contradicting.push("unlikely in pediatric age");
+      if (sex === "male" && diagName.includes("ectopic")) contradicting.push("not applicable to male patients");
+
+      bayesianScores.push({
+        diagnosis_id: diagId,
+        diagnosis_name: d.diagnosis_name,
+        icd10_code: d.icd10_code,
+        category: d.category,
+        probability: 0, // will be normalized
+        posterior: rawPosterior,
+        prior,
+        likelihood,
+        symptom_coverage: coverage,
+        supporting_symptoms: entry.symptom_names,
+        contradicting_factors: contradicting,
+        must_not_miss: false,
+      });
+    }
+
+    // Normalize posteriors to sum to ~1
+    const totalPosterior = bayesianScores.reduce((s, d) => s + d.posterior, 0) || 1;
+    for (const d of bayesianScores) {
+      d.probability = Math.round((d.posterior / totalPosterior) * 100);
+    }
+
+    // Sort by probability
+    bayesianScores.sort((a, b) => b.probability - a.probability);
+
+    const stage2Ms = Date.now() - stageStart2;
+
+    // ═══════════════════════════════════════════════════
+    // STAGE 3: DANGEROUS DIAGNOSIS INJECTION
+    // ═══════════════════════════════════════════════════
+    const stageStart3 = Date.now();
+    let dangerousInjected = 0;
+    const dangerousDiagnosisDetails: any[] = [];
+
+    for (const row of dangerousRes.data || []) {
+      const trigger = row.trigger_symptom.toLowerCase();
+      const matched = normalizedSymptoms.some((s: string) => s.includes(trigger) || trigger.includes(s));
+      if (!matched) continue;
+
+      const diagInfo = (row as any).diagnoses;
+      if (!diagInfo) continue;
+
+      const existingIdx = bayesianScores.findIndex(d => d.diagnosis_id === diagInfo.id);
+      if (existingIdx >= 0) {
+        bayesianScores[existingIdx].must_not_miss = true;
+        bayesianScores[existingIdx].emergency_protocol = row.emergency_protocol;
+        bayesianScores[existingIdx].guideline_source = row.guideline_source;
+        bayesianScores[existingIdx].severity_level = row.severity_level;
+        // Ensure minimum visibility: at least 5%
+        if (bayesianScores[existingIdx].probability < 5) {
+          bayesianScores[existingIdx].probability = 5;
+        }
+      } else {
+        bayesianScores.push({
+          diagnosis_id: diagInfo.id,
+          diagnosis_name: diagInfo.diagnosis_name,
+          icd10_code: diagInfo.icd10_code,
+          category: diagInfo.category,
+          probability: 5,
+          posterior: 0,
+          prior: 0,
+          likelihood: 0,
+          symptom_coverage: 0,
+          supporting_symptoms: [row.trigger_symptom],
+          contradicting_factors: [],
+          must_not_miss: true,
+          emergency_protocol: row.emergency_protocol,
+          guideline_source: row.guideline_source,
+          severity_level: row.severity_level,
+        });
+        dangerousInjected++;
+      }
+
+      if (!dangerousDiagnosisDetails.find((d: any) => d.diagnosis_id === diagInfo.id)) {
+        dangerousDiagnosisDetails.push({
+          diagnosis_id: diagInfo.id,
+          diagnosis_name: row.diagnosis_name || diagInfo.diagnosis_name,
+          severity_level: row.severity_level,
+          must_not_miss: true,
+          emergency_protocol: row.emergency_protocol,
+          guideline_source: row.guideline_source,
+          trigger_symptom: row.trigger_symptom,
+        });
+      }
+    }
+
+    // Final selection: top 4 by probability + up to 2 must-not-miss
+    const topByProb = bayesianScores.filter(d => !d.must_not_miss).slice(0, 4);
+    const mustNotMiss = bayesianScores.filter(d => d.must_not_miss).slice(0, 3);
     const finalDifferential = [...topByProb, ...mustNotMiss]
-      .sort((a: any, b: any) => b.probability - a.probability)
+      .sort((a, b) => b.probability - a.probability)
       .slice(0, 6);
 
-    const diagnosisIds = finalDifferential.map((d: any) => d.diagnosis_id).filter(Boolean);
+    const diagnosisIds = finalDifferential.map(d => d.diagnosis_id);
+    const stage3Ms = Date.now() - stageStart3;
 
-    // ════════════════════════════════════════════════════
-    // STEP 4: LAB RECOMMENDATIONS
-    // ════════════════════════════════════════════════════
-    let recommendedLabs: any[] = [];
-    if (diagnosisIds.length > 0) {
-      const { data: labLinks } = await supabase
-        .from("diagnosis_lab_map")
-        .select("priority, diagnosis_id, lab_tests(id, test_name, category)")
-        .in("diagnosis_id", diagnosisIds);
+    // ═══════════════════════════════════════════════════
+    // STAGE 4: PARALLEL — labs, meds, guidelines
+    // ═══════════════════════════════════════════════════
+    const stageStart4 = Date.now();
 
-      const labMap = new Map<string, { test: any; diagnoses: string[]; priority: string }>();
-      for (const link of labLinks || []) {
-        const lt = (link as any).lab_tests;
-        if (!lt) continue;
-        const diagName = finalDifferential.find((d: any) => d.diagnosis_id === link.diagnosis_id)?.diagnosis_name || "";
-        const existing = labMap.get(lt.id);
-        if (existing) {
-          if (!existing.diagnoses.includes(diagName)) existing.diagnoses.push(diagName);
-          if (link.priority === "high") existing.priority = "high";
-        } else {
-          labMap.set(lt.id, {
-            test: lt,
-            diagnoses: [diagName],
-            priority: link.priority,
-          });
-        }
+    const [labLinksRes, drugLinksRes, guidelineRulesRes, guidelineMapRes] = await Promise.all([
+      diagnosisIds.length > 0
+        ? supabase.from("diagnosis_lab_map").select("priority, diagnosis_id, lab_tests(id, test_name, category)").in("diagnosis_id", diagnosisIds)
+        : Promise.resolve({ data: [] }),
+      diagnosisIds.length > 0
+        ? supabase.from("diagnosis_drug_map").select("generic_name, line_of_treatment, diagnosis_id").in("diagnosis_id", diagnosisIds)
+        : Promise.resolve({ data: [] }),
+      diagnosisIds.length > 0
+        ? supabase.from("guideline_rules").select("recommendation, evidence_level, treatment_generic_name, diagnosis_id, guideline_authorities(authority_name, priority)").in("diagnosis_id", diagnosisIds)
+        : Promise.resolve({ data: [] }),
+      diagnosisIds.length > 0
+        ? supabase.from("diagnosis_guideline_map").select("relevance_score, recommendation_summary, diagnosis_id, guideline_registry(id, title, organization, tier, guideline_url)").in("diagnosis_id", diagnosisIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    // ── Labs ──
+    const labMap = new Map<string, { test: any; diagnoses: string[]; priority: string }>();
+    for (const link of labLinksRes.data || []) {
+      const lt = (link as any).lab_tests;
+      if (!lt) continue;
+      const diagName = finalDifferential.find(d => d.diagnosis_id === link.diagnosis_id)?.diagnosis_name || "";
+      const existing = labMap.get(lt.id);
+      if (existing) {
+        if (!existing.diagnoses.includes(diagName)) existing.diagnoses.push(diagName);
+        if (link.priority === "high" || link.priority === "required") existing.priority = link.priority;
+      } else {
+        labMap.set(lt.id, { test: lt, diagnoses: [diagName], priority: link.priority });
       }
-
-      recommendedLabs = Array.from(labMap.values())
-        .sort((a, b) => {
-          // High priority first, then by number of diagnoses covered
-          if (a.priority === "high" && b.priority !== "high") return -1;
-          if (b.priority === "high" && a.priority !== "high") return 1;
-          return b.diagnoses.length - a.diagnoses.length;
-        })
-        .map((entry) => ({
-          test_name: entry.test.test_name,
-          category: entry.test.category,
-          priority: entry.priority,
-          differentiates: entry.diagnoses,
-        }));
     }
+    const recommendedLabs = Array.from(labMap.values())
+      .sort((a, b) => {
+        const prio: Record<string, number> = { required: 0, high: 1, recommended: 2, optional: 3 };
+        if ((prio[a.priority] ?? 4) !== (prio[b.priority] ?? 4)) return (prio[a.priority] ?? 4) - (prio[b.priority] ?? 4);
+        return b.diagnoses.length - a.diagnoses.length;
+      })
+      .map(e => ({ test_name: e.test.test_name, category: e.test.category, priority: e.priority, differentiates: e.diagnoses }));
 
-    // ════════════════════════════════════════════════════
-    // STEP 5: MEDICATION SUGGESTIONS (with safety filter)
-    // ════════════════════════════════════════════════════
-    let suggestedMedications: any[] = [];
-    if (diagnosisIds.length > 0) {
-      const { data: drugLinks } = await supabase
-        .from("diagnosis_drug_map")
-        .select("generic_name, line_of_treatment, diagnosis_id")
-        .in("diagnosis_id", diagnosisIds);
+    // ── Medications ──
+    const genericNames = [...new Set((drugLinksRes.data || []).map((d: any) => d.generic_name))];
+    let drugDetails: any[] = [];
+    let contraindications: any[] = [];
+    let interactions: any[] = [];
 
-      const genericNames = [...new Set((drugLinks || []).map((d: any) => d.generic_name))];
+    if (genericNames.length > 0) {
+      const [detailRes, interRes] = await Promise.all([
+        supabase.from("drug_master").select("id, generic_name, drug_class, max_daily_dose_mg, pregnancy_category").in("generic_name", genericNames),
+        (() => {
+          const allDrugs = [...genericNames, ...current_medications.map((m: string) => m.toLowerCase())];
+          if (allDrugs.length < 2) return Promise.resolve({ data: [] });
+          return supabase.from("drug_interactions").select("drug_a, drug_b, severity, interaction_description, recommended_action")
+            .or(allDrugs.map(n => `drug_a.ilike.%${n}%`).join(",") + "," + allDrugs.map(n => `drug_b.ilike.%${n}%`).join(","));
+        })(),
+      ]);
+      drugDetails = detailRes.data || [];
+      interactions = interRes.data || [];
 
-      // Fetch drug details
-      let drugDetails: any[] = [];
-      if (genericNames.length > 0) {
-        const { data } = await supabase
-          .from("drug_master")
-          .select("id, generic_name, drug_class, max_daily_dose_mg, pregnancy_category, common_indications")
-          .in("generic_name", genericNames);
-        drugDetails = data || [];
-      }
-
-      // Fetch contraindications
       const drugIds = drugDetails.map((d: any) => d.id);
-      let contraindications: any[] = [];
       if (drugIds.length > 0) {
-        const { data } = await supabase
-          .from("drug_contraindication_map")
+        const { data } = await supabase.from("drug_contraindication_map")
           .select("drug_id, condition_id, severity, notes, diagnoses(diagnosis_name)")
           .in("drug_id", drugIds);
         contraindications = data || [];
       }
+    }
 
-      // Fetch interactions between suggested drugs + current medications
-      let interactions: any[] = [];
-      const allDrugNames = [...genericNames, ...current_medications.map((m: string) => m.toLowerCase())];
-      if (allDrugNames.length > 1) {
-        const { data } = await supabase
-          .from("drug_interactions")
-          .select("drug_a, drug_b, severity, interaction_description, recommended_action")
-          .or(
-            allDrugNames.map((n: string) => `drug_a.ilike.%${n}%`).join(",") + "," +
-            allDrugNames.map((n: string) => `drug_b.ilike.%${n}%`).join(",")
-          );
-        interactions = data || [];
-      }
+    const drugDetailMap = new Map(drugDetails.map((d: any) => [d.generic_name, d]));
 
-      const drugDetailMap = new Map(drugDetails.map((d: any) => [d.generic_name, d]));
-      const allergiesLower = allergies.map((a: string) => a.toLowerCase());
-      const historyLower = medical_history.map((h: string) => h.toLowerCase());
+    const suggestedMedications = (drugLinksRes.data || []).map((link: any) => {
+      const detail = drugDetailMap.get(link.generic_name);
+      const diagName = finalDifferential.find(d => d.diagnosis_id === link.diagnosis_id)?.diagnosis_name || "";
+      const isAllergyConflict = allergiesLower.some(a => link.generic_name.toLowerCase().includes(a) || a.includes(link.generic_name.toLowerCase()));
+      const contraHits = contraindications.filter((c: any) => c.drug_id === detail?.id && historyLower.some(h => (c as any).diagnoses?.diagnosis_name?.toLowerCase()?.includes(h)));
+      const interHits = interactions.filter((i: any) => i.drug_a.toLowerCase().includes(link.generic_name.toLowerCase()) || i.drug_b.toLowerCase().includes(link.generic_name.toLowerCase()));
 
-      for (const link of drugLinks || []) {
-        const detail = drugDetailMap.get(link.generic_name);
-        const diagName = finalDifferential.find((d: any) => d.diagnosis_id === link.diagnosis_id)?.diagnosis_name || "";
+      return {
+        generic_name: link.generic_name,
+        drug_class: detail?.drug_class || "",
+        line_of_treatment: link.line_of_treatment,
+        for_diagnosis: diagName,
+        safe: !isAllergyConflict && contraHits.length === 0,
+        allergy_conflict: isAllergyConflict,
+        contraindications: contraHits.map((c: any) => ({ condition: (c as any).diagnoses?.diagnosis_name, severity: c.severity })),
+        interactions: interHits.map((i: any) => ({
+          with_drug: i.drug_a.toLowerCase() === link.generic_name.toLowerCase() ? i.drug_b : i.drug_a,
+          severity: i.severity,
+          description: i.interaction_description,
+        })),
+      };
+    }).sort((a: any, b: any) => (a.safe === b.safe ? 0 : a.safe ? -1 : 1));
 
-        // Safety checks
-        const isAllergyConflict = allergiesLower.some(
-          (a) => link.generic_name.toLowerCase().includes(a) || a.includes(link.generic_name.toLowerCase())
-        );
+    // ── Guidelines (merged from guideline_rules + diagnosis_guideline_map) ──
+    const guidelineRecommendations: any[] = [];
 
-        const contraindicationHits = contraindications.filter(
-          (c: any) => c.drug_id === detail?.id &&
-          historyLower.some((h) => (c as any).diagnoses?.diagnosis_name?.toLowerCase()?.includes(h))
-        );
-
-        const interactionHits = interactions.filter(
-          (i: any) =>
-            i.drug_a.toLowerCase().includes(link.generic_name.toLowerCase()) ||
-            i.drug_b.toLowerCase().includes(link.generic_name.toLowerCase())
-        );
-
-        suggestedMedications.push({
-          generic_name: link.generic_name,
-          drug_class: detail?.drug_class || "",
-          line_of_treatment: link.line_of_treatment,
-          for_diagnosis: diagName,
-          safe: !isAllergyConflict && contraindicationHits.length === 0,
-          allergy_conflict: isAllergyConflict,
-          contraindications: contraindicationHits.map((c: any) => ({
-            condition: (c as any).diagnoses?.diagnosis_name,
-            severity: c.severity,
-          })),
-          interactions: interactionHits.map((i: any) => ({
-            with_drug: i.drug_a.toLowerCase() === link.generic_name.toLowerCase() ? i.drug_b : i.drug_a,
-            severity: i.severity,
-            description: i.interaction_description,
-          })),
-        });
-      }
-
-      // Filter to safe medications first, then unsafe with warnings
-      suggestedMedications.sort((a: any, b: any) => {
-        if (a.safe && !b.safe) return -1;
-        if (!a.safe && b.safe) return 1;
-        return 0;
+    for (const r of guidelineRulesRes.data || []) {
+      const auth = (r as any).guideline_authorities;
+      guidelineRecommendations.push({
+        guideline_name: auth?.authority_name || "Unknown",
+        authority: auth?.authority_name || "Unknown",
+        authority_priority: auth?.priority ?? 10,
+        recommendation: r.recommendation,
+        evidence_level: r.evidence_level,
+        treatment: r.treatment_generic_name,
+        source: "guideline_rules",
+        for_diagnosis: finalDifferential.find(d => d.diagnosis_id === r.diagnosis_id)?.diagnosis_name || "",
       });
     }
 
-    // ════════════════════════════════════════════════════
-    // STEP 6: GUIDELINE ALIGNMENT
-    // ════════════════════════════════════════════════════
-    let guidelineRecommendations: any[] = [];
-    if (diagnosisIds.length > 0) {
-      const { data: rules } = await supabase
-        .from("guideline_rules")
-        .select("recommendation, evidence_level, treatment_generic_name, diagnosis_id, guideline_authorities(authority_name, priority)")
-        .in("diagnosis_id", diagnosisIds)
-        .order("evidence_level", { ascending: true });
-
-      if (rules) {
-        guidelineRecommendations = rules
-          .sort((a: any, b: any) => {
-            const aPri = (a as any).guideline_authorities?.priority ?? 10;
-            const bPri = (b as any).guideline_authorities?.priority ?? 10;
-            return aPri - bPri;
-          })
-          .map((r: any) => ({
-            guideline_name: (r as any).guideline_authorities?.authority_name || "Unknown",
-            authority: (r as any).guideline_authorities?.authority_name || "Unknown",
-            authority_priority: (r as any).guideline_authorities?.priority ?? 10,
-            recommendation: r.recommendation,
-            evidence_level: r.evidence_level,
-            treatment: r.treatment_generic_name,
-            for_diagnosis: finalDifferential.find((d: any) => d.diagnosis_id === r.diagnosis_id)?.diagnosis_name || "",
-          }));
-      }
+    for (const link of guidelineMapRes.data || []) {
+      const g = (link as any).guideline_registry;
+      if (!g) continue;
+      guidelineRecommendations.push({
+        guideline_name: g.title,
+        authority: g.organization,
+        authority_priority: g.tier ?? 5,
+        recommendation: link.recommendation_summary || "",
+        evidence_level: "",
+        treatment: "",
+        source: "diagnosis_guideline_map",
+        guideline_url: g.guideline_url,
+        for_diagnosis: finalDifferential.find(d => d.diagnosis_id === link.diagnosis_id)?.diagnosis_name || "",
+      });
     }
 
-    // ════════════════════════════════════════════════════
-    // STEP 7: PERSIST TO diagnostic_hypotheses
-    // ════════════════════════════════════════════════════
+    guidelineRecommendations.sort((a, b) => a.authority_priority - b.authority_priority);
+
+    const stage4Ms = Date.now() - stageStart4;
+
+    // ═══════════════════════════════════════════════════
+    // STAGE 5: PERSIST + MONITOR
+    // ═══════════════════════════════════════════════════
     if (visit_id) {
-      for (const dx of finalDifferential) {
-        const { error: hypErr } = await supabase.from("diagnostic_hypotheses").insert({
-          visit_id,
-          hypothesis: {
-            diagnosis: dx.diagnosis_name,
-            probability: dx.probability,
-            supporting_symptoms: dx.supporting_symptoms,
-            must_not_miss: dx.must_not_miss,
-            icd10_code: dx.icd10_code,
-            source: "ddx_engine",
-          },
-          confidence_score: dx.probability / 100,
-          evidence_sources: dx.supporting_symptoms || [],
-        });
-        if (hypErr) console.error("Hypothesis insert error:", hypErr);
-      }
+      const inserts = finalDifferential.map(dx => ({
+        visit_id,
+        hypothesis: {
+          diagnosis: dx.diagnosis_name,
+          probability: dx.probability,
+          prior: dx.prior,
+          likelihood: dx.likelihood,
+          supporting_symptoms: dx.supporting_symptoms,
+          contradicting_factors: dx.contradicting_factors,
+          must_not_miss: dx.must_not_miss,
+          icd10_code: dx.icd10_code,
+          source: "ddx_engine_v3",
+          bayesian: true,
+        },
+        confidence_score: dx.probability / 100,
+        evidence_sources: dx.supporting_symptoms || [],
+      }));
+      supabase.from("diagnostic_hypotheses").insert(inserts).then(() => {}).catch(() => {});
     }
 
-    // ════════════════════════════════════════════════════
-    // STEP 8: MONITORING
-    // ════════════════════════════════════════════════════
-    const duration_ms = Date.now() - start;
-    const { error: monErr } = await supabase.from("monitoring_events").insert({
+    const totalMs = Date.now() - start;
+
+    // Monitor (non-blocking)
+    supabase.from("monitoring_events").insert({
       event_type: "ddx_engine_executed",
       agent_name: "ddx-engine",
       clinic_id: clinic_id || null,
       success: true,
-      duration_ms,
+      duration_ms: totalMs,
       metadata: {
+        version: "v3_bayesian",
         visit_id,
+        cco_id,
         symptoms_input: normalizedSymptoms,
-        symptoms_matched: matchedSymptoms?.length || 0,
+        symptoms_matched: symptomIds.length,
         diagnoses_returned: finalDifferential.length,
         dangerous_injected: dangerousInjected,
         labs_recommended: recommendedLabs.length,
@@ -549,33 +554,75 @@ Deno.serve(async (req) => {
         guidelines_matched: guidelineRecommendations.length,
         top_diagnosis: finalDifferential[0]?.diagnosis_name || null,
         top_probability: finalDifferential[0]?.probability || 0,
+        stage_latencies: {
+          symptom_resolution: stage1Ms,
+          bayesian_scoring: stage2Ms,
+          dangerous_injection: stage3Ms,
+          enrichment: stage4Ms,
+        },
       },
-    });
-    if (monErr) console.error("Monitor log error:", monErr);
+    }).then(() => {}).catch(() => {});
 
-    return new Response(JSON.stringify({
-      differential_diagnoses: finalDifferential,
+    // Clean output (remove internal fields)
+    const outputDiagnoses = finalDifferential.map(d => ({
+      diagnosis_id: d.diagnosis_id,
+      diagnosis_name: d.diagnosis_name,
+      icd10_code: d.icd10_code,
+      category: d.category,
+      probability: d.probability,
+      supporting_symptoms: d.supporting_symptoms,
+      contradicting_factors: d.contradicting_factors,
+      symptom_coverage: `${Math.round(d.symptom_coverage * 100)}%`,
+      must_not_miss: d.must_not_miss,
+      ...(d.emergency_protocol ? { emergency_protocol: d.emergency_protocol } : {}),
+      ...(d.severity_level ? { severity_level: d.severity_level } : {}),
+      ...(d.guideline_source ? { guideline_source: d.guideline_source } : {}),
+    }));
+
+    return respond({
+      differential_diagnoses: outputDiagnoses,
       recommended_labs: recommendedLabs,
       suggested_medications: suggestedMedications,
       guideline_recommendations: guidelineRecommendations,
       dangerous_diagnoses: dangerousDiagnosisDetails,
-      matched_symptoms: matchedSymptoms?.map((s: any) => s.symptom_name) || [],
-      unmatched_symptoms: normalizedSymptoms.filter(
-        (s: string) => !matchedSymptoms?.some((ms: any) => ms.symptom_name === s)
-      ),
+      matched_symptoms: allMatchedSymptoms.map((s: any) => s.symptom_name),
+      unmatched_symptoms: normalizedSymptoms.filter(s => !allMatchedSymptoms.some((ms: any) => ms.symptom_name === s || ms.symptom_name.includes(s))),
       dangerous_diagnoses_injected: dangerousInjected,
       must_not_miss_count: dangerousDiagnosisDetails.length,
-      execution_ms: duration_ms,
-      source: "ddx_engine_v2",
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      execution_ms: totalMs,
+      stage_latencies: {
+        symptom_resolution: stage1Ms,
+        bayesian_scoring: stage2Ms,
+        dangerous_injection: stage3Ms,
+        enrichment: stage4Ms,
+      },
+      bayesian_model: true,
+      source: "ddx_engine_v3",
+      graph_miss: false,
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("ddx-engine error:", err);
-    return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Internal error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: err.message || "Internal error" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
+
+function respond(data: any) {
+  return new Response(JSON.stringify(data), {
+    status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function logEvent(supabase: any, eventType: string, clinicId: string | null, visitId: string | null, symptoms: string[], durationMs: number) {
+  try {
+    await supabase.from("monitoring_events").insert({
+      event_type: eventType,
+      agent_name: "ddx-engine",
+      clinic_id: clinicId || null,
+      success: false,
+      duration_ms: durationMs,
+      metadata: { symptoms_input: symptoms, visit_id: visitId, reason: "no_symptom_match" },
+    });
+  } catch { /* non-blocking */ }
+}
