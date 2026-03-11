@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { SafetyResults } from "@/layers/safety/api";
 import type { PhysiologicalContextResult } from "@/services/physiology_engine";
+import type { BayesianResult } from "@/services/bayesian_engine";
 import type { EvidenceData } from "@/layers/evidence/api";
 import type { MedicationValidationResult, MedicationWarning } from "@/services/medication_intelligence/client";
 import { sortWarnings, safetyScoreColor } from "@/services/medication_intelligence/client";
@@ -99,6 +100,8 @@ interface ClinicalCopilotProps {
   explainability?: DiagnosisExplanation[] | null;
   /** Physiological context from physiology engine */
   physiologicalContext?: PhysiologicalContextResult | null;
+  /** Bayesian probability results */
+  bayesianResult?: BayesianResult | null;
 }
 
 const fadeIn = {
@@ -157,6 +160,7 @@ export default function ClinicalCopilot({
   medicationValidation,
   explainability,
   physiologicalContext,
+  bayesianResult,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -280,6 +284,7 @@ export default function ClinicalCopilot({
     { key: "context", label: "Context", icon: Target },
     { key: "physiology", label: "Physiology", icon: Activity },
     { key: "ddx", label: "DDX", icon: Brain },
+    { key: "bayesian", label: "Bayesian", icon: TrendingUp },
     { key: "evidence", label: "Evidence", icon: BookOpen },
     { key: "hypotheses", label: "Diagnoses", icon: Brain },
     { key: "guidelines", label: "Guidelines", icon: Scale },
@@ -296,6 +301,7 @@ export default function ClinicalCopilot({
     context: "build_context",
     physiology: "physiological_engine",
     ddx: "ddx_engine",
+    bayesian: "bayesian_engine",
     evidence: "retrieve_evidence",
     hypotheses: "generate_hypotheses",
     guidelines: "retrieve_guidelines",
@@ -405,6 +411,61 @@ export default function ClinicalCopilot({
                 ))}
               </div>
             </div>
+          </ClinicalCard>
+        </motion.div>
+      )}
+
+      {/* Bayesian Probability Ranking */}
+      {bayesianResult && bayesianResult.diagnoses.length > 0 && (
+        <motion.div {...fadeIn}>
+          <ClinicalCard className="p-2.5 border-primary/10">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+              <TrendingUp className="h-3 w-3 text-primary" /> Bayesian Probability
+              <Badge variant="outline" className="text-[8px] ml-auto">
+                {bayesianResult.execution_ms}ms
+              </Badge>
+            </p>
+            <div className="space-y-1">
+              {bayesianResult.diagnoses.slice(0, 6).map((d, i) => {
+                const pct = Math.round(d.posterior_probability * 100);
+                return (
+                  <div key={d.diagnosis_id} className="flex items-center gap-1.5">
+                    <span className="text-[9px] text-muted-foreground w-3 shrink-0">{i + 1}.</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] font-medium text-foreground truncate">
+                          {d.diagnosis_id.slice(0, 8)}…
+                        </span>
+                        {d.must_not_miss && (
+                          <AlertTriangle className="h-2.5 w-2.5 text-destructive shrink-0" />
+                        )}
+                      </div>
+                      <div className="h-1 bg-muted rounded-full mt-0.5 overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all"
+                          style={{ width: `${Math.max(pct, 2)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={`text-[9px] shrink-0 ${
+                        pct >= 30 ? "text-emerald-600 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800" :
+                        pct >= 15 ? "text-amber-600 border-amber-200 dark:text-amber-400 dark:border-amber-800" :
+                        "text-muted-foreground"
+                      }`}
+                    >
+                      {pct}%
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+            {bayesianResult.symptoms_resolved > 0 && (
+              <p className="text-[8px] text-muted-foreground mt-1">
+                {bayesianResult.symptoms_resolved} symptoms · {bayesianResult.physiology_states_used} physiology states · {bayesianResult.risk_factors_applied} risk factors
+              </p>
+            )}
           </ClinicalCard>
         </motion.div>
       )}

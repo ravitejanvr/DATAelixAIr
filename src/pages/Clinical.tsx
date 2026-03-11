@@ -295,6 +295,8 @@ export default function Clinical() {
   const [pipelineCompliance, setPipelineCompliance] = useState<PipelineCompliance | null>(null);
   const [pipelineStage, setPipelineStage] = useState<string | null>(null);
   const [stageLatencies, setStageLatencies] = useState<Record<string, number>>({});
+  const [pipelinePhysiology, setPipelinePhysiology] = useState<any>(null);
+  const [pipelineBayesian, setPipelineBayesian] = useState<any>(null);
 
   // Consultation summary & copilot selections
   const [consultationSummary, setConsultationSummary] = useState("");
@@ -670,6 +672,10 @@ export default function Clinical() {
 
         const modular = data?.modular_pipeline;
         if (modular) {
+          // Stream: Physiology + Bayesian
+          if (modular.physiological_context) setPipelinePhysiology(modular.physiological_context);
+          if (modular.bayesian) setPipelineBayesian(modular.bayesian);
+
           // Stream: Hypotheses
           if (modular.hypotheses?.length > 0) {
             setPipelineHypotheses(modular.hypotheses);
@@ -1044,6 +1050,7 @@ export default function Clinical() {
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedAdvice([]);
     setSelectedInstructions([]);
     setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
+    setPipelinePhysiology(null); setPipelineBayesian(null);
     setPipelineStage(null); setStageLatencies({});
   };
 
@@ -1256,6 +1263,8 @@ export default function Clinical() {
     clinicId: profileClinicId,
     pipelineStage: pipelineRunning ? pipelineStage : null,
     stageLatencies,
+    physiologicalContext: pipelinePhysiology,
+    bayesianResult: pipelineBayesian,
   };
 
   // ═══════════════════════════════════════════════════════════
