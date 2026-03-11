@@ -100,6 +100,8 @@ interface ClinicalCopilotProps {
   explainability?: DiagnosisExplanation[] | null;
   /** Physiological context from physiology engine */
   physiologicalContext?: PhysiologicalContextResult | null;
+  /** Bayesian probability results */
+  bayesianResult?: BayesianResult | null;
 }
 
 const fadeIn = {
