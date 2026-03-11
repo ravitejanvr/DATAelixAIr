@@ -34,6 +34,7 @@ import { getCached, setCache } from "@/services/knowledge_cache";
 import { runDDXEngine, type DDXResult } from "@/services/ddx_engine/client";
 import { runUncertaintyEngine, type UncertaintyResult } from "@/services/uncertainty_engine/client";
 import { runHybridReasoning, type HybridReasoningResult } from "@/services/reasoning_engine/client";
+import { runMultiAgentPipeline, type OrchestratorResponse } from "@/services/multi_agent";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PipelineInput {
