@@ -393,9 +393,10 @@ serve(async (req) => {
       };
 
       // Store in benchmark_runs
-      await admin.from("benchmark_runs").insert(runResult).catch((e: any) => {
-        console.error("Failed to store benchmark run:", e);
-      });
+      const { error: insertErr } = await admin.from("benchmark_runs").insert(runResult);
+      if (insertErr) {
+        console.error("Failed to store benchmark run:", insertErr);
+      }
 
       results.push({
         test_case: tc.name,
