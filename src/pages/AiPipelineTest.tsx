@@ -354,7 +354,157 @@ export default function AiPipelineTest() {
               </Card>
             ))}
           </TabsContent>
-        </Tabs>
+
+          {/* ─── V3 Clinical Benchmark Tab ─── */}
+          <TabsContent value="v3" className="mt-4 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Trophy className="h-4 w-4" /> Clinical Benchmark Suite v3
+                  <Badge variant="outline" className="text-[10px]">8 Test Cases · Full Reasoning Stack</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Evaluates DDX Engine, Knowledge Graph, Guideline Engine, Safety Guardrails, and Uncertainty Calibration across 8 clinical scenarios including edge cases.
+                </p>
+
+                {v3Loading && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Running full benchmark suite...</span>
+                      <span>{Math.round(v3Progress)}%</span>
+                    </div>
+                    <Progress value={v3Progress} className="h-2" />
+                  </div>
+                )}
+
+                <Button onClick={runV3Benchmark} disabled={v3Loading} className="w-full">
+                  {v3Loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trophy className="h-4 w-4 mr-2" />}
+                  {v3Loading ? "Running 8 test cases..." : "Run Clinical Benchmark v3"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* V3 Summary */}
+            {v3Results?.summary && (
+              <Card className="border-primary/30">
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" /> Benchmark v3 Summary
+                    <Badge variant={v3Results.summary.failed === 0 ? "default" : "destructive"} className="ml-auto text-[10px]">
+                      {v3Results.summary.passed}/{v3Results.summary.total_tests} Passed
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <SummaryStatCard label="Tests Passed" value={`${v3Results.summary.passed}/${v3Results.summary.total_tests}`} highlight={v3Results.summary.failed === 0} />
+                    <SummaryStatCard label="Avg Dx Match" value={`${v3Results.summary.avg_diagnosis_agreement}%`} highlight={v3Results.summary.avg_diagnosis_agreement >= 60} />
+                    <SummaryStatCard label="Avg Lab Match" value={`${v3Results.summary.avg_lab_agreement}%`} />
+                    <SummaryStatCard label="Avg Med Match" value={`${v3Results.summary.avg_medication_agreement}%`} />
+                    <SummaryStatCard label="Avg Confidence" value={`${v3Results.summary.avg_confidence_score}`} />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <SummaryStatCard label="Avg Latency" value={`${v3Results.summary.avg_latency_ms}ms`} />
+                    <SummaryStatCard label="Avg DDX Latency" value={`${v3Results.summary.avg_ddx_latency_ms}ms`} />
+                    <SummaryStatCard label="Avg Uncertainty Latency" value={`${v3Results.summary.avg_uncertainty_latency_ms}ms`} />
+                    <SummaryStatCard label="Avg Guidelines" value={`${v3Results.summary.avg_guideline_citations}`} />
+                  </div>
+                  <MetricBar label="Diagnosis Agreement" value={v3Results.summary.avg_diagnosis_agreement} />
+                  <MetricBar label="Lab Agreement" value={v3Results.summary.avg_lab_agreement} />
+                  <MetricBar label="Medication Agreement" value={v3Results.summary.avg_medication_agreement} />
+                  <MetricBar label="Confidence Score" value={Math.round(v3Results.summary.avg_confidence_score * 100)} />
+
+                  {/* Pass thresholds */}
+                  <div className="pt-2 border-t text-[10px] text-muted-foreground space-y-0.5">
+                    <p className="font-semibold">Pass Criteria:</p>
+                    <p>Dx ≥{v3Results.summary.pass_thresholds.diagnosis_agreement}% · Lab ≥{v3Results.summary.pass_thresholds.lab_agreement}% · Med ≥{v3Results.summary.pass_thresholds.medication_agreement}% · Guidelines ≥{v3Results.summary.pass_thresholds.guideline_citations_min}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* V3 Individual Results */}
+            {v3Results?.results?.map((r: any, idx: number) => (
+              <Card key={idx} className={r.passed ? "" : "border-destructive/30"}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    {r.passed ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <XCircle className="h-4 w-4 text-destructive" />}
+                    {r.test_case}
+                    <Badge variant="secondary" className="ml-auto text-[10px]">{r.latency_ms}ms</Badge>
+                    {r.confidence_label && (
+                      <Badge
+                        variant={r.confidence_label === "High" ? "default" : r.confidence_label === "Moderate" ? "secondary" : "destructive"}
+                        className="text-[10px]"
+                      >
+                        {r.confidence_label} ({r.confidence_score})
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-xs">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-center p-2 rounded bg-muted/30">
+                      <div className="font-bold font-mono">{r.diagnosis_agreement}%</div>
+                      <div className="text-[10px] text-muted-foreground">Dx Match</div>
+                    </div>
+                    <div className="text-center p-2 rounded bg-muted/30">
+                      <div className="font-bold font-mono">{r.lab_agreement}%</div>
+                      <div className="text-[10px] text-muted-foreground">Lab Match</div>
+                    </div>
+                    <div className="text-center p-2 rounded bg-muted/30">
+                      <div className="font-bold font-mono">{r.medication_agreement}%</div>
+                      <div className="text-[10px] text-muted-foreground">Med Match</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <p className="font-semibold mb-1">Pipeline Diagnoses</p>
+                      <div className="flex flex-wrap gap-1">
+                        {(r.pipeline_diagnoses || []).map((d: string, i: number) => (
+                          <Badge key={i} variant="outline" className="text-[9px]">{d}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-semibold mb-1">Expected Diagnoses</p>
+                      <div className="flex flex-wrap gap-1">
+                        {(r.expected_diagnoses || []).map((d: string, i: number) => (
+                          <Badge key={i} variant="secondary" className="text-[9px]">{d}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                    <span>Guidelines: {r.guideline_citations}</span>
+                    <span>Safety Alerts: {r.safety_alerts}</span>
+                    {r.ddx_latency_ms !== null && <span>DDX: {r.ddx_latency_ms}ms</span>}
+                    {r.uncertainty_latency_ms !== null && <span>Uncertainty: {r.uncertainty_latency_ms}ms</span>}
+                  </div>
+
+                  {r.failure_reasons?.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="font-semibold flex items-center gap-1 text-destructive">
+                        <AlertTriangle className="h-3 w-3" /> Failure Reasons
+                      </p>
+                      {r.failure_reasons.map((reason: string, i: number) => (
+                        <div key={i} className="text-[10px] text-destructive bg-destructive/5 p-1 rounded">{reason}</div>
+                      ))}
+                    </div>
+                  )}
+
+                  {r.module_logs?.length > 0 && <ModuleLogsCard logs={r.module_logs} />}
+
+                  {r.error && (
+                    <div className="p-2 bg-destructive/10 rounded text-destructive text-[10px]">{r.error}</div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </TabsContent>
       </div>
     </PlatformAdminLayout>
   );
