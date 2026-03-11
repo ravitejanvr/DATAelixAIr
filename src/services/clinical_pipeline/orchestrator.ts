@@ -58,6 +58,7 @@ export interface PipelineInput {
 export interface PipelineResult {
   enabled: boolean;
   enriched_context: EnrichedClinicalContext | null;
+  physiological_context: PhysiologicalContextResult | null;
   ddx: DDXResult | null;
   uncertainty: UncertaintyResult | null;
   hypotheses: HypothesisResult | null;
