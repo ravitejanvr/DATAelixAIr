@@ -255,7 +255,7 @@ serve(async (req) => {
     legacyOutput.latency_ms = Date.now() - legacyStart;
 
     // ══════════════════════════════════════
-    // STEP 2: RUN FULL MODULAR PIPELINE
+    // STEP 2: RUN FULL MODULAR PIPELINE (PARALLELIZED)
     // ══════════════════════════════════════
     const modularStart = Date.now();
     let modularOutput: any = {
@@ -265,7 +265,9 @@ serve(async (req) => {
     };
 
     try {
-      // ─── MODULE 1: Context Engine ───────────────────────
+      // ════════════════════════════════════════════════════
+      // STAGE 1: Context Engine (sync — ~0ms)
+      // ════════════════════════════════════════════════════
       const ctxStart = Date.now();
       const structuredContext = {
         patient_age: ctx.age || null,
@@ -296,172 +298,279 @@ serve(async (req) => {
         details: `Assembled ${Object.keys(structuredContext).length} data points`,
       });
 
-      // ─── MODULE 1.5: DDX Engine ────────────────────────
-      const ddxStart = Date.now();
-      try {
-        const ddxUrl = `${supabaseUrl}/functions/v1/ddx-engine`;
-        const ddxResp = await fetch(ddxUrl, {
-          method: "POST",
-          headers: {
-            Authorization: authHeader,
-            "Content-Type": "application/json",
-            apikey: anonKey,
-          },
-          body: JSON.stringify({
-            symptoms: structuredContext.symptoms,
-            vitals: {
-              temperature: structuredContext.vitals.temperature,
-              spo2: structuredContext.vitals.spo2,
-              pulse: structuredContext.vitals.pulse,
+      // ════════════════════════════════════════════════════
+      // STAGE 2: PARALLEL — DDX Engine + Knowledge Retrieval
+      // Both only depend on structuredContext
+      // ════════════════════════════════════════════════════
+      const stage2Start = Date.now();
+
+      // --- DDX Engine (async) ---
+      const ddxPromise = (async () => {
+        const ddxStart = Date.now();
+        try {
+          const ddxUrl = `${supabaseUrl}/functions/v1/ddx-engine`;
+          const ddxResp = await fetch(ddxUrl, {
+            method: "POST",
+            headers: {
+              Authorization: authHeader,
+              "Content-Type": "application/json",
+              apikey: anonKey,
             },
-            age: structuredContext.patient_age,
-            sex: structuredContext.patient_sex,
-            medical_history: structuredContext.medical_history,
-            current_medications: structuredContext.medications,
-            allergies: structuredContext.allergies,
-          }),
-        });
-
-        if (ddxResp.ok) {
-          const ddxData = await ddxResp.json();
-          modularOutput.ddx = ddxData;
-
-          // Merge DDX diagnoses into modular output
-          if (ddxData.differential_diagnoses?.length > 0) {
-            modularOutput.diagnoses = ddxData.differential_diagnoses.map((d: any) => d.diagnosis_name);
-          }
-
-          // Merge DDX labs
-          if (ddxData.recommended_labs?.length > 0) {
-            const existingLabs = new Set(modularOutput.labs.map((l: string) => l.toLowerCase()));
-            for (const lab of ddxData.recommended_labs) {
-              if (!existingLabs.has(lab.test_name.toLowerCase())) {
-                modularOutput.labs.push(lab.test_name);
-              }
-            }
-          }
-
-          // Merge DDX medications
-          if (ddxData.suggested_medications?.length > 0) {
-            const existingMeds = new Set(modularOutput.medications.map((m: string) => m.toLowerCase()));
-            for (const med of ddxData.suggested_medications) {
-              if (med.safe && !existingMeds.has(med.generic_name.toLowerCase())) {
-                modularOutput.medications.push(med.generic_name);
-              }
-            }
-          }
-
-          // Merge DDX guidelines
-          if (ddxData.guideline_recommendations?.length > 0) {
-            modularOutput.guidelines = ddxData.guideline_recommendations.map((g: any) => ({
-              title: g.guideline_name,
-              organization: g.authority,
-              recommendation: g.recommendation,
-              evidence_grade: g.evidence_level,
-            }));
-          }
-
-          moduleLogs.push({
-            module: "ddx_engine",
-            status: "success",
-            latency_ms: Date.now() - ddxStart,
-            details: `${ddxData.differential_diagnoses?.length || 0} diagnoses (${ddxData.dangerous_diagnoses_injected || 0} must-not-miss), ${ddxData.recommended_labs?.length || 0} labs, ${ddxData.suggested_medications?.length || 0} meds, ${ddxData.guideline_recommendations?.length || 0} guidelines. Graph: ${ddxData.matched_symptoms?.length || 0}/${structuredContext.symptoms.length} symptoms matched. Execution: ${ddxData.execution_ms}ms`,
+            body: JSON.stringify({
+              symptoms: structuredContext.symptoms,
+              vitals: {
+                temperature: structuredContext.vitals.temperature,
+                spo2: structuredContext.vitals.spo2,
+                pulse: structuredContext.vitals.pulse,
+              },
+              age: structuredContext.patient_age,
+              sex: structuredContext.patient_sex,
+              medical_history: structuredContext.medical_history,
+              current_medications: structuredContext.medications,
+              allergies: structuredContext.allergies,
+            }),
           });
-        } else {
-          const errText = await ddxResp.text();
+
+          if (ddxResp.ok) {
+            const ddxData = await ddxResp.json();
+            modularOutput.ddx = ddxData;
+
+            // Merge DDX diagnoses
+            if (ddxData.differential_diagnoses?.length > 0) {
+              modularOutput.diagnoses = ddxData.differential_diagnoses.map((d: any) => d.diagnosis_name);
+            }
+
+            // Merge DDX labs
+            if (ddxData.recommended_labs?.length > 0) {
+              const existingLabs = new Set(modularOutput.labs.map((l: string) => l.toLowerCase()));
+              for (const lab of ddxData.recommended_labs) {
+                if (!existingLabs.has(lab.test_name.toLowerCase())) {
+                  modularOutput.labs.push(lab.test_name);
+                }
+              }
+            }
+
+            // Merge DDX medications
+            if (ddxData.suggested_medications?.length > 0) {
+              const existingMeds = new Set(modularOutput.medications.map((m: string) => m.toLowerCase()));
+              for (const med of ddxData.suggested_medications) {
+                if (med.safe && !existingMeds.has(med.generic_name.toLowerCase())) {
+                  modularOutput.medications.push(med.generic_name);
+                }
+              }
+            }
+
+            // Merge DDX guidelines
+            if (ddxData.guideline_recommendations?.length > 0) {
+              modularOutput.guidelines = ddxData.guideline_recommendations.map((g: any) => ({
+                title: g.guideline_name,
+                organization: g.authority,
+                recommendation: g.recommendation,
+                evidence_grade: g.evidence_level,
+              }));
+            }
+
+            moduleLogs.push({
+              module: "ddx_engine",
+              status: "success",
+              latency_ms: Date.now() - ddxStart,
+              details: `${ddxData.differential_diagnoses?.length || 0} diagnoses (${ddxData.dangerous_diagnoses_injected || 0} must-not-miss), ${ddxData.recommended_labs?.length || 0} labs, ${ddxData.suggested_medications?.length || 0} meds, ${ddxData.guideline_recommendations?.length || 0} guidelines. Graph: ${ddxData.matched_symptoms?.length || 0}/${structuredContext.symptoms.length} symptoms matched. Execution: ${ddxData.execution_ms}ms`,
+            });
+          } else {
+            const errText = await ddxResp.text();
+            moduleLogs.push({
+              module: "ddx_engine",
+              status: "error",
+              latency_ms: Date.now() - ddxStart,
+              details: `HTTP ${ddxResp.status}: ${errText.substring(0, 200)}`,
+            });
+          }
+        } catch (e) {
           moduleLogs.push({
             module: "ddx_engine",
             status: "error",
             latency_ms: Date.now() - ddxStart,
-            details: `HTTP ${ddxResp.status}: ${errText.substring(0, 200)}`,
+            details: e instanceof Error ? e.message : "Unknown error",
           });
         }
-      } catch (e) {
-        moduleLogs.push({
-          module: "ddx_engine",
-          status: "error",
-          latency_ms: Date.now() - ddxStart,
-          details: e instanceof Error ? e.message : "Unknown error",
-        });
-      }
+      })();
 
-      // ─── MODULE 2: Hypothesis Engine ────────────────────
-      // Calls query-clinical-graph for knowledge graph results + AI for hypothesis generation
-      const hypStart = Date.now();
-      try {
-        // Step 2a: Query knowledge graph
-        let graphDiagnoses: any[] = [];
-        let graphLabs: any[] = [];
+      // --- Knowledge Retrieval (async) ---
+      const knowledgePromise = (async () => {
+        const knStart = Date.now();
         try {
-          const graphUrl = `${supabaseUrl}/functions/v1/query-clinical-graph`;
-          const graphResp = await fetch(graphUrl, {
+          const knowledgeUrl = `${supabaseUrl}/functions/v1/clinical-knowledge`;
+          const knowledgeResp = await fetch(knowledgeUrl, {
             method: "POST",
             headers: {
+              Authorization: authHeader,
               "Content-Type": "application/json",
-              Authorization: `Bearer ${serviceKey}`,
+              apikey: anonKey,
             },
-            body: JSON.stringify({ symptoms: structuredContext.symptoms }),
+            body: JSON.stringify({
+              chief_complaint: structuredContext.chief_complaint,
+              duration: structuredContext.symptom_duration,
+              symptoms: structuredContext.symptoms.join(", "),
+              age: structuredContext.patient_age,
+              gender: structuredContext.patient_sex,
+              allergies: structuredContext.allergies.join(", "),
+              medications: structuredContext.medications.join(", "),
+              conditions: structuredContext.medical_history.join(", "),
+              vitals: JSON.stringify(structuredContext.vitals),
+            }),
           });
-          if (graphResp.ok) {
-            const graphData = await graphResp.json();
-            graphDiagnoses = graphData.diagnoses || [];
-            graphLabs = (graphData.suggested_labs || []).map((l: any) => l.test_name);
-          }
-        } catch (e) {
-          console.warn("Knowledge graph query failed:", e);
-        }
 
-        // Step 2b: Fetch dangerous diagnoses
-        let dangerousDiags: any[] = [];
-        try {
-          const { data: dangerousRows } = await admin
-            .from("dangerous_diagnoses")
-            .select("*, diagnoses(id, diagnosis_name)")
-            .order("priority", { ascending: true });
+          if (knowledgeResp.ok) {
+            const knData = await knowledgeResp.json();
+            modularOutput.evidence = {
+              citations: knData.citations || [],
+              drug_safety: knData.drug_safety || [],
+              suggestions: knData.suggestions || {},
+              sources_queried: knData.sources_queried || [],
+              retrieval_confidence: knData.retrieval_confidence || "low",
+            };
 
-          if (dangerousRows) {
-            const symptomsLower = structuredContext.symptoms.map((s: string) => s.toLowerCase());
-            for (const row of dangerousRows) {
-              const trigger = row.trigger_symptom.toLowerCase();
-              if (symptomsLower.some((s: string) => s.includes(trigger) || trigger.includes(s))) {
-                if ((row as any).diagnoses) {
-                  dangerousDiags.push({
-                    diagnosis_name: (row as any).diagnoses.diagnosis_name,
-                    trigger_symptom: row.trigger_symptom,
-                    must_not_miss: true,
-                  });
+            // Merge medication suggestions from evidence
+            const evidenceMeds = (knData.suggestions?.prescriptions || []).map((p: any) => p.drug_name);
+            if (evidenceMeds.length > 0) {
+              const existingSet = new Set(modularOutput.medications.map((m: string) => m.toLowerCase()));
+              for (const med of evidenceMeds) {
+                if (!existingSet.has(med.toLowerCase())) {
+                  modularOutput.medications.push(med);
                 }
               }
             }
+
+            // Merge lab suggestions from evidence
+            const evidenceLabs = (knData.suggestions?.lab_tests || []).map((l: any) => l.test_name);
+            if (evidenceLabs.length > 0) {
+              const existingLabSet = new Set(modularOutput.labs.map((l: string) => l.toLowerCase()));
+              for (const lab of evidenceLabs) {
+                if (!existingLabSet.has(lab.toLowerCase())) {
+                  modularOutput.labs.push(lab);
+                }
+              }
+            }
+
+            moduleLogs.push({
+              module: "knowledge_retrieval",
+              status: "success",
+              latency_ms: Date.now() - knStart,
+              details: `Retrieved ${(knData.citations || []).length} citations from ${(knData.sources_queried || []).join(", ")}. Confidence: ${knData.retrieval_confidence || "low"}`,
+            });
+          } else {
+            const errText = await knowledgeResp.text();
+            moduleLogs.push({
+              module: "knowledge_retrieval",
+              status: "error",
+              latency_ms: Date.now() - knStart,
+              details: `HTTP ${knowledgeResp.status}: ${errText.substring(0, 200)}`,
+            });
           }
-        } catch { /* non-blocking */ }
+        } catch (e) {
+          moduleLogs.push({
+            module: "knowledge_retrieval",
+            status: "error",
+            latency_ms: Date.now() - knStart,
+            details: e instanceof Error ? e.message : "Unknown error",
+          });
+        }
+      })();
 
-        // Step 2c: AI hypothesis generation with graph context
-        const graphContext = graphDiagnoses.length > 0
-          ? `\n\nKnowledge Graph Results:\n${graphDiagnoses.slice(0, 6).map((d: any) =>
-              `- ${d.diagnosis_name} (confidence: ${d.confidence}, matching symptoms: ${d.matching_symptoms})`
-            ).join("\n")}`
-          : "";
+      // Wait for Stage 2
+      await Promise.all([ddxPromise, knowledgePromise]);
 
-        const dangerousContext = dangerousDiags.length > 0
-          ? `\n\nMust-Not-Miss Diagnoses:\n${dangerousDiags.map((d: any) =>
-              `- ${d.diagnosis_name} (trigger: ${d.trigger_symptom})`
-            ).join("\n")}`
-          : "";
+      moduleLogs.push({
+        module: "parallel_stage_2",
+        status: "success",
+        latency_ms: Date.now() - stage2Start,
+        details: `DDX + Knowledge ran in parallel`,
+      });
 
-        const hypothesisResp = await fetch(GATEWAY_URL, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            temperature: 0.2,
-            messages: [
-              {
-                role: "system",
-                content: `You are a clinical reasoning assistant. Given patient context and knowledge graph results, generate a ranked list of differential diagnoses.
+      // ════════════════════════════════════════════════════
+      // STAGE 3: PARALLEL — Hypothesis + Guideline + Oversight
+      // All depend on DDX output but are independent of each other
+      // ════════════════════════════════════════════════════
+      const stage3Start = Date.now();
+
+      // --- Hypothesis Engine (async) ---
+      const hypothesisPromise = (async () => {
+        const hypStart = Date.now();
+        try {
+          // Step: Query knowledge graph
+          let graphDiagnoses: any[] = [];
+          let graphLabs: any[] = [];
+          try {
+            const graphUrl = `${supabaseUrl}/functions/v1/query-clinical-graph`;
+            const graphResp = await fetch(graphUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${serviceKey}`,
+              },
+              body: JSON.stringify({ symptoms: structuredContext.symptoms }),
+            });
+            if (graphResp.ok) {
+              const graphData = await graphResp.json();
+              graphDiagnoses = graphData.diagnoses || [];
+              graphLabs = (graphData.suggested_labs || []).map((l: any) => l.test_name);
+            }
+          } catch (e) {
+            console.warn("Knowledge graph query failed:", e);
+          }
+
+          // Step: Fetch dangerous diagnoses
+          let dangerousDiags: any[] = [];
+          try {
+            const { data: dangerousRows } = await admin
+              .from("dangerous_diagnoses")
+              .select("*, diagnoses(id, diagnosis_name)")
+              .eq("must_not_miss", true)
+              .order("priority", { ascending: true });
+
+            if (dangerousRows) {
+              const symptomsLower = structuredContext.symptoms.map((s: string) => s.toLowerCase());
+              for (const row of dangerousRows) {
+                const trigger = row.trigger_symptom.toLowerCase();
+                if (symptomsLower.some((s: string) => s.includes(trigger) || trigger.includes(s))) {
+                  if ((row as any).diagnoses) {
+                    dangerousDiags.push({
+                      diagnosis_name: (row as any).diagnoses.diagnosis_name,
+                      trigger_symptom: row.trigger_symptom,
+                      must_not_miss: true,
+                    });
+                  }
+                }
+              }
+            }
+          } catch { /* non-blocking */ }
+
+          // Step: AI hypothesis generation with graph context
+          const graphContext = graphDiagnoses.length > 0
+            ? `\n\nKnowledge Graph Results:\n${graphDiagnoses.slice(0, 6).map((d: any) =>
+                `- ${d.diagnosis_name} (confidence: ${d.confidence}, matching symptoms: ${d.matching_symptoms})`
+              ).join("\n")}`
+            : "";
+
+          const dangerousContext = dangerousDiags.length > 0
+            ? `\n\nMust-Not-Miss Diagnoses:\n${dangerousDiags.map((d: any) =>
+                `- ${d.diagnosis_name} (trigger: ${d.trigger_symptom})`
+              ).join("\n")}`
+            : "";
+
+          const hypothesisResp = await fetch(GATEWAY_URL, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              temperature: 0.2,
+              messages: [
+                {
+                  role: "system",
+                  content: `You are a clinical reasoning assistant. Given patient context and knowledge graph results, generate a ranked list of differential diagnoses.
 
 RULES:
 - Output ONLY valid JSON array, no markdown, no explanation.
@@ -471,10 +580,10 @@ RULES:
 - Include must-not-miss dangerous diagnoses even at low confidence. Mark them with "must_not_miss": true.
 - Be conservative. If data is insufficient, reflect lower confidence.
 - NEVER state a definitive diagnosis. These are hypotheses for clinician review.`,
-              },
-              {
-                role: "user",
-                content: `Patient Context:
+                },
+                {
+                  role: "user",
+                  content: `Patient Context:
 - Age: ${structuredContext.patient_age ?? "unknown"}
 - Sex: ${structuredContext.patient_sex ?? "unknown"}
 - Chief Complaint: ${structuredContext.chief_complaint}
@@ -486,363 +595,299 @@ RULES:
 - Allergies: ${structuredContext.allergies.join(", ") || "none"}${graphContext}${dangerousContext}
 
 Generate differential diagnoses as JSON array.`,
-              },
-            ],
-          }),
-        });
-
-        if (hypothesisResp.ok) {
-          const hData = await hypothesisResp.json();
-          const content = hData.choices?.[0]?.message?.content || "";
-          const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-          try {
-            const parsed = JSON.parse(cleaned);
-            modularOutput.hypotheses = Array.isArray(parsed) ? parsed : [];
-            modularOutput.diagnoses = modularOutput.hypotheses.map((h: any) => h.diagnosis);
-
-            // Inject must-not-miss if missing
-            const existingNames = new Set(modularOutput.diagnoses.map((d: string) => d.toLowerCase()));
-            for (const dd of dangerousDiags) {
-              if (!existingNames.has(dd.diagnosis_name.toLowerCase())) {
-                modularOutput.hypotheses.push({
-                  diagnosis: dd.diagnosis_name,
-                  confidence: 0.15,
-                  supporting_factors: [`Trigger symptom: ${dd.trigger_symptom}`],
-                  contradicting_factors: ["Low prior probability but must not miss"],
-                  recommended_tests: [],
-                  must_not_miss: true,
-                });
-                modularOutput.diagnoses.push(dd.diagnosis_name);
-              }
-            }
-
-            // Extract recommended tests from hypotheses + graph labs
-            const allTests = new Set<string>();
-            for (const h of modularOutput.hypotheses) {
-              for (const t of (h.recommended_tests || [])) allTests.add(t);
-            }
-            for (const l of graphLabs) allTests.add(l);
-            modularOutput.labs = [...allTests];
-          } catch {
-            modularOutput.hypotheses = [];
-          }
-        }
-        moduleLogs.push({
-          module: "hypothesis_engine",
-          status: modularOutput.hypotheses.length > 0 ? "success" : "error",
-          latency_ms: Date.now() - hypStart,
-          details: `Generated ${modularOutput.hypotheses.length} hypotheses (graph: ${graphDiagnoses.length} diagnoses, dangerous: ${dangerousDiags.length}). Source: ${graphDiagnoses.length > 0 ? "knowledge_graph+ai" : "ai_only"}. Top: ${modularOutput.hypotheses[0]?.diagnosis || "none"}`,
-        });
-      } catch (e) {
-        moduleLogs.push({
-          module: "hypothesis_engine",
-          status: "error",
-          latency_ms: Date.now() - hypStart,
-          details: e instanceof Error ? e.message : "Unknown error",
-        });
-      }
-
-      // ─── MODULE 3: Knowledge Retrieval ──────────────────
-      // Calls clinical-knowledge edge function for PubMed, Europe PMC, OpenFDA, DailyMed evidence
-      const knStart = Date.now();
-      try {
-        const knowledgeUrl = `${supabaseUrl}/functions/v1/clinical-knowledge`;
-        const knowledgeResp = await fetch(knowledgeUrl, {
-          method: "POST",
-          headers: {
-            Authorization: authHeader,
-            "Content-Type": "application/json",
-            apikey: anonKey,
-          },
-          body: JSON.stringify({
-            chief_complaint: structuredContext.chief_complaint,
-            duration: structuredContext.symptom_duration,
-            symptoms: structuredContext.symptoms.join(", "),
-            age: structuredContext.patient_age,
-            gender: structuredContext.patient_sex,
-            allergies: structuredContext.allergies.join(", "),
-            medications: structuredContext.medications.join(", "),
-            conditions: structuredContext.medical_history.join(", "),
-            vitals: JSON.stringify(structuredContext.vitals),
-          }),
-        });
-
-        if (knowledgeResp.ok) {
-          const knData = await knowledgeResp.json();
-          modularOutput.evidence = {
-            citations: knData.citations || [],
-            drug_safety: knData.drug_safety || [],
-            suggestions: knData.suggestions || {},
-            sources_queried: knData.sources_queried || [],
-            retrieval_confidence: knData.retrieval_confidence || "low",
-          };
-
-          // Merge medication suggestions from evidence
-          const evidenceMeds = (knData.suggestions?.prescriptions || []).map((p: any) => p.drug_name);
-          if (evidenceMeds.length > 0) {
-            const existingSet = new Set(modularOutput.medications.map((m: string) => m.toLowerCase()));
-            for (const med of evidenceMeds) {
-              if (!existingSet.has(med.toLowerCase())) {
-                modularOutput.medications.push(med);
-              }
-            }
-          }
-
-          // Merge lab suggestions from evidence
-          const evidenceLabs = (knData.suggestions?.lab_tests || []).map((l: any) => l.test_name);
-          if (evidenceLabs.length > 0) {
-            const existingLabSet = new Set(modularOutput.labs.map((l: string) => l.toLowerCase()));
-            for (const lab of evidenceLabs) {
-              if (!existingLabSet.has(lab.toLowerCase())) {
-                modularOutput.labs.push(lab);
-              }
-            }
-          }
-
-          moduleLogs.push({
-            module: "knowledge_retrieval",
-            status: "success",
-            latency_ms: Date.now() - knStart,
-            details: `Retrieved ${(knData.citations || []).length} citations from ${(knData.sources_queried || []).join(", ")}. Confidence: ${knData.retrieval_confidence || "low"}`,
+                },
+              ],
+            }),
           });
-        } else {
-          const errText = await knowledgeResp.text();
+
+          if (hypothesisResp.ok) {
+            const hData = await hypothesisResp.json();
+            const content = hData.choices?.[0]?.message?.content || "";
+            const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+            try {
+              const parsed = JSON.parse(cleaned);
+              modularOutput.hypotheses = Array.isArray(parsed) ? parsed : [];
+              modularOutput.diagnoses = modularOutput.hypotheses.map((h: any) => h.diagnosis);
+
+              // Inject must-not-miss if missing
+              const existingNames = new Set(modularOutput.diagnoses.map((d: string) => d.toLowerCase()));
+              for (const dd of dangerousDiags) {
+                if (!existingNames.has(dd.diagnosis_name.toLowerCase())) {
+                  modularOutput.hypotheses.push({
+                    diagnosis: dd.diagnosis_name,
+                    confidence: 0.15,
+                    supporting_factors: [`Trigger symptom: ${dd.trigger_symptom}`],
+                    contradicting_factors: ["Low prior probability but must not miss"],
+                    recommended_tests: [],
+                    must_not_miss: true,
+                  });
+                  modularOutput.diagnoses.push(dd.diagnosis_name);
+                }
+              }
+
+              // Extract recommended tests from hypotheses + graph labs
+              const allTests = new Set<string>();
+              for (const h of modularOutput.hypotheses) {
+                for (const t of (h.recommended_tests || [])) allTests.add(t);
+              }
+              for (const l of graphLabs) allTests.add(l);
+              // Merge with existing labs
+              const existingLabSet = new Set(modularOutput.labs.map((l: string) => l.toLowerCase()));
+              for (const t of allTests) {
+                if (!existingLabSet.has(t.toLowerCase())) modularOutput.labs.push(t);
+              }
+            } catch {
+              modularOutput.hypotheses = [];
+            }
+          }
           moduleLogs.push({
-            module: "knowledge_retrieval",
+            module: "hypothesis_engine",
+            status: modularOutput.hypotheses.length > 0 ? "success" : "error",
+            latency_ms: Date.now() - hypStart,
+            details: `Generated ${modularOutput.hypotheses.length} hypotheses (graph: ${graphDiagnoses.length} diagnoses, dangerous: ${dangerousDiags.length}). Source: ${graphDiagnoses.length > 0 ? "knowledge_graph+ai" : "ai_only"}. Top: ${modularOutput.hypotheses[0]?.diagnosis || "none"}`,
+          });
+        } catch (e) {
+          moduleLogs.push({
+            module: "hypothesis_engine",
             status: "error",
-            latency_ms: Date.now() - knStart,
-            details: `HTTP ${knowledgeResp.status}: ${errText.substring(0, 200)}`,
+            latency_ms: Date.now() - hypStart,
+            details: e instanceof Error ? e.message : "Unknown error",
           });
         }
-      } catch (e) {
-        moduleLogs.push({
-          module: "knowledge_retrieval",
-          status: "error",
-          latency_ms: Date.now() - knStart,
-          details: e instanceof Error ? e.message : "Unknown error",
-        });
-      }
+      })();
 
-      // ─── MODULE 4: Guideline Engine ─────────────────────
-      // Calls guideline-compliance edge function to check against ICMR > WHO > NICE > CDC > specialty
-      const glStart = Date.now();
-      try {
-        // First, fetch guideline_sources to get priority ordering
-        const { data: guidelineSources } = await admin
-          .from("guideline_sources")
-          .select("organization, priority, disease_category, region")
-          .eq("is_active", true)
-          .order("priority", { ascending: true });
+      // --- Guideline Engine (async) ---
+      const guidelinePromise = (async () => {
+        const glStart = Date.now();
+        try {
+          // Fetch guideline_sources for priority ordering
+          const { data: guidelineSources } = await admin
+            .from("guideline_sources")
+            .select("organization, priority, disease_category, region")
+            .eq("is_active", true)
+            .order("priority", { ascending: true });
 
-        const complianceUrl = `${supabaseUrl}/functions/v1/guideline-compliance`;
-        const complianceResp = await fetch(complianceUrl, {
-          method: "POST",
-          headers: {
-            Authorization: authHeader,
-            "Content-Type": "application/json",
-            apikey: anonKey,
-          },
-          body: JSON.stringify({
-            diagnoses: modularOutput.diagnoses.slice(0, 5),
-            medications: modularOutput.medications.slice(0, 5).map((m: string) => ({
-              drug_name: m,
-              dose: "",
-              frequency: "",
-              duration: "",
-            })),
-            tests: modularOutput.labs.slice(0, 5),
-            care_plan: "",
-            patient_age: structuredContext.patient_age,
-            patient_sex: structuredContext.patient_sex,
-            chief_complaint: structuredContext.chief_complaint,
-          }),
-        });
-
-        if (complianceResp.ok) {
-          const compData = await complianceResp.json();
-
-          // Build priority map from guideline_sources
-          const priorityMap: Record<string, number> = {};
-          for (const gs of (guidelineSources || [])) {
-            priorityMap[gs.organization.toUpperCase()] = gs.priority;
-          }
-
-          // Sort results by source priority
-          const sortedResults = (compData.results || []).sort((a: any, b: any) => {
-            const aPriority = a.matching_guidelines?.[0]?.source_organization
-              ? (priorityMap[a.matching_guidelines[0].source_organization.toUpperCase()] ?? 10) : 10;
-            const bPriority = b.matching_guidelines?.[0]?.source_organization
-              ? (priorityMap[b.matching_guidelines[0].source_organization.toUpperCase()] ?? 10) : 10;
-            return aPriority - bPriority;
+          const complianceUrl = `${supabaseUrl}/functions/v1/guideline-compliance`;
+          const complianceResp = await fetch(complianceUrl, {
+            method: "POST",
+            headers: {
+              Authorization: authHeader,
+              "Content-Type": "application/json",
+              apikey: anonKey,
+            },
+            body: JSON.stringify({
+              diagnoses: modularOutput.diagnoses.slice(0, 5),
+              medications: modularOutput.medications.slice(0, 5).map((m: string) => ({
+                drug_name: m,
+                dose: "",
+                frequency: "",
+                duration: "",
+              })),
+              tests: modularOutput.labs.slice(0, 5),
+              care_plan: "",
+              patient_age: structuredContext.patient_age,
+              patient_sex: structuredContext.patient_sex,
+              chief_complaint: structuredContext.chief_complaint,
+            }),
           });
 
-          // Detect conflicts
-          const conflicts = sortedResults
-            .filter((r: any) => r.compliance_status === "review_suggested")
-            .map((r: any) => ({
-              recommendation: r.item,
-              conflicting_guideline: r.matching_guidelines?.[0]?.title || "Unknown",
-              organization: r.matching_guidelines?.[0]?.source_organization || "Unknown",
-              severity: r.matching_guidelines?.length > 1 ? "high" : "moderate",
-              explanation: r.explanation || "",
-            }));
+          if (complianceResp.ok) {
+            const compData = await complianceResp.json();
 
-          // Compute compliance score
-          const totalEvaluated = sortedResults.length || 1;
-          const alignedCount = sortedResults.filter(
-            (r: any) => r.compliance_status === "guideline_aligned" || r.compliance_status === "evidence_supported"
-          ).length;
-          const complianceScore = Math.round((alignedCount / totalEvaluated) * 100);
+            // Build priority map from guideline_sources
+            const priorityMap: Record<string, number> = {};
+            for (const gs of (guidelineSources || [])) {
+              priorityMap[gs.organization.toUpperCase()] = gs.priority;
+            }
 
-          modularOutput.compliance = {
-            results: sortedResults,
-            guidelines_matched: compData.guidelines_matched || 0,
-            guidelines_sources: compData.guidelines_sources || [],
-            guideline_sources_used: (guidelineSources || []).map((gs: any) => gs.organization),
-            guideline_compliance_score: complianceScore,
-            conflicts_detected: conflicts,
-          };
+            // Sort results by source priority
+            const sortedResults = (compData.results || []).sort((a: any, b: any) => {
+              const aPriority = a.matching_guidelines?.[0]?.source_organization
+                ? (priorityMap[a.matching_guidelines[0].source_organization.toUpperCase()] ?? 10) : 10;
+              const bPriority = b.matching_guidelines?.[0]?.source_organization
+                ? (priorityMap[b.matching_guidelines[0].source_organization.toUpperCase()] ?? 10) : 10;
+              return aPriority - bPriority;
+            });
 
-          // Extract guideline references
-          modularOutput.guidelines = sortedResults
-            .filter((r: any) => r.matching_guidelines?.length > 0)
-            .flatMap((r: any) => r.matching_guidelines.map((g: any) => ({
-              title: g.title,
-              organization: g.source_organization,
-              recommendation: g.recommendation_text?.substring(0, 200),
-              evidence_grade: g.evidence_grade,
-            })));
+            // Detect conflicts
+            const conflicts = sortedResults
+              .filter((r: any) => r.compliance_status === "review_suggested")
+              .map((r: any) => ({
+                recommendation: r.item,
+                conflicting_guideline: r.matching_guidelines?.[0]?.title || "Unknown",
+                organization: r.matching_guidelines?.[0]?.source_organization || "Unknown",
+                severity: r.matching_guidelines?.length > 1 ? "high" : "moderate",
+                explanation: r.explanation || "",
+              }));
 
-          // Log guideline citations to guideline_usage_logs
-          for (const result of sortedResults) {
-            for (const gl of (result.matching_guidelines || [])) {
-              if (gl.guideline_id) {
-                await admin.from("guideline_usage_logs").insert({
-                  guideline_id: gl.guideline_id,
-                  visit_id: "00000000-0000-0000-0000-000000000000", // benchmark placeholder
-                  clinic_id: "00000000-0000-0000-0000-000000000000",
-                  tier: priorityMap[gl.source_organization?.toUpperCase()] ?? 5,
-                  matched_condition: result.item,
-                  recommendation_used: gl.recommendation_text?.substring(0, 500),
-                  guideline_name: gl.title,
-                  recommendation_checked: result.item,
-                  compliance_result: result.compliance_status,
-                }).catch(() => {}); // non-critical
+            // Compute compliance score
+            const totalEvaluated = sortedResults.length || 1;
+            const alignedCount = sortedResults.filter(
+              (r: any) => r.compliance_status === "guideline_aligned" || r.compliance_status === "evidence_supported"
+            ).length;
+            const complianceScore = Math.round((alignedCount / totalEvaluated) * 100);
+
+            modularOutput.compliance = {
+              results: sortedResults,
+              guidelines_matched: compData.guidelines_matched || 0,
+              guidelines_sources: compData.guidelines_sources || [],
+              guideline_sources_used: (guidelineSources || []).map((gs: any) => gs.organization),
+              guideline_compliance_score: complianceScore,
+              conflicts_detected: conflicts,
+            };
+
+            // Extract guideline references
+            modularOutput.guidelines = sortedResults
+              .filter((r: any) => r.matching_guidelines?.length > 0)
+              .flatMap((r: any) => r.matching_guidelines.map((g: any) => ({
+                title: g.title,
+                organization: g.source_organization,
+                recommendation: g.recommendation_text?.substring(0, 200),
+                evidence_grade: g.evidence_grade,
+              })));
+
+            // Log guideline citations (non-blocking)
+            for (const result of sortedResults) {
+              for (const gl of (result.matching_guidelines || [])) {
+                if (gl.guideline_id) {
+                  admin.from("guideline_usage_logs").insert({
+                    guideline_id: gl.guideline_id,
+                    visit_id: "00000000-0000-0000-0000-000000000000",
+                    clinic_id: "00000000-0000-0000-0000-000000000000",
+                    tier: priorityMap[gl.source_organization?.toUpperCase()] ?? 5,
+                    matched_condition: result.item,
+                    recommendation_used: gl.recommendation_text?.substring(0, 500),
+                    guideline_name: gl.title,
+                    recommendation_checked: result.item,
+                    compliance_result: result.compliance_status,
+                  }).catch(() => {});
+                }
               }
             }
-          }
 
-          moduleLogs.push({
-            module: "guideline_engine",
-            status: "success",
-            latency_ms: Date.now() - glStart,
-            details: `Evaluated ${sortedResults.length} items against ${compData.guidelines_matched || 0} guidelines. Compliance: ${complianceScore}%. Conflicts: ${conflicts.length}. Sources: ${(compData.guidelines_sources || []).join(", ")}`,
-          });
-        } else {
-          const errText = await complianceResp.text();
+            moduleLogs.push({
+              module: "guideline_engine",
+              status: "success",
+              latency_ms: Date.now() - glStart,
+              details: `Evaluated ${sortedResults.length} items against ${compData.guidelines_matched || 0} guidelines. Compliance: ${complianceScore}%. Conflicts: ${conflicts.length}. Sources: ${(compData.guidelines_sources || []).join(", ")}`,
+            });
+          } else {
+            const errText = await complianceResp.text();
+            moduleLogs.push({
+              module: "guideline_engine",
+              status: "error",
+              latency_ms: Date.now() - glStart,
+              details: `HTTP ${complianceResp.status}: ${errText.substring(0, 200)}`,
+            });
+          }
+        } catch (e) {
           moduleLogs.push({
             module: "guideline_engine",
             status: "error",
             latency_ms: Date.now() - glStart,
-            details: `HTTP ${complianceResp.status}: ${errText.substring(0, 200)}`,
+            details: e instanceof Error ? e.message : "Unknown error",
           });
         }
-      } catch (e) {
-        moduleLogs.push({
-          module: "guideline_engine",
-          status: "error",
-          latency_ms: Date.now() - glStart,
-          details: e instanceof Error ? e.message : "Unknown error",
-        });
-      }
+      })();
 
-      // ─── MODULE 5: Oversight Engine ─────────────────────
-      // Calls clinical-safety edge function for drug interactions, allergy conflicts, vital dangers
-      const osStart = Date.now();
-      try {
-        const bpParts = ctx.vitals?.bp?.split("/") || [];
-        const vitalsObj = {
-          bp_systolic: parseInt(bpParts[0]) || null,
-          bp_diastolic: parseInt(bpParts[1]) || null,
-          pulse: ctx.vitals?.pulse || null,
-          temperature: ctx.vitals?.temperature || null,
-          spo2: ctx.vitals?.spo2 || null,
-        };
-
-        const safetyUrl = `${supabaseUrl}/functions/v1/clinical-safety`;
-        const safetyResp = await fetch(safetyUrl, {
-          method: "POST",
-          headers: {
-            Authorization: authHeader,
-            "Content-Type": "application/json",
-            apikey: anonKey,
-          },
-          body: JSON.stringify({
-            medications: [...structuredContext.medications, ...modularOutput.medications],
-            allergies: structuredContext.allergies,
-            vitals: vitalsObj,
-            symptoms: structuredContext.symptoms,
-            clinical_context: clinicalContext,
-            actor_id: user.id,
-          }),
-        });
-
-        if (safetyResp.ok) {
-          const safetyData = await safetyResp.json();
-          modularOutput.oversight = {
-            interaction_flags: safetyData.interaction_flags || [],
-            allergy_flags: safetyData.allergy_flags || [],
-            dose_warnings: safetyData.dose_warnings || [],
-            vitals_dangers: safetyData.vitals_dangers || [],
-            emergency_patterns: safetyData.emergency_patterns || [],
-            confidence_level: safetyData.confidence_level || "moderate",
-            requires_manual_review: safetyData.requires_manual_review || false,
+      // --- Oversight Engine (async) ---
+      const oversightPromise = (async () => {
+        const osStart = Date.now();
+        try {
+          const bpParts = ctx.vitals?.bp?.split("/") || [];
+          const vitalsObj = {
+            bp_systolic: parseInt(bpParts[0]) || null,
+            bp_diastolic: parseInt(bpParts[1]) || null,
+            pulse: ctx.vitals?.pulse || null,
+            temperature: ctx.vitals?.temperature || null,
+            spo2: ctx.vitals?.spo2 || null,
           };
 
-          // Compute safety score
-          const totalFlags =
-            (safetyData.interaction_flags || []).length +
-            (safetyData.allergy_flags || []).length * 2 + // allergy = double weight
-            (safetyData.dose_warnings || []).length +
-            (safetyData.vitals_dangers || []).length +
-            (safetyData.emergency_patterns || []).length * 3; // emergency = triple weight
-
-          modularOutput.safety_score = Math.max(0, 100 - totalFlags * 15);
-
-          // Build human-readable safety flags
-          modularOutput.safety_flags = [
-            ...(safetyData.interaction_flags || []).map((f: any) => `Interaction: ${f.drug_a} + ${f.drug_b} (${f.severity})`),
-            ...(safetyData.allergy_flags || []).map((f: any) => `Allergy conflict: ${f.medication} vs ${f.allergy}`),
-            ...(safetyData.dose_warnings || []).map((f: any) => `Dose: ${f.medication} — ${f.issue}`),
-            ...(safetyData.vitals_dangers || []).map((f: any) => `Vital: ${f.parameter} ${f.value} (${f.severity})`),
-            ...(safetyData.emergency_patterns || []).map((f: any) => `Emergency: ${f.pattern}`),
-          ];
-
-          moduleLogs.push({
-            module: "oversight_engine",
-            status: "success",
-            latency_ms: Date.now() - osStart,
-            details: `Safety score: ${modularOutput.safety_score}/100. Flags: ${totalFlags} (interactions: ${(safetyData.interaction_flags || []).length}, allergies: ${(safetyData.allergy_flags || []).length}, vitals: ${(safetyData.vitals_dangers || []).length}, emergencies: ${(safetyData.emergency_patterns || []).length})`,
+          const safetyUrl = `${supabaseUrl}/functions/v1/clinical-safety`;
+          const safetyResp = await fetch(safetyUrl, {
+            method: "POST",
+            headers: {
+              Authorization: authHeader,
+              "Content-Type": "application/json",
+              apikey: anonKey,
+            },
+            body: JSON.stringify({
+              medications: [...structuredContext.medications, ...modularOutput.medications],
+              allergies: structuredContext.allergies,
+              vitals: vitalsObj,
+              symptoms: structuredContext.symptoms,
+              clinical_context: clinicalContext,
+              actor_id: user.id,
+            }),
           });
-        } else {
-          const errText = await safetyResp.text();
+
+          if (safetyResp.ok) {
+            const safetyData = await safetyResp.json();
+            modularOutput.oversight = {
+              interaction_flags: safetyData.interaction_flags || [],
+              allergy_flags: safetyData.allergy_flags || [],
+              dose_warnings: safetyData.dose_warnings || [],
+              vitals_dangers: safetyData.vitals_dangers || [],
+              emergency_patterns: safetyData.emergency_patterns || [],
+              confidence_level: safetyData.confidence_level || "moderate",
+              requires_manual_review: safetyData.requires_manual_review || false,
+            };
+
+            const totalFlags =
+              (safetyData.interaction_flags || []).length +
+              (safetyData.allergy_flags || []).length * 2 +
+              (safetyData.dose_warnings || []).length +
+              (safetyData.vitals_dangers || []).length +
+              (safetyData.emergency_patterns || []).length * 3;
+
+            modularOutput.safety_score = Math.max(0, 100 - totalFlags * 15);
+
+            modularOutput.safety_flags = [
+              ...(safetyData.interaction_flags || []).map((f: any) => `Interaction: ${f.drug_a} + ${f.drug_b} (${f.severity})`),
+              ...(safetyData.allergy_flags || []).map((f: any) => `Allergy conflict: ${f.medication} vs ${f.allergy}`),
+              ...(safetyData.dose_warnings || []).map((f: any) => `Dose: ${f.medication} — ${f.issue}`),
+              ...(safetyData.vitals_dangers || []).map((f: any) => `Vital: ${f.parameter} ${f.value} (${f.severity})`),
+              ...(safetyData.emergency_patterns || []).map((f: any) => `Emergency: ${f.pattern}`),
+            ];
+
+            moduleLogs.push({
+              module: "oversight_engine",
+              status: "success",
+              latency_ms: Date.now() - osStart,
+              details: `Safety score: ${modularOutput.safety_score}/100. Flags: ${totalFlags} (interactions: ${(safetyData.interaction_flags || []).length}, allergies: ${(safetyData.allergy_flags || []).length}, vitals: ${(safetyData.vitals_dangers || []).length}, emergencies: ${(safetyData.emergency_patterns || []).length})`,
+            });
+          } else {
+            const errText = await safetyResp.text();
+            moduleLogs.push({
+              module: "oversight_engine",
+              status: "error",
+              latency_ms: Date.now() - osStart,
+              details: `HTTP ${safetyResp.status}: ${errText.substring(0, 200)}`,
+            });
+          }
+        } catch (e) {
           moduleLogs.push({
             module: "oversight_engine",
             status: "error",
             latency_ms: Date.now() - osStart,
-            details: `HTTP ${safetyResp.status}: ${errText.substring(0, 200)}`,
+            details: e instanceof Error ? e.message : "Unknown error",
           });
         }
-      } catch (e) {
-        moduleLogs.push({
-          module: "oversight_engine",
-          status: "error",
-          latency_ms: Date.now() - osStart,
-          details: e instanceof Error ? e.message : "Unknown error",
-        });
-      }
+      })();
 
-      // ─── MODULE 5.5: Uncertainty Engine ─────────────────
+      // Wait for Stage 3
+      await Promise.all([hypothesisPromise, guidelinePromise, oversightPromise]);
+
+      moduleLogs.push({
+        module: "parallel_stage_3",
+        status: "success",
+        latency_ms: Date.now() - stage3Start,
+        details: `Hypothesis + Guideline + Oversight ran in parallel`,
+      });
+
+      // ════════════════════════════════════════════════════
+      // STAGE 4: Uncertainty Engine (depends on all above)
+      // ════════════════════════════════════════════════════
       const uncStart = Date.now();
       let uncertaintyOutput: any = null;
       try {
@@ -908,11 +953,11 @@ Generate differential diagnoses as JSON array.`,
       }
       modularOutput.uncertainty = uncertaintyOutput;
 
-
-      // Calls clinical-soap edge function with combined context from all previous modules
+      // ════════════════════════════════════════════════════
+      // STAGE 5: SOAP Generator (depends on all above)
+      // ════════════════════════════════════════════════════
       const soapStart = Date.now();
       try {
-        // Build enriched extraction data from all modules
         const enrichedExtracted = {
           chief_complaint: structuredContext.chief_complaint,
           duration: structuredContext.symptom_duration,
@@ -921,7 +966,6 @@ Generate differential diagnoses as JSON array.`,
           chronic_conditions: structuredContext.medical_history.join(", "),
           current_medications: structuredContext.medications.join(", "),
           allergies: structuredContext.allergies.join(", "),
-          // Enrich with modular pipeline results
           hypotheses: modularOutput.hypotheses.map((h: any) =>
             `${h.diagnosis} (confidence: ${Math.round((h.confidence || 0) * 100)}%)`
           ).join("; "),
