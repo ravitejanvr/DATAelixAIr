@@ -50,57 +50,82 @@ serve(async (req) => {
     const body: ComplianceRequest = await req.json();
     const { diagnoses = [], medications = [], tests = [], care_plan = "", patient_age, patient_sex, chief_complaint } = body;
 
-    // ── Step 1: RAG retrieval — find matching guidelines ──
-    const searchTerms = [
-      ...diagnoses,
-      ...medications.map(m => m.drug_name),
-      ...tests,
-      chief_complaint,
-    ].filter(Boolean);
-
-    // Query clinical_guidelines using keyword matching
+    // ── Step 1: Relational guideline retrieval via diagnosis → guideline_rules ──
     let allGuidelines: any[] = [];
-    
-    // Search by condition match
-    for (const term of searchTerms.slice(0, 6)) {
-      const { data } = await sb
-        .from("clinical_guidelines")
-        .select("*")
-        .eq("is_active", true)
-        .or(`condition.ilike.%${term}%,clinical_topic.ilike.%${term}%,title.ilike.%${term}%,recommendation_text.ilike.%${term}%`)
-        .limit(5);
-      if (data) allGuidelines.push(...data);
+
+    // Step 1a: Relational traversal — find diagnoses by name, then get guideline_rules
+    if (diagnoses.length > 0) {
+      // Find diagnosis IDs from names
+      const diagFilters = diagnoses.slice(0, 10).map((d: string) => `diagnosis_name.ilike.%${d}%`).join(",");
+      const { data: matchedDiagnoses } = await sb
+        .from("diagnoses")
+        .select("id, diagnosis_name")
+        .or(diagFilters);
+
+      const diagnosisIds = (matchedDiagnoses || []).map((d: any) => d.id);
+
+      if (diagnosisIds.length > 0) {
+        // Fetch guideline_rules with authority join
+        const { data: rules } = await sb
+          .from("guideline_rules")
+          .select("id, recommendation, evidence_level, treatment_generic_name, diagnosis_id, guideline_authorities(id, authority_name, priority, country)")
+          .in("diagnosis_id", diagnosisIds);
+
+        if (rules && rules.length > 0) {
+          // Convert rules to guideline format for downstream processing
+          for (const rule of rules) {
+            const diagName = matchedDiagnoses?.find((d: any) => d.id === rule.diagnosis_id)?.diagnosis_name || "";
+            const authority = (rule as any).guideline_authorities;
+            allGuidelines.push({
+              id: rule.id,
+              title: `${authority?.authority_name || "Unknown"} ${diagName} Guideline`,
+              source: authority?.authority_name || "Unknown",
+              source_organization: authority?.authority_name || "Unknown",
+              year: 2024,
+              evidence_grade: rule.evidence_level,
+              recommendation_text: rule.recommendation,
+              condition: diagName,
+              clinical_topic: diagName,
+              applicable_drugs: [rule.treatment_generic_name],
+              applicable_tests: [],
+              guideline_url: null,
+              _authority_priority: authority?.priority ?? 10,
+            });
+          }
+
+          // Sort by authority priority
+          allGuidelines.sort((a: any, b: any) => (a._authority_priority ?? 10) - (b._authority_priority ?? 10));
+        }
+      }
     }
 
-    // Search by applicable_drugs for medications
-    for (const med of medications.slice(0, 4)) {
-      const { data } = await sb
-        .from("clinical_guidelines")
-        .select("*")
-        .eq("is_active", true)
-        .contains("applicable_drugs", [med.drug_name.toLowerCase()])
-        .limit(3);
-      if (data) allGuidelines.push(...data);
-    }
+    // Step 1b: Fallback — keyword search in clinical_guidelines if relational returned nothing
+    if (allGuidelines.length === 0) {
+      const searchTerms = [
+        ...diagnoses,
+        ...medications.map(m => m.drug_name),
+        ...tests,
+        chief_complaint,
+      ].filter(Boolean);
 
-    // Search by applicable_tests
-    for (const test of tests.slice(0, 4)) {
-      const { data } = await sb
-        .from("clinical_guidelines")
-        .select("*")
-        .eq("is_active", true)
-        .contains("applicable_tests", [test.toLowerCase()])
-        .limit(3);
-      if (data) allGuidelines.push(...data);
-    }
+      for (const term of searchTerms.slice(0, 6)) {
+        const { data } = await sb
+          .from("clinical_guidelines")
+          .select("*")
+          .eq("is_active", true)
+          .or(`condition.ilike.%${term}%,clinical_topic.ilike.%${term}%,title.ilike.%${term}%`)
+          .limit(5);
+        if (data) allGuidelines.push(...data);
+      }
 
-    // Deduplicate
-    const seenIds = new Set<string>();
-    allGuidelines = allGuidelines.filter(g => {
-      if (seenIds.has(g.id)) return false;
-      seenIds.add(g.id);
-      return true;
-    });
+      // Deduplicate
+      const seenIds = new Set<string>();
+      allGuidelines = allGuidelines.filter(g => {
+        if (seenIds.has(g.id)) return false;
+        seenIds.add(g.id);
+        return true;
+      });
+    }
 
     // ── Step 2: AI compliance evaluation ──
     const itemsToEvaluate = [
