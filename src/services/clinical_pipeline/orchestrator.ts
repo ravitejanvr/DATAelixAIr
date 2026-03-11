@@ -34,6 +34,7 @@ import { getCached, setCache } from "@/services/knowledge_cache";
 import { runDDXEngine, type DDXResult } from "@/services/ddx_engine/client";
 import { runUncertaintyEngine, type UncertaintyResult } from "@/services/uncertainty_engine/client";
 import { runHybridReasoning, type HybridReasoningResult } from "@/services/reasoning_engine/client";
+import { runMultiAgentPipeline, type OrchestratorResponse } from "@/services/multi_agent";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PipelineInput {
@@ -60,6 +61,7 @@ export interface PipelineResult {
   evidence: EvidenceQueryResult | null;
   oversight: OversightReport | null;
   hybrid_reasoning: HybridReasoningResult | null;
+  multi_agent: OrchestratorResponse | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
@@ -117,6 +119,7 @@ export async function runClinicalPipeline(
       evidence: null,
       oversight: null,
       hybrid_reasoning: null,
+      multi_agent: null,
       guideline_summary: null,
       logs: [],
       stage_latencies: {},
@@ -413,6 +416,30 @@ export async function runClinicalPipeline(
   stageLatencies.hybrid_reasoning = Math.round(performance.now() - reasoningStart);
   onProgress?.("reasoning", { hybrid_reasoning: hybridReasoning });
 
+  // ── Stage 7: Multi-Agent Orchestrator (non-blocking, parallel) ──
+  let multiAgentResult: OrchestratorResponse | null = null;
+  const maStart = performance.now();
+  try {
+    multiAgentResult = await withTimeout(
+      runMultiAgentPipeline({
+        transcript: input.clinical_context.chief_complaint || "",
+        clinical_context: input.clinical_context,
+        visit_id: input.visit_id || undefined,
+        clinic_id: input.clinic_id || undefined,
+        skip_agents: ["documentation_agent"], // SOAP already handled
+      }),
+      8000,
+      "multi_agent"
+    );
+    if (multiAgentResult) {
+      console.log(`[Pipeline] Multi-agent: ${multiAgentResult.agent_results.filter(a => a.status === "success").length}/${multiAgentResult.agent_results.length} agents succeeded in ${multiAgentResult.total_ms}ms`);
+    }
+  } catch {
+    multiAgentResult = null;
+  }
+  stageLatencies.multi_agent = Math.round(performance.now() - maStart);
+  onProgress?.("multi_agent", { multi_agent: multiAgentResult });
+
   const totalLatency = Math.round(performance.now() - pipelineStart);
   stageLatencies.total = totalLatency;
 
@@ -471,6 +498,7 @@ export async function runClinicalPipeline(
     evidence,
     oversight,
     hybrid_reasoning: hybridReasoning,
+    multi_agent: multiAgentResult,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: stageLatencies,
