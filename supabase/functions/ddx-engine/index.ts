@@ -464,7 +464,7 @@ Deno.serve(async (req) => {
     // STEP 8: MONITORING
     // ════════════════════════════════════════════════════
     const duration_ms = Date.now() - start;
-    await supabase.from("monitoring_events").insert({
+    const { error: monErr } = await supabase.from("monitoring_events").insert({
       event_type: "ddx_engine_executed",
       agent_name: "ddx-engine",
       clinic_id: clinic_id || null,
@@ -482,7 +482,8 @@ Deno.serve(async (req) => {
         top_diagnosis: finalDifferential[0]?.diagnosis_name || null,
         top_probability: finalDifferential[0]?.probability || 0,
       },
-    }).catch(() => {});
+    });
+    if (monErr) console.error("Monitor log error:", monErr);
 
     return new Response(JSON.stringify({
       differential_diagnoses: finalDifferential,
