@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { SafetyResults } from "@/layers/safety/api";
 import type { PhysiologicalContextResult } from "@/services/physiology_engine";
+import type { BayesianResult } from "@/services/bayesian_engine";
 import type { EvidenceData } from "@/layers/evidence/api";
 import type { MedicationValidationResult, MedicationWarning } from "@/services/medication_intelligence/client";
 import { sortWarnings, safetyScoreColor } from "@/services/medication_intelligence/client";
