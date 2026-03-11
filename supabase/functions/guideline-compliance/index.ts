@@ -7,6 +7,27 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ── Authority tier map ──
+const AUTHORITY_TIERS: Record<string, { tier: number; label: string }> = {
+  ICMR: { tier: 1, label: "National (India)" },
+  NHS: { tier: 1, label: "National (UK)" },
+  WHO: { tier: 2, label: "Global" },
+  NICE: { tier: 3, label: "Specialty Society" },
+  CDC: { tier: 3, label: "Specialty Society" },
+  IDSA: { tier: 3, label: "Specialty Society" },
+  AHA: { tier: 3, label: "Specialty Society" },
+  ESC: { tier: 3, label: "Specialty Society" },
+  ADA: { tier: 3, label: "Specialty Society" },
+};
+
+function getAuthorityTier(org: string): { tier: number; label: string } {
+  const upper = org.toUpperCase();
+  for (const [key, val] of Object.entries(AUTHORITY_TIERS)) {
+    if (upper.includes(key)) return val;
+  }
+  return { tier: 5, label: "Literature" };
+}
+
 interface ComplianceRequest {
   diagnoses: string[];
   medications: Array<{ drug_name: string; dose: string; frequency: string; duration: string }>;
@@ -17,27 +38,10 @@ interface ComplianceRequest {
   chief_complaint?: string;
 }
 
-interface GuidelineMatch {
-  guideline_id: string;
-  title: string;
-  source: string;
-  source_organization: string;
-  year: number;
-  evidence_grade: string;
-  recommendation_text: string;
-  guideline_url: string;
-}
-
-interface ComplianceResult {
-  item: string;
-  item_type: "diagnosis" | "medication" | "test" | "care_plan";
-  compliance_status: "guideline_aligned" | "evidence_supported" | "review_suggested";
-  explanation: string;
-  matching_guidelines: GuidelineMatch[];
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const startMs = Date.now();
 
   try {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -50,57 +54,119 @@ serve(async (req) => {
     const body: ComplianceRequest = await req.json();
     const { diagnoses = [], medications = [], tests = [], care_plan = "", patient_age, patient_sex, chief_complaint } = body;
 
-    // ── Step 1: Relational guideline retrieval via diagnosis → guideline_rules ──
-    let allGuidelines: any[] = [];
+    if (diagnoses.length === 0 && medications.length === 0 && tests.length === 0) {
+      return new Response(JSON.stringify({
+        success: true,
+        results: [],
+        compliance_score: 100,
+        conflicts: [],
+        management_steps: [],
+        guidelines_matched: 0,
+        guidelines_sources: [],
+        message: "No items to evaluate",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
-    // Step 1a: Relational traversal — find diagnoses by name, then get guideline_rules
+    // ══════════════════════════════════════════════════════
+    // STAGE 1: Relational traversal — diagnoses → guideline_rules → authorities
+    // ══════════════════════════════════════════════════════
+    let relationalGuidelines: any[] = [];
+    let matchedDiagnoses: any[] = [];
+
     if (diagnoses.length > 0) {
-      // Find diagnosis IDs from names
-      const diagFilters = diagnoses.slice(0, 10).map((d: string) => `diagnosis_name.ilike.%${d}%`).join(",");
-      const { data: matchedDiagnoses } = await sb
+      const diagFilters = diagnoses.slice(0, 10).map((d: string) => `diagnosis_name.ilike.%${d.trim()}%`).join(",");
+      const { data: diagRows } = await sb
         .from("diagnoses")
-        .select("id, diagnosis_name")
+        .select("id, diagnosis_name, icd10_code")
         .or(diagFilters);
 
-      const diagnosisIds = (matchedDiagnoses || []).map((d: any) => d.id);
+      matchedDiagnoses = diagRows || [];
+      const diagnosisIds = matchedDiagnoses.map((d: any) => d.id);
 
       if (diagnosisIds.length > 0) {
-        // Fetch guideline_rules with authority join
         const { data: rules } = await sb
           .from("guideline_rules")
           .select("id, recommendation, evidence_level, treatment_generic_name, diagnosis_id, guideline_authorities(id, authority_name, priority, country)")
           .in("diagnosis_id", diagnosisIds);
 
         if (rules && rules.length > 0) {
-          // Convert rules to guideline format for downstream processing
           for (const rule of rules) {
-            const diagName = matchedDiagnoses?.find((d: any) => d.id === rule.diagnosis_id)?.diagnosis_name || "";
+            const diagName = matchedDiagnoses.find((d: any) => d.id === rule.diagnosis_id)?.diagnosis_name || "";
             const authority = (rule as any).guideline_authorities;
-            allGuidelines.push({
+            const authorityName = authority?.authority_name || "Unknown";
+            const tierInfo = getAuthorityTier(authorityName);
+
+            relationalGuidelines.push({
               id: rule.id,
-              title: `${authority?.authority_name || "Unknown"} ${diagName} Guideline`,
-              source: authority?.authority_name || "Unknown",
-              source_organization: authority?.authority_name || "Unknown",
+              title: `${authorityName} — ${diagName} Management`,
+              source_organization: authorityName,
               year: 2024,
               evidence_grade: rule.evidence_level,
               recommendation_text: rule.recommendation,
               condition: diagName,
-              clinical_topic: diagName,
+              treatment: rule.treatment_generic_name,
               applicable_drugs: [rule.treatment_generic_name],
               applicable_tests: [],
               guideline_url: null,
-              _authority_priority: authority?.priority ?? 10,
+              tier: tierInfo.tier,
+              tier_label: tierInfo.label,
+              authority_priority: authority?.priority ?? 10,
+              country: authority?.country || "global",
             });
           }
-
-          // Sort by authority priority
-          allGuidelines.sort((a: any, b: any) => (a._authority_priority ?? 10) - (b._authority_priority ?? 10));
+          relationalGuidelines.sort((a: any, b: any) => a.authority_priority - b.authority_priority);
         }
       }
     }
 
-    // Step 1b: Fallback — keyword search in clinical_guidelines if relational returned nothing
-    if (allGuidelines.length === 0) {
+    // ══════════════════════════════════════════════════════
+    // STAGE 1b: Diagnosis → guideline_registry via diagnosis_guideline_map
+    // ══════════════════════════════════════════════════════
+    let registryGuidelines: any[] = [];
+    if (matchedDiagnoses.length > 0) {
+      const diagIds = matchedDiagnoses.map((d: any) => d.id);
+      const { data: maps } = await sb
+        .from("diagnosis_guideline_map")
+        .select("guideline_id, relevance_score, recommendation_summary, diagnosis_id")
+        .in("diagnosis_id", diagIds)
+        .order("relevance_score", { ascending: false })
+        .limit(10);
+
+      if (maps && maps.length > 0) {
+        const guidelineIds = [...new Set(maps.map((m: any) => m.guideline_id))];
+        const { data: guidelines } = await sb
+          .from("guideline_registry")
+          .select("*")
+          .in("id", guidelineIds)
+          .eq("is_active", true);
+
+        if (guidelines) {
+          for (const g of guidelines) {
+            const map = maps.find((m: any) => m.guideline_id === g.id);
+            const tierInfo = getAuthorityTier(g.organization);
+            registryGuidelines.push({
+              id: g.id,
+              title: g.title,
+              source_organization: g.organization,
+              year: g.publication_date ? new Date(g.publication_date).getFullYear() : 2024,
+              evidence_grade: "A",
+              recommendation_text: map?.recommendation_summary || g.recommendation_text,
+              condition: g.condition,
+              applicable_drugs: g.applicable_drugs || [],
+              applicable_tests: g.applicable_tests || [],
+              guideline_url: g.guideline_url,
+              tier: tierInfo.tier,
+              tier_label: tierInfo.label,
+              relevance_score: map?.relevance_score || 0,
+              country: g.country,
+            });
+          }
+        }
+      }
+    }
+
+    // STAGE 1c: Fallback — keyword search in clinical_guidelines
+    if (relationalGuidelines.length + registryGuidelines.length < 2) {
       const searchTerms = [
         ...diagnoses,
         ...medications.map(m => m.drug_name),
@@ -108,26 +174,118 @@ serve(async (req) => {
         chief_complaint,
       ].filter(Boolean);
 
-      for (const term of searchTerms.slice(0, 6)) {
+      for (const term of searchTerms.slice(0, 4)) {
         const { data } = await sb
           .from("clinical_guidelines")
           .select("*")
           .eq("is_active", true)
           .or(`condition.ilike.%${term}%,clinical_topic.ilike.%${term}%,title.ilike.%${term}%`)
-          .limit(5);
-        if (data) allGuidelines.push(...data);
+          .limit(3);
+        if (data) {
+          for (const g of data) {
+            const tierInfo = getAuthorityTier(g.source_organization || "");
+            registryGuidelines.push({
+              id: g.id,
+              title: g.title,
+              source_organization: g.source_organization,
+              year: g.year,
+              evidence_grade: g.evidence_grade,
+              recommendation_text: g.recommendation_text,
+              condition: g.condition,
+              applicable_drugs: g.applicable_drugs || [],
+              applicable_tests: g.applicable_tests || [],
+              guideline_url: g.guideline_url,
+              tier: tierInfo.tier,
+              tier_label: tierInfo.label,
+              country: "global",
+            });
+          }
+        }
       }
-
-      // Deduplicate
-      const seenIds = new Set<string>();
-      allGuidelines = allGuidelines.filter(g => {
-        if (seenIds.has(g.id)) return false;
-        seenIds.add(g.id);
-        return true;
-      });
     }
 
-    // ── Step 2: AI compliance evaluation ──
+    // Combine and deduplicate
+    const seenIds = new Set<string>();
+    const allGuidelines = [...relationalGuidelines, ...registryGuidelines].filter(g => {
+      if (seenIds.has(g.id)) return false;
+      seenIds.add(g.id);
+      return true;
+    }).slice(0, 15);
+
+    // ══════════════════════════════════════════════════════
+    // STAGE 2: Conflict Detection (deterministic)
+    // Compare prescribed medications against guideline-recommended treatments
+    // ══════════════════════════════════════════════════════
+    const conflicts: any[] = [];
+    const managementSteps: any[] = [];
+
+    const prescribedDrugs = medications.map(m => m.drug_name.toLowerCase().trim());
+
+    for (const g of allGuidelines) {
+      // Extract management steps from each guideline
+      if (g.recommendation_text) {
+        managementSteps.push({
+          step: g.recommendation_text,
+          source: g.source_organization,
+          tier: g.tier,
+          tier_label: g.tier_label || "Unknown",
+          condition: g.condition,
+          evidence_grade: g.evidence_grade,
+        });
+      }
+
+      // Check if guideline recommends specific drugs that were NOT prescribed
+      const guidelineDrugs = (g.applicable_drugs || []).map((d: string) => d.toLowerCase().trim());
+      if (guidelineDrugs.length > 0 && prescribedDrugs.length > 0) {
+        // Check for prescribed drugs NOT in guideline recommendations for this condition
+        for (const prescribed of prescribedDrugs) {
+          const isRecommended = guidelineDrugs.some((gd: string) =>
+            gd.includes(prescribed) || prescribed.includes(gd)
+          );
+          if (!isRecommended && g.condition && diagnoses.some(d => d.toLowerCase().includes(g.condition.toLowerCase()))) {
+            // Check if any guideline drug conflicts with prescribed
+            conflicts.push({
+              type: "unlisted_drug",
+              severity: g.tier <= 2 ? "high" : "moderate",
+              prescribed_drug: prescribed,
+              guideline_recommends: guidelineDrugs.join(", "),
+              source: g.source_organization,
+              tier: g.tier,
+              condition: g.condition,
+              explanation: `${prescribed} is not listed in ${g.source_organization} guidelines for ${g.condition}. Recommended: ${guidelineDrugs.join(", ")}.`,
+            });
+          }
+        }
+      }
+    }
+
+    // Deduplicate conflicts by drug+source
+    const uniqueConflicts: any[] = [];
+    const conflictKeys = new Set<string>();
+    for (const c of conflicts) {
+      const key = `${c.prescribed_drug}|${c.source}`;
+      if (!conflictKeys.has(key)) {
+        conflictKeys.add(key);
+        uniqueConflicts.push(c);
+      }
+    }
+
+    // Deduplicate management steps
+    const uniqueSteps: any[] = [];
+    const stepKeys = new Set<string>();
+    for (const s of managementSteps) {
+      const key = `${s.source}|${s.condition}`;
+      if (!stepKeys.has(key)) {
+        stepKeys.add(key);
+        uniqueSteps.push(s);
+      }
+    }
+    // Sort by tier (national first)
+    uniqueSteps.sort((a: any, b: any) => a.tier - b.tier);
+
+    // ══════════════════════════════════════════════════════
+    // STAGE 3: AI Compliance Evaluation
+    // ══════════════════════════════════════════════════════
     const itemsToEvaluate = [
       ...diagnoses.map(d => ({ item: d, type: "diagnosis" })),
       ...medications.map(m => ({ item: `${m.drug_name} ${m.dose} ${m.frequency}`, type: "medication" })),
@@ -135,17 +293,8 @@ serve(async (req) => {
       ...(care_plan ? [{ item: care_plan, type: "care_plan" }] : []),
     ];
 
-    if (itemsToEvaluate.length === 0) {
-      return new Response(JSON.stringify({
-        success: true,
-        results: [],
-        guidelines_matched: 0,
-        message: "No items to evaluate",
-      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
     const guidelineContext = allGuidelines.slice(0, 12).map(g =>
-      `[${g.source_organization}] ${g.title} (${g.year})\nTopic: ${g.clinical_topic}\nCondition: ${g.condition}\nGrade: ${g.evidence_grade}\nRecommendation: ${g.recommendation_text}\nDrugs: ${(g.applicable_drugs || []).join(", ")}\nTests: ${(g.applicable_tests || []).join(", ")}`
+      `[${g.source_organization}] (Tier ${g.tier}: ${g.tier_label}) ${g.title}\nCondition: ${g.condition}\nGrade: ${g.evidence_grade}\nRecommendation: ${g.recommendation_text}\nDrugs: ${(g.applicable_drugs || []).join(", ")}\nTests: ${(g.applicable_tests || []).join(", ")}`
     ).join("\n\n---\n\n");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -155,29 +304,28 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         temperature: 0.1,
         messages: [
           {
             role: "system",
-            content: `You are a clinical guideline compliance evaluator for DATAelixAIr. Compare AI-generated clinical recommendations against trusted medical guidelines. For each item, classify it as:
+            content: `You are a clinical guideline compliance evaluator. Compare recommendations against trusted medical guidelines (WHO, NICE, ICMR, IDSA, AHA, ESC, ADA). For each item classify:
 - "guideline_aligned": Directly matches a specific guideline recommendation
-- "evidence_supported": Consistent with evidence but no exact guideline match found
-- "review_suggested": May deviate from guidelines or insufficient evidence
+- "evidence_supported": Consistent with evidence but no exact guideline match
+- "review_suggested": Deviates from guidelines or insufficient evidence
 
-Be conservative — only mark "guideline_aligned" when a clear guideline match exists. Provide a brief explanation (1-2 sentences) for each evaluation. Reference the specific guideline source when applicable.
-
-Patient context: Age ${patient_age || "unknown"}, Sex ${patient_sex || "unknown"}, Chief complaint: ${chief_complaint || "not specified"}.`,
+Be conservative — only "guideline_aligned" when a clear match exists. Reference the specific guideline source.
+Patient: Age ${patient_age || "unknown"}, Sex ${patient_sex || "unknown"}, Chief complaint: ${chief_complaint || "not specified"}.`,
           },
           {
             role: "user",
-            content: `Evaluate these clinical recommendations against the guidelines below.
+            content: `Evaluate these clinical items against the guidelines below.
 
-Items to evaluate:
+Items:
 ${itemsToEvaluate.map((item, i) => `${i + 1}. [${item.type}] ${item.item}`).join("\n")}
 
-Available Guidelines:
-${guidelineContext || "No matching guidelines found in database. Evaluate based on general clinical evidence."}`,
+Guidelines:
+${guidelineContext || "No matching guidelines found. Evaluate based on general clinical evidence."}`,
           },
         ],
         tools: [{
@@ -226,9 +374,11 @@ ${guidelineContext || "No matching guidelines found in database. Evaluate based 
     const parsed = JSON.parse(toolCall.function.arguments);
     const evaluations = parsed.evaluations || [];
 
-    // Enrich evaluations with matching guideline details
-    const results: ComplianceResult[] = evaluations.map((ev: any) => {
-      const matchingGuidelines: GuidelineMatch[] = [];
+    // ══════════════════════════════════════════════════════
+    // STAGE 4: Enrich results with guideline citations
+    // ══════════════════════════════════════════════════════
+    const results = evaluations.map((ev: any) => {
+      const matchingGuidelines: any[] = [];
       if (ev.matching_guideline_source) {
         const matched = allGuidelines.filter(g =>
           g.source_organization?.toLowerCase().includes(ev.matching_guideline_source.toLowerCase()) ||
@@ -238,12 +388,14 @@ ${guidelineContext || "No matching guidelines found in database. Evaluate based 
           matchingGuidelines.push({
             guideline_id: g.id,
             title: g.title,
-            source: g.source,
+            source: g.source_organization,
             source_organization: g.source_organization,
             year: g.year,
             evidence_grade: g.evidence_grade,
             recommendation_text: g.recommendation_text,
             guideline_url: g.guideline_url || "",
+            tier: g.tier,
+            tier_label: g.tier_label,
           });
         });
       }
@@ -257,11 +409,57 @@ ${guidelineContext || "No matching guidelines found in database. Evaluate based 
       };
     });
 
+    // ══════════════════════════════════════════════════════
+    // STAGE 5: Compute compliance score
+    // ══════════════════════════════════════════════════════
+    const totalItems = results.length || 1;
+    const alignedCount = results.filter((r: any) => r.compliance_status === "guideline_aligned").length;
+    const supportedCount = results.filter((r: any) => r.compliance_status === "evidence_supported").length;
+    const reviewCount = results.filter((r: any) => r.compliance_status === "review_suggested").length;
+
+    // Weighted score: aligned=100%, supported=70%, review=30%
+    const complianceScore = Math.round(
+      ((alignedCount * 100 + supportedCount * 70 + reviewCount * 30) / (totalItems * 100)) * 100
+    );
+
+    const durationMs = Date.now() - startMs;
+    const allSources = [...new Set(allGuidelines.map(g => g.source_organization))];
+
+    // Log to monitoring
+    try {
+      await sb.from("monitoring_events").insert({
+        event_type: "guideline_compliance_check",
+        agent_name: "guideline-compliance",
+        duration_ms: durationMs,
+        success: true,
+        metadata: {
+          diagnoses_count: diagnoses.length,
+          medications_count: medications.length,
+          guidelines_matched: allGuidelines.length,
+          compliance_score: complianceScore,
+          conflicts_count: uniqueConflicts.length,
+          sources: allSources,
+        },
+      });
+    } catch { /* non-critical */ }
+
     return new Response(JSON.stringify({
       success: true,
       results,
+      compliance_score: complianceScore,
+      score_breakdown: {
+        aligned: alignedCount,
+        evidence_supported: supportedCount,
+        review_suggested: reviewCount,
+        total: totalItems,
+      },
+      conflicts: uniqueConflicts.slice(0, 10),
+      management_steps: uniqueSteps.slice(0, 8),
       guidelines_matched: allGuidelines.length,
-      guidelines_sources: [...new Set(allGuidelines.map(g => g.source_organization))],
+      guidelines_sources: allSources,
+      authority_tiers_used: [...new Set(allGuidelines.map(g => `Tier ${g.tier}: ${g.tier_label}`))],
+      duration_ms: durationMs,
+      disclaimer: "Guideline compliance is advisory. All clinical decisions require physician judgment.",
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (e) {
