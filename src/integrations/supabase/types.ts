@@ -1462,6 +1462,44 @@ export type Database = {
           },
         ]
       }
+      disease_priors: {
+        Row: {
+          age_modifier: Json
+          base_prevalence: number
+          created_at: string
+          diagnosis_id: string
+          id: string
+          region_modifier: Json
+          sex_modifier: Json
+        }
+        Insert: {
+          age_modifier?: Json
+          base_prevalence?: number
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+          region_modifier?: Json
+          sex_modifier?: Json
+        }
+        Update: {
+          age_modifier?: Json
+          base_prevalence?: number
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+          region_modifier?: Json
+          sex_modifier?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disease_priors_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: true
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctor_favorites: {
         Row: {
           clinic_id: string | null
@@ -3589,6 +3627,45 @@ export type Database = {
           },
         ]
       }
+      physiology_likelihoods: {
+        Row: {
+          created_at: string
+          diagnosis_id: string
+          id: string
+          likelihood_value: number
+          physiological_state_id: string
+        }
+        Insert: {
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+          likelihood_value?: number
+          physiological_state_id: string
+        }
+        Update: {
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+          likelihood_value?: number
+          physiological_state_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physiology_likelihoods_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physiology_likelihoods_physiological_state_id_fkey"
+            columns: ["physiological_state_id"]
+            isOneToOne: false
+            referencedRelation: "physiological_states"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pilot_requests: {
         Row: {
           clinic_name: string
@@ -4059,6 +4136,38 @@ export type Database = {
           },
         ]
       }
+      risk_factor_modifiers: {
+        Row: {
+          created_at: string
+          diagnosis_id: string
+          id: string
+          modifier_weight: number
+          risk_factor: string
+        }
+        Insert: {
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+          modifier_weight?: number
+          risk_factor: string
+        }
+        Update: {
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+          modifier_weight?: number
+          risk_factor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "risk_factor_modifiers_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       risk_flags: {
         Row: {
           created_at: string
@@ -4249,6 +4358,45 @@ export type Database = {
           },
           {
             foreignKeyName: "symptom_lab_map_symptom_id_fkey"
+            columns: ["symptom_id"]
+            isOneToOne: false
+            referencedRelation: "symptoms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      symptom_likelihoods: {
+        Row: {
+          created_at: string
+          diagnosis_id: string
+          id: string
+          likelihood_value: number
+          symptom_id: string
+        }
+        Insert: {
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+          likelihood_value?: number
+          symptom_id: string
+        }
+        Update: {
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+          likelihood_value?: number
+          symptom_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "symptom_likelihoods_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "symptom_likelihoods_symptom_id_fkey"
             columns: ["symptom_id"]
             isOneToOne: false
             referencedRelation: "symptoms"
