@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Brain, FlaskConical, Pill, Shield, CheckCircle, AlertTriangle,
   ChevronDown, ChevronRight, FileText, Loader2, Scale, BookOpen, ExternalLink,
-  MessageSquare, Zap, Target, Eye, TrendingUp, TrendingDown, Minus
+  MessageSquare, Zap, Target, Eye, TrendingUp, TrendingDown, Minus, Activity, Heart
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
