@@ -410,7 +410,13 @@ export async function runClinicalPipeline(
     ? {
         guideline_sources_used: guidelineAlignment.guideline_sources_used,
         guideline_compliance_score: guidelineAlignment.guideline_compliance_score,
-        conflicts_detected: guidelineAlignment.conflicts_detected,
+        conflicts_detected: (guidelineAlignment.conflicts_detected || []).map((c: any) => ({
+          recommendation: c.prescribed_drug || c.recommendation || "",
+          conflicting_guideline: c.guideline_recommends || c.conflicting_guideline || "",
+          organization: c.source || c.organization || "",
+          severity: c.severity || "moderate",
+          explanation: c.explanation || "",
+        })),
       }
     : null;
 
