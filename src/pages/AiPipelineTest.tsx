@@ -421,7 +421,7 @@ export default function AiPipelineTest() {
 
                 <Button onClick={runV3Benchmark} disabled={v3Loading} className="w-full">
                   {v3Loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trophy className="h-4 w-4 mr-2" />}
-                  {v3Loading ? "Running 8 test cases..." : "Run Clinical Benchmark v3"}
+                  {v3Loading ? `Running test ${Math.min(Math.round(v3Progress / 12.5) + 1, 8)} of 8...` : "Run Clinical Benchmark v3"}
                 </Button>
               </CardContent>
             </Card>
