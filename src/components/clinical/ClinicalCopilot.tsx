@@ -97,6 +97,8 @@ interface ClinicalCopilotProps {
   medicationValidation?: MedicationValidationResult | null;
   /** Explainability results for diagnoses */
   explainability?: DiagnosisExplanation[] | null;
+  /** Physiological context from physiology engine */
+  physiologicalContext?: PhysiologicalContextResult | null;
 }
 
 const fadeIn = {
