@@ -110,7 +110,7 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
-type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation";
+type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation" | "terminology";
 
 const getTabFromPath = (pathname: string): AdminTab => {
   const tabSegment = pathname.split("/")[2];

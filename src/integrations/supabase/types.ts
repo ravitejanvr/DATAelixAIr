@@ -4739,6 +4739,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      exec_terminology_sql: { Args: { sql_text: string }; Returns: undefined }
+      get_terminology_counts: { Args: never; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
