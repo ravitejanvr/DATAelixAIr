@@ -103,3 +103,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.meta-orchestrator]
     verify_jwt = false
+  [functions.bias-monitoring]
+    verify_jwt = false
