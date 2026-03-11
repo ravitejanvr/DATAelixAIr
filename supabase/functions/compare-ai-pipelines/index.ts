@@ -110,8 +110,31 @@ function computeGenericMedOverlap(a: string[], b: string[], brandGenericMap: Arr
 
   const resolveGeneric = (name: string) => {
     const lower = name.toLowerCase().trim();
-    const mapped = brandGenericMap.find(m => m.brand_name.toLowerCase() === lower);
-    return mapped ? mapped.generic_name.toLowerCase() : extractGenericName(name);
+    // Exact brand match
+    const exactBrand = brandGenericMap.find(m => m.brand_name.toLowerCase() === lower);
+    if (exactBrand) return exactBrand.generic_name.toLowerCase();
+    // Exact generic match (already generic)
+    const exactGeneric = brandGenericMap.find(m => m.generic_name.toLowerCase() === lower);
+    if (exactGeneric) return exactGeneric.generic_name.toLowerCase();
+    // Partial brand match (e.g., "Crocin 500mg" → "acetaminophen")
+    const partialBrand = brandGenericMap.find(m => lower.includes(m.brand_name.toLowerCase()) || m.brand_name.toLowerCase().includes(lower));
+    if (partialBrand) return partialBrand.generic_name.toLowerCase();
+    // Partial generic match
+    const partialGeneric = brandGenericMap.find(m => lower.includes(m.generic_name.toLowerCase()) || m.generic_name.toLowerCase().includes(lower));
+    if (partialGeneric) return partialGeneric.generic_name.toLowerCase();
+    // Common aliases
+    const aliases: Record<string, string> = {
+      "paracetamol": "acetaminophen",
+      "tylenol": "acetaminophen",
+      "advil": "ibuprofen",
+      "motrin": "ibuprofen",
+      "albuterol": "salbutamol",
+    };
+    if (aliases[lower]) return aliases[lower];
+    for (const [alias, generic] of Object.entries(aliases)) {
+      if (lower.includes(alias)) return generic;
+    }
+    return extractGenericName(name);
   };
 
   const setA = new Set(a.map(resolveGeneric));
