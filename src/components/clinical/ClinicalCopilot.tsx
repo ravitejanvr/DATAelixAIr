@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Brain, FlaskConical, Pill, Shield, CheckCircle, AlertTriangle,
   ChevronDown, ChevronRight, FileText, Loader2, Scale, BookOpen, ExternalLink,
-  MessageSquare, Zap, Target
+  MessageSquare, Zap, Target, Eye, TrendingUp, TrendingDown, Minus
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,8 @@ import type { SafetyResults } from "@/layers/safety/api";
 import type { EvidenceData } from "@/layers/evidence/api";
 import type { MedicationValidationResult, MedicationWarning } from "@/services/medication_intelligence/client";
 import { sortWarnings, safetyScoreColor } from "@/services/medication_intelligence/client";
+import type { DiagnosisExplanation, ExplanationFactor } from "@/services/explainability/client";
+import { factorDirectionColor, factorBarWidth } from "@/services/explainability/client";
 
 interface GuidelineMatch {
   guideline_id: string;
