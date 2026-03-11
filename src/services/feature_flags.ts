@@ -8,11 +8,13 @@
 export interface FeatureFlags {
   enable_new_clinical_pipeline: boolean;
   use_ddx_engine: boolean;
+  enable_uncertainty_engine: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
   enable_new_clinical_pipeline: false,
   use_ddx_engine: true,
+  enable_uncertainty_engine: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -35,4 +37,8 @@ export function isNewPipelineEnabled(): boolean {
 
 export function isDdxEngineEnabled(): boolean {
   return currentFlags.use_ddx_engine;
+}
+
+export function isUncertaintyEngineEnabled(): boolean {
+  return currentFlags.enable_uncertainty_engine;
 }
