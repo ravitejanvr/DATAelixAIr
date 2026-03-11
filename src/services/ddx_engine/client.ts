@@ -95,6 +95,11 @@ export interface DDXInput {
   visit_id?: string | null;
   clinic_id?: string | null;
   cco_id?: string | null;
+  physiological_context?: {
+    candidate_diagnosis_ids: string[];
+    affected_systems: string[];
+    physiological_states: Array<{ state: string; confidence: number; system: string }>;
+  };
 }
 
 /**

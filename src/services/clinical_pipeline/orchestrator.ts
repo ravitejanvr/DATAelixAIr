@@ -38,6 +38,7 @@ import { runDDXEngine, type DDXResult } from "@/services/ddx_engine/client";
 import { runUncertaintyEngine, type UncertaintyResult } from "@/services/uncertainty_engine/client";
 import { runHybridReasoning, type HybridReasoningResult } from "@/services/reasoning_engine/client";
 import { runMultiAgentPipeline, type OrchestratorResponse } from "@/services/multi_agent";
+import { generatePhysiologicalContext, type PhysiologicalContextResult } from "@/services/physiology_engine";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PipelineInput {
@@ -57,6 +58,7 @@ export interface PipelineInput {
 export interface PipelineResult {
   enabled: boolean;
   enriched_context: EnrichedClinicalContext | null;
+  physiological_context: PhysiologicalContextResult | null;
   ddx: DDXResult | null;
   uncertainty: UncertaintyResult | null;
   hypotheses: HypothesisResult | null;
@@ -120,7 +122,7 @@ export async function runClinicalPipeline(
   const cacheStats = { reasoning_hit: false, preindexed_hit: false, evidence_hit: false, guideline_hit: false };
 
   const emptyResult: PipelineResult = {
-    enabled: false, enriched_context: null, ddx: null, uncertainty: null,
+    enabled: false, enriched_context: null, physiological_context: null, ddx: null, uncertainty: null,
     hypotheses: null, guideline_alignment: null, evidence: null, oversight: null,
     hybrid_reasoning: null, multi_agent: null, guideline_summary: null,
     logs: [], stage_latencies: {}, total_latency_ms: 0, cache_stats: cacheStats,
@@ -185,8 +187,36 @@ export async function runClinicalPipeline(
   onProgress?.("context", { enriched_context: enrichedContext });
 
   // ═══════════════════════════════════════════════
+  // Stage 1.5: Physiological Context (parallel-safe, runs before DDX)
+  // ═══════════════════════════════════════════════
+  const physioStart = performance.now();
+  let physiologicalContext: PhysiologicalContextResult | null = null;
+  try {
+    physiologicalContext = await withTimeout(
+      generatePhysiologicalContext({
+        symptoms,
+        vitals: {
+          temperature: input.clinical_context.temperature,
+          spo2: input.clinical_context.oxygen_saturation,
+          pulse: input.clinical_context.pulse,
+          bp_systolic: input.clinical_context.blood_pressure ? parseInt(input.clinical_context.blood_pressure.split("/")[0]) : undefined,
+        },
+        visit_id: input.visit_id,
+        clinic_id: input.clinic_id,
+      }),
+      FAST_TIMEOUT_MS,
+      "physiological_engine"
+    );
+  } catch {
+    physiologicalContext = null;
+  }
+  stageLatencies.physiological_engine = Math.round(performance.now() - physioStart);
+  onProgress?.("physiology", { physiological_context: physiologicalContext });
+
+  // ═══════════════════════════════════════════════
   // Stage 2: PARALLEL — DDX + Knowledge + Preindexed
   //   Key optimization: DDX and knowledge retrieval run simultaneously
+  //   DDX now receives physiological context for filtering
   // ═══════════════════════════════════════════════
   const stage2Start = performance.now();
 
@@ -197,7 +227,7 @@ export async function runClinicalPipeline(
       try {
         const result = await withTimeout(
           withStageLogging("ddx_engine", () =>
-            runDDXEngine({
+          runDDXEngine({
               symptoms,
               vitals: {
                 temperature: input.clinical_context.temperature,
@@ -212,6 +242,15 @@ export async function runClinicalPipeline(
               allergies: input.clinical_context.allergies,
               visit_id: input.visit_id,
               clinic_id: input.clinic_id,
+              physiological_context: physiologicalContext ? {
+                candidate_diagnosis_ids: physiologicalContext.candidate_diagnosis_ids,
+                affected_systems: physiologicalContext.affected_systems.map(s => s.system_name),
+                physiological_states: physiologicalContext.physiological_states.map(s => ({
+                  state: s.state,
+                  confidence: s.confidence,
+                  system: s.system,
+                })),
+              } : undefined,
             })
           ),
           PARALLEL_TIMEOUT_MS,
@@ -513,6 +552,7 @@ export async function runClinicalPipeline(
   return {
     enabled: true,
     enriched_context: enrichedContext,
+    physiological_context: physiologicalContext,
     ddx: ddxResult,
     uncertainty: uncertaintyResult,
     hypotheses,

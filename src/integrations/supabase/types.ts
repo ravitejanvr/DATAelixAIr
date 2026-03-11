@@ -207,6 +207,27 @@ export type Database = {
         }
         Relationships: []
       }
+      anatomical_systems: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          system_name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          system_name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          system_name?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           actor_id: string
@@ -3497,6 +3518,77 @@ export type Database = {
           },
         ]
       }
+      physiological_states: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          state_name: string
+          system_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          state_name: string
+          system_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          state_name?: string
+          system_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physiological_states_system_id_fkey"
+            columns: ["system_id"]
+            isOneToOne: false
+            referencedRelation: "anatomical_systems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      physiology_diagnosis_map: {
+        Row: {
+          created_at: string
+          diagnosis_id: string
+          id: string
+          physiological_state_id: string
+          relevance_score: number
+        }
+        Insert: {
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+          physiological_state_id: string
+          relevance_score?: number
+        }
+        Update: {
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+          physiological_state_id?: string
+          relevance_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physiology_diagnosis_map_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "physiology_diagnosis_map_physiological_state_id_fkey"
+            columns: ["physiological_state_id"]
+            isOneToOne: false
+            referencedRelation: "physiological_states"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pilot_requests: {
         Row: {
           clinic_name: string
@@ -4157,6 +4249,45 @@ export type Database = {
           },
           {
             foreignKeyName: "symptom_lab_map_symptom_id_fkey"
+            columns: ["symptom_id"]
+            isOneToOne: false
+            referencedRelation: "symptoms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      symptom_physiology_map: {
+        Row: {
+          confidence_score: number
+          created_at: string
+          id: string
+          physiological_state_id: string
+          symptom_id: string
+        }
+        Insert: {
+          confidence_score?: number
+          created_at?: string
+          id?: string
+          physiological_state_id: string
+          symptom_id: string
+        }
+        Update: {
+          confidence_score?: number
+          created_at?: string
+          id?: string
+          physiological_state_id?: string
+          symptom_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "symptom_physiology_map_physiological_state_id_fkey"
+            columns: ["physiological_state_id"]
+            isOneToOne: false
+            referencedRelation: "physiological_states"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "symptom_physiology_map_symptom_id_fkey"
             columns: ["symptom_id"]
             isOneToOne: false
             referencedRelation: "symptoms"

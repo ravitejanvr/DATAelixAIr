@@ -7,12 +7,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Brain, FlaskConical, Pill, Shield, CheckCircle, AlertTriangle,
   ChevronDown, ChevronRight, FileText, Loader2, Scale, BookOpen, ExternalLink,
-  MessageSquare, Zap, Target, Eye, TrendingUp, TrendingDown, Minus
+  MessageSquare, Zap, Target, Eye, TrendingUp, TrendingDown, Minus, Activity, Heart
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { SafetyResults } from "@/layers/safety/api";
+import type { PhysiologicalContextResult } from "@/services/physiology_engine";
 import type { EvidenceData } from "@/layers/evidence/api";
 import type { MedicationValidationResult, MedicationWarning } from "@/services/medication_intelligence/client";
 import { sortWarnings, safetyScoreColor } from "@/services/medication_intelligence/client";
@@ -96,6 +97,8 @@ interface ClinicalCopilotProps {
   medicationValidation?: MedicationValidationResult | null;
   /** Explainability results for diagnoses */
   explainability?: DiagnosisExplanation[] | null;
+  /** Physiological context from physiology engine */
+  physiologicalContext?: PhysiologicalContextResult | null;
 }
 
 const fadeIn = {
@@ -153,6 +156,7 @@ export default function ClinicalCopilot({
   stageLatencies,
   medicationValidation,
   explainability,
+  physiologicalContext,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -274,6 +278,7 @@ export default function ClinicalCopilot({
 
   const PIPELINE_STAGES = [
     { key: "context", label: "Context", icon: Target },
+    { key: "physiology", label: "Physiology", icon: Activity },
     { key: "ddx", label: "DDX", icon: Brain },
     { key: "evidence", label: "Evidence", icon: BookOpen },
     { key: "hypotheses", label: "Diagnoses", icon: Brain },
@@ -289,6 +294,7 @@ export default function ClinicalCopilot({
   // Map stage keys to latency keys
   const latencyKeyMap: Record<string, string> = {
     context: "build_context",
+    physiology: "physiological_engine",
     ddx: "ddx_engine",
     evidence: "retrieve_evidence",
     hypotheses: "generate_hypotheses",
@@ -349,6 +355,60 @@ export default function ClinicalCopilot({
           </ClinicalCard>
         </motion.div>
       )}
+
+      {/* Physiological Context */}
+      {physiologicalContext && physiologicalContext.physiological_states.length > 0 && (
+        <motion.div {...fadeIn}>
+          <ClinicalCard className="p-2.5 border-primary/10">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+              <Activity className="h-3 w-3 text-primary" /> Physiological Context
+              <Badge variant="outline" className="text-[8px] ml-auto">
+                {physiologicalContext.execution_ms}ms
+              </Badge>
+            </p>
+            {/* Affected Systems */}
+            <div className="mb-1.5">
+              <span className="text-[9px] font-medium text-muted-foreground">Affected Systems:</span>
+              <div className="flex flex-wrap gap-0.5 mt-0.5">
+                {physiologicalContext.affected_systems.map((sys) => (
+                  <span
+                    key={sys.system_name}
+                    className="text-[8px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 capitalize"
+                  >
+                    <Heart className="h-2 w-2 inline mr-0.5" />
+                    {sys.system_name}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {/* Physiological Signals */}
+            <div>
+              <span className="text-[9px] font-medium text-muted-foreground">Physiological Signals:</span>
+              <div className="space-y-0.5 mt-0.5">
+                {physiologicalContext.physiological_states.slice(0, 5).map((ps) => (
+                  <div key={ps.state_id} className="flex items-center gap-1">
+                    <span className="text-[9px] text-foreground capitalize flex-1">
+                      {ps.state.replace(/_/g, " ")}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={`text-[8px] shrink-0 ${
+                        ps.confidence >= 0.7 ? "text-emerald-600 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800" :
+                        ps.confidence >= 0.4 ? "text-amber-600 border-amber-200 dark:text-amber-400 dark:border-amber-800" :
+                        "text-muted-foreground"
+                      }`}
+                    >
+                      {Math.round(ps.confidence * 100)}%
+                    </Badge>
+                    <span className="text-[7px] text-muted-foreground capitalize">{ps.system}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </ClinicalCard>
+        </motion.div>
+      )}
+
       {/* Differential Diagnoses (from modular pipeline hypotheses) */}
       {hasHypotheses ? (
         <motion.div {...fadeIn}>

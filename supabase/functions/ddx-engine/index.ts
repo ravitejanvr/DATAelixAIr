@@ -53,9 +53,13 @@ Deno.serve(async (req) => {
       risk_factors = [],
       visit_id = null,
       clinic_id = null,
-      // CCO fields (Phase 1 integration)
       cco_id = null,
+      // Physiological context for filtering (Phase 10.5)
+      physiological_context = null,
     } = body;
+
+    const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
+    const physioSystems = physiological_context?.affected_systems || [];
 
     if (!symptoms.length) {
       return new Response(JSON.stringify({ error: "symptoms[] is required" }), {
@@ -367,6 +371,17 @@ Deno.serve(async (req) => {
     }
 
     // Final selection: top 4 by probability + up to 2 must-not-miss
+    // If physiological context provides candidate IDs, boost those diagnoses
+    if (physioFilter.length > 0) {
+      for (const d of bayesianScores) {
+        if (physioFilter.includes(d.diagnosis_id)) {
+          d.probability = Math.min(100, Math.round(d.probability * 1.2));
+        }
+      }
+      // Re-sort after boost
+      bayesianScores.sort((a, b) => b.probability - a.probability);
+    }
+
     const topByProb = bayesianScores.filter(d => !d.must_not_miss).slice(0, 4);
     const mustNotMiss = bayesianScores.filter(d => d.must_not_miss).slice(0, 3);
     const finalDifferential = [...topByProb, ...mustNotMiss]
