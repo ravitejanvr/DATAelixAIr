@@ -107,3 +107,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.generate-physiological-context]
     verify_jwt = false
+  [functions.calculate-diagnostic-probabilities]
+    verify_jwt = false
