@@ -76,12 +76,60 @@ Deno.serve(async (req) => {
     // ════════════════════════════════════════════════════
     const normalizedSymptoms = symptoms.map((s: string) => s.toLowerCase().trim());
 
-    const { data: matchedSymptoms } = await supabase
+    // Step 1a: Try exact match first
+    const { data: exactMatches } = await supabase
       .from("symptoms")
       .select("id, symptom_name")
       .in("symptom_name", normalizedSymptoms);
 
-    const symptomIds = (matchedSymptoms || []).map((s: any) => s.id);
+    let matchedSymptoms = exactMatches || [];
+
+    // Step 1b: For unmatched symptoms, try fuzzy/ILIKE matching
+    const exactNames = new Set(matchedSymptoms.map((s: any) => s.symptom_name));
+    const unmatchedInputs = normalizedSymptoms.filter((s: string) => !exactNames.has(s));
+
+    if (unmatchedInputs.length > 0) {
+      // Build OR filter for ILIKE matching
+      const ilikeFilters = unmatchedInputs.map((s: string) => `symptom_name.ilike.%${s}%`).join(",");
+      const { data: fuzzyMatches } = await supabase
+        .from("symptoms")
+        .select("id, symptom_name")
+        .or(ilikeFilters);
+
+      if (fuzzyMatches && fuzzyMatches.length > 0) {
+        // Deduplicate by id
+        const existingIds = new Set(matchedSymptoms.map((s: any) => s.id));
+        for (const fm of fuzzyMatches) {
+          if (!existingIds.has(fm.id)) {
+            matchedSymptoms.push(fm);
+            existingIds.add(fm.id);
+          }
+        }
+      }
+    }
+
+    const symptomIds = matchedSymptoms.map((s: any) => s.id);
+
+    // Log graph miss if zero symptoms matched
+    if (symptomIds.length === 0) {
+      console.warn(`[DDX] Graph miss: 0/${normalizedSymptoms.length} symptoms matched. Input: ${normalizedSymptoms.join(", ")}`);
+      try {
+        await supabase.from("monitoring_events").insert({
+          event_type: "graph_miss",
+          agent_name: "ddx-engine",
+          clinic_id: clinic_id || null,
+          success: false,
+          duration_ms: Date.now() - start,
+          metadata: {
+            symptoms_input: normalizedSymptoms,
+            visit_id,
+            reason: "no_symptom_match",
+          },
+        });
+      } catch (logErr) {
+        console.error("[DDX] Failed to log graph_miss:", logErr);
+      }
+    }
 
     let rankedDiagnoses: any[] = [];
 
