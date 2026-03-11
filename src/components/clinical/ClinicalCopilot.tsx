@@ -90,6 +90,8 @@ interface ClinicalCopilotProps {
   pipelineStage?: string | null;
   /** Per-stage latency map */
   stageLatencies?: Record<string, number>;
+  /** Medication intelligence validation results */
+  medicationValidation?: MedicationValidationResult | null;
 }
 
 const fadeIn = {
