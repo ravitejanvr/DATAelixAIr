@@ -498,6 +498,7 @@ export async function runClinicalPipeline(
     evidence,
     oversight,
     hybrid_reasoning: hybridReasoning,
+    multi_agent: multiAgentResult,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: stageLatencies,

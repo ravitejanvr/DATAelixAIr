@@ -101,3 +101,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.run-clinical-benchmark-suite]
     verify_jwt = false
+  [functions.meta-orchestrator]
+    verify_jwt = false
