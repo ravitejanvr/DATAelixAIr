@@ -116,6 +116,7 @@ export async function runClinicalPipeline(
       guideline_alignment: null,
       evidence: null,
       oversight: null,
+      hybrid_reasoning: null,
       guideline_summary: null,
       logs: [],
       stage_latencies: {},
