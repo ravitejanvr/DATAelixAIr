@@ -552,6 +552,7 @@ export async function runClinicalPipeline(
   return {
     enabled: true,
     enriched_context: enrichedContext,
+    physiological_context: physiologicalContext,
     ddx: ddxResult,
     uncertainty: uncertaintyResult,
     hypotheses,
