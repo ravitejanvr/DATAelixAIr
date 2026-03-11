@@ -753,6 +753,94 @@ export type Database = {
         }
         Relationships: []
       }
+      clinical_context_objects: {
+        Row: {
+          built_by: string
+          clinic_id: string
+          clinical_observations: Json
+          context_confidence: number
+          created_at: string
+          derived_context: Json
+          episode_context: Json
+          evidence_sources: Json
+          fields_populated: number
+          id: string
+          medical_history: Json
+          missing_fields: string[]
+          patient_id: string
+          patient_profile: Json
+          status: string
+          total_fields: number
+          updated_at: string
+          version: number
+          visit_id: string
+        }
+        Insert: {
+          built_by?: string
+          clinic_id: string
+          clinical_observations?: Json
+          context_confidence?: number
+          created_at?: string
+          derived_context?: Json
+          episode_context?: Json
+          evidence_sources?: Json
+          fields_populated?: number
+          id?: string
+          medical_history?: Json
+          missing_fields?: string[]
+          patient_id: string
+          patient_profile?: Json
+          status?: string
+          total_fields?: number
+          updated_at?: string
+          version?: number
+          visit_id: string
+        }
+        Update: {
+          built_by?: string
+          clinic_id?: string
+          clinical_observations?: Json
+          context_confidence?: number
+          created_at?: string
+          derived_context?: Json
+          episode_context?: Json
+          evidence_sources?: Json
+          fields_populated?: number
+          id?: string
+          medical_history?: Json
+          missing_fields?: string[]
+          patient_id?: string
+          patient_profile?: Json
+          status?: string
+          total_fields?: number
+          updated_at?: string
+          version?: number
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_context_objects_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_context_objects_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_context_objects_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinical_guidelines: {
         Row: {
           applicable_drugs: string[]

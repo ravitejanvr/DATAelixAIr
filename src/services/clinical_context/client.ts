@@ -14,6 +14,18 @@ export type { ClinicalContext } from "@/lib/clinical-context";
 export { buildEnrichedContext, validateContextCompleteness } from "./index";
 export type { EnrichedClinicalContext } from "./index";
 
+// Re-export new CCO types and client
+export { buildClinicalContextObject, getLatestCCO } from "./cco-client";
+export type {
+  ClinicalContextObject,
+  CCOPatientProfile,
+  CCOEpisodeContext,
+  CCOMedicalHistory,
+  CCOClinicalObservations,
+  CCODerivedContext,
+  ContextField,
+} from "./cco-client";
+
 export interface PatientContextSnapshot {
   patient_id: string;
   age: number | null;
