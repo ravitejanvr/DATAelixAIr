@@ -284,6 +284,7 @@ export default function ClinicalCopilot({
     { key: "context", label: "Context", icon: Target },
     { key: "physiology", label: "Physiology", icon: Activity },
     { key: "ddx", label: "DDX", icon: Brain },
+    { key: "bayesian", label: "Bayesian", icon: TrendingUp },
     { key: "evidence", label: "Evidence", icon: BookOpen },
     { key: "hypotheses", label: "Diagnoses", icon: Brain },
     { key: "guidelines", label: "Guidelines", icon: Scale },
