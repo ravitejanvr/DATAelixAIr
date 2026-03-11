@@ -39,7 +39,10 @@ export type LearningSignalType =
   | "safety_alert_override"
   | "treatment_outcome"
   | "diagnostic_accuracy"
-  | "ai_suggestion_feedback";
+  | "ai_suggestion_feedback"
+  | "diagnosis_correction"
+  | "treatment_modification"
+  | "outcome_feedback";
 
 export interface LearningSignal {
   id: string;
