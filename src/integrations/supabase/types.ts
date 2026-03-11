@@ -1183,6 +1183,48 @@ export type Database = {
           },
         ]
       }
+      diagnosis_guideline_map: {
+        Row: {
+          created_at: string
+          diagnosis_id: string
+          guideline_id: string
+          id: string
+          recommendation_summary: string
+          relevance_score: number
+        }
+        Insert: {
+          created_at?: string
+          diagnosis_id: string
+          guideline_id: string
+          id?: string
+          recommendation_summary?: string
+          relevance_score?: number
+        }
+        Update: {
+          created_at?: string
+          diagnosis_id?: string
+          guideline_id?: string
+          id?: string
+          recommendation_summary?: string
+          relevance_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnosis_guideline_map_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnosis_guideline_map_guideline_id_fkey"
+            columns: ["guideline_id"]
+            isOneToOne: false
+            referencedRelation: "guideline_registry"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diagnosis_lab_map: {
         Row: {
           created_at: string
@@ -3825,6 +3867,83 @@ export type Database = {
           },
           {
             foreignKeyName: "symptom_diagnosis_map_symptom_id_fkey"
+            columns: ["symptom_id"]
+            isOneToOne: false
+            referencedRelation: "symptoms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      symptom_drug_map: {
+        Row: {
+          created_at: string
+          generic_name: string
+          id: string
+          priority: string
+          symptom_id: string
+          treatment_type: string
+        }
+        Insert: {
+          created_at?: string
+          generic_name: string
+          id?: string
+          priority?: string
+          symptom_id: string
+          treatment_type?: string
+        }
+        Update: {
+          created_at?: string
+          generic_name?: string
+          id?: string
+          priority?: string
+          symptom_id?: string
+          treatment_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "symptom_drug_map_symptom_id_fkey"
+            columns: ["symptom_id"]
+            isOneToOne: false
+            referencedRelation: "symptoms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      symptom_lab_map: {
+        Row: {
+          clinical_rationale: string
+          created_at: string
+          id: string
+          lab_test_id: string
+          priority: string
+          symptom_id: string
+        }
+        Insert: {
+          clinical_rationale?: string
+          created_at?: string
+          id?: string
+          lab_test_id: string
+          priority?: string
+          symptom_id: string
+        }
+        Update: {
+          clinical_rationale?: string
+          created_at?: string
+          id?: string
+          lab_test_id?: string
+          priority?: string
+          symptom_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "symptom_lab_map_lab_test_id_fkey"
+            columns: ["lab_test_id"]
+            isOneToOne: false
+            referencedRelation: "lab_tests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "symptom_lab_map_symptom_id_fkey"
             columns: ["symptom_id"]
             isOneToOne: false
             referencedRelation: "symptoms"
