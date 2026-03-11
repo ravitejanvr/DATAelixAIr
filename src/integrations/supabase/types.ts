@@ -3484,6 +3484,60 @@ export type Database = {
           },
         ]
       }
+      preindexed_knowledge: {
+        Row: {
+          condition_key: string
+          condition_name: string
+          created_at: string | null
+          evidence_grade: string | null
+          guideline_citations: Json | null
+          icd10_codes: string[] | null
+          id: string
+          last_verified_at: string | null
+          prevalence_tier: string | null
+          recommended_tests: Json | null
+          safety_considerations: Json | null
+          source_authorities: string[] | null
+          symptom_clusters: string[] | null
+          treatment_options: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          condition_key: string
+          condition_name: string
+          created_at?: string | null
+          evidence_grade?: string | null
+          guideline_citations?: Json | null
+          icd10_codes?: string[] | null
+          id?: string
+          last_verified_at?: string | null
+          prevalence_tier?: string | null
+          recommended_tests?: Json | null
+          safety_considerations?: Json | null
+          source_authorities?: string[] | null
+          symptom_clusters?: string[] | null
+          treatment_options?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          condition_key?: string
+          condition_name?: string
+          created_at?: string | null
+          evidence_grade?: string | null
+          guideline_citations?: Json | null
+          icd10_codes?: string[] | null
+          id?: string
+          last_verified_at?: string | null
+          prevalence_tier?: string | null
+          recommended_tests?: Json | null
+          safety_considerations?: Json | null
+          source_authorities?: string[] | null
+          symptom_clusters?: string[] | null
+          treatment_options?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       prescriptions: {
         Row: {
           brand_name: string | null
@@ -3676,6 +3730,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      reasoning_cache: {
+        Row: {
+          cluster_key: string
+          cluster_symptoms: string[]
+          confidence_score: number | null
+          created_at: string | null
+          expires_at: string
+          hit_count: number | null
+          id: string
+          reasoning_output: Json
+          ttl_hours: number | null
+        }
+        Insert: {
+          cluster_key: string
+          cluster_symptoms: string[]
+          confidence_score?: number | null
+          created_at?: string | null
+          expires_at: string
+          hit_count?: number | null
+          id?: string
+          reasoning_output: Json
+          ttl_hours?: number | null
+        }
+        Update: {
+          cluster_key?: string
+          cluster_symptoms?: string[]
+          confidence_score?: number | null
+          created_at?: string | null
+          expires_at?: string
+          hit_count?: number | null
+          id?: string
+          reasoning_output?: Json
+          ttl_hours?: number | null
+        }
+        Relationships: []
       }
       regional_lexicon: {
         Row: {
