@@ -91,6 +91,30 @@ export default function AiPipelineTest() {
   const [benchmarkProgress, setBenchmarkProgress] = useState(0);
   const [benchmarkSummary, setBenchmarkSummary] = useState<any>(null);
 
+  // V3 Benchmark Suite
+  const [v3Loading, setV3Loading] = useState(false);
+  const [v3Results, setV3Results] = useState<any>(null);
+  const [v3Progress, setV3Progress] = useState(0);
+
+  const runV3Benchmark = async () => {
+    setV3Loading(true);
+    setV3Results(null);
+    setV3Progress(10);
+    try {
+      const { data, error } = await supabase.functions.invoke("run-clinical-benchmark-suite", {
+        body: { benchmark_version: "benchmark_v4_full_reasoning" },
+      });
+      if (error) throw error;
+      setV3Results(data);
+      setV3Progress(100);
+      toast.success(`Benchmark v3 complete: ${data.summary?.passed}/${data.summary?.total_tests} passed`);
+    } catch (e: any) {
+      toast.error(e.message || "Benchmark failed");
+    } finally {
+      setV3Loading(false);
+    }
+  };
+
   const runComparison = async () => {
     setLoading(true);
     setResult(null);
