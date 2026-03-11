@@ -227,7 +227,7 @@ export async function runClinicalPipeline(
       try {
         const result = await withTimeout(
           withStageLogging("ddx_engine", () =>
-            runDDXEngine({
+          runDDXEngine({
               symptoms,
               vitals: {
                 temperature: input.clinical_context.temperature,
@@ -242,6 +242,15 @@ export async function runClinicalPipeline(
               allergies: input.clinical_context.allergies,
               visit_id: input.visit_id,
               clinic_id: input.clinic_id,
+              physiological_context: physiologicalContext ? {
+                candidate_diagnosis_ids: physiologicalContext.candidate_diagnosis_ids,
+                affected_systems: physiologicalContext.affected_systems.map(s => s.system_name),
+                physiological_states: physiologicalContext.physiological_states.map(s => ({
+                  state: s.state,
+                  confidence: s.confidence,
+                  system: s.system,
+                })),
+              } : undefined,
             })
           ),
           PARALLEL_TIMEOUT_MS,
