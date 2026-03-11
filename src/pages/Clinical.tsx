@@ -672,6 +672,10 @@ export default function Clinical() {
 
         const modular = data?.modular_pipeline;
         if (modular) {
+          // Stream: Physiology + Bayesian
+          if (modular.physiological_context) setPipelinePhysiology(modular.physiological_context);
+          if (modular.bayesian) setPipelineBayesian(modular.bayesian);
+
           // Stream: Hypotheses
           if (modular.hypotheses?.length > 0) {
             setPipelineHypotheses(modular.hypotheses);
