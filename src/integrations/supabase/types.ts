@@ -3283,8 +3283,11 @@ export type Database = {
           drug_cui: string | null
           drug_name: string
           duration: string | null
+          duration_days: number | null
           frequency: string | null
+          frequency_code: string | null
           generic_name: string | null
+          guideline_reference: string | null
           id: string
           instructions: string | null
           interactions: Json | null
@@ -3306,8 +3309,11 @@ export type Database = {
           drug_cui?: string | null
           drug_name: string
           duration?: string | null
+          duration_days?: number | null
           frequency?: string | null
+          frequency_code?: string | null
           generic_name?: string | null
+          guideline_reference?: string | null
           id?: string
           instructions?: string | null
           interactions?: Json | null
@@ -3329,8 +3335,11 @@ export type Database = {
           drug_cui?: string | null
           drug_name?: string
           duration?: string | null
+          duration_days?: number | null
           frequency?: string | null
+          frequency_code?: string | null
           generic_name?: string | null
+          guideline_reference?: string | null
           id?: string
           instructions?: string | null
           interactions?: Json | null
