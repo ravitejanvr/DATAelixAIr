@@ -96,6 +96,7 @@ interface ClinicalCopilotProps {
   medicationValidation?: MedicationValidationResult | null;
   /** Explainability results for diagnoses */
   explainability?: DiagnosisExplanation[] | null;
+}
 
 const fadeIn = {
   initial: { opacity: 0, y: 4 },
