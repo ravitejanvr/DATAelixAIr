@@ -39,6 +39,7 @@ import { runUncertaintyEngine, type UncertaintyResult } from "@/services/uncerta
 import { runHybridReasoning, type HybridReasoningResult } from "@/services/reasoning_engine/client";
 import { runMultiAgentPipeline, type OrchestratorResponse } from "@/services/multi_agent";
 import { generatePhysiologicalContext, type PhysiologicalContextResult } from "@/services/physiology_engine";
+import { calculateDiagnosticProbabilities, type BayesianResult } from "@/services/bayesian_engine";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PipelineInput {
