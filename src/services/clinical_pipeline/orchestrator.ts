@@ -187,8 +187,36 @@ export async function runClinicalPipeline(
   onProgress?.("context", { enriched_context: enrichedContext });
 
   // ═══════════════════════════════════════════════
+  // Stage 1.5: Physiological Context (parallel-safe, runs before DDX)
+  // ═══════════════════════════════════════════════
+  const physioStart = performance.now();
+  let physiologicalContext: PhysiologicalContextResult | null = null;
+  try {
+    physiologicalContext = await withTimeout(
+      generatePhysiologicalContext({
+        symptoms,
+        vitals: {
+          temperature: input.clinical_context.temperature,
+          spo2: input.clinical_context.oxygen_saturation,
+          pulse: input.clinical_context.pulse,
+          bp_systolic: input.clinical_context.blood_pressure ? parseInt(input.clinical_context.blood_pressure.split("/")[0]) : undefined,
+        },
+        visit_id: input.visit_id,
+        clinic_id: input.clinic_id,
+      }),
+      FAST_TIMEOUT_MS,
+      "physiological_engine"
+    );
+  } catch {
+    physiologicalContext = null;
+  }
+  stageLatencies.physiological_engine = Math.round(performance.now() - physioStart);
+  onProgress?.("physiology", { physiological_context: physiologicalContext });
+
+  // ═══════════════════════════════════════════════
   // Stage 2: PARALLEL — DDX + Knowledge + Preindexed
   //   Key optimization: DDX and knowledge retrieval run simultaneously
+  //   DDX now receives physiological context for filtering
   // ═══════════════════════════════════════════════
   const stage2Start = performance.now();
 
