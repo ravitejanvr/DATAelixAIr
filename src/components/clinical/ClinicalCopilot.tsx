@@ -273,13 +273,30 @@ export default function ClinicalCopilot({
   const hasHypotheses = hypotheses && hypotheses.length > 0;
 
   const PIPELINE_STAGES = [
-    { key: "hypotheses", label: "Diagnoses", icon: Brain },
+    { key: "context", label: "Context", icon: Target },
+    { key: "ddx", label: "DDX", icon: Brain },
     { key: "evidence", label: "Evidence", icon: BookOpen },
+    { key: "hypotheses", label: "Diagnoses", icon: Brain },
     { key: "guidelines", label: "Guidelines", icon: Scale },
     { key: "safety", label: "Safety", icon: Shield },
+    { key: "uncertainty", label: "Confidence", icon: Target },
+    { key: "reasoning", label: "Reasoning", icon: Zap },
   ];
 
   const stageIndex = pipelineStage ? PIPELINE_STAGES.findIndex(s => s.key === pipelineStage) : -1;
+  const isComplete = pipelineStage === "complete";
+
+  // Map stage keys to latency keys
+  const latencyKeyMap: Record<string, string> = {
+    context: "build_context",
+    ddx: "ddx_engine",
+    evidence: "retrieve_evidence",
+    hypotheses: "generate_hypotheses",
+    guidelines: "retrieve_guidelines",
+    safety: "oversight_report",
+    uncertainty: "uncertainty_engine",
+    reasoning: "hybrid_reasoning",
+  };
 
   return (
     <div className="space-y-2.5">
@@ -288,34 +305,42 @@ export default function ClinicalCopilot({
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2 border-primary/20">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <Loader2 className="h-3 w-3 animate-spin text-primary" />
-              <span className="text-[10px] font-semibold text-primary uppercase tracking-widest">AI Pipeline</span>
+              {isComplete ? (
+                <CheckCircle className="h-3 w-3 text-primary" />
+              ) : (
+                <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              )}
+              <span className="text-[10px] font-semibold text-primary uppercase tracking-widest">
+                {isComplete ? "Pipeline Complete" : "AI Pipeline"}
+              </span>
               {stageLatencies?.total && (
-                <Badge variant="outline" className="text-[8px] ml-auto">{stageLatencies.total}ms</Badge>
+                <Badge variant="outline" className={`text-[8px] ml-auto ${(stageLatencies.total || 0) < 10000 ? "text-emerald-600 border-emerald-200" : "text-amber-600 border-amber-200"}`}>
+                  {stageLatencies.total}ms
+                </Badge>
               )}
             </div>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-0.5">
               {PIPELINE_STAGES.map((stage, i) => {
-                const isDone = stageIndex > i || (pipelineStage === "complete");
-                const isActive = stageIndex === i;
+                const isDone = stageIndex > i || isComplete;
+                const isActive = stageIndex === i && !isComplete;
                 const Icon = stage.icon;
+                const latencyKey = latencyKeyMap[stage.key];
+                const latency = latencyKey && stageLatencies?.[latencyKey];
                 return (
                   <div
                     key={stage.key}
-                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] transition-colors ${
+                    className={`flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] transition-all ${
                       isDone ? "bg-primary/10 text-primary" :
-                      isActive ? "bg-primary/20 text-primary font-semibold" :
-                      "bg-muted text-muted-foreground"
+                      isActive ? "bg-primary/20 text-primary font-semibold animate-pulse" :
+                      "bg-muted/50 text-muted-foreground"
                     }`}
                   >
-                    {isDone ? <CheckCircle className="h-2.5 w-2.5" /> :
-                     isActive ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> :
-                     <Icon className="h-2.5 w-2.5" />}
+                    {isDone ? <CheckCircle className="h-2 w-2" /> :
+                     isActive ? <Loader2 className="h-2 w-2 animate-spin" /> :
+                     <Icon className="h-2 w-2 opacity-50" />}
                     {stage.label}
-                    {isDone && stageLatencies?.[stage.key === "hypotheses" ? "generate_hypotheses" : stage.key === "evidence" ? "retrieve_evidence" : stage.key === "guidelines" ? "retrieve_guidelines" : "oversight_report"] && (
-                      <span className="text-[7px] text-muted-foreground ml-0.5">
-                        {stageLatencies[stage.key === "hypotheses" ? "generate_hypotheses" : stage.key === "evidence" ? "retrieve_evidence" : stage.key === "guidelines" ? "retrieve_guidelines" : "oversight_report"]}ms
-                      </span>
+                    {isDone && latency && (
+                      <span className="text-[7px] text-muted-foreground ml-0.5">{latency}ms</span>
                     )}
                   </div>
                 );
