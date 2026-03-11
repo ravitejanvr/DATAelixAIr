@@ -213,7 +213,8 @@ export default function AiPipelineTest() {
         <Tabs defaultValue="single" className="w-full">
           <TabsList>
             <TabsTrigger value="single"><Play className="h-3 w-3 mr-1" /> Single Test</TabsTrigger>
-            <TabsTrigger value="benchmark"><ListChecks className="h-3 w-3 mr-1" /> Benchmark Suite (5 Cases)</TabsTrigger>
+            <TabsTrigger value="benchmark"><ListChecks className="h-3 w-3 mr-1" /> Legacy Benchmark (5)</TabsTrigger>
+            <TabsTrigger value="v3"><Trophy className="h-3 w-3 mr-1" /> Clinical Benchmark v3 (8)</TabsTrigger>
           </TabsList>
 
           {/* ─── Single Test Tab ─── */}
