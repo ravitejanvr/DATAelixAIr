@@ -294,6 +294,7 @@ export default function ClinicalCopilot({
   // Map stage keys to latency keys
   const latencyKeyMap: Record<string, string> = {
     context: "build_context",
+    physiology: "physiological_engine",
     ddx: "ddx_engine",
     evidence: "retrieve_evidence",
     hypotheses: "generate_hypotheses",
