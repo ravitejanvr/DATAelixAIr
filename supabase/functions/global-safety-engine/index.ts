@@ -761,6 +761,11 @@ Deno.serve(async (req) => {
 
     // Run all safety modules
     const clinicalAlerts = detectClinicalRisks(context, riskPatterns || []);
+
+    // Module: Must-Not-Miss Dangerous Diagnosis Detection
+    const mustNotMissAlerts = await detectMustNotMissDiagnoses(supabaseAdmin, context);
+    clinicalAlerts.push(...mustNotMissAlerts);
+
     const medicationAlerts = await checkMedicationSafety(context);
     const diagnosticFlags = checkDiagnosticConsistency(context);
     const populationSignal = await checkPopulationPatterns(supabaseAdmin, context);

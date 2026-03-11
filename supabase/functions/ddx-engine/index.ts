@@ -558,13 +558,15 @@ Deno.serve(async (req) => {
       recommended_labs: recommendedLabs,
       suggested_medications: suggestedMedications,
       guideline_recommendations: guidelineRecommendations,
+      dangerous_diagnoses: dangerousDiagnosisDetails,
       matched_symptoms: matchedSymptoms?.map((s: any) => s.symptom_name) || [],
       unmatched_symptoms: normalizedSymptoms.filter(
         (s: string) => !matchedSymptoms?.some((ms: any) => ms.symptom_name === s)
       ),
       dangerous_diagnoses_injected: dangerousInjected,
+      must_not_miss_count: dangerousDiagnosisDetails.length,
       execution_ms: duration_ms,
-      source: "ddx_engine_v1",
+      source: "ddx_engine_v2",
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
