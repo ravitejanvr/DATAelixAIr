@@ -1258,6 +1258,8 @@ export default function Clinical() {
     clinicId: profileClinicId,
     pipelineStage: pipelineRunning ? pipelineStage : null,
     stageLatencies,
+    physiologicalContext: pipelinePhysiology,
+    bayesianResult: pipelineBayesian,
   };
 
   // ═══════════════════════════════════════════════════════════
