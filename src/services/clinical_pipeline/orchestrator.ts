@@ -39,6 +39,7 @@ import { runUncertaintyEngine, type UncertaintyResult } from "@/services/uncerta
 import { runHybridReasoning, type HybridReasoningResult } from "@/services/reasoning_engine/client";
 import { runMultiAgentPipeline, type OrchestratorResponse } from "@/services/multi_agent";
 import { generatePhysiologicalContext, type PhysiologicalContextResult } from "@/services/physiology_engine";
+import { calculateDiagnosticProbabilities, type BayesianResult } from "@/services/bayesian_engine";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PipelineInput {
@@ -59,6 +60,7 @@ export interface PipelineResult {
   enabled: boolean;
   enriched_context: EnrichedClinicalContext | null;
   physiological_context: PhysiologicalContextResult | null;
+  bayesian: BayesianResult | null;
   ddx: DDXResult | null;
   uncertainty: UncertaintyResult | null;
   hypotheses: HypothesisResult | null;
@@ -122,7 +124,7 @@ export async function runClinicalPipeline(
   const cacheStats = { reasoning_hit: false, preindexed_hit: false, evidence_hit: false, guideline_hit: false };
 
   const emptyResult: PipelineResult = {
-    enabled: false, enriched_context: null, physiological_context: null, ddx: null, uncertainty: null,
+    enabled: false, enriched_context: null, physiological_context: null, bayesian: null, ddx: null, uncertainty: null,
     hypotheses: null, guideline_alignment: null, evidence: null, oversight: null,
     hybrid_reasoning: null, multi_agent: null, guideline_summary: null,
     logs: [], stage_latencies: {}, total_latency_ms: 0, cache_stats: cacheStats,
@@ -329,6 +331,40 @@ export async function runClinicalPipeline(
   // Stream DDX + evidence immediately
   onProgress?.("ddx", { ddx: ddxResult });
   onProgress?.("evidence", { evidence });
+
+  // ═══════════════════════════════════════════════
+  // Stage 2.5: BAYESIAN PROBABILITY RANKING
+  //   Runs after DDX to re-rank candidates with formal Bayesian computation
+  // ═══════════════════════════════════════════════
+  let bayesianResult: BayesianResult | null = null;
+  const bayesStart = performance.now();
+  try {
+    const candidateIds = ddxResult?.differential_diagnoses.map(d => d.diagnosis_id) || [];
+    if (candidateIds.length > 0) {
+      bayesianResult = await withTimeout(
+        calculateDiagnosticProbabilities({
+          candidate_diagnosis_ids: candidateIds,
+          symptoms,
+          physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
+          risk_factors: input.clinical_context.medical_history || [],
+          patient_age: input.clinical_context.patient_age,
+          patient_sex: input.clinical_context.patient_sex,
+          region: "south_asia",
+          vitals: {
+            temperature: input.clinical_context.temperature,
+            spo2: input.clinical_context.oxygen_saturation,
+            pulse: input.clinical_context.pulse,
+          },
+        }),
+        FAST_TIMEOUT_MS,
+        "bayesian_engine"
+      );
+    }
+  } catch {
+    bayesianResult = null;
+  }
+  stageLatencies.bayesian_engine = Math.round(performance.now() - bayesStart);
+  onProgress?.("bayesian", { bayesian: bayesianResult });
 
   // ═══════════════════════════════════════════════
   // Stage 3: PARALLEL — Hypotheses + Guidelines + Oversight + Uncertainty
@@ -553,6 +589,7 @@ export async function runClinicalPipeline(
     enabled: true,
     enriched_context: enrichedContext,
     physiological_context: physiologicalContext,
+    bayesian: bayesianResult,
     ddx: ddxResult,
     uncertainty: uncertaintyResult,
     hypotheses,
