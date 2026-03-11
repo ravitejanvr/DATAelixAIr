@@ -505,6 +505,7 @@ export default function AiPipelineTest() {
               </Card>
             ))}
           </TabsContent>
+        </Tabs>
       </div>
     </PlatformAdminLayout>
   );
