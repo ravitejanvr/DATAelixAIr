@@ -99,3 +99,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.rxnorm-ingest-brands]
     verify_jwt = false
+  [functions.run-clinical-benchmark-suite]
+    verify_jwt = false
