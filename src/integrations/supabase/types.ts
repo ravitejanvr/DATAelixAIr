@@ -902,25 +902,40 @@ export type Database = {
         Row: {
           created_at: string
           diagnosis_id: string
+          diagnosis_name: string | null
+          emergency_protocol: string | null
+          guideline_source: string | null
           id: string
+          must_not_miss: boolean
           notes: string | null
           priority: number
+          severity_level: string
           trigger_symptom: string
         }
         Insert: {
           created_at?: string
           diagnosis_id: string
+          diagnosis_name?: string | null
+          emergency_protocol?: string | null
+          guideline_source?: string | null
           id?: string
+          must_not_miss?: boolean
           notes?: string | null
           priority?: number
+          severity_level?: string
           trigger_symptom: string
         }
         Update: {
           created_at?: string
           diagnosis_id?: string
+          diagnosis_name?: string | null
+          emergency_protocol?: string | null
+          guideline_source?: string | null
           id?: string
+          must_not_miss?: boolean
           notes?: string | null
           priority?: number
+          severity_level?: string
           trigger_symptom?: string
         }
         Relationships: [
