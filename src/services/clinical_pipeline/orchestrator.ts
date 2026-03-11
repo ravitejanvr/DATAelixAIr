@@ -378,6 +378,41 @@ export async function runClinicalPipeline(
   stageLatencies.uncertainty_engine = Math.round(performance.now() - uncStart);
   onProgress?.("uncertainty", { uncertainty: uncertaintyResult });
 
+  // ── Stage 6: Hybrid Reasoning Engine ──
+  let hybridReasoning: HybridReasoningResult | null = null;
+  const reasoningStart = performance.now();
+  try {
+    const symptoms: string[] = [];
+    if (input.clinical_context.chief_complaint) symptoms.push(input.clinical_context.chief_complaint);
+    if ((input.clinical_context as any).symptoms) symptoms.push(...(input.clinical_context as any).symptoms);
+
+    hybridReasoning = await runHybridReasoning({
+      symptoms: [...new Set(symptoms)],
+      chief_complaint: input.clinical_context.chief_complaint,
+      vitals: {
+        temperature: input.clinical_context.temperature,
+        spo2: input.clinical_context.oxygen_saturation,
+        pulse: input.clinical_context.pulse,
+        bp: input.clinical_context.blood_pressure,
+      },
+      patient_age: input.clinical_context.patient_age,
+      patient_sex: input.clinical_context.patient_sex,
+      medical_history: input.clinical_context.medical_history,
+      current_medications: input.clinical_context.current_medications,
+      allergies: input.clinical_context.allergies,
+      visit_id: input.visit_id,
+      clinic_id: input.clinic_id,
+    });
+
+    if (hybridReasoning) {
+      console.log(`[Pipeline] Hybrid reasoning: ${hybridReasoning.paradigm_agreement}, ${hybridReasoning.confidence_assessment} in ${hybridReasoning.total_ms}ms`);
+    }
+  } catch {
+    hybridReasoning = null;
+  }
+  stageLatencies.hybrid_reasoning = Math.round(performance.now() - reasoningStart);
+  onProgress?.("reasoning", { hybrid_reasoning: hybridReasoning });
+
   const totalLatency = Math.round(performance.now() - pipelineStart);
   stageLatencies.total = totalLatency;
 
@@ -399,6 +434,8 @@ export async function runClinicalPipeline(
         ddx_latency_ms: ddxResult?.execution_ms || 0,
         uncertainty_score: uncertaintyResult?.confidence_score || null,
         uncertainty_label: uncertaintyResult?.confidence_label || null,
+        hybrid_reasoning_enabled: !!hybridReasoning,
+        paradigm_agreement: hybridReasoning?.paradigm_agreement || null,
         cache_hits: {
           evidence: !!(evidence && stageLatencies.retrieve_evidence && stageLatencies.retrieve_evidence < 100),
           guideline: !!(guidelineAlignment && stageLatencies.retrieve_guidelines && stageLatencies.retrieve_guidelines < 100),
@@ -433,6 +470,7 @@ export async function runClinicalPipeline(
     guideline_alignment: guidelineAlignment,
     evidence,
     oversight,
+    hybrid_reasoning: hybridReasoning,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: stageLatencies,
