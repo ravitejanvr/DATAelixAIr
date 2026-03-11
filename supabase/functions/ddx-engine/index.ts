@@ -53,9 +53,13 @@ Deno.serve(async (req) => {
       risk_factors = [],
       visit_id = null,
       clinic_id = null,
-      // CCO fields (Phase 1 integration)
       cco_id = null,
+      // Physiological context for filtering (Phase 10.5)
+      physiological_context = null,
     } = body;
+
+    const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
+    const physioSystems = physiological_context?.affected_systems || [];
 
     if (!symptoms.length) {
       return new Response(JSON.stringify({ error: "symptoms[] is required" }), {
