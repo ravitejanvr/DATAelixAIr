@@ -123,6 +123,90 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_pipeline_tests_v4: {
+        Row: {
+          confidence_label: string | null
+          confidence_score: number
+          created_at: string
+          dangerous_diagnosis_detected: boolean
+          ddx_latency_ms: number | null
+          diagnosis_match: number
+          expected_output: Json
+          failure_reasons: string[]
+          guideline_count: number
+          id: string
+          lab_match: number
+          latency_ms: number
+          legacy_output: Json
+          medication_match: number
+          modular_output: Json
+          module_logs: Json
+          passed: boolean
+          patient_context: Json
+          pipeline_version: string
+          run_group_id: string | null
+          safety_alerts: number
+          safety_flags: Json
+          test_name: string
+          triggered_by: string | null
+          uncertainty_latency_ms: number | null
+        }
+        Insert: {
+          confidence_label?: string | null
+          confidence_score?: number
+          created_at?: string
+          dangerous_diagnosis_detected?: boolean
+          ddx_latency_ms?: number | null
+          diagnosis_match?: number
+          expected_output?: Json
+          failure_reasons?: string[]
+          guideline_count?: number
+          id?: string
+          lab_match?: number
+          latency_ms?: number
+          legacy_output?: Json
+          medication_match?: number
+          modular_output?: Json
+          module_logs?: Json
+          passed?: boolean
+          patient_context?: Json
+          pipeline_version?: string
+          run_group_id?: string | null
+          safety_alerts?: number
+          safety_flags?: Json
+          test_name: string
+          triggered_by?: string | null
+          uncertainty_latency_ms?: number | null
+        }
+        Update: {
+          confidence_label?: string | null
+          confidence_score?: number
+          created_at?: string
+          dangerous_diagnosis_detected?: boolean
+          ddx_latency_ms?: number | null
+          diagnosis_match?: number
+          expected_output?: Json
+          failure_reasons?: string[]
+          guideline_count?: number
+          id?: string
+          lab_match?: number
+          latency_ms?: number
+          legacy_output?: Json
+          medication_match?: number
+          modular_output?: Json
+          module_logs?: Json
+          passed?: boolean
+          patient_context?: Json
+          pipeline_version?: string
+          run_group_id?: string | null
+          safety_alerts?: number
+          safety_flags?: Json
+          test_name?: string
+          triggered_by?: string | null
+          uncertainty_latency_ms?: number | null
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           actor_id: string
