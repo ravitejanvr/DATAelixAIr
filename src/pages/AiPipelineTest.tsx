@@ -144,8 +144,11 @@ export default function AiPipelineTest() {
       const medOverlaps = successful.map(r => r.result.comparison?.medication_overlap || 0);
       const guidelineCounts = successful.map(r => r.result.modular_pipeline?.guidelines?.length || 0);
       const safetyAlerts = successful.map(r => r.result.modular_pipeline?.safety_flags?.length || 0);
+      const confidenceScores = successful.map(r => r.result.modular_pipeline?.uncertainty?.confidence_score ?? null).filter((v: any) => v !== null);
+      const confidenceLabels = successful.map(r => r.result.modular_pipeline?.uncertainty?.confidence_label || "N/A");
 
       const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+      const avgFloat = (arr: number[]) => arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 100) / 100 : 0;
 
       setBenchmarkSummary({
         total_tests: BENCHMARK_TESTS.length,
@@ -156,6 +159,8 @@ export default function AiPipelineTest() {
           avg_latency_ms: avg(modularLatencies),
           avg_guideline_citations: avg(guidelineCounts),
           avg_safety_alerts: avg(safetyAlerts),
+          avg_confidence_score: avgFloat(confidenceScores as number[]),
+          confidence_labels: confidenceLabels,
         },
         diagnosis_agreement_rate: avg(diagOverlaps),
         lab_agreement_rate: avg(labOverlaps),
@@ -284,15 +289,17 @@ export default function AiPipelineTest() {
                     <SummaryStatCard label="Avg Modular Latency" value={`${benchmarkSummary.modular_pipeline.avg_latency_ms}ms`} />
                     <SummaryStatCard label="Semantic Dx Match" value={`${benchmarkSummary.diagnosis_agreement_rate}%`} highlight />
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <SummaryStatCard label="Lab Equivalence" value={`${benchmarkSummary.lab_agreement_rate}%`} />
                     <SummaryStatCard label="Med Equivalence" value={`${benchmarkSummary.medication_agreement_rate}%`} />
                     <SummaryStatCard label="Avg Guideline Citations" value={String(benchmarkSummary.modular_pipeline.avg_guideline_citations)} />
                     <SummaryStatCard label="Avg Safety Alerts" value={String(benchmarkSummary.modular_pipeline.avg_safety_alerts)} />
+                    <SummaryStatCard label="Avg Confidence" value={String(benchmarkSummary.modular_pipeline.avg_confidence_score)} highlight />
                   </div>
                   <MetricBar label="Semantic Diagnosis Match Rate" value={benchmarkSummary.diagnosis_agreement_rate} />
                   <MetricBar label="Lab Equivalence Match Rate" value={benchmarkSummary.lab_agreement_rate} />
                   <MetricBar label="Medication Equivalence Match Rate" value={benchmarkSummary.medication_agreement_rate} />
+                  <MetricBar label="Avg Diagnostic Confidence" value={Math.round(benchmarkSummary.modular_pipeline.avg_confidence_score * 100)} />
                 </CardContent>
               </Card>
             )}
@@ -510,6 +517,50 @@ function PipelineCard({ title, data, variant }: { title: string; data: any; vari
               </div>
             )}
 
+            {/* Uncertainty Engine Results */}
+            {data.uncertainty && (
+              <div>
+                <p className="font-semibold mb-1 flex items-center gap-1">
+                  Uncertainty Calibration
+                  <Badge variant="secondary" className="text-[9px]">{data.uncertainty.execution_ms}ms</Badge>
+                  <Badge
+                    variant={data.uncertainty.confidence_label === "High" ? "default" : data.uncertainty.confidence_label === "Moderate" ? "secondary" : "destructive"}
+                    className="text-[9px]"
+                  >
+                    {data.uncertainty.confidence_label} ({data.uncertainty.confidence_score})
+                  </Badge>
+                </p>
+                {/* Scoring breakdown */}
+                <div className="grid grid-cols-2 gap-1 mb-1">
+                  {Object.entries(data.uncertainty.scoring_breakdown || {}).map(([key, val]: [string, any]) => (
+                    <div key={key} className="flex justify-between text-[10px] text-muted-foreground px-1">
+                      <span>{key.replace(/_/g, " ")}</span>
+                      <span className="font-mono">{val}</span>
+                    </div>
+                  ))}
+                </div>
+                {data.uncertainty.missing_evidence?.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">Missing Evidence:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {data.uncertainty.missing_evidence.map((m: string, i: number) => (
+                        <Badge key={i} variant="outline" className="text-[9px] text-yellow-600">{m}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {data.uncertainty.diagnostic_conflict && (
+                  <div className="mt-1">
+                    <p className="text-[10px] text-destructive mb-0.5">Diagnostic Conflicts:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {(data.uncertainty.conflict_details || []).map((c: string, i: number) => (
+                        <Badge key={i} variant="destructive" className="text-[9px]">{c}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {data.hypotheses?.length > 0 && (
               <div>
                 <p className="font-semibold mb-1">AI Hypotheses</p>
