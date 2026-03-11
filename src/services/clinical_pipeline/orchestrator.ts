@@ -346,7 +346,7 @@ export async function runClinicalPipeline(
     // 3c: Oversight (fast, in-memory)
     (async (): Promise<OversightReport> => {
       const start = performance.now();
-      const report = await withStageLogging("oversight_report", () =>
+      const report: OversightReport = await withStageLogging("oversight_report", async () =>
         generateOversightReport(input.visit_id ?? null, input.consultation_id ?? null)
       );
       stageLatencies.oversight_report = Math.round(performance.now() - start);
