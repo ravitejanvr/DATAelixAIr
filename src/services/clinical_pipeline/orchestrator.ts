@@ -416,6 +416,30 @@ export async function runClinicalPipeline(
   stageLatencies.hybrid_reasoning = Math.round(performance.now() - reasoningStart);
   onProgress?.("reasoning", { hybrid_reasoning: hybridReasoning });
 
+  // ── Stage 7: Multi-Agent Orchestrator (non-blocking, parallel) ──
+  let multiAgentResult: OrchestratorResponse | null = null;
+  const maStart = performance.now();
+  try {
+    multiAgentResult = await withTimeout(
+      runMultiAgentPipeline({
+        transcript: input.clinical_context.chief_complaint || "",
+        clinical_context: input.clinical_context,
+        visit_id: input.visit_id || undefined,
+        clinic_id: input.clinic_id || undefined,
+        skip_agents: ["documentation_agent"], // SOAP already handled
+      }),
+      8000,
+      "multi_agent"
+    );
+    if (multiAgentResult) {
+      console.log(`[Pipeline] Multi-agent: ${multiAgentResult.agent_results.filter(a => a.status === "success").length}/${multiAgentResult.agent_results.length} agents succeeded in ${multiAgentResult.total_ms}ms`);
+    }
+  } catch {
+    multiAgentResult = null;
+  }
+  stageLatencies.multi_agent = Math.round(performance.now() - maStart);
+  onProgress?.("multi_agent", { multi_agent: multiAgentResult });
+
   const totalLatency = Math.round(performance.now() - pipelineStart);
   stageLatencies.total = totalLatency;
 
