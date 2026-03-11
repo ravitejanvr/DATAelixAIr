@@ -94,7 +94,8 @@ interface ClinicalCopilotProps {
   stageLatencies?: Record<string, number>;
   /** Medication intelligence validation results */
   medicationValidation?: MedicationValidationResult | null;
-}
+  /** Explainability results for diagnoses */
+  explainability?: DiagnosisExplanation[] | null;
 
 const fadeIn = {
   initial: { opacity: 0, y: 4 },
