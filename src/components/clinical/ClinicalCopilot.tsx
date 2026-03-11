@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { SafetyResults } from "@/layers/safety/api";
 import type { EvidenceData } from "@/layers/evidence/api";
+import type { MedicationValidationResult, MedicationWarning } from "@/services/medication_intelligence/client";
+import { sortWarnings, safetyScoreColor } from "@/services/medication_intelligence/client";
 
 interface GuidelineMatch {
   guideline_id: string;
