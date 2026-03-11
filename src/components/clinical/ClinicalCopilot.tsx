@@ -160,6 +160,7 @@ export default function ClinicalCopilot({
   medicationValidation,
   explainability,
   physiologicalContext,
+  bayesianResult,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
