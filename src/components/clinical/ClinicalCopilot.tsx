@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Brain, FlaskConical, Pill, Shield, CheckCircle, AlertTriangle,
   ChevronDown, ChevronRight, FileText, Loader2, Scale, BookOpen, ExternalLink,
-  MessageSquare, Zap, Target
+  MessageSquare, Zap, Target, Eye, TrendingUp, TrendingDown, Minus
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,8 @@ import type { SafetyResults } from "@/layers/safety/api";
 import type { EvidenceData } from "@/layers/evidence/api";
 import type { MedicationValidationResult, MedicationWarning } from "@/services/medication_intelligence/client";
 import { sortWarnings, safetyScoreColor } from "@/services/medication_intelligence/client";
+import type { DiagnosisExplanation, ExplanationFactor } from "@/services/explainability/client";
+import { factorDirectionColor, factorBarWidth } from "@/services/explainability/client";
 
 interface GuidelineMatch {
   guideline_id: string;
@@ -92,6 +94,8 @@ interface ClinicalCopilotProps {
   stageLatencies?: Record<string, number>;
   /** Medication intelligence validation results */
   medicationValidation?: MedicationValidationResult | null;
+  /** Explainability results for diagnoses */
+  explainability?: DiagnosisExplanation[] | null;
 }
 
 const fadeIn = {
@@ -148,6 +152,7 @@ export default function ClinicalCopilot({
   pipelineStage,
   stageLatencies,
   medicationValidation,
+  explainability,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -612,6 +617,83 @@ export default function ClinicalCopilot({
               )}
             </div>
           </ClinicalCard>
+        </motion.div>
+      )}
+
+      {/* Explainability Panel — SHAP-style factor attribution */}
+      {explainability && explainability.length > 0 && (
+        <motion.div {...fadeIn}>
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <button className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors text-left">
+                <Eye className="h-3 w-3 text-primary shrink-0" />
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex-1">
+                  AI Reasoning Explained
+                </span>
+                <Badge variant="outline" className="text-[9px]">
+                  {explainability.length} diagnos{explainability.length === 1 ? "is" : "es"}
+                </Badge>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-1">
+              <ClinicalCard className="p-2.5 space-y-3">
+                {explainability.map((exp, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <Brain className="h-3 w-3 text-primary shrink-0" />
+                      <span className="text-xs font-semibold text-foreground">{exp.diagnosis}</span>
+                      <div className="flex gap-1 ml-auto">
+                        <Badge variant="outline" className="text-[8px] text-emerald-600 border-emerald-200">
+                          +{exp.factor_counts.positive}
+                        </Badge>
+                        {exp.factor_counts.negative > 0 && (
+                          <Badge variant="outline" className="text-[8px] text-destructive border-destructive/30">
+                            −{exp.factor_counts.negative}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground italic">{exp.summary}</p>
+                    <div className="space-y-0.5">
+                      {exp.factors.slice(0, 6).map((f, j) => (
+                        <div key={j} className="flex items-center gap-1.5 text-[10px]">
+                          {f.direction === "positive" ? (
+                            <TrendingUp className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          ) : f.direction === "negative" ? (
+                            <TrendingDown className="h-2.5 w-2.5 text-destructive shrink-0" />
+                          ) : (
+                            <Minus className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                          )}
+                          <span className={`flex-1 ${factorDirectionColor(f.direction)}`}>
+                            {f.factor}
+                          </span>
+                          <Badge variant="outline" className="text-[7px]">{f.type}</Badge>
+                          <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                f.direction === "positive" ? "bg-emerald-500" :
+                                f.direction === "negative" ? "bg-destructive" : "bg-muted-foreground"
+                              }`}
+                              style={{ width: factorBarWidth(f.weight) }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {exp.confidence_rationale && (
+                      <p className="text-[9px] text-muted-foreground border-t border-border pt-1 mt-1">
+                        {exp.confidence_rationale}
+                      </p>
+                    )}
+                    {i < explainability.length - 1 && <div className="border-b border-border" />}
+                  </div>
+                ))}
+                <p className="text-[8px] text-muted-foreground italic pt-1 border-t border-border">
+                  Factor weights are approximate. All reasoning requires clinical validation.
+                </p>
+              </ClinicalCard>
+            </CollapsibleContent>
+          </Collapsible>
         </motion.div>
       )}
 
