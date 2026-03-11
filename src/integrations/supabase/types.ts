@@ -164,6 +164,90 @@ export type Database = {
           },
         ]
       }
+      benchmark_runs: {
+        Row: {
+          benchmark_version: string
+          comparison_details: Json
+          confidence_label: string | null
+          confidence_score: number | null
+          created_at: string
+          ddx_latency_ms: number | null
+          diagnosis_agreement: number
+          expected_output: Json
+          failure_reasons: string[]
+          guideline_citations: number
+          id: string
+          lab_agreement: number
+          latency_ms: number
+          medication_agreement: number
+          passed: boolean
+          patient_context: Json
+          pipeline_output: Json
+          pipeline_type: string
+          run_group_id: string | null
+          run_timestamp: string
+          safety_alerts: number
+          test_case: string
+          test_case_index: number
+          triggered_by: string | null
+          uncertainty_latency_ms: number | null
+        }
+        Insert: {
+          benchmark_version?: string
+          comparison_details?: Json
+          confidence_label?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          ddx_latency_ms?: number | null
+          diagnosis_agreement?: number
+          expected_output?: Json
+          failure_reasons?: string[]
+          guideline_citations?: number
+          id?: string
+          lab_agreement?: number
+          latency_ms?: number
+          medication_agreement?: number
+          passed?: boolean
+          patient_context?: Json
+          pipeline_output?: Json
+          pipeline_type?: string
+          run_group_id?: string | null
+          run_timestamp?: string
+          safety_alerts?: number
+          test_case: string
+          test_case_index?: number
+          triggered_by?: string | null
+          uncertainty_latency_ms?: number | null
+        }
+        Update: {
+          benchmark_version?: string
+          comparison_details?: Json
+          confidence_label?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          ddx_latency_ms?: number | null
+          diagnosis_agreement?: number
+          expected_output?: Json
+          failure_reasons?: string[]
+          guideline_citations?: number
+          id?: string
+          lab_agreement?: number
+          latency_ms?: number
+          medication_agreement?: number
+          passed?: boolean
+          patient_context?: Json
+          pipeline_output?: Json
+          pipeline_type?: string
+          run_group_id?: string | null
+          run_timestamp?: string
+          safety_alerts?: number
+          test_case?: string
+          test_case_index?: number
+          triggered_by?: string | null
+          uncertainty_latency_ms?: number | null
+        }
+        Relationships: []
+      }
       blog_article_index: {
         Row: {
           article_id: string
