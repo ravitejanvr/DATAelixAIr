@@ -449,7 +449,7 @@ serve(async (req) => {
     };
 
     // Log to monitoring_events
-    await admin.from("monitoring_events").insert({
+    const { error: monitorErr } = await admin.from("monitoring_events").insert({
       event_type: "benchmark_suite_completed",
       agent_name: "clinical-benchmark-suite",
       duration_ms: results.reduce((s, r) => s + r.latency_ms, 0),
@@ -458,7 +458,8 @@ serve(async (req) => {
         ...summary,
         user_id: user.id,
       },
-    }).catch(() => {});
+    });
+    if (monitorErr) console.error("Monitor log error:", monitorErr);
 
     return new Response(JSON.stringify({ summary, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
