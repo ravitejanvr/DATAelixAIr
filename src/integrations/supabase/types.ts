@@ -332,6 +332,66 @@ export type Database = {
         }
         Relationships: []
       }
+      bias_metrics: {
+        Row: {
+          acceptance_rate: number | null
+          clinic_id: string | null
+          created_at: string | null
+          dimension: string
+          dimension_value: string
+          disparity_score: number | null
+          fairness_threshold: number | null
+          false_negative_rate: number | null
+          false_positive_rate: number | null
+          id: string
+          metric_type: string
+          override_rate: number | null
+          passes_fairness: boolean | null
+          period_end: string
+          period_start: string
+          positive_rate: number | null
+          sample_count: number | null
+        }
+        Insert: {
+          acceptance_rate?: number | null
+          clinic_id?: string | null
+          created_at?: string | null
+          dimension: string
+          dimension_value: string
+          disparity_score?: number | null
+          fairness_threshold?: number | null
+          false_negative_rate?: number | null
+          false_positive_rate?: number | null
+          id?: string
+          metric_type: string
+          override_rate?: number | null
+          passes_fairness?: boolean | null
+          period_end: string
+          period_start: string
+          positive_rate?: number | null
+          sample_count?: number | null
+        }
+        Update: {
+          acceptance_rate?: number | null
+          clinic_id?: string | null
+          created_at?: string | null
+          dimension?: string
+          dimension_value?: string
+          disparity_score?: number | null
+          fairness_threshold?: number | null
+          false_negative_rate?: number | null
+          false_positive_rate?: number | null
+          id?: string
+          metric_type?: string
+          override_rate?: number | null
+          passes_fairness?: boolean | null
+          period_end?: string
+          period_start?: string
+          positive_rate?: number | null
+          sample_count?: number | null
+        }
+        Relationships: []
+      }
       blog_article_index: {
         Row: {
           article_id: string
@@ -3034,6 +3094,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      outcome_feedback: {
+        Row: {
+          ai_diagnosis: string
+          clinic_id: string
+          consultation_id: string | null
+          created_at: string | null
+          days_to_resolution: number | null
+          diagnosis_match: boolean | null
+          doctor_final_diagnosis: string
+          doctor_id: string
+          follow_up_required: boolean | null
+          id: string
+          lab_results_summary: Json | null
+          learning_signals: Json | null
+          outcome_status: string | null
+          patient_id: string
+          readmission: boolean | null
+          treatment_prescribed: Json | null
+          updated_at: string | null
+          visit_id: string
+        }
+        Insert: {
+          ai_diagnosis: string
+          clinic_id: string
+          consultation_id?: string | null
+          created_at?: string | null
+          days_to_resolution?: number | null
+          diagnosis_match?: boolean | null
+          doctor_final_diagnosis: string
+          doctor_id: string
+          follow_up_required?: boolean | null
+          id?: string
+          lab_results_summary?: Json | null
+          learning_signals?: Json | null
+          outcome_status?: string | null
+          patient_id: string
+          readmission?: boolean | null
+          treatment_prescribed?: Json | null
+          updated_at?: string | null
+          visit_id: string
+        }
+        Update: {
+          ai_diagnosis?: string
+          clinic_id?: string
+          consultation_id?: string | null
+          created_at?: string | null
+          days_to_resolution?: number | null
+          diagnosis_match?: boolean | null
+          doctor_final_diagnosis?: string
+          doctor_id?: string
+          follow_up_required?: boolean | null
+          id?: string
+          lab_results_summary?: Json | null
+          learning_signals?: Json | null
+          outcome_status?: string | null
+          patient_id?: string
+          readmission?: boolean | null
+          treatment_prescribed?: Json | null
+          updated_at?: string | null
+          visit_id?: string
+        }
+        Relationships: []
       }
       outcome_tracking: {
         Row: {
