@@ -148,6 +148,16 @@ export default function AiPipelineTest() {
       avg_medication_agreement: avg(successful.map(r => r.medication_agreement ?? 0)),
       avg_guideline_citations: avg(successful.map(r => r.guideline_citations ?? 0)),
       avg_latency_ms: avg(successful.map(r => r.latency_ms ?? 0)),
+      avg_confidence_score: successful.length ? Math.round((successful.reduce((a: number, r: any) => a + (r.confidence_score ?? 0), 0) / successful.length) * 100) / 100 : 0,
+      avg_ddx_latency_ms: avg(successful.map(r => r.ddx_latency_ms ?? 0)),
+      avg_uncertainty_latency_ms: avg(successful.map(r => r.uncertainty_latency_ms ?? 0)),
+      avg_safety_alerts: avg(successful.map(r => r.safety_alerts ?? 0)),
+      pass_thresholds: {
+        diagnosis_agreement: 50,
+        lab_agreement: 40,
+        medication_agreement: 40,
+        guideline_citations_min: 1,
+      },
     };
 
     setV3Results({ summary, results: allResults });
