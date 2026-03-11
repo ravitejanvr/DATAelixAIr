@@ -301,6 +301,7 @@ export default function ClinicalCopilot({
     context: "build_context",
     physiology: "physiological_engine",
     ddx: "ddx_engine",
+    bayesian: "bayesian_engine",
     evidence: "retrieve_evidence",
     hypotheses: "generate_hypotheses",
     guidelines: "retrieve_guidelines",
