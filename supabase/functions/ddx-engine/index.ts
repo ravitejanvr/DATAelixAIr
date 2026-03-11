@@ -443,7 +443,7 @@ Deno.serve(async (req) => {
     // ════════════════════════════════════════════════════
     if (visit_id) {
       for (const dx of finalDifferential) {
-        await supabase.from("diagnostic_hypotheses").insert({
+        const { error: hypErr } = await supabase.from("diagnostic_hypotheses").insert({
           visit_id,
           hypothesis: {
             diagnosis: dx.diagnosis_name,
@@ -455,7 +455,8 @@ Deno.serve(async (req) => {
           },
           confidence_score: dx.probability / 100,
           evidence_sources: dx.supporting_symptoms || [],
-        }).catch(() => {}); // non-critical
+        });
+        if (hypErr) console.error("Hypothesis insert error:", hypErr);
       }
     }
 
