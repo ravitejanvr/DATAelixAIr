@@ -333,6 +333,40 @@ export async function runClinicalPipeline(
   onProgress?.("evidence", { evidence });
 
   // ═══════════════════════════════════════════════
+  // Stage 2.5: BAYESIAN PROBABILITY RANKING
+  //   Runs after DDX to re-rank candidates with formal Bayesian computation
+  // ═══════════════════════════════════════════════
+  let bayesianResult: BayesianResult | null = null;
+  const bayesStart = performance.now();
+  try {
+    const candidateIds = ddxResult?.differential_diagnoses.map(d => d.diagnosis_id) || [];
+    if (candidateIds.length > 0) {
+      bayesianResult = await withTimeout(
+        calculateDiagnosticProbabilities({
+          candidate_diagnosis_ids: candidateIds,
+          symptoms,
+          physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
+          risk_factors: input.clinical_context.medical_history || [],
+          patient_age: input.clinical_context.patient_age,
+          patient_sex: input.clinical_context.patient_sex,
+          region: "south_asia",
+          vitals: {
+            temperature: input.clinical_context.temperature,
+            spo2: input.clinical_context.oxygen_saturation,
+            pulse: input.clinical_context.pulse,
+          },
+        }),
+        FAST_TIMEOUT_MS,
+        "bayesian_engine"
+      );
+    }
+  } catch {
+    bayesianResult = null;
+  }
+  stageLatencies.bayesian_engine = Math.round(performance.now() - bayesStart);
+  onProgress?.("bayesian", { bayesian: bayesianResult });
+
+  // ═══════════════════════════════════════════════
   // Stage 3: PARALLEL — Hypotheses + Guidelines + Oversight + Uncertainty
   //   All can run concurrently since they depend only on context + DDX
   // ═══════════════════════════════════════════════
