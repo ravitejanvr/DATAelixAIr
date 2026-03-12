@@ -8,7 +8,7 @@
 import { setFeatureFlag } from "@/services/feature_flags";
 import { BENCHMARK_CASES_V5, type BenchmarkCase } from "@/services/benchmark_v5";
 import { runClinicalPipeline as runO1Pipeline, type PipelineResult, type PipelineInput } from "@/services/clinical_pipeline/orchestrator";
-import { fromMergedContext, toClinicalContext } from "@/types/clinical-context";
+import { fromMergedContext, toClinicalContext, type UnifiedClinicalContext } from "@/types/clinical-context";
 
 // ── Types ──
 
