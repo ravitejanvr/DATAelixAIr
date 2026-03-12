@@ -348,6 +348,7 @@ export default function PlatformAdmin() {
             <TabsTrigger value="terminology"><Database className="h-3.5 w-3.5 mr-1" /> Terminology</TabsTrigger>
             <TabsTrigger value="pipeline-debug"><Cpu className="h-3.5 w-3.5 mr-1" /> Pipeline Debug</TabsTrigger>
             <TabsTrigger value="simulation"><Zap className="h-3.5 w-3.5 mr-1" /> Simulation</TabsTrigger>
+            <TabsTrigger value="benchmarks"><BarChart3 className="h-3.5 w-3.5 mr-1" /> Benchmarks</TabsTrigger>
           </TabsList>
 
           {/* Pilots Tab */}
