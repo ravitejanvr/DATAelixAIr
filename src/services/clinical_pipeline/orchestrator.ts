@@ -39,8 +39,10 @@ import {
 import type { ClinicalContext } from "@/lib/clinical-context";
 import { getPatientContext } from "@/services/context_engine/client";
 import { fromPCIEContext, toClinicalContext, type UnifiedClinicalContext } from "@/types/clinical-context";
-import { generateHypotheses, type HypothesisResult } from "@/services/hypothesis_engine";
-import { evaluateGuidelineAlignment, type GuidelineAlignmentResult } from "@/services/guideline_engine";
+import { generateDiagnosticHypotheses } from "@/services/hypothesis_engine/client";
+import type { HypothesisResult } from "@/services/hypothesis_engine";
+import { evaluateGuidelineAlignment, checkGuidelineCompliance, type GuidelineAlignmentResult, type GuidelineComplianceResult } from "@/services/guideline_engine";
+import { generateSOAP, type SOAPGeneratorResult } from "@/services/soap_generator";
 import {
   recordOversightEvent,
   generateOversightReport,
