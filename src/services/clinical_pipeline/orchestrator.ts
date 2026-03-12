@@ -685,6 +685,7 @@ export async function runClinicalPipeline(
             medical_history: ctx.medical_history,
             current_medications: ctx.current_medications,
             allergies: ctx.allergies,
+            risk_factors: (ctx as any).risk_factors || [],
             visit_id: input.visit_id,
             clinic_id: input.clinic_id,
           }),
