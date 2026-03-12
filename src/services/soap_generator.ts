@@ -6,7 +6,7 @@
  */
 
 import type { MergedContextObject } from "@/services/context_service";
-import type { DDXOutput } from "@/services/ddx_engine";
+import type { DDXOutput } from "@/services/ddx_service";
 import type { GuidelineResult } from "@/services/guideline_retrieval";
 import type { MedicationEngineResult } from "@/services/medication_engine";
 import type { SafetyEngineResult } from "@/services/safety_engine";
