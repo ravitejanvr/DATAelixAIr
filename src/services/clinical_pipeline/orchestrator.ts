@@ -606,8 +606,8 @@ export async function runClinicalPipeline(
 
   // Stream Wave 3 results
   onProgress?.("bayesian", { bayesian: bayesianResult });
-  onProgress?.("guidelines", { guideline_alignment: guidelineAlignment });
-  onProgress?.("hypotheses", { hypotheses });
+  onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
+  onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
   // ═══════════════════════════════════════════════════════
   // WAVE 4 — Clinical Safety Evaluation
