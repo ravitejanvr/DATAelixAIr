@@ -1197,11 +1197,11 @@ export async function runUnifiedClinicalPipeline(
   }
   if (physiologicalContext) {
     pcieCore.updateReasoning({
-      physiology_models: physiologicalContext.physiological_states.map(s => ({
-        state_id: s.state_id,
-        state_name: s.state_name,
-        category: s.category,
-        severity: s.severity,
+      physiology_models: physiologicalContext.physiological_states.map((s: any) => ({
+        state_id: s.state_id || s.id || "",
+        state_name: s.state_name || s.name || "",
+        category: s.category || "",
+        severity: s.severity || "",
       })),
     });
   }
