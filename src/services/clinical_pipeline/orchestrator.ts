@@ -950,7 +950,8 @@ export async function runUnifiedClinicalPipeline(
         );
         // Fallback: if uncertainty engine fails, produce a synthetic score from DDX spread
         if (!result && ddxResult && ddxResult.differential_diagnoses.length > 0) {
-          const topProb = ddxResult.differential_diagnoses[0].probability;
+          const topDx = ddxResult.differential_diagnoses[0];
+          const topProb = topDx.probability;
           const spread = ddxResult.differential_diagnoses.length > 1
             ? topProb - ddxResult.differential_diagnoses[1].probability
             : topProb;
@@ -958,10 +959,21 @@ export async function runUnifiedClinicalPipeline(
           return {
             confidence_score: syntheticScore,
             confidence_label: syntheticScore >= 70 ? "high" : syntheticScore >= 40 ? "moderate" : "low",
-            reasoning: "Synthetic confidence derived from DDX probability spread (uncertainty engine timed out)",
-            follow_up_questions: [],
-            source: "ddx_spread_fallback",
-          } as UncertaintyResult;
+            top_diagnosis: topDx.diagnosis_name,
+            alternative_diagnoses: ddxResult.differential_diagnoses.slice(1, 4).map(d => ({ name: d.diagnosis_name, probability: d.probability })),
+            must_not_miss: ddxResult.differential_diagnoses.filter(d => d.must_not_miss).map(d => d.diagnosis_name),
+            missing_evidence: [],
+            diagnostic_conflict: false,
+            conflict_details: [],
+            guideline_sources: [],
+            safety_flags: [],
+            scoring_breakdown: {
+              evidence_strength: syntheticScore / 100,
+              data_completeness: 0.5,
+              signal_coherence: syntheticScore / 100,
+            },
+            execution_ms: 0,
+          } satisfies UncertaintyResult;
         }
         lat.uncertainty_engine = Math.round(performance.now() - t0);
         return result;
