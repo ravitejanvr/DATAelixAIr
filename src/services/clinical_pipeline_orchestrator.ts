@@ -13,7 +13,7 @@
 
 import type { MergedContextObject } from "@/services/context_service";
 import { logPipelineExecution, validateContextObject } from "@/services/context_service";
-import { runDifferentialDiagnosis, type DDXOutput } from "@/services/ddx_engine";
+import { runDifferentialDiagnosis, type DDXOutput } from "@/services/ddx_service";
 import { retrieveMedicalEvidence, type KnowledgeRetrievalResult } from "@/services/knowledge_retrieval";
 import { retrieveGuidelines, type GuidelineResult } from "@/services/guideline_retrieval";
 import { generateMedicationSuggestions, type MedicationEngineResult } from "@/services/medication_engine";
