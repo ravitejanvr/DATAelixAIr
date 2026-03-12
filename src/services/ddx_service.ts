@@ -5,10 +5,10 @@
  * ranked differential diagnoses via the DDX edge function.
  */
 
-import { runDDXEngine as invokeDDX, type DDXInput, type DDXResult } from "@/services/ddx_engine/client";
+import { runDDXEngine as invokeDDX, type DDXInput, type DDXResult, type ReasoningTrace } from "@/services/ddx_engine/client";
 import type { MergedContextObject } from "@/services/context_service";
 
-export type { DDXResult, DDXDiagnosis, DDXLabRecommendation, DDXMedication, DDXGuideline } from "@/services/ddx_engine/client";
+export type { DDXResult, DDXDiagnosis, DDXLabRecommendation, DDXMedication, DDXGuideline, ReasoningTrace } from "@/services/ddx_engine/client";
 
 export interface DDXOutput {
   diagnoses: Array<{
@@ -19,6 +19,8 @@ export interface DDXOutput {
     must_not_miss: boolean;
   }>;
   recommended_labs: Array<{ test_name: string; priority: string; differentiates: string[] }>;
+  reasoning_traces: ReasoningTrace[];
+  organ_systems_active: string[];
   raw: DDXResult | null;
 }
 
@@ -47,7 +49,7 @@ export async function runDifferentialDiagnosis(ctx: MergedContextObject): Promis
   const result = await invokeDDX(input);
 
   if (!result) {
-    return { diagnoses: [], recommended_labs: [], raw: null };
+    return { diagnoses: [], recommended_labs: [], reasoning_traces: [], organ_systems_active: [], raw: null };
   }
 
   return {
@@ -63,6 +65,8 @@ export async function runDifferentialDiagnosis(ctx: MergedContextObject): Promis
       priority: l.priority,
       differentiates: l.differentiates,
     })),
+    reasoning_traces: result.reasoning_traces || [],
+    organ_systems_active: result.organ_systems_active || [],
     raw: result,
   };
 }
