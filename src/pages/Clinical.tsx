@@ -661,7 +661,7 @@ export default function Clinical() {
         if (chiefComplaint) (pipelineContext as any).chief_complaint = chiefComplaint;
         if (selectedSymptoms.length > 0) (pipelineContext as any).symptoms = selectedSymptoms;
 
-        const o1Result = await runClinicalPipeline(
+        const o1Result = await runUnifiedClinicalPipeline(
           {
             clinical_context: pipelineContext,
             visit_id: visitId,
