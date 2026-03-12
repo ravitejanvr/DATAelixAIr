@@ -39,14 +39,22 @@ export interface PipelineTrace {
     status: "mapped" | "dropped" | "empty";
   }[];
   waves: WaveTrace[];
+  waves_executed: string[];
   final_result: PipelineResult;
   lineage: LineageReport | null;
+  lineage_coverage_pct: number;
+  engine_execution_logs: {
+    engine: string;
+    status: "success" | "timeout" | "error" | "skipped";
+    latency_ms: number;
+  }[];
   all_gaps: string[];
   diagnoses_generated: string[];
   labs_suggested: string[];
   medications_suggested: string[];
   graph_matches: number;
   danger_detected: boolean;
+  pipeline_entry: string;
 }
 
 // ── Helpers ──
