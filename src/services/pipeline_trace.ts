@@ -8,7 +8,7 @@
 import { setFeatureFlag } from "@/services/feature_flags";
 import { BENCHMARK_CASES_V5, type BenchmarkCase } from "@/services/benchmark_v5";
 import { runClinicalPipeline as runO1Pipeline, type PipelineResult, type PipelineInput } from "@/services/clinical_pipeline/orchestrator";
-import { fromMergedContext, toClinicalContext } from "@/types/clinical-context";
+import { fromMergedContext, toClinicalContext, type UnifiedClinicalContext } from "@/types/clinical-context";
 
 // ── Types ──
 
@@ -29,6 +29,14 @@ export interface PipelineTrace {
   case_name: string;
   category: string;
   total_ms: number;
+  unified_context_snapshot: UnifiedClinicalContext;
+  clinical_context_snapshot: Record<string, unknown>;
+  adapter_field_audit: {
+    field: string;
+    unified_value: unknown;
+    clinical_value: unknown;
+    status: "mapped" | "dropped" | "empty";
+  }[];
   waves: WaveTrace[];
   final_result: PipelineResult;
   all_gaps: string[];
@@ -323,11 +331,29 @@ export async function runPipelineTrace(
     }
   }
 
+  // Build adapter field audit
+  const auditFields = [
+    "symptoms", "associated_symptoms", "risk_flags", "risk_factors",
+    "chief_complaint", "symptom_duration", "medical_history", "allergies", "current_medications",
+  ] as const;
+  const adapterAudit = auditFields.map(field => {
+    const uVal = (unified as any)[field];
+    const cVal = (clinicalContext as any)[field];
+    let status: "mapped" | "dropped" | "empty" = "mapped";
+    if (cVal === undefined || cVal === null) status = "dropped";
+    else if (Array.isArray(cVal) && cVal.length === 0) status = "empty";
+    else if (typeof cVal === "string" && cVal === "") status = "empty";
+    return { field, unified_value: uVal, clinical_value: cVal, status };
+  });
+
   return {
     case_id: bc.id,
     case_name: bc.name,
     category: bc.category,
     total_ms: totalMs,
+    unified_context_snapshot: unified,
+    clinical_context_snapshot: clinicalContext as unknown as Record<string, unknown>,
+    adapter_field_audit: adapterAudit,
     waves,
     final_result: result,
     all_gaps: allGaps,

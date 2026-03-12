@@ -138,6 +138,100 @@ export default function PipelineTracePage() {
         </CardContent>
       </Card>
 
+      {/* Pre-Pipeline Context Snapshot */}
+      {trace && (
+        <Card className="mb-6 border-l-4 border-l-accent">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm font-mono">Pre-Pipeline UnifiedClinicalContext (v5-04)</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-4">
+            {/* Key fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div>
+                <p className="font-semibold text-muted-foreground mb-1">chief_complaint</p>
+                <p className="font-mono bg-muted p-2 rounded">{trace.unified_context_snapshot.chief_complaint || "⚠ EMPTY"}</p>
+              </div>
+              <div>
+                <p className="font-semibold text-muted-foreground mb-1">symptoms</p>
+                <p className="font-mono bg-muted p-2 rounded">
+                  {trace.unified_context_snapshot.symptoms.length > 0
+                    ? trace.unified_context_snapshot.symptoms.join(", ")
+                    : "⚠ EMPTY []"}
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold text-muted-foreground mb-1">associated_symptoms</p>
+                <p className="font-mono bg-muted p-2 rounded">
+                  {trace.unified_context_snapshot.associated_symptoms.length > 0
+                    ? trace.unified_context_snapshot.associated_symptoms.join(", ")
+                    : "⚠ EMPTY []"}
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold text-muted-foreground mb-1">vitals</p>
+                <pre className="font-mono bg-muted p-2 rounded">
+                  {JSON.stringify(trace.unified_context_snapshot.vitals, null, 2)}
+                </pre>
+              </div>
+              <div>
+                <p className="font-semibold text-muted-foreground mb-1">risk_flags</p>
+                <p className="font-mono bg-muted p-2 rounded">
+                  {trace.unified_context_snapshot.risk_flags.length > 0
+                    ? trace.unified_context_snapshot.risk_flags.join(", ")
+                    : "⚠ EMPTY [] (no pre-computed flags)"}
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold text-muted-foreground mb-1">risk_factors</p>
+                <p className="font-mono bg-muted p-2 rounded">
+                  {trace.unified_context_snapshot.risk_factors.length > 0
+                    ? trace.unified_context_snapshot.risk_factors.join(", ")
+                    : "⚠ EMPTY []"}
+                </p>
+              </div>
+            </div>
+
+            {/* Adapter Field Audit */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2">Adapter Field Audit (toClinicalContext)</p>
+              <div className="overflow-auto">
+                <table className="w-full text-xs font-mono">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-1 pr-3">Field</th>
+                      <th className="text-left py-1 pr-3">Unified Value</th>
+                      <th className="text-left py-1 pr-3">ClinicalContext Value</th>
+                      <th className="text-left py-1">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trace.adapter_field_audit.map(row => (
+                      <tr key={row.field} className="border-b border-muted">
+                        <td className="py-1 pr-3 font-semibold">{row.field}</td>
+                        <td className="py-1 pr-3 max-w-[200px] truncate">
+                          {JSON.stringify(row.unified_value)}
+                        </td>
+                        <td className="py-1 pr-3 max-w-[200px] truncate">
+                          {JSON.stringify(row.clinical_value)}
+                        </td>
+                        <td className="py-1">
+                          <Badge
+                            variant={row.status === "mapped" ? "default" : "destructive"}
+                            className="text-xs"
+                          >
+                            {row.status === "mapped" ? "✅ mapped" : row.status === "dropped" ? "❌ DROPPED" : "⚠ empty"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary */}
       {trace && (
         <Card className="mb-6">

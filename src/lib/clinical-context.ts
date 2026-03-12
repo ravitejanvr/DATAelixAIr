@@ -21,6 +21,11 @@ export interface ClinicalContext {
   medical_history: string[];
   current_medications: string[];
   allergies: string[];
+  // Added in migration — previously dropped by adapter
+  symptoms?: string[];
+  associated_symptoms?: string[];
+  risk_flags?: string[];
+  risk_factors?: string[];
 }
 
 export const EMPTY_CLINICAL_CONTEXT: ClinicalContext = {
@@ -38,6 +43,10 @@ export const EMPTY_CLINICAL_CONTEXT: ClinicalContext = {
   medical_history: [],
   current_medications: [],
   allergies: [],
+  symptoms: [],
+  associated_symptoms: [],
+  risk_flags: [],
+  risk_factors: [],
 };
 
 interface PatientDemographics {
