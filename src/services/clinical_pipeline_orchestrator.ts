@@ -81,12 +81,14 @@ export async function runClinicalPipeline(
       ddx_candidates: o1Result.ddx ? {
         diagnoses: o1Result.ddx.differential_diagnoses.map((d: any) => ({
           diagnosis: d.diagnosis_name || d.diagnosis || "",
+          probability_score: d.probability,
           probability: d.probability,
+          must_not_miss: d.must_not_miss || false,
           supporting_evidence: d.supporting_symptoms || [],
         })),
         recommended_labs: o1Result.ddx.recommended_labs || [],
         reasoning_traces: o1Result.ddx.reasoning_traces || [],
-        organ_systems_active: [],
+        organ_systems_active: (o1Result.ddx as any).organ_systems_active || [],
         raw: o1Result.ddx,
       } : { diagnoses: [], recommended_labs: [], reasoning_traces: [], organ_systems_active: [], raw: null },
 
