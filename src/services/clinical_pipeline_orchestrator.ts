@@ -71,6 +71,7 @@ export async function runClinicalPipeline(
       clinical_context: clinicalContext,
       visit_id: contextObject.visit_id,
       clinic_id: contextObject.clinic_id,
+      skip_cache: true, // Benchmarks must always run full pipeline
     });
 
     const totalMs = Math.round(performance.now() - pipelineStart);
