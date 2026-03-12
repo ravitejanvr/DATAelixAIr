@@ -39,7 +39,7 @@ export default function PipelineDebug() {
         .select("*")
         .eq("visit_id", visitId.trim())
         .order("created_at", { ascending: true });
-      setLogs((data as PipelineLog[]) || []);
+      setLogs((data as unknown as PipelineLog[]) || []);
     } catch (e) {
       console.error("Failed to load logs:", e);
     } finally {
