@@ -704,24 +704,30 @@ export default function Clinical() {
                 guidelines_sources: data.guideline_alignment.guideline_sources_used || [],
                 guideline_sources_used: data.guideline_alignment.guideline_sources_used || [],
                 guideline_compliance_score: data.guideline_alignment.guideline_compliance_score || 0,
-                conflicts_detected: data.guideline_alignment.conflicts_detected || [],
+                conflicts_detected: (data.guideline_alignment.conflicts_detected || []).map((c: any) => ({
+                  recommendation: c.recommendation || c.prescribed_drug || "",
+                  conflicting_guideline: c.conflicting_guideline || c.guideline_recommends || "",
+                  organization: c.organization || c.source || "",
+                  severity: c.severity || "moderate",
+                  explanation: c.explanation || "",
+                })),
               });
             }
             if (data.oversight) {
               setSafetyResults({
                 normalized_drugs: [],
-                interaction_flags: data.oversight.events?.filter((e: any) => e.event_type === "drug_interaction") || [],
-                allergy_flags: data.oversight.events?.filter((e: any) => e.event_type === "allergy_conflict") || [],
-                dose_warnings: data.oversight.events?.filter((e: any) => e.event_type === "dose_warning") || [],
-                vitals_dangers: data.oversight.events?.filter((e: any) => e.event_type === "vitals_danger") || [],
-                emergency_patterns: data.oversight.events?.filter((e: any) => e.event_type === "emergency") || [],
+                interaction_flags: [],
+                allergy_flags: [],
+                dose_warnings: [],
+                vitals_dangers: [],
+                emergency_patterns: [],
                 context_completeness: { issues: [], context_complete: true, ai_suggestions_blocked: false },
                 confidence_level: "moderate",
-                requires_manual_review: false,
+                requires_manual_review: data.oversight.requires_review || false,
                 ai_suggestions_blocked: false,
                 output_policy: { label: AI_DRAFT_LABEL, conservative_language: true, evidence_required: true },
                 timestamp: new Date().toISOString(),
-              } as SafetyResults);
+              });
             }
             if (data.stage_latencies) {
               setStageLatencies(prev => ({ ...prev, ...data.stage_latencies }));

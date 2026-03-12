@@ -122,7 +122,7 @@ export async function runClinicalPipeline(
       safety_alerts: {
         alerts: o1Result.oversight?.events || [],
         safety_score: o1Result.oversight?.safety_score || 100,
-        critical_count: o1Result.oversight?.critical_events || 0,
+        critical_count: o1Result.oversight?.events?.filter((e: any) => e.severity === "critical").length || 0,
         high_count: 0,
         passed: (o1Result.oversight?.safety_score || 100) >= 70,
       },
@@ -130,8 +130,8 @@ export async function runClinicalPipeline(
       confidence_scores: o1Result.uncertainty ? {
         confidence_score: o1Result.uncertainty.confidence_score,
         confidence_label: o1Result.uncertainty.confidence_label,
-        missing_evidence: o1Result.uncertainty.missing_data_points || [],
-        follow_up_questions: o1Result.uncertainty.follow_up_questions || [],
+        missing_evidence: o1Result.uncertainty.missing_evidence || [],
+        follow_up_questions: [],
         raw: o1Result.uncertainty,
       } : { confidence_score: 0, confidence_label: "Very Uncertain", missing_evidence: [], follow_up_questions: [], raw: null },
 
