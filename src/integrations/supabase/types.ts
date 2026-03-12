@@ -2571,6 +2571,39 @@ export type Database = {
           },
         ]
       }
+      knowledge_cache: {
+        Row: {
+          cache_key: string
+          cache_type: string
+          created_at: string | null
+          expires_at: string
+          hit_count: number | null
+          id: string
+          query_text: string | null
+          result_data: Json
+        }
+        Insert: {
+          cache_key: string
+          cache_type: string
+          created_at?: string | null
+          expires_at: string
+          hit_count?: number | null
+          id?: string
+          query_text?: string | null
+          result_data?: Json
+        }
+        Update: {
+          cache_key?: string
+          cache_type?: string
+          created_at?: string | null
+          expires_at?: string
+          hit_count?: number | null
+          id?: string
+          query_text?: string | null
+          result_data?: Json
+        }
+        Relationships: []
+      }
       lab_catalog: {
         Row: {
           category: string | null
