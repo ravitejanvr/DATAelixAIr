@@ -1,7 +1,8 @@
 /**
- * DDX Engine v3 — Client Service
+ * DDX Engine v4 — Client Service
  *
- * Invokes the Bayesian DDX engine for structured differential diagnosis.
+ * Invokes the probabilistic DDX engine with organ system reasoning,
+ * score thresholds, and transparent reasoning traces.
  * Gated by USE_DDX_ENGINE feature flag.
  */
 
@@ -53,6 +54,20 @@ export interface DDXGuideline {
   guideline_url?: string;
 }
 
+export interface ReasoningTrace {
+  diagnosis: string;
+  diagnosis_id: string;
+  total_score: number;
+  prior: number;
+  likelihood: number;
+  symptom_coverage: number;
+  symptom_evidence: Array<{ symptom: string; weight: number }>;
+  organ_system_bonus: boolean;
+  must_not_miss: boolean;
+  contradicting_factors: string[];
+  confidence: number;
+}
+
 export interface DDXResult {
   differential_diagnoses: DDXDiagnosis[];
   recommended_labs: DDXLabRecommendation[];
@@ -70,6 +85,9 @@ export interface DDXResult {
   unmatched_symptoms: string[];
   dangerous_diagnoses_injected: number;
   must_not_miss_count: number;
+  organ_systems_active: string[];
+  reasoning_traces: ReasoningTrace[];
+  score_threshold_applied: number;
   execution_ms: number;
   stage_latencies: {
     symptom_resolution: number;
@@ -103,7 +121,7 @@ export interface DDXInput {
 }
 
 /**
- * Run the Bayesian DDX engine. Returns null if disabled or on error.
+ * Run the probabilistic DDX engine. Returns null if disabled or on error.
  */
 export async function runDDXEngine(input: DDXInput): Promise<DDXResult | null> {
   if (!isDdxEngineEnabled()) {
