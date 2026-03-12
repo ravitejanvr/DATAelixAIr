@@ -200,6 +200,15 @@ function checkDoseSanity(medications: string[]): DoseWarning[] {
 function checkVitalsDangers(vitals: Record<string, number | null | undefined>): VitalsDanger[] {
   const dangers: VitalsDanger[] = [];
 
+  // Auto-detect temperature unit: values <= 50 are Celsius, > 50 are Fahrenheit
+  const rawTemp = vitals["temperature"];
+  let tempCelsius: number | null = null;
+  if (rawTemp != null) {
+    tempCelsius = rawTemp <= 50 ? rawTemp : (rawTemp - 32) * 5 / 9;
+    // Replace with Celsius value for consistent rule evaluation
+    vitals["temperature"] = tempCelsius;
+  }
+
   const rules: Array<{
     key: string; label: string;
     critical_low?: number; warning_low?: number; warning_high?: number; critical_high?: number;
@@ -211,7 +220,7 @@ function checkVitalsDangers(vitals: Record<string, number | null | undefined>): 
       low_action: "Evaluate for hypotension and perfusion.", high_action: "Severe hypertension. Urgent evaluation needed." },
     { key: "pulse", label: "Heart Rate", critical_low: 40, warning_low: 50, warning_high: 120, critical_high: 150,
       low_action: "Evaluate for bradycardia. ECG recommended.", high_action: "Tachycardia. Rule out sepsis, dehydration, arrhythmia." },
-    { key: "temperature", label: "Temperature (°F)", critical_low: 95, warning_low: 96.8, warning_high: 101.3, critical_high: 104,
+    { key: "temperature", label: "Temperature (°C)", critical_low: 35.0, warning_low: 36.0, warning_high: 38.5, critical_high: 40.0,
       low_action: "Hypothermia. Active rewarming needed.", high_action: "High fever. Evaluate for infection or sepsis." },
     { key: "spo2", label: "SpO₂", critical_low: 88, warning_low: 93,
       low_action: "Hypoxia. Supplemental oxygen. Evaluate for respiratory distress." },
