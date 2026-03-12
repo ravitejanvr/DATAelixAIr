@@ -71,6 +71,7 @@ export async function runClinicalPipeline(
       clinical_context: clinicalContext,
       visit_id: contextObject.visit_id,
       clinic_id: contextObject.clinic_id,
+      skip_cache: true, // Benchmarks must always run full pipeline
     });
 
     const totalMs = Math.round(performance.now() - pipelineStart);
@@ -80,12 +81,14 @@ export async function runClinicalPipeline(
       ddx_candidates: o1Result.ddx ? {
         diagnoses: o1Result.ddx.differential_diagnoses.map((d: any) => ({
           diagnosis: d.diagnosis_name || d.diagnosis || "",
+          probability_score: d.probability,
           probability: d.probability,
+          must_not_miss: d.must_not_miss || false,
           supporting_evidence: d.supporting_symptoms || [],
         })),
         recommended_labs: o1Result.ddx.recommended_labs || [],
         reasoning_traces: o1Result.ddx.reasoning_traces || [],
-        organ_systems_active: [],
+        organ_systems_active: (o1Result.ddx as any).organ_systems_active || [],
         raw: o1Result.ddx,
       } : { diagnoses: [], recommended_labs: [], reasoning_traces: [], organ_systems_active: [], raw: null },
 
@@ -106,7 +109,19 @@ export async function runClinicalPipeline(
         differentiates: l.differentiates || [],
       })) || [],
 
-      recommended_medications: {
+      recommended_medications: o1Result.ddx?.suggested_medications ? {
+        suggestions: o1Result.ddx.suggested_medications.map((m: any) => ({
+          generic_name: m.generic_name,
+          drug_class: m.drug_class || "",
+          for_diagnosis: m.for_diagnosis || "",
+          safe: m.safe ?? true,
+          interactions: m.interactions || [],
+          allergy_conflict: m.allergy_conflict || false,
+        })),
+        safety_score: 100,
+        critical_warnings: 0,
+        validation: null,
+      } : {
         suggestions: [],
         safety_score: 100,
         critical_warnings: 0,
@@ -136,16 +151,20 @@ export async function runClinicalPipeline(
       } : { confidence_score: 0, confidence_label: "Very Uncertain", missing_evidence: [], follow_up_questions: [], raw: null },
 
       soap_draft: o1Result.hybrid_reasoning ? {
-        subjective: (o1Result.hybrid_reasoning as any).soap?.subjective || "",
-        objective: (o1Result.hybrid_reasoning as any).soap?.objective || "",
-        assessment: (o1Result.hybrid_reasoning as any).soap?.assessment || "",
-        plan: (o1Result.hybrid_reasoning as any).soap?.plan || "",
+        soap: {
+          subjective: (o1Result.hybrid_reasoning as any).soap?.subjective || "",
+          objective: (o1Result.hybrid_reasoning as any).soap?.objective || "",
+          assessment: (o1Result.hybrid_reasoning as any).soap?.assessment || "",
+          plan: (o1Result.hybrid_reasoning as any).soap?.plan || "",
+        },
       } : o1Result.soap_fallback ? {
-        subjective: o1Result.soap_fallback.soap.subjective,
-        objective: o1Result.soap_fallback.soap.objective,
-        assessment: o1Result.soap_fallback.soap.assessment,
-        plan: o1Result.soap_fallback.soap.plan,
-      } : { subjective: "", objective: "", assessment: "", plan: "" },
+        soap: {
+          subjective: o1Result.soap_fallback.soap.subjective,
+          objective: o1Result.soap_fallback.soap.objective,
+          assessment: o1Result.soap_fallback.soap.assessment,
+          plan: o1Result.soap_fallback.soap.plan,
+        },
+      } : { soap: { subjective: "", objective: "", assessment: "", plan: "" } },
 
       latency: {
         wave1_ms: o1Result.wave_latencies.wave1_context || 0,
