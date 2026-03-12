@@ -811,8 +811,8 @@ export async function runUnifiedClinicalPipeline(
     (async (): Promise<HypothesisResult | null> => {
       const t0 = performance.now();
       try {
-        const edgeResult = await withTimeout(
-          withStageLogging("generate_hypotheses", async () => {
+        const edgeResult = await withRetry(
+          () => withStageLogging("generate_hypotheses", async () => {
             const hyp = await generateDiagnosticHypotheses(
               input.visit_id || "trace",
               {
