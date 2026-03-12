@@ -189,6 +189,45 @@ export async function runClinicalPipeline(
   console.log("[Pipeline] v4 wave-based starting — target <10s...");
 
   // ═══════════════════════════════════════════════════════
+  // WAVE 0 — PCIE Context Hydration (optional, ~200ms)
+  //   If visit_id exists, attempt to load structured PCIE context
+  //   and merge it into the clinical context for richer downstream input.
+  // ═══════════════════════════════════════════════════════
+  let unifiedContext: UnifiedClinicalContext | null = null;
+  if (input.visit_id) {
+    const w0Start = performance.now();
+    try {
+      const pcieRow = await withTimeout(
+        getPatientContext(input.visit_id),
+        1500,
+        "pcie_fetch",
+      );
+      if (pcieRow) {
+        unifiedContext = fromPCIEContext(pcieRow);
+        // Merge PCIE fields into clinical_context where empty
+        const cc = input.clinical_context;
+        if (!cc.chief_complaint && unifiedContext.chief_complaint) {
+          (cc as any).chief_complaint = unifiedContext.chief_complaint;
+        }
+        if ((!cc.medical_history || cc.medical_history.length === 0) && unifiedContext.medical_history.length > 0) {
+          (cc as any).medical_history = unifiedContext.medical_history;
+        }
+        if ((!cc.allergies || cc.allergies.length === 0) && unifiedContext.allergies.length > 0) {
+          (cc as any).allergies = unifiedContext.allergies;
+        }
+        if ((!cc.current_medications || cc.current_medications.length === 0) && unifiedContext.current_medications.length > 0) {
+          (cc as any).current_medications = unifiedContext.current_medications;
+        }
+        console.log(`[Pipeline] Wave 0: PCIE context loaded (confidence=${unifiedContext.context_confidence})`);
+      }
+    } catch {
+      console.warn("[Pipeline] Wave 0: PCIE fetch failed, continuing without it");
+    }
+    lat.wave0_pcie = Math.round(performance.now() - w0Start);
+    waveLat.wave0_pcie = lat.wave0_pcie;
+  }
+
+  // ═══════════════════════════════════════════════════════
   // FAST PATH: Reasoning cache check
   // ═══════════════════════════════════════════════════════
   const cacheT0 = performance.now();
