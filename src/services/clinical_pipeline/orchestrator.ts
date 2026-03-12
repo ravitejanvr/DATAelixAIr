@@ -46,6 +46,8 @@ import { generatePhysiologicalContext, type PhysiologicalContextResult } from "@
 import { calculateDiagnosticProbabilities, type BayesianResult } from "@/services/bayesian_engine";
 import { supabase } from "@/integrations/supabase/client";
 import { LineageTracker, type LineageReport } from "@/services/clinical_pipeline/lineage_tracker";
+import { PCIECore } from "@/services/pcie/core";
+import type { UnifiedClinicalContextGraph } from "@/services/pcie/context_graph";
 
 // ── Public Types ──
 
@@ -102,6 +104,8 @@ export interface PipelineResult {
     guideline_hit: boolean;
   };
   lineage: LineageReport | null;
+  /** PCIE context graph — full clinical state snapshot */
+  context_graph: UnifiedClinicalContextGraph | null;
 }
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
@@ -327,7 +331,7 @@ export async function runUnifiedClinicalPipeline(
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
     multi_agent: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
-    cache_stats: cache, lineage: null,
+    cache_stats: cache, lineage: null, context_graph: null,
   };
 
   if (!isNewPipelineEnabled()) {
@@ -338,9 +342,17 @@ export async function runUnifiedClinicalPipeline(
   clearPipelineLogs();
   clearOversightEvents();
   const lineageTracker = new LineageTracker();
+  const pcieCore = new PCIECore({
+    visit_id: input.visit_id,
+    clinic_id: input.clinic_id,
+    consultation_id: input.consultation_id,
+  });
   const symptoms = extractSymptoms(input.clinical_context);
   const vitals = buildVitals(input.clinical_context);
   const ctx = input.clinical_context;
+
+  // Hydrate PCIE Core from input context
+  pcieCore.hydrateFromClinicalContext(ctx);
 
   // Initial snapshot — pre-pipeline context
   lineageTracker.captureSnapshot("Wave 0 (Pre)", "pcie", {
@@ -1162,6 +1174,102 @@ export async function runUnifiedClinicalPipeline(
 
   const lineageReport = lineageTracker.generateReport();
 
+  // ── Populate PCIE Context Graph with all engine outputs ──
+  if (ddxResult) {
+    pcieCore.updateReasoning({
+      differential_diagnoses: ddxResult.differential_diagnoses,
+      organ_systems_detected: (ddxResult as any).organ_systems_active || (dominantSystem ? [dominantSystem] : []),
+    });
+    pcieCore.updateDecision({
+      recommended_investigations: (ddxResult.recommended_labs || []).map(l => ({
+        test_name: l.test_name,
+        priority: l.priority,
+        differentiates: l.differentiates || [],
+      })),
+      treatment_suggestions: (ddxResult.suggested_medications || []).map(m => ({
+        generic_name: m.generic_name,
+        drug_class: m.drug_class,
+        for_diagnosis: m.for_diagnosis,
+        safe: m.safe,
+      })),
+    });
+    pcieCore.addReasoningTrace("ddx", `Generated ${ddxResult.differential_diagnoses.length} candidates`);
+  }
+  if (physiologicalContext) {
+    pcieCore.updateReasoning({
+      physiology_models: physiologicalContext.physiological_states.map((s: any) => ({
+        state_id: s.state_id || s.id || "",
+        state_name: s.state_name || s.name || "",
+        category: s.category || "",
+        severity: s.severity || "",
+      })),
+    });
+  }
+  if (evidence && evidence.items.length > 0) {
+    pcieCore.updateReasoning({
+      evidence_sources: evidence.items.map(i => ({
+        title: i.title,
+        source: i.source,
+        relevance_score: i.relevance_score,
+      })),
+    });
+  }
+  if (bayesianResult) {
+    pcieCore.updateReasoning({
+      bayesian_probabilities: bayesianResult.diagnoses.map(d => ({
+        diagnosis_id: d.diagnosis_id,
+        posterior_probability: d.posterior_probability,
+        prior: d.prior,
+        symptom_likelihood: d.symptom_likelihood,
+        must_not_miss: d.must_not_miss,
+      })),
+    });
+  }
+  if (guidelineAlignment || guidelineCompliance) {
+    pcieCore.updateReasoning({
+      guideline_references: guideline_summary ? {
+        sources_used: guideline_summary.guideline_sources_used,
+        compliance_score: guideline_summary.guideline_compliance_score,
+        recommendations: [],
+        conflicts: guideline_summary.conflicts_detected,
+      } : null,
+    });
+  }
+  if (hypotheses) {
+    pcieCore.updateReasoning({ hypotheses: hypotheses.hypotheses });
+  }
+  if (oversight) {
+    pcieCore.updateDecision({
+      safety_alerts: oversight.events || [],
+      safety_score: oversight.safety_score,
+    });
+  }
+  if (uncertaintyResult) {
+    pcieCore.updateDecision({
+      uncertainty_score: uncertaintyResult.confidence_score,
+      confidence_score: uncertaintyResult.confidence_score,
+      confidence_label: uncertaintyResult.confidence_label,
+    });
+  }
+  if (hybridReasoning) {
+    pcieCore.updateDecision({
+      paradigm_agreement: (hybridReasoning as any).paradigm_agreement ?? null,
+    });
+    if ((hybridReasoning as any).soap) {
+      pcieCore.updateDocumentation({
+        soap_note: (hybridReasoning as any).soap,
+        soap_source: "hybrid_reasoning",
+      });
+    }
+  } else if (soapFallback) {
+    pcieCore.updateDocumentation({
+      soap_note: soapFallback.soap,
+      soap_source: "fallback_generator",
+    });
+  }
+
+  const contextGraph = pcieCore.getGraph();
+
   onProgress?.("complete", {});
 
   return {
@@ -1186,6 +1294,7 @@ export async function runUnifiedClinicalPipeline(
     total_latency_ms: totalLatency,
     cache_stats: cache,
     lineage: lineageReport,
+    context_graph: { ...contextGraph } as UnifiedClinicalContextGraph,
   };
 }
 
