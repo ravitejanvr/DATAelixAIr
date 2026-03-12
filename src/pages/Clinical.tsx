@@ -699,9 +699,12 @@ export default function Clinical() {
             }
             if (data.guideline_alignment) {
               setPipelineCompliance({
-                compliance_score: data.guideline_alignment.guideline_compliance_score || 0,
-                citations: data.guideline_alignment.guideline_sources_used || [],
-                conflicts: data.guideline_alignment.conflicts_detected || [],
+                results: [],
+                guidelines_matched: 0,
+                guidelines_sources: data.guideline_alignment.guideline_sources_used || [],
+                guideline_sources_used: data.guideline_alignment.guideline_sources_used || [],
+                guideline_compliance_score: data.guideline_alignment.guideline_compliance_score || 0,
+                conflicts_detected: data.guideline_alignment.conflicts_detected || [],
               });
             }
             if (data.oversight) {
