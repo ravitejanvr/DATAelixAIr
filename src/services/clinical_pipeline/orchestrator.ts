@@ -275,7 +275,7 @@ function buildEvidenceQuery(chiefComplaint: string, ddxResult: DDXResult | null)
 
 // ── Main Pipeline ──
 
-export async function runClinicalPipeline(
+export async function runUnifiedClinicalPipeline(
   input: PipelineInput,
   onProgress?: PipelineProgressCallback,
 ): Promise<PipelineResult> {
