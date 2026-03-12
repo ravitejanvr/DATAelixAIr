@@ -205,14 +205,14 @@ export async function runPipelineTrace(
             },
             output_summary: {
               bayesian_total_candidates: bayesian?.total_candidates ?? 0,
-              bayesian_top_diagnosis: bayesian?.ranked_diagnoses?.[0] ?? null,
+              bayesian_top_diagnosis: bayesian?.diagnoses?.[0] ?? null,
               bayesian_scoring_method: bayesian ? "Bayesian posterior" : "not invoked",
               hypothesis_count: hypotheses?.hypotheses?.length ?? 0,
               hypotheses_list: hypotheses?.hypotheses?.map(h => ({
-                diagnosis: h.diagnosis,
+                condition: h.condition,
                 confidence: h.confidence,
-                supporting_count: h.supporting_factors?.length ?? 0,
-                contradicting_count: h.contradicting_factors?.length ?? 0,
+                supporting_count: h.supporting_evidence?.length ?? 0,
+                contradicting_count: h.contradicting_evidence?.length ?? 0,
               })) ?? [],
               guideline_compliance: "see guideline_alignment in result",
             },
