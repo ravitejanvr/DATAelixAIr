@@ -2434,6 +2434,54 @@ export type Database = {
         }
         Relationships: []
       }
+      intake_raw_inputs: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          input_type: string
+          language: string | null
+          metadata: Json | null
+          raw_text: string
+          visit_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          input_type?: string
+          language?: string | null
+          metadata?: Json | null
+          raw_text?: string
+          visit_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          input_type?: string
+          language?: string | null
+          metadata?: Json | null
+          raw_text?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_raw_inputs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intake_raw_inputs_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           clinic_id: string
@@ -3289,6 +3337,103 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patient_context_objects: {
+        Row: {
+          allergies: Json
+          associated_symptoms: Json
+          built_by: string
+          chief_complaint: string
+          clinic_id: string
+          context_confidence: number
+          created_at: string
+          current_medications: Json
+          duration: string | null
+          id: string
+          input_sources: Json
+          lab_results: Json | null
+          missing_information: Json
+          patient_id: string
+          previous_conditions: Json
+          risk_factors: Json
+          risk_flags: Json
+          severity: string | null
+          symptoms: Json
+          updated_at: string
+          visit_id: string
+          vitals: Json | null
+        }
+        Insert: {
+          allergies?: Json
+          associated_symptoms?: Json
+          built_by?: string
+          chief_complaint?: string
+          clinic_id: string
+          context_confidence?: number
+          created_at?: string
+          current_medications?: Json
+          duration?: string | null
+          id?: string
+          input_sources?: Json
+          lab_results?: Json | null
+          missing_information?: Json
+          patient_id: string
+          previous_conditions?: Json
+          risk_factors?: Json
+          risk_flags?: Json
+          severity?: string | null
+          symptoms?: Json
+          updated_at?: string
+          visit_id: string
+          vitals?: Json | null
+        }
+        Update: {
+          allergies?: Json
+          associated_symptoms?: Json
+          built_by?: string
+          chief_complaint?: string
+          clinic_id?: string
+          context_confidence?: number
+          created_at?: string
+          current_medications?: Json
+          duration?: string | null
+          id?: string
+          input_sources?: Json
+          lab_results?: Json | null
+          missing_information?: Json
+          patient_id?: string
+          previous_conditions?: Json
+          risk_factors?: Json
+          risk_flags?: Json
+          severity?: string | null
+          symptoms?: Json
+          updated_at?: string
+          visit_id?: string
+          vitals?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_context_objects_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_context_objects_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_context_objects_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
             referencedColumns: ["id"]
           },
         ]
@@ -4394,6 +4539,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      symptom_language_map: {
+        Row: {
+          clinical_concept: string
+          confidence_score: number
+          created_at: string
+          id: string
+          language: string
+          normalized_phrase: string
+          phrase: string
+          snomed_id: string | null
+        }
+        Insert: {
+          clinical_concept: string
+          confidence_score?: number
+          created_at?: string
+          id?: string
+          language?: string
+          normalized_phrase: string
+          phrase: string
+          snomed_id?: string | null
+        }
+        Update: {
+          clinical_concept?: string
+          confidence_score?: number
+          created_at?: string
+          id?: string
+          language?: string
+          normalized_phrase?: string
+          phrase?: string
+          snomed_id?: string | null
+        }
+        Relationships: []
       }
       symptom_likelihoods: {
         Row: {
