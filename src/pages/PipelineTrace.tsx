@@ -347,6 +347,40 @@ export default function PipelineTracePage() {
         </div>
       )}
 
+      {activeTab === "engines" && trace && (
+        <Card className="mb-4">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm font-mono flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" /> Engine Execution Logs
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-1.5 pr-3">Engine</th>
+                  <th className="text-left py-1.5 pr-3">Status</th>
+                  <th className="text-right py-1.5">Latency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trace.engine_execution_logs.map(log => (
+                  <tr key={log.engine} className="border-b border-muted">
+                    <td className="py-1.5 pr-3 font-semibold">{log.engine}</td>
+                    <td className="py-1.5 pr-3">
+                      <Badge variant={log.status === "success" ? "default" : log.status === "timeout" ? "destructive" : "secondary"} className="text-[10px]">
+                        {log.status}
+                      </Badge>
+                    </td>
+                    <td className="py-1.5 text-right">{log.latency_ms}ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
+
       {activeTab === "waves" && displayWaves.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-muted-foreground">Wave-by-Wave Execution</h2>
