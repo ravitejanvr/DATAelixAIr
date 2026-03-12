@@ -418,6 +418,33 @@ export async function runClinicalPipeline(
 
   lat.build_context = Math.round(performance.now() - w1Start);
   waveLat.wave1_context = lat.build_context;
+  lineageTracker.captureSnapshot("Wave 1 (Context)", "context_enrichment", {
+    chief_complaint: ctx.chief_complaint,
+    symptoms: symptoms,
+    associated_symptoms: ctx.associated_symptoms || [],
+    symptom_duration: ctx.symptom_duration,
+    medical_history: ctx.medical_history,
+    family_history: (ctx as any).family_history || [],
+    risk_factors: ctx.risk_factors || [],
+    current_medications: ctx.current_medications,
+    allergies: ctx.allergies,
+    vitals: {
+      bp_systolic: vitals.bp_systolic,
+      bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null,
+      pulse: vitals.pulse,
+      temperature: vitals.temperature,
+      spo2: vitals.spo2,
+      respiratory_rate: ctx.respiratory_rate,
+      weight_kg: ctx.weight,
+      height_cm: ctx.height,
+    },
+    lab_results: [],
+    risk_flags: ctx.risk_flags || [],
+    patient_age: ctx.patient_age,
+    patient_sex: ctx.patient_sex,
+    context_confidence: enrichedContext?.context_confidence ?? 0,
+  });
+  lineageTracker.recordEngineResult("context_enrichment", !!enrichedContext);
   onProgress?.("context", { enriched_context: enrichedContext });
 
   // ═══════════════════════════════════════════════════════
