@@ -329,7 +329,8 @@ export async function runPipelineTrace(
   };
 
   // Run the pipeline
-  const result = await runO1Pipeline(pipelineInput, progressCallback);
+  console.log("[PipelineTrace] Invoking canonical orchestrator: runUnifiedClinicalPipeline()");
+  const result = await runUnifiedClinicalPipeline(pipelineInput, progressCallback);
   const totalMs = Math.round(performance.now() - pipelineStart);
 
   // Extract final outputs
