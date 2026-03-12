@@ -95,6 +95,7 @@ export async function runPipelineTrace(
     clinical_context: clinicalContext,
     visit_id: bc.context.visit_id,
     clinic_id: bc.context.clinic_id,
+    skip_cache: true, // Force full pipeline execution for tracing
   };
 
   // Track wave data via onProgress
