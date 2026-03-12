@@ -95,7 +95,7 @@ export async function runClinicalPipeline(
 
   const [ddxResult, knowledgeResult] = await Promise.all([
     safe<DDXOutput>("ddx_engine", visitId, () => runDifferentialDiagnosis(contextObject), {
-      diagnoses: [], recommended_labs: [], raw: null,
+      diagnoses: [], recommended_labs: [], reasoning_traces: [], organ_systems_active: [], raw: null,
     }),
     safe<KnowledgeRetrievalResult>("knowledge_retrieval", visitId, () =>
       retrieveMedicalEvidence(contextObject.chief_complaint, { maxResults: 5 }), {

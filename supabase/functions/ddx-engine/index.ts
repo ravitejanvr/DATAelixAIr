@@ -200,6 +200,19 @@ Deno.serve(async (req) => {
     };
 
     const DEFAULT_PRIOR = 0.05;
+    const MIN_SCORE_THRESHOLD = 25; // minimum probability % (dangerous diagnoses bypass)
+
+    // ── Organ System Map ──
+    const ORGAN_SYSTEM_MAP: Record<string, string[]> = {
+      respiratory: ["cough", "dyspnea", "shortness of breath", "wheezing", "sputum", "chest tightness", "hemoptysis", "productive cough"],
+      cardiovascular: ["chest pain", "palpitations", "syncope", "edema", "diaphoresis", "left arm pain", "near-syncope"],
+      gastrointestinal: ["nausea", "vomiting", "diarrhea", "abdominal pain", "abdominal cramps", "constipation", "bloating", "loss of appetite"],
+      neurological: ["headache", "severe headache", "dizziness", "confusion", "seizure", "weakness", "numbness", "photophobia", "neck stiffness", "unsteady gait", "blurred vision"],
+      dermatological: ["rash", "pruritus", "urticaria", "skin rash", "maculopapular rash", "petechial rash"],
+      infectious: ["fever", "high fever", "chills", "rigors", "sweating", "fatigue", "malaise", "body ache", "low-grade fever"],
+      musculoskeletal: ["joint pain", "back pain", "muscle pain", "stiffness", "swelling"],
+    };
+
     const totalSymptomCount = normalizedSymptoms.length;
     const isPediatric = age != null && age < 18;
     const isElderly = age != null && age > 65;
@@ -306,6 +319,30 @@ Deno.serve(async (req) => {
       d.probability = Math.round((d.posterior / totalPosterior) * 100);
     }
 
+    // ── Organ System Bonus ──
+    // When ≥2 symptoms belong to the same organ system, boost diagnoses in that system
+    const symptomSystemCounts: Record<string, number> = {};
+    for (const sym of normalizedSymptoms) {
+      for (const [system, keywords] of Object.entries(ORGAN_SYSTEM_MAP)) {
+        if (keywords.some(k => sym.includes(k) || k.includes(sym))) {
+          symptomSystemCounts[system] = (symptomSystemCounts[system] || 0) + 1;
+        }
+      }
+    }
+    const activeSystems = Object.entries(symptomSystemCounts)
+      .filter(([, count]) => count >= 2)
+      .map(([sys]) => sys);
+
+    if (activeSystems.length > 0) {
+      for (const d of bayesianScores) {
+        const cat = (d.category || "").toLowerCase();
+        if (activeSystems.includes(cat)) {
+          // Apply organ_system_bonus = +25% (equivalent to +0.25 on normalized scale)
+          d.probability = Math.min(100, Math.round(d.probability * 1.25));
+        }
+      }
+    }
+
     // Sort by probability
     bayesianScores.sort((a, b) => b.probability - a.probability);
 
@@ -382,7 +419,14 @@ Deno.serve(async (req) => {
       bayesianScores.sort((a, b) => b.probability - a.probability);
     }
 
-    const topByProb = bayesianScores.filter(d => !d.must_not_miss).slice(0, 4);
+    // Apply score threshold: filter out low-scoring diagnoses (dangerous bypass threshold)
+    const aboveThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability >= MIN_SCORE_THRESHOLD);
+    const belowThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability < MIN_SCORE_THRESHOLD);
+    const topByProb = aboveThreshold.slice(0, 4);
+    // If not enough above threshold, fill from below to ensure at least 3 candidates
+    while (topByProb.length < 3 && belowThreshold.length > 0) {
+      topByProb.push(belowThreshold.shift()!);
+    }
     const mustNotMiss = bayesianScores.filter(d => d.must_not_miss).slice(0, 3);
     const finalDifferential = [...topByProb, ...mustNotMiss]
       .sort((a, b) => b.probability - a.probability)
@@ -594,6 +638,31 @@ Deno.serve(async (req) => {
       ...(d.guideline_source ? { guideline_source: d.guideline_source } : {}),
     }));
 
+    // ── Reasoning Traces (Phase 9) ──
+    const reasoning_traces = finalDifferential.map(d => {
+      const entry = diagMap.get(d.diagnosis_id);
+      const symptomEvidence = entry
+        ? Array.from(entry.symptom_scores.entries()).map(([sid, score]) => {
+            const symName = allMatchedSymptoms.find((s: any) => s.id === sid)?.symptom_name || sid;
+            return { symptom: symName, weight: score };
+          })
+        : [];
+      const organBonus = activeSystems.includes((d.category || "").toLowerCase());
+      return {
+        diagnosis: d.diagnosis_name,
+        diagnosis_id: d.diagnosis_id,
+        total_score: d.probability,
+        prior: Math.round(d.prior * 1000) / 1000,
+        likelihood: Math.round(d.likelihood * 1000) / 1000,
+        symptom_coverage: Math.round(d.symptom_coverage * 100),
+        symptom_evidence: symptomEvidence,
+        organ_system_bonus: organBonus,
+        must_not_miss: d.must_not_miss,
+        contradicting_factors: d.contradicting_factors,
+        confidence: Math.round(d.probability) / 100,
+      };
+    });
+
     return respond({
       differential_diagnoses: outputDiagnoses,
       recommended_labs: recommendedLabs,
@@ -604,6 +673,9 @@ Deno.serve(async (req) => {
       unmatched_symptoms: normalizedSymptoms.filter(s => !allMatchedSymptoms.some((ms: any) => ms.symptom_name === s || ms.symptom_name.includes(s))),
       dangerous_diagnoses_injected: dangerousInjected,
       must_not_miss_count: dangerousDiagnosisDetails.length,
+      organ_systems_active: activeSystems,
+      reasoning_traces,
+      score_threshold_applied: MIN_SCORE_THRESHOLD,
       execution_ms: totalMs,
       stage_latencies: {
         symptom_resolution: stage1Ms,
@@ -612,7 +684,7 @@ Deno.serve(async (req) => {
         enrichment: stage4Ms,
       },
       bayesian_model: true,
-      source: "ddx_engine_v3",
+      source: "ddx_engine_v4_probabilistic",
       graph_miss: false,
     });
   } catch (err: any) {

@@ -372,6 +372,48 @@ export default function BenchmarkDashboard() {
                     <span>W2: {c.latency.wave2_ms}ms</span>
                     <span>W3: {c.latency.wave3_ms}ms</span>
                   </div>
+
+                  {/* Organ Systems */}
+                  {c.pipeline_output?.ddx_candidates?.organ_systems_active?.length > 0 && (
+                    <div className="mt-1">
+                      <strong>Organ Systems Active:</strong>{" "}
+                      {c.pipeline_output.ddx_candidates.organ_systems_active.map((sys: string) => (
+                        <Badge key={sys} variant="outline" className="text-[8px] mr-1">{sys}</Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Reasoning Traces */}
+                  {c.pipeline_output?.ddx_candidates?.reasoning_traces?.length > 0 && (
+                    <div className="mt-2 border-t border-border pt-2">
+                      <strong>Reasoning Traces:</strong>
+                      <div className="mt-1 space-y-2">
+                        {c.pipeline_output.ddx_candidates.reasoning_traces.map((trace: any, idx: number) => (
+                          <div key={idx} className="bg-background/60 rounded p-2 border border-border/50">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold">{trace.diagnosis}</span>
+                              <Badge className={`text-[8px] ${trace.must_not_miss ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>
+                                Score: {trace.total_score}%
+                              </Badge>
+                              {trace.organ_system_bonus && (
+                                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400 text-[8px]">Organ Bonus</Badge>
+                              )}
+                              {trace.must_not_miss && (
+                                <Badge className="bg-destructive/10 text-destructive text-[8px]">Must Not Miss</Badge>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground space-y-0.5">
+                              <div>Prior: {trace.prior} · Likelihood: {trace.likelihood} · Coverage: {trace.symptom_coverage}%</div>
+                              <div>Evidence: {trace.symptom_evidence?.map((e: any) => `${e.symptom} (${e.weight})`).join(", ") || "—"}</div>
+                              {trace.contradicting_factors?.length > 0 && (
+                                <div className="text-destructive">Contradicting: {trace.contradicting_factors.join(", ")}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </details>
             ))}
