@@ -526,8 +526,8 @@ export async function runUnifiedClinicalPipeline(
     (async (): Promise<PhysiologicalContextResult | null> => {
       const t0 = performance.now();
       try {
-        const result = await withTimeout(
-          generatePhysiologicalContext({
+        const result = await withRetry(
+          () => generatePhysiologicalContext({
             symptoms,
             vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp_systolic: vitals.bp_systolic },
             visit_id: input.visit_id,
