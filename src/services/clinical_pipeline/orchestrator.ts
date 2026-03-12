@@ -785,6 +785,17 @@ export async function runClinicalPipeline(
   const hypotheses = hypothesesRaw;
 
   waveLat.wave3_reasoning = Math.round(performance.now() - w3Start);
+  lineageTracker.recordEngineResult("bayesian", !!bayesianResult);
+  lineageTracker.recordEngineResult("guideline", !!guidelineAlignment || !!guidelineCompliance);
+  lineageTracker.recordEngineResult("hypothesis", !!hypotheses && hypotheses.hypotheses.length > 0);
+  lineageTracker.captureSnapshot("Wave 3 (Reasoning)", "bayesian", {
+    chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
+    symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
+    family_history: (ctx as any).family_history || [], risk_factors: ctx.risk_factors || [],
+    current_medications: ctx.current_medications, allergies: ctx.allergies,
+    vitals: { bp_systolic: vitals.bp_systolic, bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null, pulse: vitals.pulse, temperature: vitals.temperature, spo2: vitals.spo2, respiratory_rate: ctx.respiratory_rate, weight_kg: ctx.weight, height_cm: ctx.height },
+    lab_results: [], risk_flags: ctx.risk_flags || [], patient_age: ctx.patient_age, patient_sex: ctx.patient_sex, context_confidence: 0,
+  });
 
   onProgress?.("bayesian", { bayesian: bayesianResult });
   onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
@@ -805,6 +816,15 @@ export async function runClinicalPipeline(
   })();
 
   waveLat.wave4_safety = Math.round(performance.now() - w4Start);
+  lineageTracker.recordEngineResult("safety", !!oversight);
+  lineageTracker.captureSnapshot("Wave 4 (Safety)", "safety", {
+    chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
+    symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
+    family_history: (ctx as any).family_history || [], risk_factors: ctx.risk_factors || [],
+    current_medications: ctx.current_medications, allergies: ctx.allergies,
+    vitals: { bp_systolic: vitals.bp_systolic, bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null, pulse: vitals.pulse, temperature: vitals.temperature, spo2: vitals.spo2, respiratory_rate: ctx.respiratory_rate, weight_kg: ctx.weight, height_cm: ctx.height },
+    lab_results: [], risk_flags: ctx.risk_flags || [], patient_age: ctx.patient_age, patient_sex: ctx.patient_sex, context_confidence: 0,
+  });
   onProgress?.("safety", { oversight });
 
   // ═══════════════════════════════════════════════════════
