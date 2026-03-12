@@ -263,21 +263,20 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { medications, diagnosis, patient_age, allergies, related_features } = await req.json();
+    const { medications, diagnosis, query, patient_age, allergies, related_features } = await req.json();
 
-    if (!medications || !Array.isArray(medications) || medications.length === 0) {
-      return new Response(JSON.stringify({ error: "medications array required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const safeMedications = Array.isArray(medications)
+      ? medications.filter((m): m is string => typeof m === "string" && m.trim().length > 0)
+      : [];
 
-    const diagnosisText = diagnosis || "unspecified condition";
+    // Backward-compatible fallback: some callers send { query, max_results } without medications
+    const diagnosisText = diagnosis || query || "unspecified condition";
     let totalCitations = 0;
     const sourcesQueried = new Set<string>();
 
     // 1. Medication Evidence Agent — parallel PubMed + Europe PMC per drug
     const medication_evidence: MedicationEvidence[] = [];
-    for (const drug of medications.slice(0, 5)) {
+    for (const drug of safeMedications.slice(0, 5)) {
       if (totalCitations >= MAX_TOTAL_CITATIONS) break;
       const remaining = MAX_TOTAL_CITATIONS - totalCitations;
       const maxPerDrug = Math.min(2, remaining);
@@ -316,11 +315,11 @@ serve(async (req) => {
     }
 
     // 2. Guideline Agent
-    const guidelines = await matchGuidelines(diagnosisText, medications);
+    const guidelines = await matchGuidelines(diagnosisText, safeMedications);
 
     // 3. Drug Safety Agent — parallel OpenFDA + DailyMed per drug
     const drug_safety: DrugSafetyNote[] = [];
-    for (const drug of medications.slice(0, 5)) {
+    for (const drug of safeMedications.slice(0, 5)) {
       const [{ blackBox, warnings: fdaWarnings }, dailymedWarnings] = await Promise.all([
         getOpenFDAWarnings(drug),
         getDailyMedWarnings(drug),
