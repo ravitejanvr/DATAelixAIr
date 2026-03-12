@@ -40,6 +40,7 @@ export interface PipelineTrace {
   }[];
   waves: WaveTrace[];
   final_result: PipelineResult;
+  lineage: LineageReport | null;
   all_gaps: string[];
   diagnoses_generated: string[];
   labs_suggested: string[];
