@@ -1049,7 +1049,7 @@ export async function runUnifiedClinicalPipeline(
         symptom_duration: ctx.symptom_duration || "",
         associated_symptoms: ctx.associated_symptoms || [],
         medical_history: ctx.medical_history || [],
-        family_history: [] as string[],
+        family_history: (ctx as any).family_history || [],
         risk_factors: ctx.risk_factors || [],
         medications: ctx.current_medications || [],
         allergies: ctx.allergies || [],
