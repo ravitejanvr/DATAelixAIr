@@ -948,6 +948,21 @@ export async function runUnifiedClinicalPipeline(
           TIMEOUT.UNCERTAINTY,
           "uncertainty_engine",
         );
+        // Fallback: if uncertainty engine fails, produce a synthetic score from DDX spread
+        if (!result && ddxResult && ddxResult.differential_diagnoses.length > 0) {
+          const topProb = ddxResult.differential_diagnoses[0].probability;
+          const spread = ddxResult.differential_diagnoses.length > 1
+            ? topProb - ddxResult.differential_diagnoses[1].probability
+            : topProb;
+          const syntheticScore = Math.min(95, Math.max(30, Math.round(spread * 1.5 + 20)));
+          return {
+            confidence_score: syntheticScore,
+            confidence_label: syntheticScore >= 70 ? "high" : syntheticScore >= 40 ? "moderate" : "low",
+            reasoning: "Synthetic confidence derived from DDX probability spread (uncertainty engine timed out)",
+            follow_up_questions: [],
+            source: "ddx_spread_fallback",
+          } as UncertaintyResult;
+        }
         lat.uncertainty_engine = Math.round(performance.now() - t0);
         return result;
       } catch {
