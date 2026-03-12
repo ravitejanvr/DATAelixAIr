@@ -1076,6 +1076,7 @@ export async function runClinicalPipeline(
       console.warn("[Pipeline] SOAP fallback generation failed:", e);
     }
   }
+  lineageTracker.recordEngineResult("soap", !!soapFallback || !!(hybridReasoning as any)?.soap);
 
   // ── Final lineage snapshot (cockpit) ──
   lineageTracker.captureSnapshot("Cockpit", "cockpit", {
