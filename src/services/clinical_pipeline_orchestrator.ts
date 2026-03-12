@@ -140,6 +140,11 @@ export async function runClinicalPipeline(
         objective: (o1Result.hybrid_reasoning as any).soap?.objective || "",
         assessment: (o1Result.hybrid_reasoning as any).soap?.assessment || "",
         plan: (o1Result.hybrid_reasoning as any).soap?.plan || "",
+      } : o1Result.soap_fallback ? {
+        subjective: o1Result.soap_fallback.soap.subjective,
+        objective: o1Result.soap_fallback.soap.objective,
+        assessment: o1Result.soap_fallback.soap.assessment,
+        plan: o1Result.soap_fallback.soap.plan,
       } : { subjective: "", objective: "", assessment: "", plan: "" },
 
       latency: {
