@@ -291,7 +291,7 @@ export async function runClinicalPipeline(
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
     multi_agent: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
-    cache_stats: cache,
+    cache_stats: cache, lineage: null,
   };
 
   if (!isNewPipelineEnabled()) {
