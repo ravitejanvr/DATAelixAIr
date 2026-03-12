@@ -43,6 +43,10 @@ export const EMPTY_CLINICAL_CONTEXT: ClinicalContext = {
   medical_history: [],
   current_medications: [],
   allergies: [],
+  symptoms: [],
+  associated_symptoms: [],
+  risk_flags: [],
+  risk_factors: [],
 };
 
 interface PatientDemographics {
