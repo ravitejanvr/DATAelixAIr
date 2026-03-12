@@ -55,7 +55,7 @@ export default function PipelineDebug() {
         .select("*")
         .order("created_at", { ascending: false })
         .limit(100);
-      setLogs((data as PipelineLog[]) || []);
+      setLogs((data as unknown as PipelineLog[]) || []);
     } catch (e) {
       console.error("Failed to load logs:", e);
     } finally {
