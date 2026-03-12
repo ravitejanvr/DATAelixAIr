@@ -145,7 +145,8 @@ async function withTimeout<T>(
 function extractSymptoms(ctx: ClinicalContext): string[] {
   const symptoms: string[] = [];
   if (ctx.chief_complaint) symptoms.push(ctx.chief_complaint);
-  if ((ctx as any).symptoms) symptoms.push(...(ctx as any).symptoms);
+  if (ctx.symptoms && ctx.symptoms.length > 0) symptoms.push(...ctx.symptoms);
+  if (ctx.associated_symptoms && ctx.associated_symptoms.length > 0) symptoms.push(...ctx.associated_symptoms);
   return [...new Set(symptoms)];
 }
 
