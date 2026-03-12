@@ -279,6 +279,7 @@ export default function BenchmarkDashboard() {
                 );
               })()}
             </CardContent>
+          </Card>
 
           {/* Accuracy Bars */}
           <Card>
