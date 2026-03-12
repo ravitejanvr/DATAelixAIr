@@ -658,6 +658,11 @@ export default function PlatformAdmin() {
           <TabsContent value="simulation" className="mt-4">
             <PipelineSimulation />
           </TabsContent>
+
+          {/* Benchmarks Tab */}
+          <TabsContent value="benchmarks" className="mt-4">
+            <BenchmarkDashboard />
+          </TabsContent>
         </Tabs>
       </div>
     </>
