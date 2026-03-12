@@ -56,6 +56,7 @@ import ReportPreview from "./pages/ReportPreview";
 import PlatformAdmin from "./pages/PlatformAdmin";
 import PilotRequest from "./pages/PilotRequest";
 import AiPipelineTest from "./pages/AiPipelineTest";
+import PipelineTrace from "./pages/PipelineTrace";
 
 const queryClient = new QueryClient();
 
