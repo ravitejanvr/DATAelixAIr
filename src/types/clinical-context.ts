@@ -198,5 +198,10 @@ export function toClinicalContext(ucc: UnifiedClinicalContext): ClinicalContext 
     respiratory_rate: ucc.vitals?.respiratory_rate ?? null,
     weight: ucc.vitals?.weight_kg ?? null,
     height: ucc.vitals?.height_cm ?? null,
+    // Previously dropped — now propagated to DDX/reasoning engines
+    symptoms: ucc.symptoms,
+    associated_symptoms: ucc.associated_symptoms,
+    risk_flags: ucc.risk_flags,
+    risk_factors: ucc.risk_factors,
   };
 }
