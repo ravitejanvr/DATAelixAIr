@@ -205,7 +205,7 @@ export default function PipelineTracePage() {
   const [trace, setTrace] = useState<PipelineTrace | null>(null);
   const [loading, setLoading] = useState(false);
   const [liveWaves, setLiveWaves] = useState<WaveTrace[]>([]);
-  const [activeTab, setActiveTab] = useState<"waves" | "lineage">("waves");
+  const [activeTab, setActiveTab] = useState<"waves" | "engines" | "lineage">("waves");
 
   const runTrace = async () => {
     setLoading(true);
