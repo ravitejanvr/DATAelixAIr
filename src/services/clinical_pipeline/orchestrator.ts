@@ -628,8 +628,8 @@ export async function runUnifiedClinicalPipeline(
         cache.evidence_hit = true;
         evidence = cached.data;
       } else {
-        evidence = await withTimeout(
-          withStageLogging("retrieve_evidence", () => queryEvidence(enrichedQuery, { maxResults: 5 })),
+        evidence = await withRetry(
+          () => withStageLogging("retrieve_evidence", () => queryEvidence(enrichedQuery, { maxResults: 5 })),
           TIMEOUT.EVIDENCE,
           "retrieve_evidence",
         );
