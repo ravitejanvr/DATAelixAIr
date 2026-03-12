@@ -324,18 +324,26 @@ export async function runPipelineTrace(
   // Extract final outputs
   const diagnoses = result.ddx?.differential_diagnoses?.map(d => (d as any).diagnosis_name || (d as any).diagnosis || "unknown") ?? [];
   const labs = result.ddx?.recommended_labs?.map((l: any) => l.test_name || l) ?? [];
-  const meds: string[] = []; // medications come from separate engine
+  const meds = result.ddx?.suggested_medications?.map((m: any) => m.generic_name) ?? [];
   const graphMatches = result.ddx?.matched_symptoms?.length ?? 0;
   const dangerDetected = (result.ddx?.dangerous_diagnoses_injected ?? 0) > 0 ||
     (result.oversight?.events?.some(e => e.severity === "critical") ?? false);
 
-  // Add uncertainty data to Wave 5 if we have it
-  if (result.uncertainty) {
+  // Add uncertainty + SOAP data to Wave 5 if we have it
+  if (result.uncertainty || result.soap_fallback) {
     const w5 = waves.find(w => w.wave === "Wave 5");
     if (w5) {
-      w5.output_summary.confidence_score = result.uncertainty.confidence_score;
-      w5.output_summary.confidence_label = result.uncertainty.confidence_label;
-      w5.output_summary.missing_evidence = result.uncertainty.missing_evidence ?? [];
+      if (result.uncertainty) {
+        w5.output_summary.confidence_score = result.uncertainty.confidence_score;
+        w5.output_summary.confidence_label = result.uncertainty.confidence_label;
+        w5.output_summary.missing_evidence = result.uncertainty.missing_evidence ?? [];
+      }
+      if (result.soap_fallback) {
+        w5.output_summary.soap_fallback_subjective = result.soap_fallback.soap.subjective ? "populated" : "empty";
+        w5.output_summary.soap_fallback_objective = result.soap_fallback.soap.objective ? "populated" : "empty";
+        w5.output_summary.soap_fallback_assessment = result.soap_fallback.soap.assessment ? "populated" : "empty";
+        w5.output_summary.soap_fallback_plan = result.soap_fallback.soap.plan ? "populated" : "empty";
+      }
     }
   }
 
