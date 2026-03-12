@@ -11,7 +11,7 @@ import {
   Clock, Target, Shield, Activity, Beaker, GitBranch,
   BookOpen, Pill, Brain,
 } from "lucide-react";
-import { runBenchmarkV5, BENCHMARK_CASES_V5, type BenchmarkSuiteResult } from "@/services/benchmark_v5";
+import { runBenchmarkV5, BENCHMARK_CASES_V5, type BenchmarkSuiteResult, type PipelineAudit } from "@/services/benchmark_v5";
 
 function pct(v: number) {
   return `${Math.round(v * 100)}%`;
