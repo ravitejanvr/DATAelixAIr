@@ -272,7 +272,11 @@ function buildVitals(ctx: ClinicalContext) {
 }
 
 /** Build a DDX-enriched evidence query for higher relevance */
-function buildEvidenceQuery(chiefComplaint: string, ddxResult: DDXResult | null): string {
+function buildEvidenceQuery(
+  chiefComplaint: string,
+  ddxResult: DDXResult | null,
+  ctx?: { risk_factors?: string[]; patient_age?: number | null; patient_sex?: string | null },
+): string {
   const parts: string[] = [chiefComplaint];
   if (ddxResult?.differential_diagnoses?.length) {
     const topDx = ddxResult.differential_diagnoses
@@ -283,8 +287,26 @@ function buildEvidenceQuery(chiefComplaint: string, ddxResult: DDXResult | null)
   if (ddxResult?.organ_systems_active?.length) {
     parts.push(ddxResult.organ_systems_active[0]);
   }
+  // Enrich with demographics and risk factors
+  if (ctx?.patient_age) parts.push(ctx.patient_age < 18 ? "pediatric" : ctx.patient_age > 65 ? "elderly" : "adult");
+  if (ctx?.risk_factors?.length) parts.push(...ctx.risk_factors.slice(0, 2));
   parts.push("diagnosis guidelines");
   return parts.join(" ");
+}
+
+/** Build a guideline query from DDX candidates and organ system */
+function buildGuidelineQuery(ddxResult: DDXResult | null, ctx: ClinicalContext): {
+  diagnosis?: string;
+  drugs?: string[];
+  labs?: string[];
+  care_plan?: string;
+} | null {
+  if (!ddxResult || ddxResult.differential_diagnoses.length === 0) return null;
+  return {
+    diagnosis: ddxResult.differential_diagnoses[0]?.diagnosis_name,
+    drugs: ddxResult.suggested_medications?.map(m => m.generic_name) || [],
+    labs: ddxResult.recommended_labs?.map(l => l.test_name) || [],
+  };
 }
 
 // ── Main Pipeline ──
