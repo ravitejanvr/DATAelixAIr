@@ -132,6 +132,7 @@ const TIMEOUT = {
 const ORGAN_SYSTEM_WEIGHTS: Record<string, number> = {
   cardiovascular: 1.4,
   respiratory:    1.1,
+  ent:            1.0,
   neurological:   0.8,
   gastrointestinal: 0.9,
   musculoskeletal: 0.7,
@@ -146,30 +147,73 @@ const ORGAN_SYSTEM_WEIGHTS: Record<string, number> = {
 /** Detect dominant organ system from symptoms */
 function detectDominantOrganSystem(symptoms: string[]): string | null {
   const symptomSystemMap: Record<string, string> = {
+    // Cardiovascular
     "chest pain": "cardiovascular",
     "left arm pain": "cardiovascular",
     "diaphoresis": "cardiovascular",
     "palpitations": "cardiovascular",
     "tachycardia": "cardiovascular",
+    "crushing chest": "cardiovascular",
+    // Respiratory
     "shortness of breath": "respiratory",
     "dyspnea": "respiratory",
     "cough": "respiratory",
+    "productive cough": "respiratory",
     "wheezing": "respiratory",
+    "sputum": "respiratory",
+    "pleuritic": "respiratory",
+    "runny nose": "respiratory",
+    "nasal congestion": "respiratory",
+    "sneezing": "respiratory",
+    "coryza": "respiratory",
+    // ENT
+    "sore throat": "ent",
+    "pharyngitis": "ent",
+    "throat pain": "ent",
+    "ear pain": "ent",
+    "otalgia": "ent",
+    "hoarseness": "ent",
+    // Neurological
     "headache": "neurological",
     "dizziness": "neurological",
     "syncope": "neurological",
     "seizure": "neurological",
+    "neck stiffness": "neurological",
+    "photophobia": "neurological",
+    "confusion": "neurological",
+    "blurred vision": "neurological",
+    // Gastrointestinal
     "nausea": "gastrointestinal",
     "vomiting": "gastrointestinal",
     "abdominal pain": "gastrointestinal",
     "diarrhea": "gastrointestinal",
+    "abdominal cramps": "gastrointestinal",
+    "loss of appetite": "gastrointestinal",
+    // Infectious
     "fever": "infectious",
     "chills": "infectious",
+    "rigors": "infectious",
+    "sweating": "infectious",
+    "night sweats": "infectious",
+    // Musculoskeletal
     "joint pain": "musculoskeletal",
     "back pain": "musculoskeletal",
+    "body ache": "musculoskeletal",
+    "unsteady gait": "musculoskeletal",
+    // Dermatological
     "rash": "dermatological",
+    "urticaria": "dermatological",
+    "pruritus": "dermatological",
+    "skin rash": "dermatological",
+    "petechial rash": "dermatological",
+    "maculopapular rash": "dermatological",
+    // Endocrine
     "polyuria": "endocrine",
     "polydipsia": "endocrine",
+    "weight loss": "endocrine",
+    // Renal
+    "hematuria": "renal",
+    "oliguria": "renal",
   };
 
   const systemCounts: Record<string, number> = {};
@@ -281,20 +325,37 @@ function buildEvidenceQuery(
   ddxResult: DDXResult | null,
   ctx?: { risk_factors?: string[]; patient_age?: number | null; patient_sex?: string | null },
 ): string {
-  const parts: string[] = [chiefComplaint];
+  const parts: string[] = [];
+
+  // Lead with top diagnoses for specificity (not raw chief complaint which is often verbose)
   if (ddxResult?.differential_diagnoses?.length) {
     const topDx = ddxResult.differential_diagnoses
-      .slice(0, 2)
+      .slice(0, 3)
       .map(d => d.diagnosis_name);
     parts.push(...topDx);
+  } else {
+    // Fallback: use chief complaint if no DDX
+    parts.push(chiefComplaint);
   }
+
+  // Add organ system for clinical context
   if (ddxResult?.organ_systems_active?.length) {
     parts.push(ddxResult.organ_systems_active[0]);
   }
-  // Enrich with demographics and risk factors
-  if (ctx?.patient_age) parts.push(ctx.patient_age < 18 ? "pediatric" : ctx.patient_age > 65 ? "elderly" : "adult");
+
+  // Add clinical action terms for retrieval specificity
+  parts.push("clinical management treatment guidelines");
+
+  // Demographics only if clinically relevant
+  if (ctx?.patient_age) {
+    if (ctx.patient_age < 5) parts.push("pediatric infant");
+    else if (ctx.patient_age < 18) parts.push("pediatric");
+    else if (ctx.patient_age > 65) parts.push("elderly geriatric");
+  }
+
+  // Risk factors for contextual relevance
   if (ctx?.risk_factors?.length) parts.push(...ctx.risk_factors.slice(0, 2));
-  parts.push("diagnosis guidelines");
+
   return parts.join(" ");
 }
 
