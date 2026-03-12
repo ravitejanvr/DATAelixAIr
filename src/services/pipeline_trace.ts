@@ -29,6 +29,14 @@ export interface PipelineTrace {
   case_name: string;
   category: string;
   total_ms: number;
+  unified_context_snapshot: UnifiedClinicalContext;
+  clinical_context_snapshot: Record<string, unknown>;
+  adapter_field_audit: {
+    field: string;
+    unified_value: unknown;
+    clinical_value: unknown;
+    status: "mapped" | "dropped" | "empty";
+  }[];
   waves: WaveTrace[];
   final_result: PipelineResult;
   all_gaps: string[];
