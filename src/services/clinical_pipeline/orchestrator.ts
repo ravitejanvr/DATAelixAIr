@@ -422,11 +422,35 @@ export async function runClinicalPipeline(
   // ═══════════════════════════════════════════════════════
   const w3Start = performance.now();
 
-  const [bayesianResult, guidelineAlignment, hypotheses] = await Promise.all([
-    // 3a: Bayesian Engine
+  const [bayesianResult, guidelineAlignment, guidelineCompliance, hypothesesRaw] = await Promise.all([
+    // 3a: Bayesian Engine — fallback to DDX rankings if no candidates
     (async (): Promise<BayesianResult | null> => {
-      const candidateIds = ddxResult?.differential_diagnoses.map(d => d.diagnosis_id) || [];
-      if (candidateIds.length === 0) return null;
+      const candidateIds = ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [];
+      if (candidateIds.length === 0) {
+        console.warn("[Pipeline] Wave 3: Bayesian skipped — no DDX candidates. Using DDX rankings as fallback.");
+        // Build a synthetic BayesianResult from DDX rankings
+        if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
+          return {
+            diagnoses: ddxResult.differential_diagnoses.map(d => ({
+              diagnosis_id: d.diagnosis_id,
+              posterior_probability: d.probability / 100,
+              prior: 0.01,
+              symptom_likelihood: d.probability / 100,
+              physiology_likelihood: 1.0,
+              risk_modifier: 1.0,
+              supporting_evidence: d.supporting_symptoms || [],
+              must_not_miss: d.must_not_miss,
+            })),
+            total_candidates: ddxResult.differential_diagnoses.length,
+            symptoms_resolved: ddxResult.matched_symptoms?.length || 0,
+            physiology_states_used: 0,
+            risk_factors_applied: 0,
+            execution_ms: 0,
+            source: "ddx_fallback",
+          };
+        }
+        return null;
+      }
       const t0 = performance.now();
       try {
         const result = await withTimeout(
@@ -451,11 +475,17 @@ export async function runClinicalPipeline(
       }
     })(),
 
-    // 3b: Guideline Compliance (with cache)
+    // 3b: Guideline Alignment (legacy — from input.recommendations if available)
     (async (): Promise<GuidelineAlignmentResult | null> => {
-      if (!input.recommendations) return null;
+      // Auto-generate recommendations from DDX if not provided
+      const recs = input.recommendations || (ddxResult ? {
+        diagnosis: ddxResult.differential_diagnoses[0]?.diagnosis_name,
+        drugs: ddxResult.suggested_medications?.map(m => m.generic_name) || [],
+        labs: ddxResult.recommended_labs?.map(l => l.test_name) || [],
+      } : null);
+      if (!recs) return null;
       const t0 = performance.now();
-      const cacheKey = JSON.stringify(input.recommendations);
+      const cacheKey = JSON.stringify(recs);
       try {
         const cached = await getCached<GuidelineAlignmentResult>(cacheKey, "guideline");
         if (cached.hit && cached.data) {
@@ -465,7 +495,7 @@ export async function runClinicalPipeline(
         }
         const result = await withTimeout(
           withStageLogging("retrieve_guidelines", () =>
-            evaluateGuidelineAlignment(input.recommendations!, enrichedContext),
+            evaluateGuidelineAlignment(recs, enrichedContext),
           ),
           MODULE_TIMEOUT_MS,
           "retrieve_guidelines",
@@ -479,23 +509,93 @@ export async function runClinicalPipeline(
       }
     })(),
 
-    // 3c: Hypothesis Engine (LLM)
-    (async (): Promise<HypothesisResult | null> => {
+    // 3b2: Direct Guideline Compliance (from DDX diagnoses)
+    (async (): Promise<GuidelineComplianceResult | null> => {
+      if (!ddxResult || ddxResult.differential_diagnoses.length === 0) return null;
       const t0 = performance.now();
       try {
         const result = await withTimeout(
-          withStageLogging("generate_hypotheses", () => generateHypotheses(enrichedContext)),
+          checkGuidelineCompliance({
+            diagnoses: ddxResult.differential_diagnoses.slice(0, 5).map(d => d.diagnosis_name),
+            medications: (ddxResult.suggested_medications || []).map(m => ({
+              drug_name: m.generic_name, dose: "", frequency: "", duration: "",
+            })),
+            tests: (ddxResult.recommended_labs || []).map(l => l.test_name),
+            patient_age: ctx.patient_age ?? undefined,
+            patient_sex: ctx.patient_sex ?? undefined,
+            chief_complaint: ctx.chief_complaint,
+          }),
+          MODULE_TIMEOUT_MS,
+          "guideline_compliance_direct",
+        );
+        lat.guideline_compliance = Math.round(performance.now() - t0);
+        return result;
+      } catch {
+        lat.guideline_compliance = Math.round(performance.now() - t0);
+        return null;
+      }
+    })(),
+
+    // 3c: Hypothesis Engine (via edge function client, NOT the stub index.ts)
+    (async (): Promise<HypothesisResult | null> => {
+      const t0 = performance.now();
+      try {
+        const edgeResult = await withTimeout(
+          withStageLogging("generate_hypotheses", async () => {
+            const hyp = await generateDiagnosticHypotheses(
+              input.visit_id || "trace",
+              {
+                visit_id: input.visit_id || null,
+                patient_id: null,
+                clinic_id: input.clinic_id || null,
+                chief_complaint: ctx.chief_complaint,
+                symptoms,
+                vitals: {
+                  temperature: vitals.temperature,
+                  spo2: vitals.spo2,
+                  pulse: vitals.pulse,
+                  bp_systolic: vitals.bp_systolic,
+                },
+                medical_history: ctx.medical_history,
+                current_medications: ctx.current_medications,
+                allergies: ctx.allergies,
+                risk_factors: (ctx as any).risk_factors || [],
+                context_confidence: 0.7,
+                assembled_at: new Date().toISOString(),
+              },
+            );
+            if (!hyp) return null;
+            // Map to HypothesisResult shape
+            return {
+              hypotheses: hyp.hypotheses.map(h => ({
+                condition: h.diagnosis,
+                icd_code: null,
+                confidence: h.confidence > 0.7 ? "high" as const : h.confidence > 0.4 ? "moderate" as const : "low" as const,
+                supporting_evidence: h.supporting_factors,
+                contradicting_evidence: h.contradicting_factors,
+                recommended_tests: h.recommended_tests,
+                urgency: "routine" as const,
+              })),
+              reasoning_chain: "",
+              data_gaps: [],
+              generated_at: hyp.generated_at,
+              source: "edge_function",
+            } satisfies HypothesisResult;
+          }),
           MODULE_TIMEOUT_MS,
           "generate_hypotheses",
         );
         lat.generate_hypotheses = Math.round(performance.now() - t0);
-        return result;
+        return edgeResult;
       } catch {
         lat.generate_hypotheses = Math.round(performance.now() - t0);
         return null;
       }
     })(),
   ]);
+
+  // Coalesce hypothesis result
+  const hypotheses = hypothesesRaw;
 
   waveLat.wave3_reasoning = Math.round(performance.now() - w3Start);
 
