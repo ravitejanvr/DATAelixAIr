@@ -25,6 +25,19 @@ export interface BenchmarkCase {
   };
 }
 
+export interface PipelineAudit {
+  pipeline_name: string;
+  ddx_engine_invoked: boolean;
+  diagnosis_scoring_enabled: boolean;
+  organ_system_bonus_applied: boolean;
+  danger_bonus_applied: boolean;
+  knowledge_retrieval_invoked: boolean;
+  guideline_engine_invoked: boolean;
+  safety_engine_invoked: boolean;
+  uncertainty_engine_invoked: boolean;
+  soap_generated: boolean;
+}
+
 export interface BenchmarkCaseResult {
   case_id: string;
   case_name: string;
@@ -55,6 +68,7 @@ export interface BenchmarkCaseResult {
   actual_diagnoses: string[];
   actual_labs: string[];
   actual_medications: string[];
+  pipeline_audit: PipelineAudit;
   pipeline_output: ClinicalPipelineResult;
 }
 
