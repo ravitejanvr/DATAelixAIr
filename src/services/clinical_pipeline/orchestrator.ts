@@ -132,6 +132,7 @@ const TIMEOUT = {
 const ORGAN_SYSTEM_WEIGHTS: Record<string, number> = {
   cardiovascular: 1.4,
   respiratory:    1.1,
+  ent:            1.0,
   neurological:   0.8,
   gastrointestinal: 0.9,
   musculoskeletal: 0.7,
