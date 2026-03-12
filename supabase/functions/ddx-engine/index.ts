@@ -419,7 +419,14 @@ Deno.serve(async (req) => {
       bayesianScores.sort((a, b) => b.probability - a.probability);
     }
 
-    const topByProb = bayesianScores.filter(d => !d.must_not_miss).slice(0, 4);
+    // Apply score threshold: filter out low-scoring diagnoses (dangerous bypass threshold)
+    const aboveThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability >= MIN_SCORE_THRESHOLD);
+    const belowThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability < MIN_SCORE_THRESHOLD);
+    const topByProb = aboveThreshold.slice(0, 4);
+    // If not enough above threshold, fill from below to ensure at least 3 candidates
+    while (topByProb.length < 3 && belowThreshold.length > 0) {
+      topByProb.push(belowThreshold.shift()!);
+    }
     const mustNotMiss = bayesianScores.filter(d => d.must_not_miss).slice(0, 3);
     const finalDifferential = [...topByProb, ...mustNotMiss]
       .sort((a, b) => b.probability - a.probability)
