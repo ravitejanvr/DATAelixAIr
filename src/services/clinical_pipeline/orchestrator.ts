@@ -241,6 +241,18 @@ async function withTimeout<T>(
   ]);
 }
 
+/** Retry-once wrapper: attempts the factory, and on null/timeout retries once with extended budget */
+async function withRetry<T>(
+  factory: () => Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T | null> {
+  const first = await withTimeout(factory(), timeoutMs, label);
+  if (first !== null) return first;
+  console.log(`[Pipeline] 🔄 Retrying ${label} (budget: ${Math.round(timeoutMs * 1.3)}ms)`);
+  return withTimeout(factory(), Math.round(timeoutMs * 1.3), `${label}_retry`);
+}
+
 function extractSymptoms(ctx: ClinicalContext): string[] {
   const symptoms: string[] = [];
   if (ctx.chief_complaint) symptoms.push(ctx.chief_complaint);
