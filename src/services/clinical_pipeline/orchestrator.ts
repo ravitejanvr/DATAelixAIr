@@ -442,7 +442,7 @@ export async function runClinicalPipeline(
     risk_flags: ctx.risk_flags || [],
     patient_age: ctx.patient_age,
     patient_sex: ctx.patient_sex,
-    context_confidence: enrichedContext?.context_confidence ?? 0,
+    context_confidence: 0,
   });
   lineageTracker.recordEngineResult("context_enrichment", !!enrichedContext);
   onProgress?.("context", { enriched_context: enrichedContext });
