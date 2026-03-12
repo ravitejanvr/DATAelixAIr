@@ -363,7 +363,7 @@ serve(async (req) => {
       const sb = createClient(supabaseUrl, supabaseKey);
 
       // Search by diagnosis keyword or related features
-      const searchTerms = [diagnosisText, ...medications.slice(0, 3)];
+      const searchTerms = [diagnosisText, ...safeMedications.slice(0, 3)];
       const { data: evidenceRows } = await sb
         .from("evidence_sources")
         .select("id, title, authors, journal, year, source_link, summary, related_feature, evidence_strength")
