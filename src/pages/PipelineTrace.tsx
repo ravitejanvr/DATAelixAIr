@@ -260,6 +260,10 @@ export default function PipelineTracePage() {
                 <p className="font-semibold">{trace.case_name}</p>
               </div>
               <div>
+                <p className="text-xs text-muted-foreground">Pipeline Entry</p>
+                <p className="font-mono font-semibold text-primary">{trace.pipeline_entry}</p>
+              </div>
+              <div>
                 <p className="text-xs text-muted-foreground">Total Latency</p>
                 <p className="font-mono font-semibold">{trace.total_ms}ms</p>
               </div>
@@ -269,27 +273,21 @@ export default function PipelineTracePage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Lineage Coverage</p>
-                <p className={`font-semibold ${(trace.lineage?.coverage_pct ?? 0) < 70 ? "text-destructive" : "text-primary"}`}>
-                  {trace.lineage?.coverage_pct ?? 0}%
+                <p className={`font-semibold ${trace.lineage_coverage_pct < 70 ? "text-destructive" : "text-primary"}`}>
+                  {trace.lineage_coverage_pct}%
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Total Gaps</p>
-                <p className={`font-semibold ${trace.all_gaps.length > 0 ? "text-destructive" : "text-primary"}`}>{trace.all_gaps.length}</p>
+                <p className="text-xs text-muted-foreground">Waves Executed</p>
+                <p className="font-mono text-xs">{trace.waves_executed.join(" → ")}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Danger Detected</p>
                 <Badge variant={trace.danger_detected ? "destructive" : "secondary"}>{trace.danger_detected ? "Yes" : "No"}</Badge>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Unprocessed Fields</p>
-                <p className={`font-semibold ${(trace.lineage?.unprocessed_fields.length ?? 0) > 0 ? "text-destructive" : "text-primary"}`}>
-                  {trace.lineage?.unprocessed_fields.length ?? 0}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Waves Executed</p>
-                <p className="font-mono">{trace.waves.length}</p>
+                <p className="text-xs text-muted-foreground">Total Gaps</p>
+                <p className={`font-semibold ${trace.all_gaps.length > 0 ? "text-destructive" : "text-primary"}`}>{trace.all_gaps.length}</p>
               </div>
             </div>
           </CardContent>
