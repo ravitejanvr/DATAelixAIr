@@ -78,10 +78,10 @@ export async function runClinicalPipeline(
     // Map O1 result back to legacy shape
     return {
       ddx_candidates: o1Result.ddx ? {
-        diagnoses: o1Result.ddx.differential_diagnoses.map(d => ({
-          diagnosis: d.diagnosis || (d as any).diagnosis_name,
+        diagnoses: o1Result.ddx.differential_diagnoses.map((d: any) => ({
+          diagnosis: d.diagnosis_name || d.diagnosis || "",
           probability: d.probability,
-          supporting_evidence: d.supporting_evidence || [],
+          supporting_evidence: d.supporting_symptoms || [],
         })),
         recommended_labs: o1Result.ddx.recommended_labs || [],
         reasoning_traces: o1Result.ddx.reasoning_traces || [],
