@@ -344,6 +344,8 @@ export default function PlatformAdmin() {
             <TabsTrigger value="articles"><BookOpen className="h-3.5 w-3.5 mr-1" /> Articles</TabsTrigger>
             <TabsTrigger value="innovation"><Lightbulb className="h-3.5 w-3.5 mr-1" /> Innovation</TabsTrigger>
             <TabsTrigger value="terminology"><Database className="h-3.5 w-3.5 mr-1" /> Terminology</TabsTrigger>
+            <TabsTrigger value="pipeline-debug"><Cpu className="h-3.5 w-3.5 mr-1" /> Pipeline Debug</TabsTrigger>
+            <TabsTrigger value="simulation"><Zap className="h-3.5 w-3.5 mr-1" /> Simulation</TabsTrigger>
           </TabsList>
 
           {/* Pilots Tab */}
