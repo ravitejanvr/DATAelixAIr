@@ -737,18 +737,17 @@ export default function Clinical() {
           if (o1Result.hybrid_reasoning) {
             const soap = (o1Result.hybrid_reasoning as any).soap;
             if (soap) {
-              setSoapSections({
-                subjective: soap.subjective || "",
-                objective: soap.objective || "",
-                assessment: soap.assessment || "",
-                plan: soap.plan || "",
-              });
-              setAiSoapBaseline({
-                subjective: soap.subjective || "",
-                objective: soap.objective || "",
-                assessment: soap.assessment || "",
-                plan: soap.plan || "",
-              });
+              const soapMapped: SoapSections = {
+                "Visit Summary": soap.subjective || "",
+                "Findings": soap.objective || "",
+                "Provisional Diagnosis": soap.assessment || "",
+                "Safety Warnings": "",
+                "Treatment Plan": soap.plan || "",
+                "Advice": "",
+                "Follow-up": "",
+              };
+              setSoapSections(soapMapped);
+              setAiSoapBaseline({ ...soapMapped });
             }
           }
           setIsGeneratingSoap(false);
