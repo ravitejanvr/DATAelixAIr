@@ -1109,6 +1109,8 @@ export async function runClinicalPipeline(
 
   const lineageReport = lineageTracker.generateReport();
 
+  onProgress?.("complete", {});
+
   return {
     enabled: true,
     enriched_context: enrichedContext,
