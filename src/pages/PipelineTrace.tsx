@@ -295,9 +295,12 @@ export default function PipelineTracePage() {
       )}
 
       {(trace || displayWaves.length > 0) && (
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-4 flex-wrap">
           <Button size="sm" variant={activeTab === "waves" ? "default" : "outline"} onClick={() => setActiveTab("waves")}>
             <Eye className="h-4 w-4 mr-1" /> Wave Execution
+          </Button>
+          <Button size="sm" variant={activeTab === "engines" ? "default" : "outline"} onClick={() => setActiveTab("engines")} disabled={!trace}>
+            <Activity className="h-4 w-4 mr-1" /> Engine Logs
           </Button>
           <Button size="sm" variant={activeTab === "lineage" ? "default" : "outline"} onClick={() => setActiveTab("lineage")} disabled={!trace?.lineage}>
             <GitBranch className="h-4 w-4 mr-1" /> Context Processing Map
