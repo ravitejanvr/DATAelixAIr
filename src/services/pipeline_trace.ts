@@ -196,10 +196,13 @@ export async function runPipelineTrace(
       }
 
       case "bayesian":
-      case "hypotheses": {
+      case "hypotheses":
+      case "guidelines": {
         if (stage === "hypotheses") {
           const bayesian = data.bayesian;
           const hypotheses = data.hypotheses;
+          const guidelineAlignment = data.guideline_alignment;
+          const guidelineCompliance = data.guideline_compliance;
           const w: WaveTrace = {
             wave: "Wave 3",
             label: "Parallel Clinical Reasoning (Bayesian + Guideline + Hypothesis)",
@@ -214,17 +217,21 @@ export async function runPipelineTrace(
             output_summary: {
               bayesian_total_candidates: bayesian?.total_candidates ?? 0,
               bayesian_top_diagnosis: bayesian?.diagnoses?.[0] ?? null,
+              bayesian_source: bayesian?.source ?? "not invoked",
               bayesian_scoring_method: bayesian ? "Bayesian posterior" : "not invoked",
               hypothesis_count: hypotheses?.hypotheses?.length ?? 0,
+              hypothesis_source: (hypotheses as any)?.source ?? "unknown",
               hypotheses_list: hypotheses?.hypotheses?.map(h => ({
                 condition: h.condition,
                 confidence: h.confidence,
                 supporting_count: h.supporting_evidence?.length ?? 0,
                 contradicting_count: h.contradicting_evidence?.length ?? 0,
               })) ?? [],
-              guideline_compliance: "see guideline_alignment in result",
+              guideline_alignment_score: guidelineAlignment?.guideline_compliance_score ?? null,
+              guideline_compliance_score: guidelineCompliance?.compliance_score ?? null,
+              guideline_sources: guidelineCompliance?.guidelines_sources ?? guidelineAlignment?.guideline_sources_used ?? [],
             },
-            engines_invoked: ["Bayesian Probability Engine", "Guideline Compliance Engine", "Hypothesis Engine (LLM)"],
+            engines_invoked: ["Bayesian Probability Engine", "Guideline Compliance Engine", "Hypothesis Engine (Edge Function)"],
             gaps: [],
           };
           w.gaps = identifyGaps("wave3", w.output_summary);
