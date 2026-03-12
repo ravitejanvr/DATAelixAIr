@@ -1135,3 +1135,6 @@ export async function runUnifiedClinicalPipeline(
     lineage: lineageReport,
   };
 }
+
+/** @deprecated Use runUnifiedClinicalPipeline instead */
+export const runClinicalPipeline = runUnifiedClinicalPipeline;
