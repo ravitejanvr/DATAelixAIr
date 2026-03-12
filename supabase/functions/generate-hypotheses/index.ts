@@ -306,7 +306,7 @@ Generate differential diagnoses as JSON array.`;
     await supabase.from("monitoring_events").insert({
       event_type: "hypothesis_generated",
       agent_name: "generate-hypotheses",
-      clinic_id: visit.clinic_id,
+      clinic_id: visitClinicId,
       success: true,
       duration_ms,
       metadata: {
