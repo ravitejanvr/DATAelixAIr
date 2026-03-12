@@ -645,6 +645,16 @@ export default function PlatformAdmin() {
           <TabsContent value="terminology" className="mt-4">
             <TerminologyAdmin />
           </TabsContent>
+
+          {/* Pipeline Debug Tab */}
+          <TabsContent value="pipeline-debug" className="mt-4">
+            <PipelineDebug />
+          </TabsContent>
+
+          {/* Simulation Tab */}
+          <TabsContent value="simulation" className="mt-4">
+            <PipelineSimulation />
+          </TabsContent>
         </Tabs>
       </div>
     </>
