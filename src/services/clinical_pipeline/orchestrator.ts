@@ -55,6 +55,8 @@ export interface PipelineInput {
   consultation_id?: string | null;
   clinic_id?: string | null;
   intake_approved?: boolean;
+  /** When true, bypass reasoning cache to force full pipeline execution (used by trace/benchmarks) */
+  skip_cache?: boolean;
   recommendations?: {
     diagnosis?: string;
     drugs?: string[];
