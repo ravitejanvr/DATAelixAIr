@@ -162,16 +162,21 @@ export class LineageTracker {
     const droppedFields: { field: string; dropped_at: string; last_seen_at: string }[] = [];
     const reasoningStages: PipelineStage[] = ["ddx", "bayesian", "hypothesis", "safety", "uncertainty", "soap"];
 
+    // Build a set of all engines that produced output — used for consumption checks
+    const activeEngines = new Set<PipelineStage>();
+    for (const [stage, produced] of this.engineResults) {
+      if (produced) activeEngines.add(stage);
+    }
+
     for (const field of TRACKED_FIELDS) {
-      // Determine which stages received the field
       const received_by: PipelineStage[] = [];
       const consumed_by: PipelineStage[] = [];
       const wave_snapshots: FieldLineageEntry["wave_snapshots"] = [];
 
-      // Walk through snapshots to track the field
       let lastSeenAt: string | null = null;
       let droppedAt: string | null = null;
       let originValue: unknown = undefined;
+      let fieldIsPresent = false;
 
       for (const snap of this.snapshots) {
         const fieldData = snap.fields[field];
@@ -185,22 +190,28 @@ export class LineageTracker {
         if (fieldData?.present) {
           received_by.push(snap.stage);
           lastSeenAt = snap.wave;
+          fieldIsPresent = true;
           if (originValue === undefined) originValue = fieldData.value;
         } else if (lastSeenAt && !droppedAt) {
           droppedAt = snap.wave;
         }
+      }
 
-        // Check if this engine consumes this field
-        const engineFields = ENGINE_FIELD_CONSUMPTION[snap.stage];
-        if (engineFields?.includes(field) && fieldData?.present && this.engineResults.get(snap.stage)) {
-          consumed_by.push(snap.stage);
+      // Check consumption across ALL active engines (not just snapshot stages)
+      // A field is consumed if:
+      //   1. The engine declares it in ENGINE_FIELD_CONSUMPTION
+      //   2. The field is present in the pipeline (based on any snapshot)
+      //   3. The engine produced output (recorded in engineResults)
+      if (fieldIsPresent) {
+        for (const engine of activeEngines) {
+          const engineFields = ENGINE_FIELD_CONSUMPTION[engine];
+          if (engineFields?.includes(field)) {
+            consumed_by.push(engine);
+          }
         }
       }
 
-      // Check if field influences reasoning output
       const influenced_output = consumed_by.some(s => reasoningStages.includes(s));
-
-      // Check if field reaches cockpit without being processed
       const reachesCockpit = received_by.length > 0;
       const processedByReasoning = consumed_by.some(s => reasoningStages.includes(s));
       const unprocessed_passthrough = reachesCockpit && !processedByReasoning && this.isPresent(originValue);
