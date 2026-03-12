@@ -47,6 +47,14 @@ export interface BenchmarkCaseResult {
   matched_diagnoses: string[];
   matched_labs: string[];
   matched_medications: string[];
+  // Diagnostic audit fields
+  graph_miss: boolean;
+  graph_symptom_matches: number;
+  dangerous_injected: number;
+  guideline_sources: string[];
+  actual_diagnoses: string[];
+  actual_labs: string[];
+  actual_medications: string[];
   pipeline_output: ClinicalPipelineResult;
 }
 
@@ -323,7 +331,7 @@ export async function runBenchmarkV5(
       // Extract actual values
       const actualDiagnoses = pipelineResult.ddx_candidates.diagnoses.map(d => d.diagnosis);
       const actualLabs = pipelineResult.recommended_labs.map(l => l.test_name);
-      const actualMeds = pipelineResult.recommended_medications.suggestions.map((s: any) => s.drug_name || s.generic_name || "");
+      const actualMeds = pipelineResult.recommended_medications.suggestions.map(s => s.generic_name);
 
       const matchedDiagnoses = fuzzyMatch(actualDiagnoses, bc.expected.diagnoses);
       const matchedLabs = fuzzyMatch(actualLabs, bc.expected.labs);
@@ -333,9 +341,15 @@ export async function runBenchmarkV5(
       const labMatchRate = matchRate(actualLabs, bc.expected.labs);
       const medMatchRate = bc.expected.medications.length === 0 ? 1 : matchRate(actualMeds, bc.expected.medications);
 
-      // Danger detection
-      const dangerDetected = pipelineResult.safety_alerts.critical_count > 0 ||
-        pipelineResult.ddx_candidates.diagnoses.some(d => (d as any).is_dangerous);
+      // Danger detection: check must_not_miss flag from DDX output OR critical safety alerts
+      const dangerDetected = pipelineResult.ddx_candidates.diagnoses.some(d => d.must_not_miss) ||
+        pipelineResult.safety_alerts.critical_count > 0;
+
+      // Graph audit info from DDX raw output
+      const ddxRaw = pipelineResult.ddx_candidates.raw;
+      const graphMiss = ddxRaw?.graph_miss ?? true;
+      const graphSymptomMatches = ddxRaw?.matched_symptoms?.length ?? 0;
+      const dangerousInjected = ddxRaw?.dangerous_diagnoses_injected ?? 0;
 
       // Pass threshold: diag >= 0.5
       const passed = diagMatchRate >= 0.5;
@@ -357,6 +371,14 @@ export async function runBenchmarkV5(
         matched_diagnoses: matchedDiagnoses,
         matched_labs: matchedLabs,
         matched_medications: matchedMeds,
+        // Diagnostic audit
+        graph_miss: graphMiss,
+        graph_symptom_matches: graphSymptomMatches,
+        dangerous_injected: dangerousInjected,
+        guideline_sources: pipelineResult.guidelines.sources_used,
+        actual_diagnoses: actualDiagnoses,
+        actual_labs: actualLabs,
+        actual_medications: actualMeds,
         pipeline_output: pipelineResult,
       });
     } catch (error) {
@@ -378,6 +400,13 @@ export async function runBenchmarkV5(
         matched_diagnoses: [],
         matched_labs: [],
         matched_medications: [],
+        graph_miss: true,
+        graph_symptom_matches: 0,
+        dangerous_injected: 0,
+        guideline_sources: [],
+        actual_diagnoses: [],
+        actual_labs: [],
+        actual_medications: [],
         pipeline_output: null as any,
       });
     }

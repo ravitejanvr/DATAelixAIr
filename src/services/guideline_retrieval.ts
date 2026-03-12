@@ -1,8 +1,10 @@
 /**
  * Guideline Engine Service — Canonical Interface
  *
- * Retrieves clinical guidelines ranked by authority priority
- * for candidate diagnoses from the pipeline.
+ * Retrieves clinical guidelines via relational traversal:
+ * diagnosis_id → guideline_rules → guideline_authorities
+ *
+ * Falls back to guideline_registry keyword matching if no rules found.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -30,7 +32,7 @@ export interface GuidelineResult {
 
 /**
  * Retrieve guidelines for a set of candidate diagnoses.
- * Ranks results by authority tier (1 = highest).
+ * Uses relational traversal: diagnoses → guideline_rules → guideline_authorities.
  */
 export async function retrieveGuidelines(
   diagnosisNames: string[],
@@ -44,51 +46,66 @@ export async function retrieveGuidelines(
   if (cached.hit && cached.data) return cached.data;
 
   try {
-    // Query guideline_registry for matching conditions
-    const { data: guidelines } = await supabase
-      .from("guideline_registry")
-      .select("*")
-      .eq("is_active", true)
-      .order("tier", { ascending: true });
+    // Step 1: Resolve diagnosis names to IDs
+    const normalizedDx = diagnosisNames.map(d => d.toLowerCase().trim());
+    
+    // Build OR filter for fuzzy matching diagnosis names
+    const orFilters = normalizedDx.map(dx => `diagnosis_name.ilike.%${dx}%`).join(",");
+    const { data: diagRows } = await supabase
+      .from("diagnoses")
+      .select("id, diagnosis_name")
+      .or(orFilters)
+      .limit(20);
 
-    if (!guidelines || guidelines.length === 0) {
+    const diagnosisIds = (diagRows || []).map(d => d.id);
+    const diagNameMap = new Map((diagRows || []).map(d => [d.id, d.diagnosis_name]));
+
+    if (diagnosisIds.length === 0) {
+      console.warn("[GuidelineEngine] No diagnosis IDs matched for:", diagnosisNames);
       return { recommendations: [], sources_used: [], compliance_score: 0 };
     }
 
-    // Match guidelines to diagnoses (case-insensitive keyword overlap)
+    // Step 2: Query guideline_rules via diagnosis_id (relational traversal)
+    const { data: rules } = await supabase
+      .from("guideline_rules")
+      .select(`
+        id,
+        diagnosis_id,
+        recommendation,
+        evidence_level,
+        treatment_generic_name,
+        guideline_authorities(id, authority_name, priority, country)
+      `)
+      .in("diagnosis_id", diagnosisIds);
+
     const matched: GuidelineRecommendation[] = [];
-    const normalizedDx = diagnosisNames.map(d => d.toLowerCase());
 
-    for (const g of guidelines) {
-      const conditionMatch = normalizedDx.some(dx =>
-        g.condition.toLowerCase().includes(dx) || dx.includes(g.condition.toLowerCase()),
-      );
-      const keywordMatch = normalizedDx.some(dx =>
-        g.keywords.some((k: string) => dx.includes(k.toLowerCase()) || k.toLowerCase().includes(dx)),
-      );
+    for (const rule of rules || []) {
+      const auth = (rule as any).guideline_authorities;
+      const diagName = diagNameMap.get(rule.diagnosis_id) || "";
 
-      if (conditionMatch || keywordMatch) {
-        matched.push({
-          guideline_id: g.id,
-          title: g.title,
-          organization: g.organization,
-          tier: g.tier,
-          recommendation: g.recommendation_text,
-          evidence_grade: (g as any).evidence_grade || "B",
-          recommended_tests: g.applicable_tests || [],
-          recommended_treatments: g.applicable_drugs || [],
-          contraindications: [],
-          for_diagnosis: g.condition,
-          guideline_url: g.guideline_url || undefined,
-        });
-      }
+      matched.push({
+        guideline_id: rule.id,
+        title: `${auth?.authority_name || "Clinical"} Guideline — ${diagName}`,
+        organization: auth?.authority_name || "Unknown",
+        tier: auth?.priority ?? 5,
+        recommendation: rule.recommendation,
+        evidence_grade: rule.evidence_level || "B",
+        recommended_tests: [],
+        recommended_treatments: rule.treatment_generic_name ? [rule.treatment_generic_name] : [],
+        contraindications: [],
+        for_diagnosis: diagName,
+      });
     }
+
+    // Sort by authority tier (lower = higher priority)
+    matched.sort((a, b) => a.tier - b.tier);
 
     const sources = [...new Set(matched.map(m => m.organization))];
     const result: GuidelineResult = {
-      recommendations: matched.slice(0, 10),
+      recommendations: matched.slice(0, 15),
       sources_used: sources,
-      compliance_score: matched.length > 0 ? Math.min(1, matched.length * 0.2) : 0,
+      compliance_score: matched.length > 0 ? Math.min(1, matched.length * 0.15) : 0,
     };
 
     setCache(cacheKey, "guideline", result, 6);
