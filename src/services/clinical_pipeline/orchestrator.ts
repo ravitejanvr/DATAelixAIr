@@ -373,24 +373,28 @@ export async function runUnifiedClinicalPipeline(
   }
 
   // ═══════════════════════════════════════════════════════
-  // FAST PATH: Reasoning cache check
+  // FAST PATH: Reasoning cache check (skipped in trace/benchmark mode)
   // ═══════════════════════════════════════════════════════
-  const cacheT0 = performance.now();
-  const cachedReasoning = await getReasoningCache(symptoms);
-  lat.cache_check = Math.round(performance.now() - cacheT0);
+  if (!input.skip_cache) {
+    const cacheT0 = performance.now();
+    const cachedReasoning = await getReasoningCache(symptoms);
+    lat.cache_check = Math.round(performance.now() - cacheT0);
 
-  if (cachedReasoning.hit && cachedReasoning.data) {
-    console.log("[Pipeline] ⚡ Reasoning cache HIT");
-    cache.reasoning_hit = true;
-    const cached = cachedReasoning.data as Partial<PipelineResult>;
-    onProgress?.("complete", cached);
-    return {
-      ...empty, enabled: true, ...cached,
-      cache_stats: cache,
-      stage_latencies: { cache_check: lat.cache_check, total: lat.cache_check },
-      wave_latencies: {},
-      total_latency_ms: lat.cache_check,
-    };
+    if (cachedReasoning.hit && cachedReasoning.data) {
+      console.log("[Pipeline] ⚡ Reasoning cache HIT");
+      cache.reasoning_hit = true;
+      const cached = cachedReasoning.data as Partial<PipelineResult>;
+      onProgress?.("complete", cached);
+      return {
+        ...empty, enabled: true, ...cached,
+        cache_stats: cache,
+        stage_latencies: { cache_check: lat.cache_check, total: lat.cache_check },
+        wave_latencies: {},
+        total_latency_ms: lat.cache_check,
+      };
+    }
+  } else {
+    console.log("[Pipeline] 🔬 Cache bypass enabled (trace/benchmark mode)");
   }
 
   // ═══════════════════════════════════════════════════════
