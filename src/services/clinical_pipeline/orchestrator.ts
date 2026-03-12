@@ -88,9 +88,11 @@ export interface PipelineResult {
   uncertainty: UncertaintyResult | null;
   hypotheses: HypothesisResult | null;
   guideline_alignment: GuidelineAlignmentResult | null;
+  guideline_compliance: GuidelineComplianceResult | null;
   evidence: EvidenceQueryResult | null;
   oversight: OversightReport | null;
   hybrid_reasoning: HybridReasoningResult | null;
+  soap_fallback: SOAPGeneratorResult | null;
   multi_agent: OrchestratorResponse | null;
   guideline_summary: {
     guideline_sources_used: string[];
