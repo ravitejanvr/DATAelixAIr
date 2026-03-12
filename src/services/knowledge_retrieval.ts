@@ -40,26 +40,27 @@ export async function retrieveMedicalEvidence(
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke("evidence-agents", {
+    // Use pubmed-search for general evidence retrieval (evidence-agents requires medications array)
+    const { data, error } = await supabase.functions.invoke("pubmed-search", {
       body: { query, max_results: maxResults },
     });
 
     if (error) {
-      console.error("[KnowledgeRetrieval] Evidence agents failed:", error);
+      console.error("[KnowledgeRetrieval] PubMed search failed:", error);
       return { citations: [], evidence_confidence: 0, source: "error", cached: false };
     }
 
     const result: KnowledgeRetrievalResult = {
-      citations: (data?.items || data?.citations || []).map((item: any) => ({
+      citations: (data?.articles || data?.items || []).map((item: any) => ({
         title: item.title || "",
-        source: item.source || item.journal || "",
+        source: item.journal || item.source || "PubMed",
         year: item.year,
         url: item.url || item.source_link || "",
-        evidence_strength: item.evidence_strength || "unknown",
-        summary: item.summary || "",
+        evidence_strength: item.evidence_strength || "peer_reviewed",
+        summary: item.abstract?.substring(0, 200) || item.summary || "",
       })),
       evidence_confidence: data?.confidence || 0.5,
-      source: "evidence_agents",
+      source: "pubmed",
       cached: false,
     };
 
