@@ -39,8 +39,10 @@ import {
 import type { ClinicalContext } from "@/lib/clinical-context";
 import { getPatientContext } from "@/services/context_engine/client";
 import { fromPCIEContext, toClinicalContext, type UnifiedClinicalContext } from "@/types/clinical-context";
-import { generateHypotheses, type HypothesisResult } from "@/services/hypothesis_engine";
-import { evaluateGuidelineAlignment, type GuidelineAlignmentResult } from "@/services/guideline_engine";
+import { generateDiagnosticHypotheses } from "@/services/hypothesis_engine/client";
+import type { HypothesisResult } from "@/services/hypothesis_engine";
+import { evaluateGuidelineAlignment, checkGuidelineCompliance, type GuidelineAlignmentResult, type GuidelineComplianceResult } from "@/services/guideline_engine";
+import { generateSOAP, type SOAPGeneratorResult } from "@/services/soap_generator";
 import {
   recordOversightEvent,
   generateOversightReport,
@@ -86,9 +88,11 @@ export interface PipelineResult {
   uncertainty: UncertaintyResult | null;
   hypotheses: HypothesisResult | null;
   guideline_alignment: GuidelineAlignmentResult | null;
+  guideline_compliance: GuidelineComplianceResult | null;
   evidence: EvidenceQueryResult | null;
   oversight: OversightReport | null;
   hybrid_reasoning: HybridReasoningResult | null;
+  soap_fallback: SOAPGeneratorResult | null;
   multi_agent: OrchestratorResponse | null;
   guideline_summary: {
     guideline_sources_used: string[];
@@ -141,7 +145,8 @@ async function withTimeout<T>(
 function extractSymptoms(ctx: ClinicalContext): string[] {
   const symptoms: string[] = [];
   if (ctx.chief_complaint) symptoms.push(ctx.chief_complaint);
-  if ((ctx as any).symptoms) symptoms.push(...(ctx as any).symptoms);
+  if (ctx.symptoms && ctx.symptoms.length > 0) symptoms.push(...ctx.symptoms);
+  if (ctx.associated_symptoms && ctx.associated_symptoms.length > 0) symptoms.push(...ctx.associated_symptoms);
   return [...new Set(symptoms)];
 }
 
@@ -169,8 +174,9 @@ export async function runClinicalPipeline(
   const empty: PipelineResult = {
     enabled: false, enriched_context: null, physiological_context: null,
     bayesian: null, ddx: null, uncertainty: null, hypotheses: null,
-    guideline_alignment: null, evidence: null, oversight: null,
-    hybrid_reasoning: null, multi_agent: null, guideline_summary: null,
+    guideline_alignment: null, guideline_compliance: null, evidence: null,
+    oversight: null, hybrid_reasoning: null, soap_fallback: null,
+    multi_agent: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
     cache_stats: cache,
   };
@@ -417,11 +423,35 @@ export async function runClinicalPipeline(
   // ═══════════════════════════════════════════════════════
   const w3Start = performance.now();
 
-  const [bayesianResult, guidelineAlignment, hypotheses] = await Promise.all([
-    // 3a: Bayesian Engine
+  const [bayesianResult, guidelineAlignment, guidelineCompliance, hypothesesRaw] = await Promise.all([
+    // 3a: Bayesian Engine — fallback to DDX rankings if no candidates
     (async (): Promise<BayesianResult | null> => {
-      const candidateIds = ddxResult?.differential_diagnoses.map(d => d.diagnosis_id) || [];
-      if (candidateIds.length === 0) return null;
+      const candidateIds = ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [];
+      if (candidateIds.length === 0) {
+        console.warn("[Pipeline] Wave 3: Bayesian skipped — no DDX candidates. Using DDX rankings as fallback.");
+        // Build a synthetic BayesianResult from DDX rankings
+        if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
+          return {
+            diagnoses: ddxResult.differential_diagnoses.map(d => ({
+              diagnosis_id: d.diagnosis_id,
+              posterior_probability: d.probability / 100,
+              prior: 0.01,
+              symptom_likelihood: d.probability / 100,
+              physiology_likelihood: 1.0,
+              risk_modifier: 1.0,
+              supporting_evidence: d.supporting_symptoms || [],
+              must_not_miss: d.must_not_miss,
+            })),
+            total_candidates: ddxResult.differential_diagnoses.length,
+            symptoms_resolved: ddxResult.matched_symptoms?.length || 0,
+            physiology_states_used: 0,
+            risk_factors_applied: 0,
+            execution_ms: 0,
+            source: "ddx_fallback",
+          };
+        }
+        return null;
+      }
       const t0 = performance.now();
       try {
         const result = await withTimeout(
@@ -446,11 +476,17 @@ export async function runClinicalPipeline(
       }
     })(),
 
-    // 3b: Guideline Compliance (with cache)
+    // 3b: Guideline Alignment (legacy — from input.recommendations if available)
     (async (): Promise<GuidelineAlignmentResult | null> => {
-      if (!input.recommendations) return null;
+      // Auto-generate recommendations from DDX if not provided
+      const recs = input.recommendations || (ddxResult ? {
+        diagnosis: ddxResult.differential_diagnoses[0]?.diagnosis_name,
+        drugs: ddxResult.suggested_medications?.map(m => m.generic_name) || [],
+        labs: ddxResult.recommended_labs?.map(l => l.test_name) || [],
+      } : null);
+      if (!recs) return null;
       const t0 = performance.now();
-      const cacheKey = JSON.stringify(input.recommendations);
+      const cacheKey = JSON.stringify(recs);
       try {
         const cached = await getCached<GuidelineAlignmentResult>(cacheKey, "guideline");
         if (cached.hit && cached.data) {
@@ -460,7 +496,7 @@ export async function runClinicalPipeline(
         }
         const result = await withTimeout(
           withStageLogging("retrieve_guidelines", () =>
-            evaluateGuidelineAlignment(input.recommendations!, enrichedContext),
+            evaluateGuidelineAlignment(recs, enrichedContext),
           ),
           MODULE_TIMEOUT_MS,
           "retrieve_guidelines",
@@ -474,17 +510,88 @@ export async function runClinicalPipeline(
       }
     })(),
 
-    // 3c: Hypothesis Engine (LLM)
-    (async (): Promise<HypothesisResult | null> => {
+    // 3b2: Direct Guideline Compliance (from DDX diagnoses)
+    (async (): Promise<GuidelineComplianceResult | null> => {
+      if (!ddxResult || ddxResult.differential_diagnoses.length === 0) return null;
       const t0 = performance.now();
       try {
         const result = await withTimeout(
-          withStageLogging("generate_hypotheses", () => generateHypotheses(enrichedContext)),
+          checkGuidelineCompliance({
+            diagnoses: ddxResult.differential_diagnoses.slice(0, 5).map(d => d.diagnosis_name),
+            medications: (ddxResult.suggested_medications || []).map(m => ({
+              drug_name: m.generic_name, dose: "", frequency: "", duration: "",
+            })),
+            tests: (ddxResult.recommended_labs || []).map(l => l.test_name),
+            patient_age: ctx.patient_age ?? undefined,
+            patient_sex: ctx.patient_sex ?? undefined,
+            chief_complaint: ctx.chief_complaint,
+          }),
+          MODULE_TIMEOUT_MS,
+          "guideline_compliance_direct",
+        );
+        lat.guideline_compliance = Math.round(performance.now() - t0);
+        return result;
+      } catch {
+        lat.guideline_compliance = Math.round(performance.now() - t0);
+        return null;
+      }
+    })(),
+
+    // 3c: Hypothesis Engine (via edge function client, NOT the stub index.ts)
+    (async (): Promise<HypothesisResult | null> => {
+      const t0 = performance.now();
+      try {
+        const edgeResult = await withTimeout(
+          withStageLogging("generate_hypotheses", async () => {
+            const hyp = await generateDiagnosticHypotheses(
+              input.visit_id || "trace",
+              {
+                patient_id: "",
+                age: ctx.patient_age,
+                sex: ctx.patient_sex,
+                chief_complaint: ctx.chief_complaint,
+                symptoms: symptoms.join(", "),
+                duration: ctx.symptom_duration || "",
+                vitals: {
+                  temperature: vitals.temperature ?? null,
+                  spo2: vitals.spo2 ?? null,
+                  pulse: vitals.pulse ?? null,
+                  bp_systolic: vitals.bp_systolic ?? null,
+                  bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) || null : null,
+                  respiratory_rate: ctx.respiratory_rate ?? null,
+                  weight_kg: ctx.weight ?? null,
+                  height_cm: ctx.height ?? null,
+                },
+                past_diagnoses: ctx.medical_history,
+                medications: ctx.current_medications,
+                allergies: ctx.allergies,
+                lab_results: [],
+                lifestyle_factors: {},
+              },
+            );
+            if (!hyp) return null;
+            // Map to HypothesisResult shape
+            return {
+              hypotheses: hyp.hypotheses.map(h => ({
+                condition: h.diagnosis,
+                icd_code: null,
+                confidence: h.confidence > 0.7 ? "high" as const : h.confidence > 0.4 ? "moderate" as const : "low" as const,
+                supporting_evidence: h.supporting_factors,
+                contradicting_evidence: h.contradicting_factors,
+                recommended_tests: h.recommended_tests,
+                urgency: "routine" as const,
+              })),
+              reasoning_chain: "",
+              data_gaps: [],
+              generated_at: hyp.generated_at,
+              source: "edge_function",
+            } satisfies HypothesisResult;
+          }),
           MODULE_TIMEOUT_MS,
           "generate_hypotheses",
         );
         lat.generate_hypotheses = Math.round(performance.now() - t0);
-        return result;
+        return edgeResult;
       } catch {
         lat.generate_hypotheses = Math.round(performance.now() - t0);
         return null;
@@ -492,12 +599,15 @@ export async function runClinicalPipeline(
     })(),
   ]);
 
+  // Coalesce hypothesis result
+  const hypotheses = hypothesesRaw;
+
   waveLat.wave3_reasoning = Math.round(performance.now() - w3Start);
 
   // Stream Wave 3 results
   onProgress?.("bayesian", { bayesian: bayesianResult });
-  onProgress?.("guidelines", { guideline_alignment: guidelineAlignment });
-  onProgress?.("hypotheses", { hypotheses });
+  onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
+  onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
   // ═══════════════════════════════════════════════════════
   // WAVE 4 — Clinical Safety Evaluation
@@ -575,6 +685,7 @@ export async function runClinicalPipeline(
             medical_history: ctx.medical_history,
             current_medications: ctx.current_medications,
             allergies: ctx.allergies,
+            risk_factors: (ctx as any).risk_factors || [],
             visit_id: input.visit_id,
             clinic_id: input.clinic_id,
           }),
@@ -677,6 +788,70 @@ export async function runClinicalPipeline(
   // Wait briefly for multi-agent if it completes quickly
   await Promise.race([multiAgentPromise, new Promise(r => setTimeout(r, 500))]);
 
+  // ── SOAP Fallback: generate best-effort SOAP if hybrid reasoning fails ──
+  let soapFallback: SOAPGeneratorResult | null = null;
+  if (!hybridReasoning || !(hybridReasoning as any).soap) {
+    console.log("[Pipeline] Hybrid reasoning missing SOAP — generating fallback SOAP.");
+    try {
+      // Build a MergedContextObject-like shape for the SOAP generator
+      const soapCtx = {
+        chief_complaint: ctx.chief_complaint,
+        symptoms: symptoms,
+        symptom_duration: ctx.symptom_duration || "",
+        associated_symptoms: (ctx as any).associated_symptoms || [],
+        medical_history: ctx.medical_history || [],
+        family_history: [] as string[],
+        risk_factors: (ctx as any).risk_factors || [],
+        medications: ctx.current_medications || [],
+        allergies: ctx.allergies || [],
+        vitals: {
+          bp_systolic: vitals.bp_systolic || null,
+          bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) || null : null,
+          pulse: vitals.pulse || null,
+          temperature: vitals.temperature || null,
+          spo2: vitals.spo2 || null,
+          respiratory_rate: ctx.respiratory_rate || null,
+          weight_kg: ctx.weight || null,
+          height_cm: ctx.height || null,
+        },
+        lab_results: [] as any[],
+        risk_flags: (ctx as any).risk_flags || [],
+        missing_information: [] as string[],
+        context_confidence: 0.5,
+        visit_id: input.visit_id || "",
+        patient_id: "",
+        clinic_id: input.clinic_id || "",
+      };
+
+      const soapDdx = {
+        diagnoses: (ddxResult?.differential_diagnoses || []).map(d => ({
+          diagnosis: d.diagnosis_name,
+          probability_score: d.probability,
+          icd10_code: d.icd10_code,
+          supporting_symptoms: d.supporting_symptoms,
+          contradicting_factors: d.contradicting_factors,
+        })),
+        recommended_labs: (ddxResult?.recommended_labs || []).map(l => ({
+          test_name: l.test_name,
+          priority: l.priority,
+          differentiates: l.differentiates,
+        })),
+      };
+
+      soapFallback = generateSOAP({
+        context: soapCtx as any,
+        ddx: soapDdx as any,
+        uncertainty: uncertaintyResult ? {
+          confidence_score: uncertaintyResult.confidence_score,
+          confidence_label: uncertaintyResult.confidence_label,
+          follow_up_questions: (uncertaintyResult as any).follow_up_questions || [],
+        } as any : undefined,
+      });
+    } catch (e) {
+      console.warn("[Pipeline] SOAP fallback generation failed:", e);
+    }
+  }
+
   onProgress?.("complete", {});
 
   return {
@@ -688,9 +863,11 @@ export async function runClinicalPipeline(
     uncertainty: uncertaintyResult,
     hypotheses,
     guideline_alignment: guidelineAlignment,
+    guideline_compliance: guidelineCompliance,
     evidence,
     oversight,
     hybrid_reasoning: hybridReasoning,
+    soap_fallback: soapFallback,
     multi_agent: multiAgentResult,
     guideline_summary,
     logs: getPipelineLogs(),

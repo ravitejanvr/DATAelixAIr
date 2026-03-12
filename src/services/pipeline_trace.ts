@@ -196,10 +196,13 @@ export async function runPipelineTrace(
       }
 
       case "bayesian":
-      case "hypotheses": {
+      case "hypotheses":
+      case "guidelines": {
         if (stage === "hypotheses") {
           const bayesian = data.bayesian;
           const hypotheses = data.hypotheses;
+          const guidelineAlignment = data.guideline_alignment;
+          const guidelineCompliance = data.guideline_compliance;
           const w: WaveTrace = {
             wave: "Wave 3",
             label: "Parallel Clinical Reasoning (Bayesian + Guideline + Hypothesis)",
@@ -214,17 +217,21 @@ export async function runPipelineTrace(
             output_summary: {
               bayesian_total_candidates: bayesian?.total_candidates ?? 0,
               bayesian_top_diagnosis: bayesian?.diagnoses?.[0] ?? null,
+              bayesian_source: bayesian?.source ?? "not invoked",
               bayesian_scoring_method: bayesian ? "Bayesian posterior" : "not invoked",
               hypothesis_count: hypotheses?.hypotheses?.length ?? 0,
+              hypothesis_source: (hypotheses as any)?.source ?? "unknown",
               hypotheses_list: hypotheses?.hypotheses?.map(h => ({
                 condition: h.condition,
                 confidence: h.confidence,
                 supporting_count: h.supporting_evidence?.length ?? 0,
                 contradicting_count: h.contradicting_evidence?.length ?? 0,
               })) ?? [],
-              guideline_compliance: "see guideline_alignment in result",
+              guideline_alignment_score: guidelineAlignment?.guideline_compliance_score ?? null,
+              guideline_compliance_score: guidelineCompliance?.compliance_score ?? null,
+              guideline_sources: guidelineCompliance?.guidelines_sources ?? guidelineAlignment?.guideline_sources_used ?? [],
             },
-            engines_invoked: ["Bayesian Probability Engine", "Guideline Compliance Engine", "Hypothesis Engine (LLM)"],
+            engines_invoked: ["Bayesian Probability Engine", "Guideline Compliance Engine", "Hypothesis Engine (Edge Function)"],
             gaps: [],
           };
           w.gaps = identifyGaps("wave3", w.output_summary);
@@ -286,7 +293,7 @@ export async function runPipelineTrace(
               safety_score: "from Wave 4",
               hypothesis_reasoning: "from Wave 3",
             },
-            output_summary: {
+             output_summary: {
               confidence_score: data.hybrid_reasoning ? "pending uncertainty" : null,
               confidence_label: null,
               hybrid_reasoning_enabled: !!data.hybrid_reasoning,
@@ -295,6 +302,7 @@ export async function runPipelineTrace(
               soap_objective: (data.hybrid_reasoning as any)?.soap?.objective ? "populated" : "empty",
               soap_assessment: (data.hybrid_reasoning as any)?.soap?.assessment ? "populated" : "empty",
               soap_plan: (data.hybrid_reasoning as any)?.soap?.plan ? "populated" : "empty",
+              soap_fallback_available: "check final_result.soap_fallback",
             },
             engines_invoked: ["Uncertainty Calibration Engine", "Hybrid Reasoning Engine", "SOAP Generator"],
             gaps: [],
@@ -316,18 +324,26 @@ export async function runPipelineTrace(
   // Extract final outputs
   const diagnoses = result.ddx?.differential_diagnoses?.map(d => (d as any).diagnosis_name || (d as any).diagnosis || "unknown") ?? [];
   const labs = result.ddx?.recommended_labs?.map((l: any) => l.test_name || l) ?? [];
-  const meds: string[] = []; // medications come from separate engine
+  const meds = result.ddx?.suggested_medications?.map((m: any) => m.generic_name) ?? [];
   const graphMatches = result.ddx?.matched_symptoms?.length ?? 0;
   const dangerDetected = (result.ddx?.dangerous_diagnoses_injected ?? 0) > 0 ||
     (result.oversight?.events?.some(e => e.severity === "critical") ?? false);
 
-  // Add uncertainty data to Wave 5 if we have it
-  if (result.uncertainty) {
+  // Add uncertainty + SOAP data to Wave 5 if we have it
+  if (result.uncertainty || result.soap_fallback) {
     const w5 = waves.find(w => w.wave === "Wave 5");
     if (w5) {
-      w5.output_summary.confidence_score = result.uncertainty.confidence_score;
-      w5.output_summary.confidence_label = result.uncertainty.confidence_label;
-      w5.output_summary.missing_evidence = result.uncertainty.missing_evidence ?? [];
+      if (result.uncertainty) {
+        w5.output_summary.confidence_score = result.uncertainty.confidence_score;
+        w5.output_summary.confidence_label = result.uncertainty.confidence_label;
+        w5.output_summary.missing_evidence = result.uncertainty.missing_evidence ?? [];
+      }
+      if (result.soap_fallback) {
+        w5.output_summary.soap_fallback_subjective = result.soap_fallback.soap.subjective ? "populated" : "empty";
+        w5.output_summary.soap_fallback_objective = result.soap_fallback.soap.objective ? "populated" : "empty";
+        w5.output_summary.soap_fallback_assessment = result.soap_fallback.soap.assessment ? "populated" : "empty";
+        w5.output_summary.soap_fallback_plan = result.soap_fallback.soap.plan ? "populated" : "empty";
+      }
     }
   }
 
