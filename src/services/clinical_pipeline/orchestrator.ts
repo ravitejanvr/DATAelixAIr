@@ -113,18 +113,18 @@ export type PipelineProgressCallback = (stage: string, data: Partial<PipelineRes
 // ── Adaptive Timeout Constants (per-engine) ──
 
 const TIMEOUT = {
-  PCIE:            1500,
-  DDX:             8000,
-  PHYSIOLOGY:      6000,
-  EVIDENCE:        7000,
+  PCIE:            2000,
+  DDX:             10000,
+  PHYSIOLOGY:      10000,
+  EVIDENCE:        9000,
   PREINDEXED:      2000,
-  BAYESIAN:        4000,
-  GUIDELINE:       7000,
-  GUIDELINE_COMPLIANCE: 9000,
-  HYPOTHESIS:      8000,
-  UNCERTAINTY:     4000,
-  HYBRID:          6000,
-  SOAP:            3000,
+  BAYESIAN:        8000,
+  GUIDELINE:       10000,
+  GUIDELINE_COMPLIANCE: 12000,
+  HYPOTHESIS:      12000,
+  UNCERTAINTY:     8000,
+  HYBRID:          10000,
+  SOAP:            4000,
 } as const;
 
 // ── Organ-System Weighting ──
@@ -526,8 +526,8 @@ export async function runUnifiedClinicalPipeline(
     (async (): Promise<PhysiologicalContextResult | null> => {
       const t0 = performance.now();
       try {
-        const result = await withTimeout(
-          generatePhysiologicalContext({
+        const result = await withRetry(
+          () => generatePhysiologicalContext({
             symptoms,
             vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp_systolic: vitals.bp_systolic },
             visit_id: input.visit_id,
@@ -708,8 +708,8 @@ export async function runUnifiedClinicalPipeline(
       }
       const t0 = performance.now();
       try {
-        const result = await withTimeout(
-          calculateDiagnosticProbabilities({
+        const result = await withRetry(
+          () => calculateDiagnosticProbabilities({
             candidate_diagnosis_ids: candidateIds,
             symptoms,
             physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
@@ -723,6 +723,27 @@ export async function runUnifiedClinicalPipeline(
           "bayesian_engine",
         );
         lat.bayesian_engine = Math.round(performance.now() - t0);
+        // Fallback: if retry also failed, use DDX-derived probabilities
+        if (!result && ddxResult && ddxResult.differential_diagnoses.length > 0) {
+          return {
+            diagnoses: ddxResult.differential_diagnoses.map(d => ({
+              diagnosis_id: d.diagnosis_id,
+              posterior_probability: d.probability / 100,
+              prior: 0.01,
+              symptom_likelihood: d.probability / 100,
+              physiology_likelihood: 1.0,
+              risk_modifier: 1.0,
+              supporting_evidence: d.supporting_symptoms || [],
+              must_not_miss: d.must_not_miss,
+            })),
+            total_candidates: ddxResult.differential_diagnoses.length,
+            symptoms_resolved: ddxResult.matched_symptoms?.length || 0,
+            physiology_states_used: 0,
+            risk_factors_applied: 0,
+            execution_ms: 0,
+            source: "ddx_timeout_fallback",
+          };
+        }
         return result;
       } catch {
         lat.bayesian_engine = Math.round(performance.now() - t0);
@@ -790,8 +811,8 @@ export async function runUnifiedClinicalPipeline(
     (async (): Promise<HypothesisResult | null> => {
       const t0 = performance.now();
       try {
-        const edgeResult = await withTimeout(
-          withStageLogging("generate_hypotheses", async () => {
+        const edgeResult = await withRetry(
+          () => withStageLogging("generate_hypotheses", async () => {
             const hyp = await generateDiagnosticHypotheses(
               input.visit_id || "trace",
               {
@@ -905,8 +926,8 @@ export async function runUnifiedClinicalPipeline(
     (async (): Promise<UncertaintyResult | null> => {
       const t0 = performance.now();
       try {
-        const result = await withTimeout(
-          runUncertaintyEngine({
+        const result = await withRetry(
+          () => runUncertaintyEngine({
             symptoms: ddxResult?.matched_symptoms || symptoms,
             vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp: vitals.bp },
             differential_diagnoses: ddxResult?.differential_diagnoses || [],
@@ -927,6 +948,33 @@ export async function runUnifiedClinicalPipeline(
           TIMEOUT.UNCERTAINTY,
           "uncertainty_engine",
         );
+        // Fallback: if uncertainty engine fails, produce a synthetic score from DDX spread
+        if (!result && ddxResult && ddxResult.differential_diagnoses.length > 0) {
+          const topDx = ddxResult.differential_diagnoses[0];
+          const topProb = topDx.probability;
+          const spread = ddxResult.differential_diagnoses.length > 1
+            ? topProb - ddxResult.differential_diagnoses[1].probability
+            : topProb;
+          const syntheticScore = Math.min(95, Math.max(30, Math.round(spread * 1.5 + 20)));
+          return {
+            confidence_score: syntheticScore,
+            confidence_label: syntheticScore >= 70 ? "high" : syntheticScore >= 40 ? "moderate" : "low",
+            top_diagnosis: topDx.diagnosis_name,
+            alternative_diagnoses: ddxResult.differential_diagnoses.slice(1, 4).map(d => ({ name: d.diagnosis_name, probability: d.probability })),
+            must_not_miss: ddxResult.differential_diagnoses.filter(d => d.must_not_miss).map(d => d.diagnosis_name),
+            missing_evidence: [],
+            diagnostic_conflict: false,
+            conflict_details: [],
+            guideline_sources: [],
+            safety_flags: [],
+            scoring_breakdown: {
+              evidence_strength: syntheticScore / 100,
+              data_completeness: 0.5,
+              signal_coherence: syntheticScore / 100,
+            },
+            execution_ms: 0,
+          } satisfies UncertaintyResult;
+        }
         lat.uncertainty_engine = Math.round(performance.now() - t0);
         return result;
       } catch {
@@ -939,8 +987,8 @@ export async function runUnifiedClinicalPipeline(
     (async (): Promise<HybridReasoningResult | null> => {
       const t0 = performance.now();
       try {
-        const result = await withTimeout(
-          runHybridReasoning({
+        const result = await withRetry(
+          () => runHybridReasoning({
             symptoms,
             chief_complaint: ctx.chief_complaint,
             vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp: vitals.bp },
