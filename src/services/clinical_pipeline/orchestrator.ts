@@ -121,8 +121,8 @@ export type PipelineProgressCallback = (stage: string, data: Partial<PipelineRes
 
 // ── Constants ──
 
-const WAVE_TIMEOUT_MS = 4000;
-const MODULE_TIMEOUT_MS = 3500;
+const WAVE_TIMEOUT_MS = 8000;
+const MODULE_TIMEOUT_MS = 6000;
 
 // ── Helpers ──
 
