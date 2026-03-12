@@ -375,6 +375,7 @@ export async function runPipelineTrace(
     adapter_field_audit: adapterAudit,
     waves,
     final_result: result,
+    lineage: result.lineage,
     all_gaps: allGaps,
     diagnoses_generated: diagnoses,
     labs_suggested: labs,
