@@ -146,30 +146,73 @@ const ORGAN_SYSTEM_WEIGHTS: Record<string, number> = {
 /** Detect dominant organ system from symptoms */
 function detectDominantOrganSystem(symptoms: string[]): string | null {
   const symptomSystemMap: Record<string, string> = {
+    // Cardiovascular
     "chest pain": "cardiovascular",
     "left arm pain": "cardiovascular",
     "diaphoresis": "cardiovascular",
     "palpitations": "cardiovascular",
     "tachycardia": "cardiovascular",
+    "crushing chest": "cardiovascular",
+    // Respiratory
     "shortness of breath": "respiratory",
     "dyspnea": "respiratory",
     "cough": "respiratory",
+    "productive cough": "respiratory",
     "wheezing": "respiratory",
+    "sputum": "respiratory",
+    "pleuritic": "respiratory",
+    "runny nose": "respiratory",
+    "nasal congestion": "respiratory",
+    "sneezing": "respiratory",
+    "coryza": "respiratory",
+    // ENT
+    "sore throat": "ent",
+    "pharyngitis": "ent",
+    "throat pain": "ent",
+    "ear pain": "ent",
+    "otalgia": "ent",
+    "hoarseness": "ent",
+    // Neurological
     "headache": "neurological",
     "dizziness": "neurological",
     "syncope": "neurological",
     "seizure": "neurological",
+    "neck stiffness": "neurological",
+    "photophobia": "neurological",
+    "confusion": "neurological",
+    "blurred vision": "neurological",
+    // Gastrointestinal
     "nausea": "gastrointestinal",
     "vomiting": "gastrointestinal",
     "abdominal pain": "gastrointestinal",
     "diarrhea": "gastrointestinal",
+    "abdominal cramps": "gastrointestinal",
+    "loss of appetite": "gastrointestinal",
+    // Infectious
     "fever": "infectious",
     "chills": "infectious",
+    "rigors": "infectious",
+    "sweating": "infectious",
+    "night sweats": "infectious",
+    // Musculoskeletal
     "joint pain": "musculoskeletal",
     "back pain": "musculoskeletal",
+    "body ache": "musculoskeletal",
+    "unsteady gait": "musculoskeletal",
+    // Dermatological
     "rash": "dermatological",
+    "urticaria": "dermatological",
+    "pruritus": "dermatological",
+    "skin rash": "dermatological",
+    "petechial rash": "dermatological",
+    "maculopapular rash": "dermatological",
+    // Endocrine
     "polyuria": "endocrine",
     "polydipsia": "endocrine",
+    "weight loss": "endocrine",
+    // Renal
+    "hematuria": "renal",
+    "oliguria": "renal",
   };
 
   const systemCounts: Record<string, number> = {};
