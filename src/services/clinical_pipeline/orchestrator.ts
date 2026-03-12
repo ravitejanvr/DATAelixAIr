@@ -104,6 +104,8 @@ export interface PipelineResult {
     guideline_hit: boolean;
   };
   lineage: LineageReport | null;
+  /** PCIE context graph — full clinical state snapshot */
+  context_graph: UnifiedClinicalContextGraph | null;
 }
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
