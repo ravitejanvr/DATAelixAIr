@@ -421,8 +421,13 @@ export default function BenchmarkDashboard() {
                   <div><strong>Matched Medications:</strong> {c.matched_medications.join(", ") || "None"}</div>
                   <div><strong>Guideline Sources:</strong> {c.guideline_sources.join(", ") || "None"}</div>
                   <div className="flex gap-3 flex-wrap mt-1">
+                    <span>Pipeline: <strong>{c.pipeline_audit.pipeline_name}</strong></span>
                     <span>Graph: {c.graph_miss ? "❌ MISS" : `✅ ${c.graph_symptom_matches} matches`}</span>
                     <span>Danger injected: {c.dangerous_injected}</span>
+                    <span>DDX: {c.pipeline_audit.ddx_engine_invoked ? "✅" : "❌"}</span>
+                    <span>Scoring: {c.pipeline_audit.diagnosis_scoring_enabled ? "✅" : "❌"}</span>
+                    <span>Organ Bonus: {c.pipeline_audit.organ_system_bonus_applied ? "✅" : "—"}</span>
+                    <span>Danger Bonus: {c.pipeline_audit.danger_bonus_applied ? "✅" : "—"}</span>
                     <span>W1: {c.latency.wave1_ms}ms</span>
                     <span>W2: {c.latency.wave2_ms}ms</span>
                     <span>W3: {c.latency.wave3_ms}ms</span>
