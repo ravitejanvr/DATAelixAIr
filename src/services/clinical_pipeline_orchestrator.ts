@@ -18,7 +18,7 @@ import { retrieveMedicalEvidence, type KnowledgeRetrievalResult } from "@/servic
 import { retrieveGuidelines, type GuidelineResult } from "@/services/guideline_retrieval";
 import { generateMedicationSuggestions, type MedicationEngineResult } from "@/services/medication_engine";
 import { runSafetyValidation, type SafetyEngineResult } from "@/services/safety_engine";
-import { evaluateUncertainty, type UncertaintyOutput } from "@/services/uncertainty_engine";
+import { evaluateUncertainty, type UncertaintyOutput } from "@/services/uncertainty_service";
 import { generateSOAP, type SOAPGeneratorResult } from "@/services/soap_generator";
 
 // ── Types ──
