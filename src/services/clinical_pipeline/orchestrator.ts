@@ -975,8 +975,8 @@ export async function runUnifiedClinicalPipeline(
     (async (): Promise<HybridReasoningResult | null> => {
       const t0 = performance.now();
       try {
-        const result = await withTimeout(
-          runHybridReasoning({
+        const result = await withRetry(
+          () => runHybridReasoning({
             symptoms,
             chief_complaint: ctx.chief_complaint,
             vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp: vitals.bp },
