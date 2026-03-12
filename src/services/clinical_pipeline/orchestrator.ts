@@ -1,32 +1,15 @@
 /**
- * Clinical Pipeline Orchestrator (v4 — Wave-Based Parallel Architecture)
+ * Clinical Pipeline Orchestrator (v4.1 — Wave-Based Parallel Architecture)
  *
- * 5-wave execution model for sub-10s latency:
+ * Adaptive timeouts, organ-system weighting, enriched evidence retrieval.
  *
- *   Wave 1 — Context Preparation (sync, ~5ms)
- *     Build Clinical Context Object
- *
- *   Wave 2 — Parallel Context Analysis (~2s)
- *     • Physiological State Engine
- *     • Knowledge Graph Query (DDX Engine)
- *     • Reasoning Cache + Pre-indexed Knowledge
- *     • Evidence Retrieval
- *
- *   Wave 3 — Parallel Clinical Reasoning (~3s)
- *     • Bayesian Probability Engine
- *     • Guideline Compliance Engine
- *     • Hypothesis Engine (LLM)
- *
- *   Wave 4 — Clinical Safety Evaluation (~1s)
- *     • Safety / Oversight Engine
- *     • Drug Interaction + Allergy (via DDX safety flags)
- *
- *   Wave 5 — Output Generation (~2s)
- *     • Uncertainty Calibration Engine
- *     • Hybrid Reasoning (SOAP synthesis)
- *
- * Background (non-blocking):
- *     • Multi-Agent Orchestrator
+ *   Wave 0 — PCIE Context Hydration
+ *   Wave 1 — Context Preparation
+ *   Wave 2 — Parallel Context Analysis (DDX, Physiology, Preindexed)
+ *   Wave 2b — Evidence Retrieval (enriched with DDX results)
+ *   Wave 3 — Parallel Clinical Reasoning (Bayesian, Guidelines, Hypotheses)
+ *   Wave 4 — Clinical Safety Evaluation
+ *   Wave 5 — Output Generation (Uncertainty, Hybrid Reasoning, SOAP)
  */
 
 import { isNewPipelineEnabled } from "@/services/feature_flags";
@@ -119,10 +102,122 @@ export interface PipelineResult {
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
 
-// ── Constants ──
+// ── Adaptive Timeout Constants (per-engine) ──
 
-const WAVE_TIMEOUT_MS = 8000;
-const MODULE_TIMEOUT_MS = 6000;
+const TIMEOUT = {
+  PCIE:            1500,
+  DDX:             8000,
+  PHYSIOLOGY:      6000,
+  EVIDENCE:        7000,
+  PREINDEXED:      2000,
+  BAYESIAN:        4000,
+  GUIDELINE:       7000,
+  GUIDELINE_COMPLIANCE: 9000,
+  HYPOTHESIS:      8000,
+  UNCERTAINTY:     4000,
+  HYBRID:          6000,
+  SOAP:            3000,
+} as const;
+
+// ── Organ-System Weighting ──
+
+const ORGAN_SYSTEM_WEIGHTS: Record<string, number> = {
+  cardiovascular: 1.4,
+  respiratory:    1.1,
+  neurological:   0.8,
+  gastrointestinal: 0.9,
+  musculoskeletal: 0.7,
+  endocrine:      0.8,
+  renal:          0.9,
+  hepatic:        0.8,
+  infectious:     1.0,
+  hematological:  0.9,
+  dermatological: 0.6,
+};
+
+/** Detect dominant organ system from symptoms */
+function detectDominantOrganSystem(symptoms: string[]): string | null {
+  const symptomSystemMap: Record<string, string> = {
+    "chest pain": "cardiovascular",
+    "left arm pain": "cardiovascular",
+    "diaphoresis": "cardiovascular",
+    "palpitations": "cardiovascular",
+    "tachycardia": "cardiovascular",
+    "shortness of breath": "respiratory",
+    "dyspnea": "respiratory",
+    "cough": "respiratory",
+    "wheezing": "respiratory",
+    "headache": "neurological",
+    "dizziness": "neurological",
+    "syncope": "neurological",
+    "seizure": "neurological",
+    "nausea": "gastrointestinal",
+    "vomiting": "gastrointestinal",
+    "abdominal pain": "gastrointestinal",
+    "diarrhea": "gastrointestinal",
+    "fever": "infectious",
+    "chills": "infectious",
+    "joint pain": "musculoskeletal",
+    "back pain": "musculoskeletal",
+    "rash": "dermatological",
+    "polyuria": "endocrine",
+    "polydipsia": "endocrine",
+  };
+
+  const systemCounts: Record<string, number> = {};
+  for (const s of symptoms) {
+    const lower = s.toLowerCase().trim();
+    for (const [keyword, system] of Object.entries(symptomSystemMap)) {
+      if (lower.includes(keyword)) {
+        systemCounts[system] = (systemCounts[system] || 0) + 1;
+      }
+    }
+  }
+
+  let dominant: string | null = null;
+  let maxCount = 0;
+  for (const [system, count] of Object.entries(systemCounts)) {
+    if (count > maxCount) {
+      maxCount = count;
+      dominant = system;
+    }
+  }
+  return dominant;
+}
+
+/** Apply organ-system weighting to DDX results */
+function applyOrganSystemWeighting(ddx: DDXResult, dominantSystem: string): DDXResult {
+  if (!ddx.differential_diagnoses || ddx.differential_diagnoses.length === 0) return ddx;
+
+  const dominantWeight = ORGAN_SYSTEM_WEIGHTS[dominantSystem] ?? 1.0;
+
+  const reweighted = ddx.differential_diagnoses.map(d => {
+    const diagSystem = (d.category || "").toLowerCase();
+    let weight = 1.0;
+    if (diagSystem === dominantSystem) {
+      weight = dominantWeight;
+    } else if (ORGAN_SYSTEM_WEIGHTS[diagSystem] !== undefined) {
+      weight = ORGAN_SYSTEM_WEIGHTS[diagSystem];
+    }
+    // must_not_miss diagnoses keep at least their original score
+    const newProb = d.must_not_miss
+      ? Math.max(d.probability, Math.round(d.probability * weight))
+      : Math.round(d.probability * weight);
+    return { ...d, probability: newProb };
+  });
+
+  // Re-sort by probability descending
+  reweighted.sort((a, b) => b.probability - a.probability);
+
+  return {
+    ...ddx,
+    differential_diagnoses: reweighted,
+    organ_system_weighting: {
+      dominant_system: dominantSystem,
+      weight_applied: dominantWeight,
+    },
+  } as DDXResult;
+}
 
 // ── Helpers ──
 
@@ -160,6 +255,22 @@ function buildVitals(ctx: ClinicalContext) {
   };
 }
 
+/** Build a DDX-enriched evidence query for higher relevance */
+function buildEvidenceQuery(chiefComplaint: string, ddxResult: DDXResult | null): string {
+  const parts: string[] = [chiefComplaint];
+  if (ddxResult?.differential_diagnoses?.length) {
+    const topDx = ddxResult.differential_diagnoses
+      .slice(0, 2)
+      .map(d => d.diagnosis_name);
+    parts.push(...topDx);
+  }
+  if (ddxResult?.organ_systems_active?.length) {
+    parts.push(ddxResult.organ_systems_active[0]);
+  }
+  parts.push("diagnosis guidelines");
+  return parts.join(" ");
+}
+
 // ── Main Pipeline ──
 
 export async function runClinicalPipeline(
@@ -192,12 +303,10 @@ export async function runClinicalPipeline(
   const vitals = buildVitals(input.clinical_context);
   const ctx = input.clinical_context;
 
-  console.log("[Pipeline] v4 wave-based starting — target <10s...");
+  console.log("[Pipeline] v4.1 wave-based starting — adaptive timeouts + organ-system weighting...");
 
   // ═══════════════════════════════════════════════════════
-  // WAVE 0 — PCIE Context Hydration (optional, ~200ms)
-  //   If visit_id exists, attempt to load structured PCIE context
-  //   and merge it into the clinical context for richer downstream input.
+  // WAVE 0 — PCIE Context Hydration
   // ═══════════════════════════════════════════════════════
   let unifiedContext: UnifiedClinicalContext | null = null;
   if (input.visit_id) {
@@ -205,12 +314,11 @@ export async function runClinicalPipeline(
     try {
       const pcieRow = await withTimeout(
         getPatientContext(input.visit_id),
-        1500,
+        TIMEOUT.PCIE,
         "pcie_fetch",
       );
       if (pcieRow) {
         unifiedContext = fromPCIEContext(pcieRow);
-        // Merge PCIE fields into clinical_context where empty
         const cc = input.clinical_context;
         if (!cc.chief_complaint && unifiedContext.chief_complaint) {
           (cc as any).chief_complaint = unifiedContext.chief_complaint;
@@ -287,17 +395,12 @@ export async function runClinicalPipeline(
   // WAVE 2 — Parallel Context Analysis
   //   • Physiological State Engine
   //   • DDX Engine (Knowledge Graph traversal)
-  //   • Evidence Retrieval
   //   • Pre-indexed Knowledge Lookup
+  //   (Evidence retrieval moved to Wave 2b — after DDX for enriched query)
   // ═══════════════════════════════════════════════════════
   const w2Start = performance.now();
 
-  // Launch physiology first (it feeds DDX), but don't block Wave 2 on it.
-  // Instead, run physiology + DDX + evidence + preindexed all in parallel.
-  // DDX will run without physiology context in this wave; Bayesian engine
-  // in Wave 3 will incorporate physiology for refined scoring.
-
-  const [physiologicalContext, ddxResult, evidence, preindexedMatches] = await Promise.all([
+  const [physiologicalContext, ddxResultRaw, preindexedMatches] = await Promise.all([
     // 2a: Physiological State Engine
     (async (): Promise<PhysiologicalContextResult | null> => {
       const t0 = performance.now();
@@ -309,7 +412,7 @@ export async function runClinicalPipeline(
             visit_id: input.visit_id,
             clinic_id: input.clinic_id,
           }),
-          MODULE_TIMEOUT_MS,
+          TIMEOUT.PHYSIOLOGY,
           "physiological_engine",
         );
         lat.physiological_engine = Math.round(performance.now() - t0);
@@ -320,7 +423,7 @@ export async function runClinicalPipeline(
       }
     })(),
 
-    // 2b: DDX Engine (knowledge graph traversal + Bayesian scoring)
+    // 2b: DDX Engine
     (async (): Promise<DDXResult | null> => {
       const t0 = performance.now();
       try {
@@ -336,10 +439,9 @@ export async function runClinicalPipeline(
               allergies: ctx.allergies,
               visit_id: input.visit_id,
               clinic_id: input.clinic_id,
-              // Physiology context not available yet — Wave 3 Bayesian will refine
             }),
           ),
-          MODULE_TIMEOUT_MS,
+          TIMEOUT.DDX,
           "ddx_engine",
         );
         lat.ddx_engine = Math.round(performance.now() - t0);
@@ -359,33 +461,7 @@ export async function runClinicalPipeline(
       }
     })(),
 
-    // 2c: Evidence Retrieval
-    (async (): Promise<EvidenceQueryResult | null> => {
-      if (!ctx.chief_complaint) return null;
-      const query = ctx.chief_complaint;
-      const t0 = performance.now();
-      try {
-        const cached = await getCached<EvidenceQueryResult>(query, "evidence");
-        if (cached.hit && cached.data) {
-          cache.evidence_hit = true;
-          lat.retrieve_evidence = Math.round(performance.now() - t0);
-          return cached.data;
-        }
-        const result = await withTimeout(
-          withStageLogging("retrieve_evidence", () => queryEvidence(query, { maxResults: 5 })),
-          MODULE_TIMEOUT_MS,
-          "retrieve_evidence",
-        );
-        if (result) setCache(query, "evidence", result, 12);
-        lat.retrieve_evidence = Math.round(performance.now() - t0);
-        return result;
-      } catch {
-        lat.retrieve_evidence = Math.round(performance.now() - t0);
-        return null;
-      }
-    })(),
-
-    // 2d: Pre-indexed Knowledge (instant, <50ms)
+    // 2c: Pre-indexed Knowledge (instant, <50ms)
     (async () => {
       const t0 = performance.now();
       try {
@@ -408,16 +484,50 @@ export async function runClinicalPipeline(
     })(),
   ]);
 
-  waveLat.wave2_analysis = Math.round(performance.now() - w2Start);
+  // ── Apply Organ-System Weighting to DDX ──
+  const dominantSystem = detectDominantOrganSystem(symptoms);
+  let ddxResult = ddxResultRaw;
+  if (ddxResult && dominantSystem) {
+    console.log(`[Pipeline] Organ-system weighting: dominant=${dominantSystem}, weight=${ORGAN_SYSTEM_WEIGHTS[dominantSystem] ?? 1.0}`);
+    ddxResult = applyOrganSystemWeighting(ddxResult, dominantSystem);
+  }
 
-  // Stream Wave 2 results
+  waveLat.wave2_analysis = Math.round(performance.now() - w2Start);
   onProgress?.("physiology", { physiological_context: physiologicalContext });
   onProgress?.("ddx", { ddx: ddxResult });
+
+  // ═══════════════════════════════════════════════════════
+  // WAVE 2b — Evidence Retrieval (enriched with DDX results)
+  // ═══════════════════════════════════════════════════════
+  let evidence: EvidenceQueryResult | null = null;
+  if (ctx.chief_complaint) {
+    const evT0 = performance.now();
+    const enrichedQuery = buildEvidenceQuery(ctx.chief_complaint, ddxResult);
+    try {
+      const cached = await getCached<EvidenceQueryResult>(enrichedQuery, "evidence");
+      if (cached.hit && cached.data) {
+        cache.evidence_hit = true;
+        evidence = cached.data;
+      } else {
+        evidence = await withTimeout(
+          withStageLogging("retrieve_evidence", () => queryEvidence(enrichedQuery, { maxResults: 5 })),
+          TIMEOUT.EVIDENCE,
+          "retrieve_evidence",
+        );
+        if (evidence && evidence.items.length > 0) {
+          setCache(enrichedQuery, "evidence", evidence, 12);
+        }
+      }
+    } catch {
+      console.warn("[Pipeline] Evidence retrieval failed, continuing without citations.");
+    }
+    lat.retrieve_evidence = Math.round(performance.now() - evT0);
+  }
   onProgress?.("evidence", { evidence });
 
   // ═══════════════════════════════════════════════════════
   // WAVE 3 — Parallel Clinical Reasoning
-  //   • Bayesian Probability Engine (uses DDX candidates + physiology)
+  //   • Bayesian Probability Engine
   //   • Guideline Compliance Engine
   //   • Hypothesis Engine (LLM reasoning)
   // ═══════════════════════════════════════════════════════
@@ -429,7 +539,6 @@ export async function runClinicalPipeline(
       const candidateIds = ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [];
       if (candidateIds.length === 0) {
         console.warn("[Pipeline] Wave 3: Bayesian skipped — no DDX candidates. Using DDX rankings as fallback.");
-        // Build a synthetic BayesianResult from DDX rankings
         if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
           return {
             diagnoses: ddxResult.differential_diagnoses.map(d => ({
@@ -465,7 +574,7 @@ export async function runClinicalPipeline(
             region: "south_asia",
             vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse },
           }),
-          MODULE_TIMEOUT_MS,
+          TIMEOUT.BAYESIAN,
           "bayesian_engine",
         );
         lat.bayesian_engine = Math.round(performance.now() - t0);
@@ -478,7 +587,6 @@ export async function runClinicalPipeline(
 
     // 3b: Guideline Alignment (legacy — from input.recommendations if available)
     (async (): Promise<GuidelineAlignmentResult | null> => {
-      // Auto-generate recommendations from DDX if not provided
       const recs = input.recommendations || (ddxResult ? {
         diagnosis: ddxResult.differential_diagnoses[0]?.diagnosis_name,
         drugs: ddxResult.suggested_medications?.map(m => m.generic_name) || [],
@@ -498,7 +606,7 @@ export async function runClinicalPipeline(
           withStageLogging("retrieve_guidelines", () =>
             evaluateGuidelineAlignment(recs, enrichedContext),
           ),
-          MODULE_TIMEOUT_MS,
+          TIMEOUT.GUIDELINE,
           "retrieve_guidelines",
         );
         if (result) setCache(cacheKey, "guideline", result, 6);
@@ -510,7 +618,7 @@ export async function runClinicalPipeline(
       }
     })(),
 
-    // 3b2: Direct Guideline Compliance (from DDX diagnoses)
+    // 3c: Direct Guideline Compliance (from DDX diagnoses)
     (async (): Promise<GuidelineComplianceResult | null> => {
       if (!ddxResult || ddxResult.differential_diagnoses.length === 0) return null;
       const t0 = performance.now();
@@ -526,7 +634,7 @@ export async function runClinicalPipeline(
             patient_sex: ctx.patient_sex ?? undefined,
             chief_complaint: ctx.chief_complaint,
           }),
-          MODULE_TIMEOUT_MS,
+          TIMEOUT.GUIDELINE_COMPLIANCE,
           "guideline_compliance_direct",
         );
         lat.guideline_compliance = Math.round(performance.now() - t0);
@@ -537,7 +645,7 @@ export async function runClinicalPipeline(
       }
     })(),
 
-    // 3c: Hypothesis Engine (via edge function client, NOT the stub index.ts)
+    // 3d: Hypothesis Engine (via edge function)
     (async (): Promise<HypothesisResult | null> => {
       const t0 = performance.now();
       try {
@@ -570,7 +678,6 @@ export async function runClinicalPipeline(
               },
             );
             if (!hyp) return null;
-            // Map to HypothesisResult shape
             return {
               hypotheses: hyp.hypotheses.map(h => ({
                 condition: h.diagnosis,
@@ -587,33 +694,29 @@ export async function runClinicalPipeline(
               source: "edge_function",
             } satisfies HypothesisResult;
           }),
-          MODULE_TIMEOUT_MS,
+          TIMEOUT.HYPOTHESIS,
           "generate_hypotheses",
         );
         lat.generate_hypotheses = Math.round(performance.now() - t0);
         return edgeResult;
       } catch {
         lat.generate_hypotheses = Math.round(performance.now() - t0);
+        console.warn("[Pipeline] Hypothesis engine failed — skipping explanation generation.");
         return null;
       }
     })(),
   ]);
 
-  // Coalesce hypothesis result
   const hypotheses = hypothesesRaw;
 
   waveLat.wave3_reasoning = Math.round(performance.now() - w3Start);
 
-  // Stream Wave 3 results
   onProgress?.("bayesian", { bayesian: bayesianResult });
   onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
   // ═══════════════════════════════════════════════════════
   // WAVE 4 — Clinical Safety Evaluation
-  //   • Oversight / Safety Engine
-  //   Safety flags from DDX (drug interactions, allergy conflicts)
-  //   are already available via ddxResult — oversight aggregates them.
   // ═══════════════════════════════════════════════════════
   const w4Start = performance.now();
 
@@ -660,7 +763,7 @@ export async function runClinicalPipeline(
             matched_symptoms: ddxResult?.matched_symptoms || [],
             unmatched_symptoms: ddxResult?.unmatched_symptoms || [],
           }),
-          MODULE_TIMEOUT_MS,
+          TIMEOUT.UNCERTAINTY,
           "uncertainty_engine",
         );
         lat.uncertainty_engine = Math.round(performance.now() - t0);
@@ -689,7 +792,7 @@ export async function runClinicalPipeline(
             visit_id: input.visit_id,
             clinic_id: input.clinic_id,
           }),
-          MODULE_TIMEOUT_MS,
+          TIMEOUT.HYBRID,
           "hybrid_reasoning",
         );
         lat.hybrid_reasoning = Math.round(performance.now() - t0);
@@ -712,10 +815,11 @@ export async function runClinicalPipeline(
   lat.total = totalLatency;
 
   console.log(
-    `[Pipeline] v4 complete in ${totalLatency}ms (target <10000ms). ` +
+    `[Pipeline] v4.1 complete in ${totalLatency}ms. ` +
     `Waves: W1=${waveLat.wave1_context}ms W2=${waveLat.wave2_analysis}ms ` +
     `W3=${waveLat.wave3_reasoning}ms W4=${waveLat.wave4_safety}ms W5=${waveLat.wave5_output}ms. ` +
-    `Cache: reasoning=${cache.reasoning_hit}, preindexed=${cache.preindexed_hit}, evidence=${cache.evidence_hit}`,
+    `Cache: reasoning=${cache.reasoning_hit}, preindexed=${cache.preindexed_hit}, evidence=${cache.evidence_hit}. ` +
+    `Organ system: ${dominantSystem || "none"}`,
   );
 
   // ── Memoize for future cache hits ──
@@ -746,15 +850,16 @@ export async function runClinicalPipeline(
     .from("monitoring_events")
     .insert({
       event_type: "pipeline_latency",
-      pipeline_type: "modular_v4_waves",
       total_latency_ms: totalLatency,
       stage_latencies: lat,
       visit_id: input.visit_id || null,
       clinic_id: input.clinic_id || null,
       metadata: {
+        pipeline_type: "modular_v4.1_waves",
         wave_latencies: waveLat,
         ddx_enabled: !!ddxResult,
         ddx_diagnoses: ddxResult?.differential_diagnoses.length || 0,
+        organ_system_weighting: dominantSystem || "none",
         bayesian_enabled: !!bayesianResult,
         bayesian_candidates: bayesianResult?.total_candidates || 0,
         physiology_states: physiologicalContext?.physiological_states.length || 0,
@@ -793,15 +898,14 @@ export async function runClinicalPipeline(
   if (!hybridReasoning || !(hybridReasoning as any).soap) {
     console.log("[Pipeline] Hybrid reasoning missing SOAP — generating fallback SOAP.");
     try {
-      // Build a MergedContextObject-like shape for the SOAP generator
       const soapCtx = {
         chief_complaint: ctx.chief_complaint,
         symptoms: symptoms,
         symptom_duration: ctx.symptom_duration || "",
-        associated_symptoms: (ctx as any).associated_symptoms || [],
+        associated_symptoms: ctx.associated_symptoms || [],
         medical_history: ctx.medical_history || [],
         family_history: [] as string[],
-        risk_factors: (ctx as any).risk_factors || [],
+        risk_factors: ctx.risk_factors || [],
         medications: ctx.current_medications || [],
         allergies: ctx.allergies || [],
         vitals: {
@@ -815,7 +919,7 @@ export async function runClinicalPipeline(
           height_cm: ctx.height || null,
         },
         lab_results: [] as any[],
-        risk_flags: (ctx as any).risk_flags || [],
+        risk_flags: ctx.risk_flags || [],
         missing_information: [] as string[],
         context_confidence: 0.5,
         visit_id: input.visit_id || "",
@@ -841,6 +945,22 @@ export async function runClinicalPipeline(
       soapFallback = generateSOAP({
         context: soapCtx as any,
         ddx: soapDdx as any,
+        medications: ddxResult?.suggested_medications ? {
+          suggestions: ddxResult.suggested_medications.map(m => ({
+            generic_name: m.generic_name,
+            dose: "",
+            frequency: "",
+            safe: m.safe,
+          })),
+        } as any : undefined,
+        guidelines: guidelineAlignment ? {
+          recommendations: (guidelineAlignment as any).recommendations || [],
+        } as any : guidelineCompliance ? {
+          recommendations: (guidelineCompliance.management_steps || []).map((s: any) => ({
+            recommendation: s.step,
+            organization: s.source,
+          })),
+        } as any : undefined,
         uncertainty: uncertaintyResult ? {
           confidence_score: uncertaintyResult.confidence_score,
           confidence_label: uncertaintyResult.confidence_label,
