@@ -12,7 +12,7 @@
 
 import type { MergedContextObject } from "@/services/context_service";
 import { logPipelineExecution, validateContextObject } from "@/services/context_service";
-import { runClinicalPipeline as runO1Pipeline, type PipelineResult } from "@/services/clinical_pipeline/orchestrator";
+import { runUnifiedClinicalPipeline as runO1Pipeline, type PipelineResult } from "@/services/clinical_pipeline/orchestrator";
 import { toClinicalContext, fromMergedContext } from "@/types/clinical-context";
 import { setFeatureFlag } from "@/services/feature_flags";
 
