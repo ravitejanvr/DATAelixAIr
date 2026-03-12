@@ -151,16 +151,20 @@ export async function runClinicalPipeline(
       } : { confidence_score: 0, confidence_label: "Very Uncertain", missing_evidence: [], follow_up_questions: [], raw: null },
 
       soap_draft: o1Result.hybrid_reasoning ? {
-        subjective: (o1Result.hybrid_reasoning as any).soap?.subjective || "",
-        objective: (o1Result.hybrid_reasoning as any).soap?.objective || "",
-        assessment: (o1Result.hybrid_reasoning as any).soap?.assessment || "",
-        plan: (o1Result.hybrid_reasoning as any).soap?.plan || "",
+        soap: {
+          subjective: (o1Result.hybrid_reasoning as any).soap?.subjective || "",
+          objective: (o1Result.hybrid_reasoning as any).soap?.objective || "",
+          assessment: (o1Result.hybrid_reasoning as any).soap?.assessment || "",
+          plan: (o1Result.hybrid_reasoning as any).soap?.plan || "",
+        },
       } : o1Result.soap_fallback ? {
-        subjective: o1Result.soap_fallback.soap.subjective,
-        objective: o1Result.soap_fallback.soap.objective,
-        assessment: o1Result.soap_fallback.soap.assessment,
-        plan: o1Result.soap_fallback.soap.plan,
-      } : { subjective: "", objective: "", assessment: "", plan: "" },
+        soap: {
+          subjective: o1Result.soap_fallback.soap.subjective,
+          objective: o1Result.soap_fallback.soap.objective,
+          assessment: o1Result.soap_fallback.soap.assessment,
+          plan: o1Result.soap_fallback.soap.plan,
+        },
+      } : { soap: { subjective: "", objective: "", assessment: "", plan: "" } },
 
       latency: {
         wave1_ms: o1Result.wave_latencies.wave1_context || 0,
