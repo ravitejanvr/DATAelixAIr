@@ -617,7 +617,11 @@ export async function runUnifiedClinicalPipeline(
   let evidence: EvidenceQueryResult | null = null;
   if (ctx.chief_complaint) {
     const evT0 = performance.now();
-    const enrichedQuery = buildEvidenceQuery(ctx.chief_complaint, ddxResult);
+    const enrichedQuery = buildEvidenceQuery(ctx.chief_complaint, ddxResult, {
+      risk_factors: ctx.risk_factors,
+      patient_age: ctx.patient_age,
+      patient_sex: ctx.patient_sex,
+    });
     try {
       const cached = await getCached<EvidenceQueryResult>(enrichedQuery, "evidence");
       if (cached.hit && cached.data) {
