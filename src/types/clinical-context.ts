@@ -182,21 +182,21 @@ export function fromPCIEContext(pcie: any): UnifiedClinicalContext {
  */
 export function toClinicalContext(ucc: UnifiedClinicalContext): ClinicalContext {
   return {
-    patient_name: ucc.patient_name || "",
-    patient_age: ucc.patient_age ?? undefined,
-    patient_sex: ucc.patient_sex || "",
+    patient_age: ucc.patient_age ?? null,
+    patient_sex: ucc.patient_sex || null,
     chief_complaint: ucc.chief_complaint,
     symptom_duration: ucc.symptom_duration,
     medical_history: ucc.medical_history,
     current_medications: ucc.current_medications,
     allergies: ucc.allergies,
-    temperature: ucc.vitals?.temperature ?? undefined,
+    temperature: ucc.vitals?.temperature ?? null,
     blood_pressure: ucc.vitals?.bp_systolic && ucc.vitals?.bp_diastolic
       ? `${ucc.vitals.bp_systolic}/${ucc.vitals.bp_diastolic}`
-      : undefined,
-    pulse: ucc.vitals?.pulse ?? undefined,
-    oxygen_saturation: ucc.vitals?.spo2 ?? undefined,
-    respiratory_rate: ucc.vitals?.respiratory_rate ?? undefined,
-    weight: ucc.vitals?.weight_kg ?? undefined,
-  } as ClinicalContext;
+      : null,
+    pulse: ucc.vitals?.pulse ?? null,
+    oxygen_saturation: ucc.vitals?.spo2 ?? null,
+    respiratory_rate: ucc.vitals?.respiratory_rate ?? null,
+    weight: ucc.vitals?.weight_kg ?? null,
+    height: ucc.vitals?.height_cm ?? null,
+  };
 }
