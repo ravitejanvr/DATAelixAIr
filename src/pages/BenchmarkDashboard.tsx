@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/table";
 import {
   Play, Loader2, CheckCircle, XCircle, AlertTriangle,
-  Clock, Target, Shield, Activity, Beaker,
+  Clock, Target, Shield, Activity, Beaker, GitBranch,
+  BookOpen, Pill, Brain,
 } from "lucide-react";
 import { runBenchmarkV5, BENCHMARK_CASES_V5, type BenchmarkSuiteResult } from "@/services/benchmark_v5";
 
@@ -31,6 +32,12 @@ function scoreBadge(rate: number) {
   return <Badge className={`${color} text-[9px]`}>{pct(rate)}</Badge>;
 }
 
+function statusDot(ok: boolean) {
+  return (
+    <span className={`inline-block w-2 h-2 rounded-full ${ok ? "bg-emerald-500" : "bg-destructive"}`} />
+  );
+}
+
 export default function BenchmarkDashboard() {
   const [result, setResult] = useState<BenchmarkSuiteResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -50,6 +57,15 @@ export default function BenchmarkDashboard() {
       setRunning(false);
     }
   };
+
+  // Compute diagnostic stats
+  const graphConnected = result ? result.cases.filter(c => !c.graph_miss).length : 0;
+  const totalGraphMatches = result ? result.cases.reduce((s, c) => s + c.graph_symptom_matches, 0) : 0;
+  const totalDangerInjected = result ? result.cases.reduce((s, c) => s + c.dangerous_injected, 0) : 0;
+  const totalGuidelineSources = result ? [...new Set(result.cases.flatMap(c => c.guideline_sources))].length : 0;
+  const medValidationIssues = result ? result.cases.filter(c =>
+    c.actual_medications.some(m => !m || m === "See guidelines")
+  ).length : 0;
 
   return (
     <div className="space-y-6">
@@ -124,6 +140,92 @@ export default function BenchmarkDashboard() {
             </Card>
           </div>
 
+          {/* ═══ DIAGNOSTIC PANELS ═══ */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Brain className="h-4 w-4" /> Pipeline Diagnostic Audit
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Graph Symptom Matches */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <GitBranch className="h-3 w-3" /> Graph Traversal
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {statusDot(graphConnected === result.total_cases)}
+                    <span className="text-sm font-semibold">{graphConnected}/{result.total_cases} connected</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{totalGraphMatches} total symptom matches</p>
+                  {graphConnected < result.total_cases && (
+                    <Badge className="bg-destructive/10 text-destructive text-[8px]">
+                      GRAPH_NOT_CONNECTED: {result.total_cases - graphConnected} cases
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Guideline Traversal */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <BookOpen className="h-3 w-3" /> Guideline Engine
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {statusDot(totalGuidelineSources > 0)}
+                    <span className="text-sm font-semibold">{totalGuidelineSources} sources</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {result.cases.filter(c => c.guideline_citations > 0).length}/{result.total_cases} cases with citations
+                  </p>
+                  {totalGuidelineSources === 0 && (
+                    <Badge className="bg-destructive/10 text-destructive text-[8px]">
+                      GUIDELINE_ENGINE_EMPTY
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Danger Detection */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Shield className="h-3 w-3" /> Danger Layer
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {statusDot(result.danger_detection_rate >= 0.9)}
+                    <span className="text-sm font-semibold">{pct(result.danger_detection_rate)}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{totalDangerInjected} diagnoses injected</p>
+                  {result.danger_detection_rate < 0.9 && (
+                    <Badge className="bg-destructive/10 text-destructive text-[8px]">
+                      DANGER_LAYER_INCOMPLETE
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Medication Validation */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Pill className="h-3 w-3" /> Medication Validation
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {statusDot(medValidationIssues === 0)}
+                    <span className="text-sm font-semibold">
+                      {medValidationIssues === 0 ? "Valid" : `${medValidationIssues} issues`}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {result.cases.reduce((s, c) => s + c.actual_medications.length, 0)} total medications
+                  </p>
+                  {medValidationIssues > 0 && (
+                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400 text-[8px]">
+                      MEDICATION_STRUCTURE_INCOMPLETE
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Accuracy Bars */}
           <Card>
             <CardHeader className="pb-2">
@@ -197,6 +299,7 @@ export default function BenchmarkDashboard() {
                       <TableHead className="text-[10px]">Med Match</TableHead>
                       <TableHead className="text-[10px]">Guidelines</TableHead>
                       <TableHead className="text-[10px]">Danger</TableHead>
+                      <TableHead className="text-[10px]">Graph</TableHead>
                       <TableHead className="text-[10px]">Confidence</TableHead>
                       <TableHead className="text-[10px]">Latency</TableHead>
                     </TableRow>
@@ -227,6 +330,11 @@ export default function BenchmarkDashboard() {
                           )}
                         </TableCell>
                         <TableCell>
+                          {c.graph_miss
+                            ? <Badge className="bg-destructive/10 text-destructive text-[8px]">Miss</Badge>
+                            : <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 text-[8px]">{c.graph_symptom_matches} sym</Badge>}
+                        </TableCell>
+                        <TableCell>
                           <Badge variant="outline" className="text-[8px]">
                             {c.confidence_label} ({Math.round(c.confidence_score * 100)}%)
                           </Badge>
@@ -250,13 +358,19 @@ export default function BenchmarkDashboard() {
                   <span className="text-muted-foreground ml-auto">{pct(c.diagnosis_match_rate)} dx · {(c.latency.total_ms / 1000).toFixed(1)}s</span>
                 </summary>
                 <div className="mt-2 p-3 bg-muted/30 rounded-md text-[11px] space-y-2">
+                  <div><strong>Actual Diagnoses:</strong> {c.actual_diagnoses.join(", ") || "None"}</div>
                   <div><strong>Matched Diagnoses:</strong> {c.matched_diagnoses.join(", ") || "None"}</div>
+                  <div><strong>Actual Labs:</strong> {c.actual_labs.join(", ") || "None"}</div>
                   <div><strong>Matched Labs:</strong> {c.matched_labs.join(", ") || "None"}</div>
+                  <div><strong>Actual Medications:</strong> {c.actual_medications.join(", ") || "None"}</div>
                   <div><strong>Matched Medications:</strong> {c.matched_medications.join(", ") || "None"}</div>
-                  <div className="grid grid-cols-3 gap-2 mt-1">
-                    <div>W1: {c.latency.wave1_ms}ms</div>
-                    <div>W2: {c.latency.wave2_ms}ms</div>
-                    <div>W3: {c.latency.wave3_ms}ms</div>
+                  <div><strong>Guideline Sources:</strong> {c.guideline_sources.join(", ") || "None"}</div>
+                  <div className="flex gap-3 flex-wrap mt-1">
+                    <span>Graph: {c.graph_miss ? "❌ MISS" : `✅ ${c.graph_symptom_matches} matches`}</span>
+                    <span>Danger injected: {c.dangerous_injected}</span>
+                    <span>W1: {c.latency.wave1_ms}ms</span>
+                    <span>W2: {c.latency.wave2_ms}ms</span>
+                    <span>W3: {c.latency.wave3_ms}ms</span>
                   </div>
                 </div>
               </details>
@@ -270,7 +384,7 @@ export default function BenchmarkDashboard() {
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
             <AlertTriangle className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">Click "Run Benchmark" to evaluate the clinical pipeline against 10 test cases.</p>
+            <p className="text-sm text-muted-foreground">Click "Run Benchmark" to evaluate the clinical pipeline against {BENCHMARK_CASES_V5.length} test cases.</p>
           </CardContent>
         </Card>
       )}
