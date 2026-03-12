@@ -293,7 +293,7 @@ export async function runPipelineTrace(
               safety_score: "from Wave 4",
               hypothesis_reasoning: "from Wave 3",
             },
-            output_summary: {
+             output_summary: {
               confidence_score: data.hybrid_reasoning ? "pending uncertainty" : null,
               confidence_label: null,
               hybrid_reasoning_enabled: !!data.hybrid_reasoning,
@@ -302,6 +302,7 @@ export async function runPipelineTrace(
               soap_objective: (data.hybrid_reasoning as any)?.soap?.objective ? "populated" : "empty",
               soap_assessment: (data.hybrid_reasoning as any)?.soap?.assessment ? "populated" : "empty",
               soap_plan: (data.hybrid_reasoning as any)?.soap?.plan ? "populated" : "empty",
+              soap_fallback_available: "check final_result.soap_fallback",
             },
             engines_invoked: ["Uncertainty Calibration Engine", "Hybrid Reasoning Engine", "SOAP Generator"],
             gaps: [],
