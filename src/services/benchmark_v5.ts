@@ -440,6 +440,18 @@ export async function runBenchmarkV5(
         actual_diagnoses: [],
         actual_labs: [],
         actual_medications: [],
+        pipeline_audit: {
+          pipeline_name: "error",
+          ddx_engine_invoked: false,
+          diagnosis_scoring_enabled: false,
+          organ_system_bonus_applied: false,
+          danger_bonus_applied: false,
+          knowledge_retrieval_invoked: false,
+          guideline_engine_invoked: false,
+          safety_engine_invoked: false,
+          uncertainty_engine_invoked: false,
+          soap_generated: false,
+        },
         pipeline_output: null as any,
       });
     }
