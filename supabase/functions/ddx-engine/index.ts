@@ -200,6 +200,19 @@ Deno.serve(async (req) => {
     };
 
     const DEFAULT_PRIOR = 0.05;
+    const MIN_SCORE_THRESHOLD = 25; // minimum probability % (dangerous diagnoses bypass)
+
+    // ── Organ System Map ──
+    const ORGAN_SYSTEM_MAP: Record<string, string[]> = {
+      respiratory: ["cough", "dyspnea", "shortness of breath", "wheezing", "sputum", "chest tightness", "hemoptysis", "productive cough"],
+      cardiovascular: ["chest pain", "palpitations", "syncope", "edema", "diaphoresis", "left arm pain", "near-syncope"],
+      gastrointestinal: ["nausea", "vomiting", "diarrhea", "abdominal pain", "abdominal cramps", "constipation", "bloating", "loss of appetite"],
+      neurological: ["headache", "severe headache", "dizziness", "confusion", "seizure", "weakness", "numbness", "photophobia", "neck stiffness", "unsteady gait", "blurred vision"],
+      dermatological: ["rash", "pruritus", "urticaria", "skin rash", "maculopapular rash", "petechial rash"],
+      infectious: ["fever", "high fever", "chills", "rigors", "sweating", "fatigue", "malaise", "body ache", "low-grade fever"],
+      musculoskeletal: ["joint pain", "back pain", "muscle pain", "stiffness", "swelling"],
+    };
+
     const totalSymptomCount = normalizedSymptoms.length;
     const isPediatric = age != null && age < 18;
     const isElderly = age != null && age > 65;
