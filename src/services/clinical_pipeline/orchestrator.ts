@@ -113,18 +113,18 @@ export type PipelineProgressCallback = (stage: string, data: Partial<PipelineRes
 // ── Adaptive Timeout Constants (per-engine) ──
 
 const TIMEOUT = {
-  PCIE:            1500,
-  DDX:             8000,
-  PHYSIOLOGY:      6000,
-  EVIDENCE:        7000,
+  PCIE:            2000,
+  DDX:             10000,
+  PHYSIOLOGY:      10000,
+  EVIDENCE:        9000,
   PREINDEXED:      2000,
-  BAYESIAN:        4000,
-  GUIDELINE:       7000,
-  GUIDELINE_COMPLIANCE: 9000,
-  HYPOTHESIS:      8000,
-  UNCERTAINTY:     4000,
-  HYBRID:          6000,
-  SOAP:            3000,
+  BAYESIAN:        8000,
+  GUIDELINE:       10000,
+  GUIDELINE_COMPLIANCE: 12000,
+  HYPOTHESIS:      12000,
+  UNCERTAINTY:     8000,
+  HYBRID:          10000,
+  SOAP:            4000,
 } as const;
 
 // ── Organ-System Weighting ──
