@@ -342,9 +342,17 @@ export async function runUnifiedClinicalPipeline(
   clearPipelineLogs();
   clearOversightEvents();
   const lineageTracker = new LineageTracker();
+  const pcieCore = new PCIECore({
+    visit_id: input.visit_id,
+    clinic_id: input.clinic_id,
+    consultation_id: input.consultation_id,
+  });
   const symptoms = extractSymptoms(input.clinical_context);
   const vitals = buildVitals(input.clinical_context);
   const ctx = input.clinical_context;
+
+  // Hydrate PCIE Core from input context
+  pcieCore.hydrateFromClinicalContext(ctx);
 
   // Initial snapshot — pre-pipeline context
   lineageTracker.captureSnapshot("Wave 0 (Pre)", "pcie", {
