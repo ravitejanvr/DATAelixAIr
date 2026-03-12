@@ -648,7 +648,7 @@ export default function Clinical() {
         setStageLatencies({});
 
         // Dynamic import of O1 pipeline to avoid bundle bloat when disabled
-        const { runClinicalPipeline } = await import("@/services/clinical_pipeline/orchestrator");
+        const { runUnifiedClinicalPipeline } = await import("@/services/clinical_pipeline/orchestrator");
         const { buildClinicalContext } = await import("@/lib/clinical-context");
 
         // Build ClinicalContext from current UI state
@@ -661,7 +661,7 @@ export default function Clinical() {
         if (chiefComplaint) (pipelineContext as any).chief_complaint = chiefComplaint;
         if (selectedSymptoms.length > 0) (pipelineContext as any).symptoms = selectedSymptoms;
 
-        const o1Result = await runClinicalPipeline(
+        const o1Result = await runUnifiedClinicalPipeline(
           {
             clinical_context: pipelineContext,
             visit_id: visitId,

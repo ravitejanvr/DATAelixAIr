@@ -205,7 +205,7 @@ export default function PipelineTracePage() {
   const [trace, setTrace] = useState<PipelineTrace | null>(null);
   const [loading, setLoading] = useState(false);
   const [liveWaves, setLiveWaves] = useState<WaveTrace[]>([]);
-  const [activeTab, setActiveTab] = useState<"waves" | "lineage">("waves");
+  const [activeTab, setActiveTab] = useState<"waves" | "engines" | "lineage">("waves");
 
   const runTrace = async () => {
     setLoading(true);
@@ -260,6 +260,10 @@ export default function PipelineTracePage() {
                 <p className="font-semibold">{trace.case_name}</p>
               </div>
               <div>
+                <p className="text-xs text-muted-foreground">Pipeline Entry</p>
+                <p className="font-mono font-semibold text-primary">{trace.pipeline_entry}</p>
+              </div>
+              <div>
                 <p className="text-xs text-muted-foreground">Total Latency</p>
                 <p className="font-mono font-semibold">{trace.total_ms}ms</p>
               </div>
@@ -269,27 +273,21 @@ export default function PipelineTracePage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Lineage Coverage</p>
-                <p className={`font-semibold ${(trace.lineage?.coverage_pct ?? 0) < 70 ? "text-destructive" : "text-primary"}`}>
-                  {trace.lineage?.coverage_pct ?? 0}%
+                <p className={`font-semibold ${trace.lineage_coverage_pct < 70 ? "text-destructive" : "text-primary"}`}>
+                  {trace.lineage_coverage_pct}%
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Total Gaps</p>
-                <p className={`font-semibold ${trace.all_gaps.length > 0 ? "text-destructive" : "text-primary"}`}>{trace.all_gaps.length}</p>
+                <p className="text-xs text-muted-foreground">Waves Executed</p>
+                <p className="font-mono text-xs">{trace.waves_executed.join(" → ")}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Danger Detected</p>
                 <Badge variant={trace.danger_detected ? "destructive" : "secondary"}>{trace.danger_detected ? "Yes" : "No"}</Badge>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Unprocessed Fields</p>
-                <p className={`font-semibold ${(trace.lineage?.unprocessed_fields.length ?? 0) > 0 ? "text-destructive" : "text-primary"}`}>
-                  {trace.lineage?.unprocessed_fields.length ?? 0}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Waves Executed</p>
-                <p className="font-mono">{trace.waves.length}</p>
+                <p className="text-xs text-muted-foreground">Total Gaps</p>
+                <p className={`font-semibold ${trace.all_gaps.length > 0 ? "text-destructive" : "text-primary"}`}>{trace.all_gaps.length}</p>
               </div>
             </div>
           </CardContent>
@@ -297,9 +295,12 @@ export default function PipelineTracePage() {
       )}
 
       {(trace || displayWaves.length > 0) && (
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-4 flex-wrap">
           <Button size="sm" variant={activeTab === "waves" ? "default" : "outline"} onClick={() => setActiveTab("waves")}>
             <Eye className="h-4 w-4 mr-1" /> Wave Execution
+          </Button>
+          <Button size="sm" variant={activeTab === "engines" ? "default" : "outline"} onClick={() => setActiveTab("engines")} disabled={!trace}>
+            <Activity className="h-4 w-4 mr-1" /> Engine Logs
           </Button>
           <Button size="sm" variant={activeTab === "lineage" ? "default" : "outline"} onClick={() => setActiveTab("lineage")} disabled={!trace?.lineage}>
             <GitBranch className="h-4 w-4 mr-1" /> Context Processing Map
@@ -344,6 +345,40 @@ export default function PipelineTracePage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {activeTab === "engines" && trace && (
+        <Card className="mb-4">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm font-mono flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" /> Engine Execution Logs
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-1.5 pr-3">Engine</th>
+                  <th className="text-left py-1.5 pr-3">Status</th>
+                  <th className="text-right py-1.5">Latency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trace.engine_execution_logs.map(log => (
+                  <tr key={log.engine} className="border-b border-muted">
+                    <td className="py-1.5 pr-3 font-semibold">{log.engine}</td>
+                    <td className="py-1.5 pr-3">
+                      <Badge variant={log.status === "success" ? "default" : log.status === "timeout" ? "destructive" : "secondary"} className="text-[10px]">
+                        {log.status}
+                      </Badge>
+                    </td>
+                    <td className="py-1.5 text-right">{log.latency_ms}ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
       )}
 
       {activeTab === "waves" && displayWaves.length > 0 && (
