@@ -99,6 +99,7 @@ export interface PipelineResult {
     evidence_hit: boolean;
     guideline_hit: boolean;
   };
+  lineage: LineageReport | null;
 }
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
