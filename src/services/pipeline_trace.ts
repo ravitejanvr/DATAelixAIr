@@ -178,6 +178,7 @@ export async function runPipelineTrace(
             dangerous_injected: ddx?.dangerous_diagnoses_injected ?? 0,
             reasoning_traces_count: ddx?.reasoning_traces?.length ?? 0,
             organ_systems: (ddx as any)?.organ_systems_active ?? [],
+            organ_system_weighting: (ddx as any)?.organ_system_weighting ?? null,
             guideline_recommendations: ddx?.guideline_recommendations?.length ?? 0,
             graph_miss: (ddx as any)?.graph_miss ?? true,
           },
