@@ -10,7 +10,7 @@ import type { DDXOutput } from "@/services/ddx_service";
 import type { GuidelineResult } from "@/services/guideline_retrieval";
 import type { MedicationEngineResult } from "@/services/medication_engine";
 import type { SafetyEngineResult } from "@/services/safety_engine";
-import type { UncertaintyOutput } from "@/services/uncertainty_engine";
+import type { UncertaintyOutput } from "@/services/uncertainty_service";
 
 export interface SOAPNote {
   subjective: string;
