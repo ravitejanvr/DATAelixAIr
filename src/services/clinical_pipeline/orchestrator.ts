@@ -705,13 +705,9 @@ export async function runUnifiedClinicalPipeline(
       }
     })(),
 
-    // 3b: Guideline Alignment (legacy — from input.recommendations if available)
+    // 3b: Guideline Alignment (built from DDX via buildGuidelineQuery)
     (async (): Promise<GuidelineAlignmentResult | null> => {
-      const recs = input.recommendations || (ddxResult ? {
-        diagnosis: ddxResult.differential_diagnoses[0]?.diagnosis_name,
-        drugs: ddxResult.suggested_medications?.map(m => m.generic_name) || [],
-        labs: ddxResult.recommended_labs?.map(l => l.test_name) || [],
-      } : null);
+      const recs = input.recommendations || buildGuidelineQuery(ddxResult, ctx);
       if (!recs) return null;
       const t0 = performance.now();
       const cacheKey = JSON.stringify(recs);
