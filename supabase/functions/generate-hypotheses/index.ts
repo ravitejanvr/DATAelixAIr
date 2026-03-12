@@ -284,19 +284,21 @@ Generate differential diagnoses as JSON array.`;
     // ══════════════════════════════════════════════
     // STEP 5: Store in diagnostic_hypotheses table
     // ══════════════════════════════════════════════
-    for (const h of hypotheses) {
-      await supabase.from("diagnostic_hypotheses").insert({
-        visit_id,
-        hypothesis: {
-          diagnosis: h.diagnosis,
-          supporting_factors: h.supporting_factors || [],
-          contradicting_factors: h.contradicting_factors || [],
-          recommended_tests: h.recommended_tests || [],
-          must_not_miss: h.must_not_miss || false,
-        },
-        confidence_score: Math.min(1, Math.max(0, h.confidence || 0)),
-        evidence_sources: h.supporting_factors || [],
-      });
+    if (!isBenchmark) {
+      for (const h of hypotheses) {
+        await supabase.from("diagnostic_hypotheses").insert({
+          visit_id,
+          hypothesis: {
+            diagnosis: h.diagnosis,
+            supporting_factors: h.supporting_factors || [],
+            contradicting_factors: h.contradicting_factors || [],
+            recommended_tests: h.recommended_tests || [],
+            must_not_miss: h.must_not_miss || false,
+          },
+          confidence_score: Math.min(1, Math.max(0, h.confidence || 0)),
+          evidence_sources: h.supporting_factors || [],
+        });
+      }
     }
 
     // Log to monitoring
