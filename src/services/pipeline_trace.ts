@@ -9,6 +9,7 @@ import { setFeatureFlag } from "@/services/feature_flags";
 import { BENCHMARK_CASES_V5, type BenchmarkCase } from "@/services/benchmark_v5";
 import { runClinicalPipeline as runO1Pipeline, type PipelineResult, type PipelineInput } from "@/services/clinical_pipeline/orchestrator";
 import { fromMergedContext, toClinicalContext, type UnifiedClinicalContext } from "@/types/clinical-context";
+import type { LineageReport } from "@/services/clinical_pipeline/lineage_tracker";
 
 // ── Types ──
 
@@ -39,6 +40,7 @@ export interface PipelineTrace {
   }[];
   waves: WaveTrace[];
   final_result: PipelineResult;
+  lineage: LineageReport | null;
   all_gaps: string[];
   diagnoses_generated: string[];
   labs_suggested: string[];
@@ -373,6 +375,7 @@ export async function runPipelineTrace(
     adapter_field_audit: adapterAudit,
     waves,
     final_result: result,
+    lineage: result.lineage,
     all_gaps: allGaps,
     diagnoses_generated: diagnoses,
     labs_suggested: labs,

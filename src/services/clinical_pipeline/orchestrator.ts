@@ -45,6 +45,7 @@ import { runMultiAgentPipeline, type OrchestratorResponse } from "@/services/mul
 import { generatePhysiologicalContext, type PhysiologicalContextResult } from "@/services/physiology_engine";
 import { calculateDiagnosticProbabilities, type BayesianResult } from "@/services/bayesian_engine";
 import { supabase } from "@/integrations/supabase/client";
+import { LineageTracker, type LineageReport } from "@/services/clinical_pipeline/lineage_tracker";
 
 // ── Public Types ──
 
@@ -98,6 +99,7 @@ export interface PipelineResult {
     evidence_hit: boolean;
     guideline_hit: boolean;
   };
+  lineage: LineageReport | null;
 }
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
@@ -289,7 +291,7 @@ export async function runClinicalPipeline(
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
     multi_agent: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
-    cache_stats: cache,
+    cache_stats: cache, lineage: null,
   };
 
   if (!isNewPipelineEnabled()) {
@@ -299,11 +301,38 @@ export async function runClinicalPipeline(
 
   clearPipelineLogs();
   clearOversightEvents();
+  const lineageTracker = new LineageTracker();
   const symptoms = extractSymptoms(input.clinical_context);
   const vitals = buildVitals(input.clinical_context);
   const ctx = input.clinical_context;
 
-  console.log("[Pipeline] v4.1 wave-based starting — adaptive timeouts + organ-system weighting...");
+  // Initial snapshot — pre-pipeline context
+  lineageTracker.captureSnapshot("Wave 0 (Pre)", "pcie", {
+    chief_complaint: ctx.chief_complaint,
+    symptoms: ctx.symptoms,
+    associated_symptoms: ctx.associated_symptoms,
+    symptom_duration: ctx.symptom_duration,
+    medical_history: ctx.medical_history,
+    family_history: (ctx as any).family_history || [],
+    risk_factors: ctx.risk_factors || [],
+    current_medications: ctx.current_medications,
+    allergies: ctx.allergies,
+    vitals: {
+      bp_systolic: vitals.bp_systolic,
+      bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null,
+      pulse: vitals.pulse,
+      temperature: vitals.temperature,
+      spo2: vitals.spo2,
+      respiratory_rate: ctx.respiratory_rate,
+      weight_kg: ctx.weight,
+      height_cm: ctx.height,
+    },
+    lab_results: [],
+    risk_flags: ctx.risk_flags || [],
+    patient_age: ctx.patient_age,
+    patient_sex: ctx.patient_sex,
+    context_confidence: 0,
+  });
 
   // ═══════════════════════════════════════════════════════
   // WAVE 0 — PCIE Context Hydration
@@ -389,6 +418,33 @@ export async function runClinicalPipeline(
 
   lat.build_context = Math.round(performance.now() - w1Start);
   waveLat.wave1_context = lat.build_context;
+  lineageTracker.captureSnapshot("Wave 1 (Context)", "context_enrichment", {
+    chief_complaint: ctx.chief_complaint,
+    symptoms: symptoms,
+    associated_symptoms: ctx.associated_symptoms || [],
+    symptom_duration: ctx.symptom_duration,
+    medical_history: ctx.medical_history,
+    family_history: (ctx as any).family_history || [],
+    risk_factors: ctx.risk_factors || [],
+    current_medications: ctx.current_medications,
+    allergies: ctx.allergies,
+    vitals: {
+      bp_systolic: vitals.bp_systolic,
+      bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null,
+      pulse: vitals.pulse,
+      temperature: vitals.temperature,
+      spo2: vitals.spo2,
+      respiratory_rate: ctx.respiratory_rate,
+      weight_kg: ctx.weight,
+      height_cm: ctx.height,
+    },
+    lab_results: [],
+    risk_flags: ctx.risk_flags || [],
+    patient_age: ctx.patient_age,
+    patient_sex: ctx.patient_sex,
+    context_confidence: 0,
+  });
+  lineageTracker.recordEngineResult("context_enrichment", !!enrichedContext);
   onProgress?.("context", { enriched_context: enrichedContext });
 
   // ═══════════════════════════════════════════════════════
@@ -493,6 +549,25 @@ export async function runClinicalPipeline(
   }
 
   waveLat.wave2_analysis = Math.round(performance.now() - w2Start);
+  lineageTracker.recordEngineResult("ddx", !!ddxResult);
+  lineageTracker.recordEngineResult("physiology", !!physiologicalContext);
+  lineageTracker.captureSnapshot("Wave 2 (DDX)", "ddx", {
+    chief_complaint: ctx.chief_complaint,
+    symptoms: ddxResult?.matched_symptoms || symptoms,
+    associated_symptoms: ctx.associated_symptoms || [],
+    symptom_duration: ctx.symptom_duration,
+    medical_history: ctx.medical_history,
+    family_history: (ctx as any).family_history || [],
+    risk_factors: ctx.risk_factors || [],
+    current_medications: ctx.current_medications,
+    allergies: ctx.allergies,
+    vitals: { bp_systolic: vitals.bp_systolic, bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null, pulse: vitals.pulse, temperature: vitals.temperature, spo2: vitals.spo2, respiratory_rate: ctx.respiratory_rate, weight_kg: ctx.weight, height_cm: ctx.height },
+    lab_results: [],
+    risk_flags: ctx.risk_flags || [],
+    patient_age: ctx.patient_age,
+    patient_sex: ctx.patient_sex,
+    context_confidence: 0,
+  });
   onProgress?.("physiology", { physiological_context: physiologicalContext });
   onProgress?.("ddx", { ddx: ddxResult });
 
@@ -523,6 +598,7 @@ export async function runClinicalPipeline(
     }
     lat.retrieve_evidence = Math.round(performance.now() - evT0);
   }
+  lineageTracker.recordEngineResult("evidence", !!evidence && evidence.items.length > 0);
   onProgress?.("evidence", { evidence });
 
   // ═══════════════════════════════════════════════════════
@@ -710,6 +786,17 @@ export async function runClinicalPipeline(
   const hypotheses = hypothesesRaw;
 
   waveLat.wave3_reasoning = Math.round(performance.now() - w3Start);
+  lineageTracker.recordEngineResult("bayesian", !!bayesianResult);
+  lineageTracker.recordEngineResult("guideline", !!guidelineAlignment || !!guidelineCompliance);
+  lineageTracker.recordEngineResult("hypothesis", !!hypotheses && hypotheses.hypotheses.length > 0);
+  lineageTracker.captureSnapshot("Wave 3 (Reasoning)", "bayesian", {
+    chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
+    symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
+    family_history: (ctx as any).family_history || [], risk_factors: ctx.risk_factors || [],
+    current_medications: ctx.current_medications, allergies: ctx.allergies,
+    vitals: { bp_systolic: vitals.bp_systolic, bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null, pulse: vitals.pulse, temperature: vitals.temperature, spo2: vitals.spo2, respiratory_rate: ctx.respiratory_rate, weight_kg: ctx.weight, height_cm: ctx.height },
+    lab_results: [], risk_flags: ctx.risk_flags || [], patient_age: ctx.patient_age, patient_sex: ctx.patient_sex, context_confidence: 0,
+  });
 
   onProgress?.("bayesian", { bayesian: bayesianResult });
   onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
@@ -730,6 +817,15 @@ export async function runClinicalPipeline(
   })();
 
   waveLat.wave4_safety = Math.round(performance.now() - w4Start);
+  lineageTracker.recordEngineResult("safety", !!oversight);
+  lineageTracker.captureSnapshot("Wave 4 (Safety)", "safety", {
+    chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
+    symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
+    family_history: (ctx as any).family_history || [], risk_factors: ctx.risk_factors || [],
+    current_medications: ctx.current_medications, allergies: ctx.allergies,
+    vitals: { bp_systolic: vitals.bp_systolic, bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null, pulse: vitals.pulse, temperature: vitals.temperature, spo2: vitals.spo2, respiratory_rate: ctx.respiratory_rate, weight_kg: ctx.weight, height_cm: ctx.height },
+    lab_results: [], risk_flags: ctx.risk_flags || [], patient_age: ctx.patient_age, patient_sex: ctx.patient_sex, context_confidence: 0,
+  });
   onProgress?.("safety", { oversight });
 
   // ═══════════════════════════════════════════════════════
@@ -805,6 +901,15 @@ export async function runClinicalPipeline(
   ]);
 
   waveLat.wave5_output = Math.round(performance.now() - w5Start);
+  lineageTracker.recordEngineResult("uncertainty", !!uncertaintyResult);
+  lineageTracker.captureSnapshot("Wave 5 (Output)", "soap", {
+    chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
+    symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
+    family_history: (ctx as any).family_history || [], risk_factors: ctx.risk_factors || [],
+    current_medications: ctx.current_medications, allergies: ctx.allergies,
+    vitals: { bp_systolic: vitals.bp_systolic, bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null, pulse: vitals.pulse, temperature: vitals.temperature, spo2: vitals.spo2, respiratory_rate: ctx.respiratory_rate, weight_kg: ctx.weight, height_cm: ctx.height },
+    lab_results: [], risk_flags: ctx.risk_flags || [], patient_age: ctx.patient_age, patient_sex: ctx.patient_sex, context_confidence: uncertaintyResult?.confidence_score ?? 0,
+  });
   onProgress?.("uncertainty", { uncertainty: uncertaintyResult });
   onProgress?.("reasoning", { hybrid_reasoning: hybridReasoning });
 
@@ -971,6 +1076,38 @@ export async function runClinicalPipeline(
       console.warn("[Pipeline] SOAP fallback generation failed:", e);
     }
   }
+  lineageTracker.recordEngineResult("soap", !!soapFallback || !!(hybridReasoning as any)?.soap);
+
+  // ── Final lineage snapshot (cockpit) ──
+  lineageTracker.captureSnapshot("Cockpit", "cockpit", {
+    chief_complaint: ctx.chief_complaint,
+    symptoms: symptoms,
+    associated_symptoms: ctx.associated_symptoms || [],
+    symptom_duration: ctx.symptom_duration,
+    medical_history: ctx.medical_history,
+    family_history: (ctx as any).family_history || [],
+    risk_factors: ctx.risk_factors || [],
+    current_medications: ctx.current_medications,
+    allergies: ctx.allergies,
+    vitals: {
+      bp_systolic: vitals.bp_systolic,
+      bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null,
+      pulse: vitals.pulse,
+      temperature: vitals.temperature,
+      spo2: vitals.spo2,
+      respiratory_rate: ctx.respiratory_rate,
+      weight_kg: ctx.weight,
+      height_cm: ctx.height,
+    },
+    lab_results: [],
+    risk_flags: ctx.risk_flags || [],
+    patient_age: ctx.patient_age,
+    patient_sex: ctx.patient_sex,
+    context_confidence: uncertaintyResult?.confidence_score ?? 0,
+  });
+  lineageTracker.recordEngineResult("cockpit", true);
+
+  const lineageReport = lineageTracker.generateReport();
 
   onProgress?.("complete", {});
 
@@ -995,5 +1132,6 @@ export async function runClinicalPipeline(
     wave_latencies: waveLat,
     total_latency_ms: totalLatency,
     cache_stats: cache,
+    lineage: lineageReport,
   };
 }
