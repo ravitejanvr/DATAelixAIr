@@ -598,6 +598,7 @@ export async function runClinicalPipeline(
     }
     lat.retrieve_evidence = Math.round(performance.now() - evT0);
   }
+  lineageTracker.recordEngineResult("evidence", !!evidence && evidence.items.length > 0);
   onProgress?.("evidence", { evidence });
 
   // ═══════════════════════════════════════════════════════
