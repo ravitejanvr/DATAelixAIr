@@ -190,6 +190,10 @@ Deno.serve(async (req) => {
     const DEFAULT_PRIOR = 0.05;
     const DEFAULT_SYMPTOM_LIK = 0.3; // assume moderate if no data
 
+    // Count total diagnoses that have symptom_likelihoods data
+    const diagsWithSymLik = candidate_diagnosis_ids.filter((id: string) => (symLikMap.get(id) || []).length > 0).length;
+    const hasAnySymLikData = diagsWithSymLik > 0;
+
     for (const diagId of candidate_diagnosis_ids) {
       // 1. PRIOR: P(D)
       const priorData = priorsMap.get(diagId);
@@ -211,8 +215,18 @@ Deno.serve(async (req) => {
           symptomLikelihood *= Math.max(0.01, Math.min(0.99, l));
         }
       } else if (symptomIds.length > 0) {
-        // No specific likelihoods found — use default
-        symptomLikelihood = Math.pow(DEFAULT_SYMPTOM_LIK, Math.min(symptomIds.length, 3));
+        // Differentiate: if OTHER diagnoses have likelihood data but this one doesn't,
+        // penalize it (lower likelihood). If NO diagnosis has data, use a neutral default
+        // that still differentiates based on symptom count resolved by DDX.
+        if (hasAnySymLikData) {
+          // This diagnosis has no symptom evidence while others do — penalize
+          symptomLikelihood = Math.pow(0.15, Math.min(symptomIds.length, 3));
+        } else {
+          // No symptom_likelihoods data at all — use symptom count from DDX as a proxy
+          // to differentiate (more matched symptoms = higher likelihood)
+          const matchedCount = symptomIds.length;
+          symptomLikelihood = Math.pow(DEFAULT_SYMPTOM_LIK, Math.max(1, 4 - matchedCount));
+        }
       }
 
       // 3. PHYSIOLOGY LIKELIHOOD: ∏ P(Φⱼ|D)
