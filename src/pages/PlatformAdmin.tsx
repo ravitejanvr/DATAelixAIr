@@ -18,6 +18,8 @@ import {
 import AdminArticleEditor from "@/components/blog/AdminArticleEditor";
 import InnovationDashboard from "@/components/admin/InnovationDashboard";
 import TerminologyAdmin from "@/pages/TerminologyAdmin";
+import PipelineDebug from "@/pages/PipelineDebug";
+import PipelineSimulation from "@/pages/PipelineSimulation";
 import type { MonitoringDashboardData } from "@/layers/monitoring/api";
 import { fetchMonitoringDashboard } from "@/layers/monitoring/api";
 import { MODEL_REGISTRY, DATA_ACCESS_MATRIX, ROLE_LABELS } from "@/layers/governance/api";
@@ -111,7 +113,7 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
-type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation" | "terminology";
+type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation" | "terminology" | "pipeline-debug" | "simulation";
 
 const getTabFromPath = (pathname: string): AdminTab => {
   const tabSegment = pathname.split("/")[2];
@@ -124,6 +126,8 @@ const getTabFromPath = (pathname: string): AdminTab => {
   if (tabSegment === "articles") return "articles";
   if (tabSegment === "innovation") return "innovation";
   if (tabSegment === "terminology") return "terminology";
+  if (tabSegment === "pipeline-debug") return "pipeline-debug";
+  if (tabSegment === "simulation") return "simulation";
   return "pilots";
 };
 
@@ -340,6 +344,8 @@ export default function PlatformAdmin() {
             <TabsTrigger value="articles"><BookOpen className="h-3.5 w-3.5 mr-1" /> Articles</TabsTrigger>
             <TabsTrigger value="innovation"><Lightbulb className="h-3.5 w-3.5 mr-1" /> Innovation</TabsTrigger>
             <TabsTrigger value="terminology"><Database className="h-3.5 w-3.5 mr-1" /> Terminology</TabsTrigger>
+            <TabsTrigger value="pipeline-debug"><Cpu className="h-3.5 w-3.5 mr-1" /> Pipeline Debug</TabsTrigger>
+            <TabsTrigger value="simulation"><Zap className="h-3.5 w-3.5 mr-1" /> Simulation</TabsTrigger>
           </TabsList>
 
           {/* Pilots Tab */}
@@ -638,6 +644,16 @@ export default function PlatformAdmin() {
           {/* Terminology Tab */}
           <TabsContent value="terminology" className="mt-4">
             <TerminologyAdmin />
+          </TabsContent>
+
+          {/* Pipeline Debug Tab */}
+          <TabsContent value="pipeline-debug" className="mt-4">
+            <PipelineDebug />
+          </TabsContent>
+
+          {/* Simulation Tab */}
+          <TabsContent value="simulation" className="mt-4">
+            <PipelineSimulation />
           </TabsContent>
         </Tabs>
       </div>
