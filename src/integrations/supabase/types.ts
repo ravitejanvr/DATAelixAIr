@@ -3714,6 +3714,36 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_execution_logs: {
+        Row: {
+          created_at: string
+          engine_name: string
+          error_message: string | null
+          id: string
+          latency_ms: number | null
+          status: string
+          visit_id: string
+        }
+        Insert: {
+          created_at?: string
+          engine_name: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          status?: string
+          visit_id: string
+        }
+        Update: {
+          created_at?: string
+          engine_name?: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          status?: string
+          visit_id?: string
+        }
+        Relationships: []
+      }
       population_signals: {
         Row: {
           affected_count: number
