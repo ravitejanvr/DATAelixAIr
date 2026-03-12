@@ -681,9 +681,10 @@ export default function Clinical() {
             if (data.bayesian) setPipelineBayesian(data.bayesian);
             if (data.hypotheses?.hypotheses) {
               setPipelineHypotheses(data.hypotheses.hypotheses.map((h: any) => ({
-                hypothesis: h.hypothesis || h.diagnosis,
-                probability: h.probability || h.confidence,
-                supporting_evidence: h.supporting_evidence || h.evidence || [],
+                diagnosis: h.hypothesis || h.diagnosis || h.diagnosis_name || "",
+                confidence: h.probability || h.confidence || 0,
+                supporting_factors: h.supporting_evidence || h.supporting_factors || [],
+                contradicting_factors: h.contradicting_factors || [],
                 recommended_tests: h.recommended_tests || [],
               })));
             }
