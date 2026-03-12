@@ -374,6 +374,38 @@ export async function runPipelineTrace(
     return { field, unified_value: uVal, clinical_value: cVal, status };
   });
 
+  // Build engine execution logs from stage latencies
+  const engineExecutionLogs: PipelineTrace["engine_execution_logs"] = [];
+  const engineNames = [
+    "wave0_pcie", "build_context", "physiological_engine", "ddx_engine",
+    "preindexed_lookup", "retrieve_evidence", "bayesian_engine",
+    "retrieve_guidelines", "guideline_compliance", "generate_hypotheses",
+    "oversight_report", "uncertainty_engine", "hybrid_reasoning",
+  ];
+  for (const eng of engineNames) {
+    const latency = result.stage_latencies[eng] ?? -1;
+    const outputMap: Record<string, unknown> = {
+      ddx_engine: result.ddx,
+      physiological_engine: result.physiological_context,
+      bayesian_engine: result.bayesian,
+      retrieve_evidence: result.evidence,
+      generate_hypotheses: result.hypotheses,
+      uncertainty_engine: result.uncertainty,
+      hybrid_reasoning: result.hybrid_reasoning,
+      oversight_report: result.oversight,
+      retrieve_guidelines: result.guideline_alignment,
+      guideline_compliance: result.guideline_compliance,
+    };
+    const output = outputMap[eng];
+    let status: "success" | "timeout" | "error" | "skipped" = "skipped";
+    if (latency >= 0) {
+      status = output ? "success" : "timeout";
+    }
+    engineExecutionLogs.push({ engine: eng, status, latency_ms: Math.max(0, latency) });
+  }
+
+  const wavesExecuted = waves.map(w => w.wave);
+
   return {
     case_id: bc.id,
     case_name: bc.name,
@@ -383,14 +415,18 @@ export async function runPipelineTrace(
     clinical_context_snapshot: clinicalContext as unknown as Record<string, unknown>,
     adapter_field_audit: adapterAudit,
     waves,
+    waves_executed: wavesExecuted,
     final_result: result,
     lineage: result.lineage,
+    lineage_coverage_pct: result.lineage?.coverage_pct ?? 0,
+    engine_execution_logs: engineExecutionLogs,
     all_gaps: allGaps,
     diagnoses_generated: diagnoses,
     labs_suggested: labs,
     medications_suggested: meds,
     graph_matches: graphMatches,
     danger_detected: dangerDetected,
+    pipeline_entry: "runUnifiedClinicalPipeline",
   };
 }
 
