@@ -655,8 +655,7 @@ export default function Clinical() {
         const pipelineContext = buildClinicalContext(
           { age: selectedPatient?.age ?? null, gender: selectedPatient?.gender ?? null, medical_history: selectedPatient?.medical_history, allergies: selectedPatient?.allergies, current_medications: selectedPatient?.current_medications },
           patientVitals,
-          intakeData,
-          extractedData,
+          intakeData as any,
         );
         // Override chief complaint from chip selection if available
         if (chiefComplaint) (pipelineContext as any).chief_complaint = chiefComplaint;
