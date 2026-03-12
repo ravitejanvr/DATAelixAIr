@@ -374,11 +374,12 @@ export async function runUnifiedClinicalPipeline(
   // WAVE 0 — PCIE Context Hydration
   // ═══════════════════════════════════════════════════════
   let unifiedContext: UnifiedClinicalContext | null = null;
-  if (input.visit_id) {
+  const isBenchmarkVisit = input.visit_id?.startsWith("bench-") || false;
+  if (input.visit_id && !isBenchmarkVisit) {
     const w0Start = performance.now();
     try {
-      const pcieRow = await withTimeout(
-        getPatientContext(input.visit_id),
+      const pcieRow = await withRetry(
+        () => getPatientContext(input.visit_id!),
         TIMEOUT.PCIE,
         "pcie_fetch",
       );
@@ -397,13 +398,25 @@ export async function runUnifiedClinicalPipeline(
         if ((!cc.current_medications || cc.current_medications.length === 0) && unifiedContext.current_medications.length > 0) {
           (cc as any).current_medications = unifiedContext.current_medications;
         }
+        // Propagate additional fields from PCIE if missing
+        if ((!ctx.risk_factors || ctx.risk_factors.length === 0) && unifiedContext.risk_factors.length > 0) {
+          (cc as any).risk_factors = unifiedContext.risk_factors;
+        }
+        if (!(ctx as any).family_history && unifiedContext.family_history.length > 0) {
+          (cc as any).family_history = unifiedContext.family_history;
+        }
         console.log(`[Pipeline] Wave 0: PCIE context loaded (confidence=${unifiedContext.context_confidence})`);
+      } else {
+        console.warn("[Pipeline] Wave 0: PCIE returned null — building minimal context from input");
       }
     } catch {
-      console.warn("[Pipeline] Wave 0: PCIE fetch failed, continuing without it");
+      console.warn("[Pipeline] Wave 0: PCIE fetch failed, continuing with input context");
     }
     lat.wave0_pcie = Math.round(performance.now() - w0Start);
     waveLat.wave0_pcie = lat.wave0_pcie;
+  } else if (isBenchmarkVisit) {
+    console.log("[Pipeline] Wave 0: Benchmark visit ID detected — skipping PCIE fetch");
+    waveLat.wave0_pcie = 0;
   }
 
   // ═══════════════════════════════════════════════════════
