@@ -926,8 +926,8 @@ export async function runUnifiedClinicalPipeline(
     (async (): Promise<UncertaintyResult | null> => {
       const t0 = performance.now();
       try {
-        const result = await withTimeout(
-          runUncertaintyEngine({
+        const result = await withRetry(
+          () => runUncertaintyEngine({
             symptoms: ddxResult?.matched_symptoms || symptoms,
             vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp: vitals.bp },
             differential_diagnoses: ddxResult?.differential_diagnoses || [],
