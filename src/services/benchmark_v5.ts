@@ -25,6 +25,19 @@ export interface BenchmarkCase {
   };
 }
 
+export interface PipelineAudit {
+  pipeline_name: string;
+  ddx_engine_invoked: boolean;
+  diagnosis_scoring_enabled: boolean;
+  organ_system_bonus_applied: boolean;
+  danger_bonus_applied: boolean;
+  knowledge_retrieval_invoked: boolean;
+  guideline_engine_invoked: boolean;
+  safety_engine_invoked: boolean;
+  uncertainty_engine_invoked: boolean;
+  soap_generated: boolean;
+}
+
 export interface BenchmarkCaseResult {
   case_id: string;
   case_name: string;
@@ -55,6 +68,7 @@ export interface BenchmarkCaseResult {
   actual_diagnoses: string[];
   actual_labs: string[];
   actual_medications: string[];
+  pipeline_audit: PipelineAudit;
   pipeline_output: ClinicalPipelineResult;
 }
 
@@ -351,6 +365,24 @@ export async function runBenchmarkV5(
       const graphSymptomMatches = ddxRaw?.matched_symptoms?.length ?? 0;
       const dangerousInjected = ddxRaw?.dangerous_diagnoses_injected ?? 0;
 
+      // Pipeline audit: determine which modules executed
+      const organSystems = pipelineResult.ddx_candidates.organ_systems_active || [];
+      const hasDangerDx = pipelineResult.ddx_candidates.diagnoses.some(d => d.must_not_miss);
+      const pipelineAudit: PipelineAudit = {
+        pipeline_name: "modular_probabilistic_v4",
+        ddx_engine_invoked: pipelineResult.ddx_candidates.diagnoses.length > 0 || ddxRaw !== null,
+        diagnosis_scoring_enabled: pipelineResult.ddx_candidates.diagnoses.some(d => d.probability_score > 0),
+        organ_system_bonus_applied: organSystems.length > 0,
+        danger_bonus_applied: hasDangerDx || dangerousInjected > 0,
+        knowledge_retrieval_invoked: pipelineResult.knowledge.source !== "fallback",
+        guideline_engine_invoked: pipelineResult.guidelines.recommendations.length > 0 || pipelineResult.guidelines.sources_used.length > 0,
+        safety_engine_invoked: pipelineResult.safety_alerts.safety_score < 100 || pipelineResult.safety_alerts.alerts.length >= 0,
+        uncertainty_engine_invoked: pipelineResult.confidence_scores.raw !== null,
+        soap_generated: !!pipelineResult.soap_draft?.soap?.subjective,
+      };
+
+      console.log(`[BenchmarkV5] Pipeline Audit — Case ${bc.id}:`, JSON.stringify(pipelineAudit));
+
       // Pass threshold: diag >= 0.5
       const passed = diagMatchRate >= 0.5;
 
@@ -379,6 +411,7 @@ export async function runBenchmarkV5(
         actual_diagnoses: actualDiagnoses,
         actual_labs: actualLabs,
         actual_medications: actualMeds,
+        pipeline_audit: pipelineAudit,
         pipeline_output: pipelineResult,
       });
     } catch (error) {
@@ -407,6 +440,18 @@ export async function runBenchmarkV5(
         actual_diagnoses: [],
         actual_labs: [],
         actual_medications: [],
+        pipeline_audit: {
+          pipeline_name: "error",
+          ddx_engine_invoked: false,
+          diagnosis_scoring_enabled: false,
+          organ_system_bonus_applied: false,
+          danger_bonus_applied: false,
+          knowledge_retrieval_invoked: false,
+          guideline_engine_invoked: false,
+          safety_engine_invoked: false,
+          uncertainty_engine_invoked: false,
+          soap_generated: false,
+        },
         pipeline_output: null as any,
       });
     }

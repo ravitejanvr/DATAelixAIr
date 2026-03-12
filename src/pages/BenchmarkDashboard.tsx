@@ -11,7 +11,7 @@ import {
   Clock, Target, Shield, Activity, Beaker, GitBranch,
   BookOpen, Pill, Brain,
 } from "lucide-react";
-import { runBenchmarkV5, BENCHMARK_CASES_V5, type BenchmarkSuiteResult } from "@/services/benchmark_v5";
+import { runBenchmarkV5, BENCHMARK_CASES_V5, type BenchmarkSuiteResult, type PipelineAudit } from "@/services/benchmark_v5";
 
 function pct(v: number) {
   return `${Math.round(v * 100)}%`;
@@ -226,6 +226,61 @@ export default function BenchmarkDashboard() {
             </CardContent>
           </Card>
 
+          {/* ═══ PIPELINE EXECUTION AUDIT ═══ */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Activity className="h-4 w-4" /> Pipeline Execution Audit
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const firstAudit = result.cases[0]?.pipeline_audit;
+                if (!firstAudit) return <p className="text-xs text-muted-foreground">No audit data</p>;
+                const allAudits = result.cases.map(c => c.pipeline_audit);
+                const allInvoked = (key: keyof PipelineAudit) => allAudits.every(a => a[key]);
+                const countInvoked = (key: keyof PipelineAudit) => allAudits.filter(a => a[key]).length;
+
+                const modules: { label: string; key: keyof PipelineAudit; icon: string }[] = [
+                  { label: "DDX Engine", key: "ddx_engine_invoked", icon: "🧠" },
+                  { label: "Diagnosis Scoring", key: "diagnosis_scoring_enabled", icon: "📊" },
+                  { label: "Organ System Bonus", key: "organ_system_bonus_applied", icon: "🫁" },
+                  { label: "Danger Bonus", key: "danger_bonus_applied", icon: "⚠️" },
+                  { label: "Knowledge Retrieval", key: "knowledge_retrieval_invoked", icon: "📚" },
+                  { label: "Guideline Engine", key: "guideline_engine_invoked", icon: "📋" },
+                  { label: "Safety Engine", key: "safety_engine_invoked", icon: "🛡️" },
+                  { label: "Uncertainty Engine", key: "uncertainty_engine_invoked", icon: "🎯" },
+                  { label: "SOAP Generated", key: "soap_generated", icon: "📝" },
+                ];
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-primary/10 text-primary text-[9px]">{firstAudit.pipeline_name}</Badge>
+                      <span className="text-[10px] text-muted-foreground">Active pipeline for all {result.total_cases} cases</span>
+                    </div>
+                    <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                      {modules.map(m => {
+                        const count = countInvoked(m.key);
+                        const all = allInvoked(m.key);
+                        return (
+                          <div key={m.key} className="flex items-center gap-1.5 text-[10px]">
+                            <span>{m.icon}</span>
+                            {statusDot(all)}
+                            <span className={all ? "text-foreground" : "text-muted-foreground"}>
+                              {m.label}
+                            </span>
+                            {!all && <span className="text-muted-foreground">({count}/{result.total_cases})</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
           {/* Accuracy Bars */}
           <Card>
             <CardHeader className="pb-2">
@@ -366,8 +421,13 @@ export default function BenchmarkDashboard() {
                   <div><strong>Matched Medications:</strong> {c.matched_medications.join(", ") || "None"}</div>
                   <div><strong>Guideline Sources:</strong> {c.guideline_sources.join(", ") || "None"}</div>
                   <div className="flex gap-3 flex-wrap mt-1">
+                    <span>Pipeline: <strong>{c.pipeline_audit.pipeline_name}</strong></span>
                     <span>Graph: {c.graph_miss ? "❌ MISS" : `✅ ${c.graph_symptom_matches} matches`}</span>
                     <span>Danger injected: {c.dangerous_injected}</span>
+                    <span>DDX: {c.pipeline_audit.ddx_engine_invoked ? "✅" : "❌"}</span>
+                    <span>Scoring: {c.pipeline_audit.diagnosis_scoring_enabled ? "✅" : "❌"}</span>
+                    <span>Organ Bonus: {c.pipeline_audit.organ_system_bonus_applied ? "✅" : "—"}</span>
+                    <span>Danger Bonus: {c.pipeline_audit.danger_bonus_applied ? "✅" : "—"}</span>
                     <span>W1: {c.latency.wave1_ms}ms</span>
                     <span>W2: {c.latency.wave2_ms}ms</span>
                     <span>W3: {c.latency.wave3_ms}ms</span>
