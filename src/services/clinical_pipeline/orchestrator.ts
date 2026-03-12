@@ -45,6 +45,7 @@ import { runMultiAgentPipeline, type OrchestratorResponse } from "@/services/mul
 import { generatePhysiologicalContext, type PhysiologicalContextResult } from "@/services/physiology_engine";
 import { calculateDiagnosticProbabilities, type BayesianResult } from "@/services/bayesian_engine";
 import { supabase } from "@/integrations/supabase/client";
+import { LineageTracker, type LineageReport } from "@/services/clinical_pipeline/lineage_tracker";
 
 // ── Public Types ──
 
