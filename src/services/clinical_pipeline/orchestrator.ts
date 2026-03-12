@@ -708,8 +708,8 @@ export async function runUnifiedClinicalPipeline(
       }
       const t0 = performance.now();
       try {
-        const result = await withTimeout(
-          calculateDiagnosticProbabilities({
+        const result = await withRetry(
+          () => calculateDiagnosticProbabilities({
             candidate_diagnosis_ids: candidateIds,
             symptoms,
             physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
