@@ -638,6 +638,31 @@ Deno.serve(async (req) => {
       ...(d.guideline_source ? { guideline_source: d.guideline_source } : {}),
     }));
 
+    // ── Reasoning Traces (Phase 9) ──
+    const reasoning_traces = finalDifferential.map(d => {
+      const entry = diagMap.get(d.diagnosis_id);
+      const symptomEvidence = entry
+        ? Array.from(entry.symptom_scores.entries()).map(([sid, score]) => {
+            const symName = allMatchedSymptoms.find((s: any) => s.id === sid)?.symptom_name || sid;
+            return { symptom: symName, weight: score };
+          })
+        : [];
+      const organBonus = activeSystems.includes((d.category || "").toLowerCase());
+      return {
+        diagnosis: d.diagnosis_name,
+        diagnosis_id: d.diagnosis_id,
+        total_score: d.probability,
+        prior: Math.round(d.prior * 1000) / 1000,
+        likelihood: Math.round(d.likelihood * 1000) / 1000,
+        symptom_coverage: Math.round(d.symptom_coverage * 100),
+        symptom_evidence: symptomEvidence,
+        organ_system_bonus: organBonus,
+        must_not_miss: d.must_not_miss,
+        contradicting_factors: d.contradicting_factors,
+        confidence: Math.round(d.probability) / 100,
+      };
+    });
+
     return respond({
       differential_diagnoses: outputDiagnoses,
       recommended_labs: recommendedLabs,
@@ -648,6 +673,9 @@ Deno.serve(async (req) => {
       unmatched_symptoms: normalizedSymptoms.filter(s => !allMatchedSymptoms.some((ms: any) => ms.symptom_name === s || ms.symptom_name.includes(s))),
       dangerous_diagnoses_injected: dangerousInjected,
       must_not_miss_count: dangerousDiagnosisDetails.length,
+      organ_systems_active: activeSystems,
+      reasoning_traces,
+      score_threshold_applied: MIN_SCORE_THRESHOLD,
       execution_ms: totalMs,
       stage_latencies: {
         symptom_resolution: stage1Ms,
@@ -656,7 +684,7 @@ Deno.serve(async (req) => {
         enrichment: stage4Ms,
       },
       bayesian_model: true,
-      source: "ddx_engine_v3",
+      source: "ddx_engine_v4_probabilistic",
       graph_miss: false,
     });
   } catch (err: any) {
