@@ -109,7 +109,19 @@ export async function runClinicalPipeline(
         differentiates: l.differentiates || [],
       })) || [],
 
-      recommended_medications: {
+      recommended_medications: o1Result.ddx?.suggested_medications ? {
+        suggestions: o1Result.ddx.suggested_medications.map((m: any) => ({
+          generic_name: m.generic_name,
+          drug_class: m.drug_class || "",
+          for_diagnosis: m.for_diagnosis || "",
+          safe: m.safe ?? true,
+          interactions: m.interactions || [],
+          allergy_conflict: m.allergy_conflict || false,
+        })),
+        safety_score: 100,
+        critical_warnings: 0,
+        validation: null,
+      } : {
         suggestions: [],
         safety_score: 100,
         critical_warnings: 0,
