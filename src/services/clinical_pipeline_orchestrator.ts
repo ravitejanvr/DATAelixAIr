@@ -1,37 +1,32 @@
 /**
- * Clinical Pipeline Orchestrator — Canonical Entry Point
+ * Clinical Pipeline Orchestrator — O2 Delegation Adapter
  *
- * Orchestrates the full clinical reasoning pipeline using the
- * Clinical Context Object as the single source of truth.
+ * This file previously contained the 3-wave canonical pipeline.
+ * It now delegates to the v4 Wave Orchestrator (O1) while
+ * preserving the existing API surface for benchmark_v5.ts
+ * and any other consumers.
  *
- * Wave 1: DDX Engine + Knowledge Retrieval (parallel)
- * Wave 2: Guideline Engine + Medication Engine + Safety Engine (parallel)
- * Wave 3: Uncertainty Engine + SOAP Generator (parallel)
- *
- * Target latency: < 15 seconds
+ * Legacy types (MergedContextObject → ClinicalPipelineResult) are
+ * preserved and adapted from O1's PipelineResult.
  */
 
 import type { MergedContextObject } from "@/services/context_service";
 import { logPipelineExecution, validateContextObject } from "@/services/context_service";
-import { runDifferentialDiagnosis, type DDXOutput } from "@/services/ddx_service";
-import { retrieveMedicalEvidence, type KnowledgeRetrievalResult } from "@/services/knowledge_retrieval";
-import { retrieveGuidelines, type GuidelineResult } from "@/services/guideline_retrieval";
-import { generateMedicationSuggestions, type MedicationEngineResult } from "@/services/medication_engine";
-import { runSafetyValidation, type SafetyEngineResult } from "@/services/safety_engine";
-import { evaluateUncertainty, type UncertaintyOutput } from "@/services/uncertainty_service";
-import { generateSOAP, type SOAPGeneratorResult } from "@/services/soap_generator";
+import { runClinicalPipeline as runO1Pipeline, type PipelineResult } from "@/services/clinical_pipeline/orchestrator";
+import { toClinicalContext, fromMergedContext } from "@/types/clinical-context";
+import { setFeatureFlag } from "@/services/feature_flags";
 
-// ── Types ──
+// ── Legacy Types (preserved for backward compatibility) ──
 
 export interface ClinicalPipelineResult {
-  ddx_candidates: DDXOutput;
-  knowledge: KnowledgeRetrievalResult;
+  ddx_candidates: any;
+  knowledge: any;
   recommended_labs: Array<{ test_name: string; priority: string; differentiates: string[] }>;
-  recommended_medications: MedicationEngineResult;
-  guidelines: GuidelineResult;
-  safety_alerts: SafetyEngineResult;
-  confidence_scores: UncertaintyOutput;
-  soap_draft: SOAPGeneratorResult;
+  recommended_medications: any;
+  guidelines: any;
+  safety_alerts: any;
+  confidence_scores: any;
+  soap_draft: any;
   latency: {
     wave1_ms: number;
     wave2_ms: number;
@@ -39,40 +34,16 @@ export interface ClinicalPipelineResult {
     total_ms: number;
   };
   validation_errors: string[];
+  // O1 enrichment fields (available when delegated)
+  o1_result?: PipelineResult;
 }
 
-// ── Helper ──
-
-async function timed<T>(label: string, visitId: string, fn: () => Promise<T>): Promise<{ result: T; ms: number }> {
-  const t0 = performance.now();
-  await logPipelineExecution(visitId, label, "started");
-  try {
-    const result = await fn();
-    const ms = Math.round(performance.now() - t0);
-    await logPipelineExecution(visitId, label, "completed", ms);
-    return { result, ms };
-  } catch (e) {
-    const ms = Math.round(performance.now() - t0);
-    const msg = e instanceof Error ? e.message : String(e);
-    await logPipelineExecution(visitId, label, "failed", ms, msg);
-    throw e;
-  }
-}
-
-async function safe<T>(label: string, visitId: string, fn: () => Promise<T>, fallback: T): Promise<T> {
-  try {
-    const { result } = await timed(label, visitId, fn);
-    return result;
-  } catch (e) {
-    console.error(`[Pipeline] ${label} failed:`, e);
-    return fallback;
-  }
-}
-
-// ── Main Orchestrator ──
+// ── Main Orchestrator (delegates to O1) ──
 
 /**
- * Run the full clinical pipeline from a merged context object.
+ * Run the clinical pipeline. This adapter converts the MergedContextObject
+ * into O1's PipelineInput format, runs the v4 wave pipeline, and maps
+ * the result back to the legacy ClinicalPipelineResult shape.
  */
 export async function runClinicalPipeline(
   contextObject: MergedContextObject,
@@ -80,115 +51,124 @@ export async function runClinicalPipeline(
   const pipelineStart = performance.now();
   const visitId = contextObject.visit_id;
 
-  console.log("[Pipeline] Starting canonical clinical pipeline...");
+  console.log("[Pipeline-O2] Delegating to v4 Wave Orchestrator (O1)...");
 
   // Validate context
   const validation = validateContextObject(contextObject);
   if (!validation.valid) {
-    console.warn("[Pipeline] Context validation failed:", validation.errors);
+    console.warn("[Pipeline-O2] Context validation warnings:", validation.errors);
   }
 
-  // ═══════════════════════════════════════════════════════
-  // WAVE 1 — DDX Engine + Knowledge Retrieval (parallel)
-  // ═══════════════════════════════════════════════════════
-  const w1Start = performance.now();
+  // Ensure O1 feature flag is on for this invocation
+  setFeatureFlag("enable_new_clinical_pipeline", true);
 
-  const [ddxResult, knowledgeResult] = await Promise.all([
-    safe<DDXOutput>("ddx_engine", visitId, () => runDifferentialDiagnosis(contextObject), {
-      diagnoses: [], recommended_labs: [], reasoning_traces: [], organ_systems_active: [], raw: null,
-    }),
-    safe<KnowledgeRetrievalResult>("knowledge_retrieval", visitId, () =>
-      retrieveMedicalEvidence(contextObject.chief_complaint, { maxResults: 5 }), {
-      citations: [], evidence_confidence: 0, source: "fallback", cached: false,
-    }),
-  ]);
+  // Convert MergedContextObject → ClinicalContext for O1
+  const unified = fromMergedContext(contextObject);
+  const clinicalContext = toClinicalContext(unified);
 
-  const wave1Ms = Math.round(performance.now() - w1Start);
+  try {
+    const o1Result = await runO1Pipeline({
+      clinical_context: clinicalContext,
+      visit_id: contextObject.visit_id,
+      clinic_id: contextObject.clinic_id,
+    });
 
-  // ═══════════════════════════════════════════════════════
-  // WAVE 2 — Guideline + Medication + Safety (parallel)
-  // ═══════════════════════════════════════════════════════
-  const w2Start = performance.now();
+    const totalMs = Math.round(performance.now() - pipelineStart);
 
-  const diagnosisNames = ddxResult.diagnoses.map(d => d.diagnosis);
+    // Map O1 result back to legacy shape
+    return {
+      ddx_candidates: o1Result.ddx ? {
+        diagnoses: o1Result.ddx.differential_diagnoses.map(d => ({
+          diagnosis: d.diagnosis || (d as any).diagnosis_name,
+          probability: d.probability,
+          supporting_evidence: d.supporting_evidence || [],
+        })),
+        recommended_labs: o1Result.ddx.recommended_labs || [],
+        reasoning_traces: o1Result.ddx.reasoning_traces || [],
+        organ_systems_active: [],
+        raw: o1Result.ddx,
+      } : { diagnoses: [], recommended_labs: [], reasoning_traces: [], organ_systems_active: [], raw: null },
 
-  const [guidelineResult, medicationResult, safetyResult] = await Promise.all([
-    safe<GuidelineResult>("guideline_engine", visitId, () => retrieveGuidelines(diagnosisNames), {
-      recommendations: [], sources_used: [], compliance_score: 0,
-    }),
-    safe<MedicationEngineResult>("medication_engine", visitId, () =>
-      generateMedicationSuggestions({
-        diagnosis_candidates: diagnosisNames,
-        patient_allergies: contextObject.allergies,
-        current_medications: contextObject.medications,
-        patient_age: null, // Would come from patient profile
-        patient_weight_kg: contextObject.vitals?.weight_kg,
-      }), {
-      suggestions: [], safety_score: 100, critical_warnings: 0, validation: null,
-    }),
-    safe<SafetyEngineResult>("safety_engine", visitId, () =>
-      runSafetyValidation({
-        medications: contextObject.medications,
-        allergies: contextObject.allergies,
-        diagnoses: diagnosisNames,
-        vitals: contextObject.vitals || undefined,
-      }), {
-      alerts: [], safety_score: 100, critical_count: 0, high_count: 0, passed: true,
-    }),
-  ]);
+      knowledge: o1Result.evidence ? {
+        citations: o1Result.evidence.items?.map((i: any) => ({
+          title: i.title,
+          source: i.source,
+          relevance: i.relevance_score,
+        })) || [],
+        evidence_confidence: 0,
+        source: "o1_evidence",
+        cached: o1Result.cache_stats.evidence_hit,
+      } : { citations: [], evidence_confidence: 0, source: "fallback", cached: false },
 
-  const wave2Ms = Math.round(performance.now() - w2Start);
+      recommended_labs: o1Result.ddx?.recommended_labs?.map((l: any) => ({
+        test_name: l.test_name || l,
+        priority: l.priority || "recommended",
+        differentiates: l.differentiates || [],
+      })) || [],
 
-  // ═══════════════════════════════════════════════════════
-  // WAVE 3 — Uncertainty + SOAP (parallel uncertainty, sync SOAP)
-  // ═══════════════════════════════════════════════════════
-  const w3Start = performance.now();
+      recommended_medications: {
+        suggestions: [],
+        safety_score: 100,
+        critical_warnings: 0,
+        validation: null,
+      },
 
-  const uncertaintyResult = await safe<UncertaintyOutput>("uncertainty_engine", visitId, () =>
-    evaluateUncertainty({
-      symptoms: contextObject.symptoms,
-      vitals: contextObject.vitals || undefined,
-      diagnoses: ddxResult.diagnoses,
-      guideline_sources: guidelineResult.sources_used,
-      medical_history: contextObject.medical_history,
-      medications: contextObject.medications,
-      allergies: contextObject.allergies,
-      safety_score: safetyResult.safety_score,
-    }), {
-    confidence_score: 0, confidence_label: "Very Uncertain", missing_evidence: [], follow_up_questions: [], raw: null,
-  });
+      guidelines: o1Result.guideline_summary ? {
+        recommendations: [],
+        sources_used: o1Result.guideline_summary.guideline_sources_used,
+        compliance_score: o1Result.guideline_summary.guideline_compliance_score,
+      } : { recommendations: [], sources_used: [], compliance_score: 0 },
 
-  const soapResult = generateSOAP({
-    context: contextObject,
-    ddx: ddxResult,
-    guidelines: guidelineResult,
-    medications: medicationResult,
-    safety: safetyResult,
-    uncertainty: uncertaintyResult,
-  });
+      safety_alerts: {
+        alerts: o1Result.oversight?.events || [],
+        safety_score: o1Result.oversight?.safety_score || 100,
+        critical_count: o1Result.oversight?.critical_events || 0,
+        high_count: 0,
+        passed: (o1Result.oversight?.safety_score || 100) >= 70,
+      },
 
-  const wave3Ms = Math.round(performance.now() - w3Start);
-  const totalMs = Math.round(performance.now() - pipelineStart);
+      confidence_scores: o1Result.uncertainty ? {
+        confidence_score: o1Result.uncertainty.confidence_score,
+        confidence_label: o1Result.uncertainty.confidence_label,
+        missing_evidence: o1Result.uncertainty.missing_data_points || [],
+        follow_up_questions: o1Result.uncertainty.follow_up_questions || [],
+        raw: o1Result.uncertainty,
+      } : { confidence_score: 0, confidence_label: "Very Uncertain", missing_evidence: [], follow_up_questions: [], raw: null },
 
-  // Log latency warning
-  if (totalMs > 15000) {
-    console.warn(`[Pipeline] ⚠️ Latency exceeded target: ${totalMs}ms (target <15000ms)`);
-    await logPipelineExecution(visitId, "pipeline_total", "completed", totalMs, `Latency exceeded: ${totalMs}ms`);
-  } else {
-    console.log(`[Pipeline] ✅ Completed in ${totalMs}ms (W1=${wave1Ms}ms W2=${wave2Ms}ms W3=${wave3Ms}ms)`);
-    await logPipelineExecution(visitId, "pipeline_total", "completed", totalMs);
+      soap_draft: o1Result.hybrid_reasoning ? {
+        subjective: (o1Result.hybrid_reasoning as any).soap?.subjective || "",
+        objective: (o1Result.hybrid_reasoning as any).soap?.objective || "",
+        assessment: (o1Result.hybrid_reasoning as any).soap?.assessment || "",
+        plan: (o1Result.hybrid_reasoning as any).soap?.plan || "",
+      } : { subjective: "", objective: "", assessment: "", plan: "" },
+
+      latency: {
+        wave1_ms: o1Result.wave_latencies.wave1_context || 0,
+        wave2_ms: o1Result.wave_latencies.wave2_analysis || 0,
+        wave3_ms: o1Result.wave_latencies.wave3_reasoning || 0,
+        total_ms: totalMs,
+      },
+
+      validation_errors: validation.errors,
+      o1_result: o1Result,
+    };
+  } catch (error) {
+    const totalMs = Math.round(performance.now() - pipelineStart);
+    console.error("[Pipeline-O2] O1 delegation failed:", error);
+    await logPipelineExecution(visitId, "o2_delegation", "failed", totalMs, String(error));
+
+    // Return safe empty result
+    return {
+      ddx_candidates: { diagnoses: [], recommended_labs: [], reasoning_traces: [], organ_systems_active: [], raw: null },
+      knowledge: { citations: [], evidence_confidence: 0, source: "fallback", cached: false },
+      recommended_labs: [],
+      recommended_medications: { suggestions: [], safety_score: 100, critical_warnings: 0, validation: null },
+      guidelines: { recommendations: [], sources_used: [], compliance_score: 0 },
+      safety_alerts: { alerts: [], safety_score: 100, critical_count: 0, high_count: 0, passed: true },
+      confidence_scores: { confidence_score: 0, confidence_label: "Very Uncertain", missing_evidence: [], follow_up_questions: [], raw: null },
+      soap_draft: { subjective: "", objective: "", assessment: "", plan: "" },
+      latency: { wave1_ms: 0, wave2_ms: 0, wave3_ms: 0, total_ms: totalMs },
+      validation_errors: [...validation.errors, `O1 delegation failed: ${error}`],
+    };
   }
-
-  return {
-    ddx_candidates: ddxResult,
-    knowledge: knowledgeResult,
-    recommended_labs: ddxResult.recommended_labs,
-    recommended_medications: medicationResult,
-    guidelines: guidelineResult,
-    safety_alerts: safetyResult,
-    confidence_scores: uncertaintyResult,
-    soap_draft: soapResult,
-    latency: { wave1_ms: wave1Ms, wave2_ms: wave2Ms, wave3_ms: wave3Ms, total_ms: totalMs },
-    validation_errors: validation.errors,
-  };
 }

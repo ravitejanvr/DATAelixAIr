@@ -186,7 +186,7 @@ async function runContextAgent(
   return context;
 }
 
-// ── Agent: DDX ──
+// ── Agent: DDX (now routes through ddx-engine edge function) ──
 async function runDDXAgent(
   apiKey: string, intakeData: any, contextData: any, model: string, temp: number
 ): Promise<any> {
@@ -194,6 +194,52 @@ async function runDDXAgent(
   if (intakeData?.chief_complaint) symptoms.push(intakeData.chief_complaint);
   if (intakeData?.associated_symptoms) symptoms.push(...intakeData.associated_symptoms);
 
+  // Route through the deterministic ddx-engine for knowledge graph + Bayesian scoring
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  try {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/ddx-engine`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+        apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+      },
+      body: JSON.stringify({
+        symptoms,
+        vitals: contextData?.recent_vitals || {},
+        age: contextData?.patient?.age,
+        sex: contextData?.patient?.gender,
+        medical_history: contextData?.patient?.chronic_conditions || [],
+        current_medications: contextData?.patient?.current_medications || [],
+        allergies: contextData?.patient?.allergies || [],
+      }),
+    });
+
+    if (resp.ok) {
+      const ddxResult = await resp.json();
+      // Map ddx-engine output to meta-orchestrator expected shape
+      return {
+        differential_diagnoses: (ddxResult.differential_diagnoses || []).map((d: any) => ({
+          diagnosis: d.diagnosis || d.diagnosis_name,
+          probability: d.probability,
+          supporting_evidence: d.supporting_evidence || d.matched_symptoms || [],
+          must_not_miss: d.is_dangerous || false,
+          recommended_tests: d.recommended_labs?.map((l: any) => l.test_name || l) || [],
+        })),
+        reasoning_summary: ddxResult.reasoning_traces?.join("; ") || "DDX via knowledge graph + Bayesian scoring",
+        engine_source: "ddx-engine",
+        matched_symptoms: ddxResult.matched_symptoms || [],
+        graph_traversal: true,
+      };
+    }
+    console.warn("[MetaOrchestrator] ddx-engine returned non-OK, falling back to LLM DDX");
+  } catch (e) {
+    console.warn("[MetaOrchestrator] ddx-engine call failed, falling back to LLM DDX:", e);
+  }
+
+  // Fallback: LLM-based DDX (original behavior)
   const prompt = `Patient context:
 - Symptoms: ${symptoms.join(", ") || "unknown"}
 - Chronic conditions: ${contextData?.patient?.chronic_conditions?.join(", ") || "none"}
@@ -241,8 +287,13 @@ Generate a differential diagnosis list ranked by probability.`;
   );
 
   const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
-  if (toolCall?.function?.arguments) return JSON.parse(toolCall.function.arguments);
-  return { differential_diagnoses: [], reasoning_summary: "" };
+  if (toolCall?.function?.arguments) {
+    const parsed = JSON.parse(toolCall.function.arguments);
+    parsed.engine_source = "llm_fallback";
+    parsed.graph_traversal = false;
+    return parsed;
+  }
+  return { differential_diagnoses: [], reasoning_summary: "", engine_source: "llm_fallback", graph_traversal: false };
 }
 
 // ── Agent: Knowledge Retrieval ──

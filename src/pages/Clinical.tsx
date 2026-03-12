@@ -641,111 +641,123 @@ export default function Clinical() {
 
     const timer = startPipelineTimer("full_pipeline");
 
-    // If modular pipeline is enabled, run it for enriched outputs
+    // If modular pipeline is enabled, run v4 Wave Orchestrator (O1) directly
     if (isNewPipelineEnabled()) {
       try {
-        setPipelineStage("hypotheses");
+        setPipelineStage("context");
         setStageLatencies({});
 
-        // Run modular pipeline via compare function (which runs both)
-        const { data, error } = await supabase.functions.invoke("compare-ai-pipelines", {
-          body: {
-            patient_context: {
-              age: selectedPatient?.age,
-              gender: selectedPatient?.gender,
-              symptoms: selectedSymptoms.length > 0 ? selectedSymptoms : [clinicalContext.chief_complaint].filter(Boolean),
-              duration: selectedDuration || clinicalContext.symptom_duration || "",
-              vitals: patientVitals ? {
-                temperature: patientVitals.temperature,
-                bp: patientVitals.bp_systolic ? `${patientVitals.bp_systolic}/${patientVitals.bp_diastolic}` : undefined,
-                pulse: patientVitals.pulse,
-                spo2: patientVitals.spo2,
-              } : undefined,
-              allergies: selectedPatient?.allergies || [],
-              conditions: selectedPatient?.medical_history ? (Array.isArray(selectedPatient.medical_history) ? (selectedPatient.medical_history as any[]).map((h: any) => typeof h === "string" ? h : h?.condition || String(h)) : []) : [],
-              current_medications: selectedPatient?.current_medications || [],
-            },
+        // Dynamic import of O1 pipeline to avoid bundle bloat when disabled
+        const { runClinicalPipeline } = await import("@/services/clinical_pipeline/orchestrator");
+        const { buildClinicalContext } = await import("@/lib/clinical-context");
+
+        // Build ClinicalContext from current UI state
+        const pipelineContext = buildClinicalContext(
+          { age: selectedPatient?.age ?? null, gender: selectedPatient?.gender ?? null, medical_history: selectedPatient?.medical_history, allergies: selectedPatient?.allergies, current_medications: selectedPatient?.current_medications },
+          patientVitals,
+          intakeData,
+          extractedData,
+        );
+        // Override chief complaint from chip selection if available
+        if (chiefComplaint) (pipelineContext as any).chief_complaint = chiefComplaint;
+        if (selectedSymptoms.length > 0) (pipelineContext as any).symptoms = selectedSymptoms;
+
+        const o1Result = await runClinicalPipeline(
+          {
+            clinical_context: pipelineContext,
+            visit_id: visitId,
+            consultation_id: savedSessionId,
+            clinic_id: profileClinicId,
+            intake_approved: !!intakeData,
+            recommendations: selectedDiagnoses.length > 0 ? {
+              diagnosis: selectedDiagnoses[0],
+              drugs: pendingRxFromSuggestions.map(rx => rx.drug_name),
+              labs: selectedTests,
+            } : undefined,
           },
-        });
+          (stage, data) => {
+            // Streaming progress callback
+            setPipelineStage(stage);
+            if (data.physiological_context) setPipelinePhysiology(data.physiological_context);
+            if (data.bayesian) setPipelineBayesian(data.bayesian);
+            if (data.hypotheses?.hypotheses) {
+              setPipelineHypotheses(data.hypotheses.hypotheses.map((h: any) => ({
+                hypothesis: h.hypothesis || h.diagnosis,
+                probability: h.probability || h.confidence,
+                supporting_evidence: h.supporting_evidence || h.evidence || [],
+                recommended_tests: h.recommended_tests || [],
+              })));
+            }
+            if (data.evidence) {
+              setPipelineEvidence({
+                citations: data.evidence.items?.map((i: any) => ({
+                  title: i.title, source: i.source, year: i.year,
+                })) || [],
+                sources_queried: [],
+                retrieval_confidence: "moderate",
+              });
+            }
+            if (data.guideline_alignment) {
+              setPipelineCompliance({
+                compliance_score: data.guideline_alignment.guideline_compliance_score || 0,
+                citations: data.guideline_alignment.guideline_sources_used || [],
+                conflicts: data.guideline_alignment.conflicts_detected || [],
+              });
+            }
+            if (data.oversight) {
+              setSafetyResults({
+                normalized_drugs: [],
+                interaction_flags: data.oversight.events?.filter((e: any) => e.event_type === "drug_interaction") || [],
+                allergy_flags: data.oversight.events?.filter((e: any) => e.event_type === "allergy_conflict") || [],
+                dose_warnings: data.oversight.events?.filter((e: any) => e.event_type === "dose_warning") || [],
+                vitals_dangers: data.oversight.events?.filter((e: any) => e.event_type === "vitals_danger") || [],
+                emergency_patterns: data.oversight.events?.filter((e: any) => e.event_type === "emergency") || [],
+                context_completeness: { issues: [], context_complete: true, ai_suggestions_blocked: false },
+                confidence_level: "moderate",
+                requires_manual_review: false,
+                ai_suggestions_blocked: false,
+                output_policy: { label: AI_DRAFT_LABEL, conservative_language: true, evidence_required: true },
+                timestamp: new Date().toISOString(),
+              } as SafetyResults);
+            }
+            if (data.stage_latencies) {
+              setStageLatencies(prev => ({ ...prev, ...data.stage_latencies }));
+            }
+          },
+        );
 
-        if (error) throw error;
-
-        const modular = data?.modular_pipeline;
-        if (modular) {
-          // Stream: Physiology + Bayesian
-          if (modular.physiological_context) setPipelinePhysiology(modular.physiological_context);
-          if (modular.bayesian) setPipelineBayesian(modular.bayesian);
-
-          // Stream: Hypotheses
-          if (modular.hypotheses?.length > 0) {
-            setPipelineHypotheses(modular.hypotheses);
-          }
-          setPipelineStage("evidence");
-          if (modular.stage_latencies) {
-            setStageLatencies(prev => ({ ...prev, ...modular.stage_latencies }));
-          }
-
-          // Stream: Evidence
-          if (modular.evidence) {
-            setPipelineEvidence({
-              citations: modular.evidence.citations || [],
-              sources_queried: modular.evidence.sources_queried || [],
-              retrieval_confidence: modular.evidence.retrieval_confidence || "low",
-            });
-          }
-          setPipelineStage("guidelines");
-
-          // Stream: Compliance
-          if (modular.compliance) {
-            setPipelineCompliance(modular.compliance);
-          }
-          setPipelineStage("safety");
-
-          // Safety
-          if (modular.oversight) {
-            setSafetyResults({
-              normalized_drugs: [],
-              interaction_flags: modular.oversight.interaction_flags || [],
-              allergy_flags: modular.oversight.allergy_flags || [],
-              dose_warnings: modular.oversight.dose_warnings || [],
-              vitals_dangers: modular.oversight.vitals_dangers || [],
-              emergency_patterns: modular.oversight.emergency_patterns || [],
-              context_completeness: { issues: [], context_complete: true, ai_suggestions_blocked: false },
-              confidence_level: modular.oversight.confidence_level || "moderate",
-              requires_manual_review: modular.oversight.requires_manual_review || false,
-              ai_suggestions_blocked: false,
-              output_policy: { label: AI_DRAFT_LABEL, conservative_language: true, evidence_required: true },
-              timestamp: new Date().toISOString(),
-            } as SafetyResults);
-            emitSafetyAlertMetric({
-              interactions: modular.oversight.interaction_flags?.length || 0,
-              allergies: modular.oversight.allergy_flags?.length || 0,
-              dose_warnings: modular.oversight.dose_warnings?.length || 0,
-              vitals_dangers: modular.oversight.vitals_dangers?.length || 0,
-              emergency_patterns: modular.oversight.emergency_patterns?.length || 0,
-            });
-          }
+        // Apply final results
+        if (o1Result.enabled) {
           setIsRunningSafety(false);
 
-          // SOAP sections from modular
-          if (modular.soap_sections) {
-            setSoapSections(modular.soap_sections);
-            setAiSoapBaseline({ ...modular.soap_sections });
+          // SOAP from hybrid reasoning
+          if (o1Result.hybrid_reasoning) {
+            const soap = (o1Result.hybrid_reasoning as any).soap;
+            if (soap) {
+              setSoapSections({
+                subjective: soap.subjective || "",
+                objective: soap.objective || "",
+                assessment: soap.assessment || "",
+                plan: soap.plan || "",
+              });
+              setAiSoapBaseline({
+                subjective: soap.subjective || "",
+                objective: soap.objective || "",
+                assessment: soap.assessment || "",
+                plan: soap.plan || "",
+              });
+            }
           }
           setIsGeneratingSoap(false);
-
-          // Record final latencies
-          if (modular.stage_latencies) {
-            setStageLatencies(modular.stage_latencies);
-          }
+          setStageLatencies(o1Result.stage_latencies);
         }
 
         setPipelineStage("complete");
         setIsStabilizing(false); setIsExtracting(false);
-        timer.stop(true, { pipeline: "modular", latency_ms: modular?.latency_ms });
+        timer.stop(true, { pipeline: "v4_o1", latency_ms: o1Result.total_latency_ms });
         setPipelineComplete(true);
       } catch (err: any) {
-        console.warn("[ModularPipeline] Failed, falling back to legacy:", err.message);
+        console.warn("[O1 Pipeline] Failed, falling back to legacy:", err.message);
         setPipelineStage(null);
         // Fall through to legacy pipeline below
         await runLegacyPipeline(effectiveTranscript, timer);
