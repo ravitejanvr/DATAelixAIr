@@ -648,7 +648,7 @@ export default function Clinical() {
         setStageLatencies({});
 
         // Dynamic import of O1 pipeline to avoid bundle bloat when disabled
-        const { runClinicalPipeline } = await import("@/services/clinical_pipeline/orchestrator");
+        const { runUnifiedClinicalPipeline } = await import("@/services/clinical_pipeline/orchestrator");
         const { buildClinicalContext } = await import("@/lib/clinical-context");
 
         // Build ClinicalContext from current UI state
