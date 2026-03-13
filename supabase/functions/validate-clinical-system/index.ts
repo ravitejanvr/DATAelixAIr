@@ -548,20 +548,37 @@ Deno.serve(async (req) => {
       const waveLatency: Record<string, number> = {};
       const pipelineTrace: Record<string, any> = {};
 
-      // Wave 0: PCIE context (in-memory)
+      // Wave 0: PCIE context (in-memory simulation)
       const w0Start = Date.now();
+      const pcieFields = [
+        "chief_complaint", "symptoms", "associated_symptoms", "medical_history",
+        "current_medications", "allergies", "family_history", "risk_factors",
+        "vitals", "lab_results", "risk_flags", "context_confidence",
+      ];
       const context = {
         chief_complaint: scenario.chief_complaint,
         symptoms: scenario.symptoms,
+        associated_symptoms: [],
         vitals: scenario.vitals,
         medical_history: scenario.history,
         current_medications: scenario.medications,
         allergies: scenario.allergies,
+        family_history: [],
+        risk_factors: scenario.history,
+        lab_results: [],
+        risk_flags: [],
+        context_confidence: 0.85,
         patient_age: 45,
         patient_sex: "male",
       };
-      waveLatency.wave0_context_ms = Date.now() - w0Start;
-      pipelineTrace.pcie_fields = Object.keys(context).length;
+      const populatedFields = pcieFields.filter(f => {
+        const v = (context as any)[f];
+        return v !== undefined && v !== null && (typeof v !== 'object' || (Array.isArray(v) ? v.length > 0 : Object.keys(v).length > 0) || typeof v === 'number');
+      });
+      waveLatency.wave0_pcie_ms = Date.now() - w0Start;
+      pipelineTrace.pcie_total_fields = pcieFields.length;
+      pipelineTrace.pcie_populated_fields = populatedFields.length;
+      pipelineTrace.pcie_confidence = context.context_confidence;
 
       // Wave 1: Graph Retrieval (direct DB)
       const w1Start = Date.now();
