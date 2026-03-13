@@ -127,10 +127,19 @@ export default function BenchmarkDashboardV6() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => handleRun(specialtyFilter)} disabled={running} size="sm">
-            {running ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
-            {running ? `Running ${progress.current}/${progress.total}` : "Run Suite"}
-          </Button>
+          {running ? (
+            <Button onClick={handleStop} size="sm" variant="destructive">
+              <XCircle className="h-3.5 w-3.5 mr-1" /> Stop
+            </Button>
+          ) : (
+            <>
+              <Button onClick={handleLoadLast} size="sm" variant="outline">Load Last</Button>
+              <Button onClick={handleResume} size="sm" variant="outline">Resume</Button>
+              <Button onClick={() => handleRun(specialtyFilter)} size="sm">
+                <Play className="h-3.5 w-3.5 mr-1" /> Run Suite
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
