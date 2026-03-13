@@ -1037,6 +1037,46 @@ export async function runUnifiedClinicalPipeline(
         return null;
       }
     })(),
+
+    // 3e: Evidence Planning Engine (optimal next tests by information gain)
+    (async (): Promise<EvidencePlanResult | null> => {
+      if (!ddxResult || ddxResult.differential_diagnoses.length < 2) {
+        console.log("[Pipeline] Wave 3: Evidence planning skipped — fewer than 2 DDX candidates.");
+        return null;
+      }
+      const t0 = performance.now();
+      try {
+        const result = await withTimeout(
+          planEvidence({
+            candidate_diagnoses: ddxResult.differential_diagnoses.slice(0, 6).map(d => ({
+              diagnosis_id: d.diagnosis_id,
+              diagnosis_name: d.diagnosis_name,
+              probability: d.probability,
+              must_not_miss: d.must_not_miss,
+            })),
+            patient_symptoms: symptoms,
+            existing_tests: ddxResult.recommended_labs?.map(l => l.test_name) || [],
+            patient_age: ctx.patient_age,
+            patient_sex: ctx.patient_sex,
+          }),
+          TIMEOUT.EVIDENCE_PLANNING,
+          "evidence_planning",
+        );
+        lat.evidence_planning = Math.round(performance.now() - t0);
+        if (result) {
+          console.log(
+            `[Pipeline] Wave 3: Evidence planning complete — ` +
+            `${result.summary.high_value_tests} high-value tests from ${result.summary.total_candidate_tests} candidates ` +
+            `(${result.execution_ms}ms)`,
+          );
+        }
+        return result;
+      } catch {
+        lat.evidence_planning = Math.round(performance.now() - t0);
+        console.warn("[Pipeline] Evidence planning failed — continuing without test recommendations.");
+        return null;
+      }
+    })(),
   ]);
 
   const hypotheses = hypothesesRaw;
