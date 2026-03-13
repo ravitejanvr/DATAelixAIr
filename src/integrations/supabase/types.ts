@@ -1500,6 +1500,63 @@ export type Database = {
           },
         ]
       }
+      disease_tests: {
+        Row: {
+          created_at: string
+          diagnostic_strength: string
+          disease_name: string
+          id: string
+          test_category: string
+          test_name: string
+        }
+        Insert: {
+          created_at?: string
+          diagnostic_strength?: string
+          disease_name: string
+          id?: string
+          test_category?: string
+          test_name: string
+        }
+        Update: {
+          created_at?: string
+          diagnostic_strength?: string
+          disease_name?: string
+          id?: string
+          test_category?: string
+          test_name?: string
+        }
+        Relationships: []
+      }
+      disease_treatments: {
+        Row: {
+          created_at: string
+          disease_name: string
+          drug_class: string
+          drug_name: string
+          guideline_source: string
+          id: string
+          line_of_treatment: string
+        }
+        Insert: {
+          created_at?: string
+          disease_name: string
+          drug_class?: string
+          drug_name: string
+          guideline_source?: string
+          id?: string
+          line_of_treatment?: string
+        }
+        Update: {
+          created_at?: string
+          disease_name?: string
+          drug_class?: string
+          drug_name?: string
+          guideline_source?: string
+          id?: string
+          line_of_treatment?: string
+        }
+        Relationships: []
+      }
       doctor_favorites: {
         Row: {
           clinic_id: string | null
