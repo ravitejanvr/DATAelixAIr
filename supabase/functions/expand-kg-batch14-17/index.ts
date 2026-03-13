@@ -461,7 +461,7 @@ Deno.serve(async (req) => {
     const physDiagRows: any[] = [];
     for (const [phys, diag, conf, rel] of physDiagMaps) {
       const pId = allPhysIds[phys]; const dId = allDiagIds[diag];
-      if (pId && dId) physDiagRows.push({ physiological_state_id: pId, diagnosis_id: dId, confidence_score: conf, relevance_score: rel });
+      if (pId && dId) physDiagRows.push({ physiological_state_id: pId, diagnosis_id: dId, relevance_score: rel });
     }
     for (let i = 0; i < physDiagRows.length; i += 100) {
       await supabase.from("physiology_diagnosis_map").upsert(physDiagRows.slice(i, i + 100), { onConflict: "physiological_state_id,diagnosis_id", ignoreDuplicates: true });
