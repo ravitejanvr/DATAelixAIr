@@ -307,12 +307,12 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any) {
     if (symptomIds.length > 0 && dxIds.length > 0) {
       const { data: lkRows } = await supabase
         .from("symptom_likelihoods")
-        .select("diagnosis_id, symptom_id, likelihood")
+        .select("diagnosis_id, symptom_id, likelihood_value")
         .in("diagnosis_id", dxIds)
         .in("symptom_id", symptomIds);
       for (const lk of (lkRows || [])) {
         if (!likelihoodMap[lk.diagnosis_id]) likelihoodMap[lk.diagnosis_id] = {};
-        likelihoodMap[lk.diagnosis_id][lk.symptom_id] = lk.likelihood;
+        likelihoodMap[lk.diagnosis_id][lk.symptom_id] = lk.likelihood_value;
       }
     }
 
