@@ -23,6 +23,7 @@ export type PipelineStage =
   | "uncertainty"
   | "hypothesis_testing"
   | "evidence_planning"
+  | "diagnostic_loop"
   | "soap"
   | "cockpit";
 
