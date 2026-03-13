@@ -84,6 +84,20 @@ const BENCHMARK_SCENARIOS = [
   },
 ];
 
+// ── Dangerous diagnosis triggers ──
+const DANGEROUS_TRIGGERS: Record<string, string[]> = {
+  "chest pain": ["myocardial infarction", "pulmonary embolism", "aortic dissection", "pneumothorax"],
+  "headache": ["subarachnoid hemorrhage", "meningitis"],
+  "neck stiffness": ["meningitis", "subarachnoid hemorrhage"],
+  "abdominal pain": ["appendicitis", "ectopic pregnancy", "bowel perforation"],
+  "shortness of breath": ["pulmonary embolism", "pneumothorax", "acute heart failure"],
+  "weakness": ["stroke", "transient ischemic attack"],
+  "speech difficulty": ["stroke"],
+  "facial drooping": ["stroke"],
+  "hemoptysis": ["pulmonary embolism"],
+  "syncope": ["cardiac arrhythmia", "aortic dissection"],
+};
+
 function normalize(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -96,8 +110,151 @@ function fuzzyMatch(actual: string[], expected: string[]): string[] {
   });
 }
 
-// ── Wave 1: Graph Retrieval ──
-async function queryGraph(supabase: any, symptoms: string[]) {
+// ════════════════════════════════════════════════════════════════════
+// WORLD MODEL — Builds ClinicalWorldState from symptoms + lookup data
+// ════════════════════════════════════════════════════════════════════
+interface WorldModelState {
+  organ_systems: string[];
+  organ_system_weights: Record<string, number>;
+  physiological_states: Array<{ process: string; organ_system: string; confidence: number }>;
+  hypotheses: Array<{ disease: string; confidence: number; organ_system: string; source: string }>;
+  dangerous_conditions: string[];
+  risk_level: string;
+  state_confidence: number;
+  reasoning_traces: Array<{ symptom: string; physiology: string; disease: string; chain: string }>;
+  latency_ms: number;
+}
+
+function buildWorldModel(
+  symptoms: string[],
+  vitals: any,
+  activationRules: Array<{ symptom: string; organ_system: string; activation_weight: number }>,
+  physiologyMap: Array<{ symptom: string; physiology_process: string; organ_system: string }>,
+  physiologyDiagMap: Array<{ physiology_process: string; disease_name: string; confidence_score: number }>,
+  specificityMap: Record<string, number>,
+): WorldModelState {
+  const start = Date.now();
+  const syms = symptoms.map(s => s.toLowerCase());
+
+  // 1. Organ System Activation using activation rules
+  const systemScores: Record<string, number> = {};
+  for (const s of syms) {
+    const rules = activationRules.filter(r => r.symptom.toLowerCase() === s);
+    for (const r of rules) {
+      systemScores[r.organ_system] = (systemScores[r.organ_system] || 0) + r.activation_weight;
+    }
+  }
+  const sortedSystems = Object.entries(systemScores).sort(([, a], [, b]) => b - a);
+  const activeOrganSystems = sortedSystems.filter(([, w]) => w >= 1.0).map(([s]) => s);
+
+  // 2. Physiology Inference
+  const physiologicalStates: WorldModelState["physiological_states"] = [];
+  const seenProcesses = new Set<string>();
+  for (const s of syms) {
+    const matches = physiologyMap.filter(p => p.symptom.toLowerCase() === s);
+    for (const m of matches) {
+      if (!seenProcesses.has(m.physiology_process)) {
+        seenProcesses.add(m.physiology_process);
+        const spec = specificityMap[s] || 0.35;
+        physiologicalStates.push({
+          process: m.physiology_process,
+          organ_system: m.organ_system,
+          confidence: Math.round(Math.min(1.0, spec * 1.2) * 100) / 100,
+        });
+      }
+    }
+  }
+
+  // 3. Physiology → Disease Hypotheses
+  const hypotheses: WorldModelState["hypotheses"] = [];
+  const seenDiseases = new Set<string>();
+  for (const ps of physiologicalStates) {
+    const matches = physiologyDiagMap.filter(
+      pd => pd.physiology_process.toLowerCase() === ps.process.toLowerCase()
+    );
+    for (const m of matches) {
+      const key = m.disease_name.toLowerCase();
+      if (!seenDiseases.has(key)) {
+        seenDiseases.add(key);
+        hypotheses.push({
+          disease: m.disease_name,
+          confidence: Math.round(ps.confidence * (m.confidence_score || 0.5) * 100) / 100,
+          organ_system: ps.organ_system,
+          source: "physiology",
+        });
+      }
+    }
+  }
+
+  // 4. Dangerous Diagnosis Injection
+  const dangerousConditions: string[] = [];
+  for (const s of syms) {
+    const dangers = DANGEROUS_TRIGGERS[s];
+    if (dangers) {
+      for (const d of dangers) {
+        const key = d.toLowerCase();
+        if (!seenDiseases.has(key)) {
+          seenDiseases.add(key);
+          dangerousConditions.push(d);
+          hypotheses.push({ disease: d, confidence: 0.05, organ_system: activeOrganSystems[0] || "general", source: "dangerous" });
+        } else if (!dangerousConditions.includes(d)) {
+          dangerousConditions.push(d);
+        }
+      }
+    }
+  }
+
+  // 5. Reasoning Traces
+  const traces: WorldModelState["reasoning_traces"] = [];
+  for (const ps of physiologicalStates) {
+    const matchedDiseases = physiologyDiagMap.filter(
+      pd => pd.physiology_process.toLowerCase() === ps.process.toLowerCase()
+    );
+    const originSymptom = physiologyMap.find(p => p.physiology_process === ps.process)?.symptom || "unknown";
+    for (const md of matchedDiseases.slice(0, 2)) {
+      traces.push({
+        symptom: originSymptom,
+        physiology: ps.process,
+        disease: md.disease_name,
+        chain: `${originSymptom} → ${ps.process} → ${md.disease_name}`,
+      });
+    }
+  }
+
+  // 6. Risk Level
+  let riskLevel = "low";
+  if (dangerousConditions.length > 0) riskLevel = "high";
+  if (dangerousConditions.length >= 3) riskLevel = "critical";
+  else if (hypotheses.length >= 3 && riskLevel === "low") riskLevel = "moderate";
+
+  if (vitals) {
+    if ((vitals.spo2 && vitals.spo2 < 92) || (vitals.bp_systolic && vitals.bp_systolic >= 180) || (vitals.bp_systolic && vitals.bp_systolic < 90)) {
+      if (riskLevel !== "critical") riskLevel = "high";
+    }
+  }
+
+  // 7. State Confidence
+  const avgSpec = syms.length > 0
+    ? syms.reduce((a, s) => a + (specificityMap[s] || 0.35), 0) / syms.length : 0.3;
+  const stateConfidence = Math.round(Math.min(0.95, avgSpec + (activeOrganSystems.length > 0 ? 0.15 : 0) + (physiologicalStates.length > 0 ? 0.1 : 0)) * 100) / 100;
+
+  hypotheses.sort((a, b) => b.confidence - a.confidence);
+
+  return {
+    organ_systems: activeOrganSystems,
+    organ_system_weights: systemScores,
+    physiological_states: physiologicalStates,
+    hypotheses,
+    dangerous_conditions: dangerousConditions,
+    risk_level: riskLevel,
+    state_confidence: stateConfidence,
+    reasoning_traces: traces,
+    latency_ms: Date.now() - start,
+  };
+}
+
+// ── Wave 1: Graph Retrieval (boosted by world model) ──
+async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldModelState) {
   const start = Date.now();
   try {
     const { data: symptomRows } = await supabase
@@ -111,7 +268,6 @@ async function queryGraph(supabase: any, symptoms: string[]) {
       return { diagnoses: [], suggested_labs: [], suggested_drugs: [], physiology_states: [], matched_symptoms: matchedSymptoms, guidelines: [], latency_ms: Date.now() - start };
     }
 
-    // Primary: symptom_likelihoods, Secondary: symptom_diagnosis_map
     const [lkRes, sdmRes] = await Promise.all([
       supabase.from("symptom_likelihoods").select("diagnosis_id, symptom_id, likelihood_value").in("symptom_id", symptomIds),
       supabase.from("symptom_diagnosis_map").select("diagnosis_id").in("symptom_id", symptomIds),
@@ -133,10 +289,25 @@ async function queryGraph(supabase: any, symptoms: string[]) {
     if (diagnosisIds.length > 0) {
       const { data: dxRows } = await supabase
         .from("diagnoses").select("id, diagnosis_name, icd10_code, category")
-        .in("id", diagnosisIds.slice(0, 20));
-      diagnoses = (dxRows || []).map((d: any) => ({
-        ...d, score: scoreMap[d.id] || 0.1,
-      })).sort((a: any, b: any) => b.score - a.score);
+        .in("id", diagnosisIds.slice(0, 30));
+
+      // Apply world model organ-system boost
+      const dominantSystem = worldModel.organ_systems[0] || "";
+      diagnoses = (dxRows || []).map((d: any) => {
+        let score = scoreMap[d.id] || 0.1;
+        // Boost diseases matching world model's dominant organ system
+        if (dominantSystem && d.category?.toLowerCase().includes(dominantSystem.toLowerCase())) {
+          score *= 1.3;
+        }
+        // Boost diseases that appear in world model hypotheses
+        const wmHypothesis = worldModel.hypotheses.find(
+          h => normalize(h.disease) === normalize(d.diagnosis_name)
+        );
+        if (wmHypothesis) {
+          score *= (1.0 + wmHypothesis.confidence);
+        }
+        return { ...d, score };
+      }).sort((a: any, b: any) => b.score - a.score);
     }
 
     const topDxIds = diagnoses.slice(0, 5).map((d: any) => d.id);
@@ -182,8 +353,8 @@ async function queryGraph(supabase: any, symptoms: string[]) {
   }
 }
 
-// ── Wave 2: DDX Engine with organ-system weighting ──
-async function runDDX(supabase: any, graphResult: any, scenario: any, organSystemWeights: Record<string, number>) {
+// ── Wave 2: DDX Engine ──
+async function runDDX(supabase: any, graphResult: any, scenario: any, worldModel: WorldModelState) {
   const start = Date.now();
   try {
     const diagnoses = (graphResult.diagnoses || []).slice(0, 10);
@@ -191,23 +362,7 @@ async function runDDX(supabase: any, graphResult: any, scenario: any, organSyste
       return { differential_diagnoses: [], suggested_medications: [], recommended_labs: [], latency_ms: Date.now() - start };
     }
 
-    // Detect dominant organ system from symptom_organ_system_map weights
-    const systemScores: Record<string, number> = {};
-    for (const symptom of scenario.symptoms) {
-      const sLower = symptom.toLowerCase();
-      for (const [key, weight] of Object.entries(organSystemWeights)) {
-        if (key === sLower) {
-          // organSystemWeights is keyed "symptom|organ_system" → weight
-          // Actually we pass a pre-computed map
-        }
-      }
-    }
-    // Use physiology states as fallback
-    const physiologySystems = (graphResult.physiology_states || []).map((p: any) => p.organ_system);
-    for (const sys of physiologySystems) {
-      if (sys) systemScores[sys] = (systemScores[sys] || 0) + 1;
-    }
-    const dominantSystem = Object.entries(systemScores).sort(([, a], [, b]) => (b as number) - (a as number))[0]?.[0] || "";
+    const dominantSystem = worldModel.organ_systems[0] || "";
 
     // Check dangerous diagnoses
     const dxIds = diagnoses.map((d: any) => d.id);
@@ -216,17 +371,21 @@ async function runDDX(supabase: any, graphResult: any, scenario: any, organSyste
       .in("diagnosis_id", dxIds);
     const dangerousSet = new Set((dangerousRows || []).map((d: any) => d.diagnosis_id));
 
+    // Also mark world model dangerous conditions
+    const wmDangerousNames = new Set(worldModel.dangerous_conditions.map(normalize));
+
     const ranked = diagnoses.map((d: any, idx: number) => {
       let prob = Math.max(5, 95 - idx * 12) * (d.score || 0.5);
-      // Organ system bonus from detected dominant system
+      // World model organ system boost
       if (dominantSystem && d.category?.toLowerCase().includes(dominantSystem)) {
         prob *= 1.3;
       }
-      if (dangerousSet.has(d.id)) prob = Math.max(prob, 15);
+      const isDangerous = dangerousSet.has(d.id) || wmDangerousNames.has(normalize(d.diagnosis_name));
+      if (isDangerous) prob = Math.max(prob, 15);
       return {
         diagnosis_id: d.id, diagnosis_name: d.diagnosis_name,
         icd10_code: d.icd10_code || "", probability: Math.min(95, Math.round(prob)),
-        category: d.category || "", is_dangerous: dangerousSet.has(d.id),
+        category: d.category || "", is_dangerous: isDangerous,
       };
     }).sort((a: any, b: any) => b.probability - a.probability);
 
@@ -241,11 +400,11 @@ async function runDDX(supabase: any, graphResult: any, scenario: any, organSyste
   }
 }
 
-// ── Wave 3: Bayesian Engine with specificity × organ-system weighting ──
+// ── Wave 3: Bayesian Engine ──
 async function runBayesian(
   supabase: any, ddxResult: any, scenario: any,
   specificityMap: Record<string, number>,
-  organSystemData: { dominantSystem: string; systemWeight: number },
+  worldModel: WorldModelState,
 ) {
   const start = Date.now();
   try {
@@ -253,8 +412,6 @@ async function runBayesian(
     if (candidates.length === 0) return { diagnoses: [], signal_strength: 0, latency_ms: Date.now() - start };
 
     const dxIds = candidates.map((c: any) => c.diagnosis_id).filter(Boolean);
-
-    // Fetch priors + symptom likelihoods in parallel
     const symptomNames = scenario.symptoms;
     const [priorRes, symptomRes] = await Promise.all([
       supabase.from("disease_priors").select("diagnosis_id, base_prevalence, age_modifier, sex_modifier").in("diagnosis_id", dxIds),
@@ -288,8 +445,10 @@ async function runBayesian(
       }
     }
 
-    // ── PHASE 6: Enhanced Bayesian with specificity × organ-system ──
-    // Posterior(D) ∝ prior(D) × Π[likelihood(S|D) × specificity(S)] × organ_system_weight
+    // World model organ system data
+    const dominantSystem = worldModel.organ_systems[0] || "";
+    const systemWeight = Math.min(2.0, 1.0 + ((worldModel.organ_system_weights[dominantSystem] || 1.0) - 1.0) * 0.3);
+
     let totalSignalStrength = 0;
     const posteriors = candidates.map((c: any) => {
       const prior = priorMap[c.diagnosis_id] || 0.01;
@@ -301,17 +460,21 @@ async function runBayesian(
         const lk = likelihoods[sId] || 0.3;
         const sName = symptomNameById[sId] || "";
         const specificity = specificityMap[sName.toLowerCase()] || 0.35;
-        // Weight likelihood by specificity score
-        const weightedLk = lk * (0.5 + specificity * 0.5); // scales from 0.5x to 1.0x
+        const weightedLk = lk * (0.5 + specificity * 0.5);
         logPosterior += Math.log(weightedLk);
         symptomSignal += specificity;
       }
 
-      // Apply organ system weight if diagnosis category matches dominant system
+      // World model organ system boost
       const categoryLower = (c.category || "").toLowerCase();
-      const dominantLower = (organSystemData.dominantSystem || "").toLowerCase();
-      if (dominantLower && categoryLower.includes(dominantLower)) {
-        logPosterior += Math.log(organSystemData.systemWeight);
+      if (dominantSystem && categoryLower.includes(dominantSystem.toLowerCase())) {
+        logPosterior += Math.log(systemWeight);
+      }
+
+      // World model hypothesis confidence boost
+      const wmH = worldModel.hypotheses.find(h => normalize(h.disease) === normalize(c.diagnosis_name));
+      if (wmH && wmH.confidence > 0.1) {
+        logPosterior += Math.log(1.0 + wmH.confidence * 0.5);
       }
 
       totalSignalStrength += symptomSignal;
@@ -342,7 +505,7 @@ async function runBayesian(
 }
 
 // ── Wave 4: Safety Engine ──
-async function runSafety(supabase: any, scenario: any, ddxResult: any) {
+async function runSafety(supabase: any, scenario: any, ddxResult: any, worldModel: WorldModelState) {
   const start = Date.now();
   try {
     const allMeds = [...new Set([
@@ -382,24 +545,31 @@ async function runSafety(supabase: any, scenario: any, ddxResult: any) {
     if (v.respiratory_rate && v.respiratory_rate >= 28) vitalsDangers.push({ parameter: "Respiratory Rate", value: v.respiratory_rate, threshold: 28, severity: "warning", message: "Tachypnea" });
 
     const emergencyPatterns: any[] = [];
+    // Include world model dangerous conditions
+    for (const dc of worldModel.dangerous_conditions) {
+      emergencyPatterns.push({ diagnosis: dc, probability: 0, message: `Must-not-miss: ${dc}`, source: "world_model" });
+    }
     for (const dd of (ddxResult.differential_diagnoses || []).filter((d: any) => d.is_dangerous)) {
-      emergencyPatterns.push({ diagnosis: dd.diagnosis_name, probability: dd.probability, message: `Must-not-miss: ${dd.diagnosis_name}` });
+      if (!emergencyPatterns.find(e => normalize(e.diagnosis) === normalize(dd.diagnosis_name))) {
+        emergencyPatterns.push({ diagnosis: dd.diagnosis_name, probability: dd.probability, message: `Must-not-miss: ${dd.diagnosis_name}` });
+      }
     }
 
     return {
       interaction_flags: interactionFlags, allergy_flags: allergyFlags,
       vitals_dangers: vitalsDangers, emergency_patterns: emergencyPatterns,
       safety_score: Math.max(0, 100 - interactionFlags.length * 15 - allergyFlags.length * 25 - vitalsDangers.length * 10 - emergencyPatterns.length * 5),
+      world_model_risk_level: worldModel.risk_level,
       latency_ms: Date.now() - start,
     };
   } catch (e) {
     console.error("[Safety] Error:", e);
-    return { interaction_flags: [], allergy_flags: [], vitals_dangers: [], emergency_patterns: [], safety_score: 50, latency_ms: Date.now() - start, error: String(e) };
+    return { interaction_flags: [], allergy_flags: [], vitals_dangers: [], emergency_patterns: [], safety_score: 50, world_model_risk_level: "unknown", latency_ms: Date.now() - start, error: String(e) };
   }
 }
 
-// ── Wave 5: Deterministic SOAP Builder ──
-function buildSOAP(scenario: any, ddxResult: any, bayesianResult: any, safetyResult: any) {
+// ── Wave 5: SOAP Builder ──
+function buildSOAP(scenario: any, ddxResult: any, bayesianResult: any, safetyResult: any, worldModel: WorldModelState) {
   const start = Date.now();
   const subjParts: string[] = [];
   subjParts.push(`Chief complaint: ${scenario.chief_complaint}.`);
@@ -417,8 +587,16 @@ function buildSOAP(scenario: any, ddxResult: any, bayesianResult: any, safetyRes
   if (v.spo2) vitalsStr.push(`SpO2: ${v.spo2}%`);
   if (v.respiratory_rate) vitalsStr.push(`RR: ${v.respiratory_rate}/min`);
   if (vitalsStr.length > 0) objParts.push(`Vitals: ${vitalsStr.join(", ")}.`);
+  // Include world model physiological states in objective
+  if (worldModel.physiological_states.length > 0) {
+    objParts.push(`Inferred physiology: ${worldModel.physiological_states.map(p => `${p.process} (${Math.round(p.confidence * 100)}%)`).join(", ")}.`);
+  }
 
   const assessParts: string[] = [];
+  // World model organ systems
+  if (worldModel.organ_systems.length > 0) {
+    assessParts.push(`Active organ systems: ${worldModel.organ_systems.join(", ")}.`);
+  }
   const topDx = (ddxResult.differential_diagnoses || []).slice(0, 5);
   if (topDx.length > 0) {
     const dxList = topDx.map((d: any, i: number) => `${i + 1}. ${d.diagnosis_name} (${d.probability}%)`).join("\n");
@@ -429,6 +607,7 @@ function buildSOAP(scenario: any, ddxResult: any, bayesianResult: any, safetyRes
   if ((safetyResult.emergency_patterns || []).length > 0) {
     assessParts.push(`⚠️ Emergency: ${safetyResult.emergency_patterns.map((e: any) => e.message).join("; ")}`);
   }
+  assessParts.push(`Risk level: ${worldModel.risk_level.toUpperCase()}.`);
 
   const planParts: string[] = [];
   const recLabs = (ddxResult.recommended_labs || []).slice(0, 5);
@@ -464,11 +643,14 @@ Deno.serve(async (req) => {
     const validationRunId = crypto.randomUUID();
 
     // ═══════════════════════════════════════════════════════════════════
-    // STEP 0: Load signal-optimization tables (specificity + organ weights)
+    // STEP 0: Load all lookup tables in parallel
     // ═══════════════════════════════════════════════════════════════════
-    const [specRes, organRes] = await Promise.all([
+    const [specRes, organRes, activationRes, physMapRes, physDiagRes] = await Promise.all([
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
+      supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
+      supabase.from("symptom_physiology_map").select("symptom:symptoms!inner(symptom_name), physiology_process, organ_system"),
+      supabase.from("physiology_diagnosis_map").select("physiology_process:physiological_states!inner(state_name), disease_name:diagnoses!inner(diagnosis_name), confidence_score"),
     ]);
 
     const specificityMap: Record<string, number> = {};
@@ -478,11 +660,28 @@ Deno.serve(async (req) => {
       specificityOrganMap[s.symptom_name.toLowerCase()] = s.organ_system;
     }
 
-    const organWeightMap: Record<string, Record<string, number>> = {}; // symptom → {system → weight}
+    const organWeightMap: Record<string, Record<string, number>> = {};
     for (const o of (organRes.data || [])) {
       if (!organWeightMap[o.symptom.toLowerCase()]) organWeightMap[o.symptom.toLowerCase()] = {};
       organWeightMap[o.symptom.toLowerCase()][o.organ_system] = parseFloat(o.weight);
     }
+
+    const activationRules = (activationRes.data || []).map((r: any) => ({
+      symptom: r.symptom, organ_system: r.organ_system, activation_weight: parseFloat(r.activation_weight),
+    }));
+
+    // Flatten joined physiology map
+    const physiologyMap = (physMapRes.data || []).map((r: any) => ({
+      symptom: r.symptom?.symptom_name || "",
+      physiology_process: r.physiology_process || "",
+      organ_system: r.organ_system || "",
+    })).filter((r: any) => r.symptom && r.physiology_process);
+
+    const physiologyDiagMap = (physDiagRes.data || []).map((r: any) => ({
+      physiology_process: r.physiology_process?.state_name || "",
+      disease_name: r.disease_name?.diagnosis_name || "",
+      confidence_score: r.confidence_score || 0.5,
+    })).filter((r: any) => r.physiology_process && r.disease_name);
 
     // ═══════════════════════════════════════════════════════════════════
     // STEP 1: Knowledge Graph Integrity Check
@@ -495,6 +694,7 @@ Deno.serve(async (req) => {
       "drug_master", "clinical_guidelines", "dangerous_diagnoses",
       "diagnosis_drug_map", "diagnosis_lab_map", "guideline_registry",
       "symptom_specificity", "symptom_organ_system_map",
+      "organ_system_activation_rules", "clinical_reasoning_traces",
     ];
 
     const countResults = await Promise.all(
@@ -510,7 +710,6 @@ Deno.serve(async (req) => {
       tableCounts.diagnosis_drug_map + tableCounts.diagnosis_lab_map;
     const avgEdgesPerDisease = totalDiseases > 0 ? Math.round((totalRelationships / totalDiseases) * 10) / 10 : 0;
 
-    // Signal optimization metrics
     const specCoverage = tableCounts.symptom_specificity;
     const organCoverage = tableCounts.symptom_organ_system_map;
     const highSpecCount = (specRes.data || []).filter((s: any) => parseFloat(s.specificity_score) >= 0.7).length;
@@ -534,6 +733,13 @@ Deno.serve(async (req) => {
         avg_specificity: (specRes.data || []).length > 0
           ? Math.round((specRes.data || []).reduce((a: number, s: any) => a + parseFloat(s.specificity_score), 0) / (specRes.data || []).length * 100) / 100
           : 0,
+        activation_rules_count: activationRules.length,
+      },
+      world_model: {
+        activation_rules: activationRules.length,
+        physiology_map_entries: physiologyMap.length,
+        physiology_diag_entries: physiologyDiagMap.length,
+        reasoning_traces_stored: tableCounts.clinical_reasoning_traces,
       },
       gaps: graphGaps,
       status: graphGaps.length === 0 ? "healthy" : graphGaps.length <= 2 ? "partial" : "degraded",
@@ -541,10 +747,11 @@ Deno.serve(async (req) => {
     };
 
     // ═══════════════════════════════════════════════════════════════════
-    // STEP 2: Benchmark Scenarios
+    // STEP 2: Benchmark Scenarios with World Model
     // ═══════════════════════════════════════════════════════════════════
     const scenarioResults = [];
     const engineLogs: any[] = [];
+    const allReasoningTraces: any[] = [];
 
     for (const scenario of BENCHMARK_SCENARIOS) {
       const scenarioStart = Date.now();
@@ -575,25 +782,49 @@ Deno.serve(async (req) => {
       pipelineTrace.pcie_populated_fields = populatedFields.length;
       pipelineTrace.pcie_confidence = context.context_confidence;
 
-      // ── Compute organ-system dominance for this scenario ──
-      const scenarioSystemScores: Record<string, number> = {};
-      for (const symptom of scenario.symptoms) {
-        const sLower = symptom.toLowerCase();
-        const weights = organWeightMap[sLower];
-        if (weights) {
-          for (const [sys, w] of Object.entries(weights)) {
-            scenarioSystemScores[sys] = (scenarioSystemScores[sys] || 0) + w;
-          }
-        }
+      // ═══ NEW: Wave 0.5 — Clinical World Model ═══
+      const wmStart = Date.now();
+      const worldModel = buildWorldModel(
+        scenario.symptoms, scenario.vitals,
+        activationRules, physiologyMap, physiologyDiagMap, specificityMap,
+      );
+      waveLatency.wave05_world_model_ms = worldModel.latency_ms;
+      pipelineTrace.world_model = {
+        organ_systems: worldModel.organ_systems,
+        organ_system_weights: worldModel.organ_system_weights,
+        physiological_states: worldModel.physiological_states.length,
+        hypotheses_count: worldModel.hypotheses.length,
+        top_hypotheses: worldModel.hypotheses.slice(0, 3).map(h => `${h.disease} (${h.confidence})`),
+        dangerous_conditions: worldModel.dangerous_conditions,
+        risk_level: worldModel.risk_level,
+        state_confidence: worldModel.state_confidence,
+        reasoning_traces_count: worldModel.reasoning_traces.length,
+      };
+      engineLogs.push({
+        engine_name: "world_model", validation_run_id: validationRunId,
+        execution_time_ms: worldModel.latency_ms, status: worldModel.organ_systems.length > 0 ? "ok" : "degraded",
+        output_summary: {
+          organ_systems: worldModel.organ_systems.length,
+          physiological_states: worldModel.physiological_states.length,
+          hypotheses: worldModel.hypotheses.length,
+          dangerous: worldModel.dangerous_conditions.length,
+          risk_level: worldModel.risk_level,
+        },
+      });
+
+      // Store reasoning traces
+      for (const trace of worldModel.reasoning_traces) {
+        allReasoningTraces.push({
+          validation_run_id: validationRunId,
+          scenario_id: scenario.id,
+          symptom: trace.symptom,
+          physiology_process: trace.physiology,
+          disease: trace.disease,
+          evidence_chain: trace.chain,
+          organ_system: worldModel.organ_systems[0] || "general",
+          source: "world_model",
+        });
       }
-      const sortedSystems = Object.entries(scenarioSystemScores).sort(([, a], [, b]) => b - a);
-      const dominantSystem = sortedSystems[0]?.[0] || "";
-      const dominantWeight = sortedSystems[0]?.[1] || 1.0;
-      // Normalize weight: if multiple symptoms agree on a system, boost it
-      const effectiveWeight = Math.min(2.0, 1.0 + (dominantWeight - 1.0) * 0.3);
-      pipelineTrace.dominant_organ_system = dominantSystem;
-      pipelineTrace.organ_system_weight = Math.round(effectiveWeight * 100) / 100;
-      pipelineTrace.organ_system_scores = scenarioSystemScores;
 
       // Compute avg specificity for this scenario's symptoms
       const scenarioSpecificities = scenario.symptoms.map(s => specificityMap[s.toLowerCase()] || 0.35);
@@ -601,47 +832,45 @@ Deno.serve(async (req) => {
         ? scenarioSpecificities.reduce((a, b) => a + b, 0) / scenarioSpecificities.length : 0;
       pipelineTrace.avg_symptom_specificity = Math.round(avgSpecificity * 100) / 100;
 
-      // Wave 1: Graph
+      // Wave 1: Graph (boosted by world model)
       const w1Start = Date.now();
-      const graphResult = await queryGraph(supabase, scenario.symptoms);
+      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel);
       waveLatency.wave1_graph_ms = Date.now() - w1Start;
       pipelineTrace.graph_diagnoses_count = graphResult.diagnoses.length;
       pipelineTrace.graph_matched_symptoms = graphResult.matched_symptoms.length;
       pipelineTrace.graph_physiology_count = graphResult.physiology_states.length;
       engineLogs.push({ engine_name: "graph_engine", validation_run_id: validationRunId, execution_time_ms: waveLatency.wave1_graph_ms, status: graphResult.diagnoses.length > 0 ? "ok" : "empty", output_summary: { diagnoses: graphResult.diagnoses.length, labs: graphResult.suggested_labs.length } });
 
-      // Wave 2: DDX
+      // Wave 2: DDX (uses world model)
       const w2Start = Date.now();
-      const ddxResult = await runDDX(supabase, graphResult, scenario, organWeightMap as any);
+      const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
       waveLatency.wave2_ddx_ms = Date.now() - w2Start;
       pipelineTrace.ddx_count = ddxResult.differential_diagnoses.length;
       pipelineTrace.ddx_dominant_system = ddxResult.dominant_organ_system;
       engineLogs.push({ engine_name: "ddx_engine", validation_run_id: validationRunId, execution_time_ms: waveLatency.wave2_ddx_ms, status: ddxResult.differential_diagnoses.length > 0 ? "ok" : "empty", output_summary: { diagnoses: ddxResult.differential_diagnoses.length } });
 
-      // Wave 3: Bayesian with specificity + organ-system
+      // Wave 3: Bayesian (uses world model)
       const w3Start = Date.now();
-      const bayesianResult = await runBayesian(
-        supabase, ddxResult, scenario, specificityMap,
-        { dominantSystem, systemWeight: effectiveWeight },
-      );
+      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel);
       waveLatency.wave3_bayesian_ms = Date.now() - w3Start;
       pipelineTrace.bayesian_count = bayesianResult.diagnoses.length;
       pipelineTrace.bayesian_top = bayesianResult.diagnoses[0]?.diagnosis_name || null;
       pipelineTrace.bayesian_signal_strength = bayesianResult.signal_strength || 0;
       engineLogs.push({ engine_name: "bayesian_engine", validation_run_id: validationRunId, execution_time_ms: waveLatency.wave3_bayesian_ms, status: bayesianResult.diagnoses.length > 0 ? "ok" : "empty", output_summary: { diagnoses: bayesianResult.diagnoses.length, signal: bayesianResult.signal_strength } });
 
-      // Wave 4: Safety
+      // Wave 4: Safety (uses world model)
       const w4Start = Date.now();
-      const safetyResult = await runSafety(supabase, scenario, ddxResult);
+      const safetyResult = await runSafety(supabase, scenario, ddxResult, worldModel);
       waveLatency.wave4_safety_ms = Date.now() - w4Start;
       const safetyAlertCount = safetyResult.interaction_flags.length + safetyResult.allergy_flags.length + safetyResult.vitals_dangers.length + safetyResult.emergency_patterns.length;
       pipelineTrace.safety_alerts = safetyAlertCount;
       pipelineTrace.safety_score = safetyResult.safety_score;
+      pipelineTrace.world_model_risk_level = safetyResult.world_model_risk_level;
       engineLogs.push({ engine_name: "safety_engine", validation_run_id: validationRunId, execution_time_ms: waveLatency.wave4_safety_ms, status: "ok", output_summary: { alerts: safetyAlertCount, score: safetyResult.safety_score } });
 
-      // Wave 5: SOAP
+      // Wave 5: SOAP (uses world model)
       const w5Start = Date.now();
-      const soapResult = buildSOAP(scenario, ddxResult, bayesianResult, safetyResult);
+      const soapResult = buildSOAP(scenario, ddxResult, bayesianResult, safetyResult, worldModel);
       waveLatency.wave5_soap_ms = Date.now() - w5Start;
       pipelineTrace.soap_sections = Object.keys(soapResult.sections);
       engineLogs.push({ engine_name: "soap_engine", validation_run_id: validationRunId, execution_time_ms: waveLatency.wave5_soap_ms, status: "ok", output_summary: { sections: Object.keys(soapResult.sections).length } });
@@ -670,7 +899,18 @@ Deno.serve(async (req) => {
         safety_alert_count: safetyAlertCount,
         danger_detected: safetyResult.emergency_patterns.length > 0,
         soap_generated: soapResult.soap_valid,
+        world_model: {
+          organ_systems: worldModel.organ_systems,
+          risk_level: worldModel.risk_level,
+          state_confidence: worldModel.state_confidence,
+          hypotheses_count: worldModel.hypotheses.length,
+          top_hypotheses: worldModel.hypotheses.slice(0, 3),
+          dangerous_conditions: worldModel.dangerous_conditions,
+          physiological_states: worldModel.physiological_states.slice(0, 5),
+          reasoning_traces: worldModel.reasoning_traces.slice(0, 5),
+        },
         engine_status: {
+          world_model: worldModel.organ_systems.length > 0 || worldModel.hypotheses.length > 0,
           graph_engine: graphResult.diagnoses.length > 0,
           ddx_engine: ddxResult.differential_diagnoses.length > 0,
           bayesian_engine: bayesianResult.diagnoses.length > 0,
@@ -682,8 +922,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Write engine logs
-    supabase.from("clinical_engine_logs").insert(engineLogs).then(() => {});
+    // Write engine logs + reasoning traces
+    await Promise.all([
+      supabase.from("clinical_engine_logs").insert(engineLogs),
+      allReasoningTraces.length > 0 ? supabase.from("clinical_reasoning_traces").insert(allReasoningTraces) : Promise.resolve(),
+    ]);
 
     // ═══════════════════════════════════════════════════════════════════
     // Aggregate
@@ -692,13 +935,14 @@ Deno.serve(async (req) => {
     const avgDxMatch = scenarioResults.reduce((a, s) => a + s.diagnosis_match_rate, 0) / scenarioResults.length;
     const avgLatency = scenarioResults.reduce((a, s) => a + s.total_latency_ms, 0) / scenarioResults.length;
 
-    const waveKeys = ["wave0_pcie_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
+    const waveKeys = ["wave0_pcie_ms", "wave05_world_model_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
     const avgWaveLatency: Record<string, number> = {};
     for (const key of waveKeys) {
       avgWaveLatency[key] = Math.round(scenarioResults.reduce((a, s) => a + (s.wave_latency[key] || 0), 0) / scenarioResults.length);
     }
 
     const engineHealthRaw: Record<string, number> = {
+      world_model: scenarioResults.filter(s => s.engine_status.world_model).length,
       graph_engine: scenarioResults.filter(s => s.engine_status.graph_engine).length,
       ddx_engine: scenarioResults.filter(s => s.engine_status.ddx_engine).length,
       bayesian_engine: scenarioResults.filter(s => s.engine_status.bayesian_engine).length,
@@ -739,17 +983,17 @@ Deno.serve(async (req) => {
       ],
       repair_log: {
         fixes_applied: [
-          "Phase 1: Created symptom_specificity table with 70+ scored symptoms (0.18–0.95 range)",
-          "Phase 2: Created symptom_organ_system_map with 70+ organ-system weighted mappings",
-          "Phase 3: Symptom → physiology → disease chain active via symptom_physiology_map (600+ rows)",
-          "Phase 4: Dangerous diagnosis injection for chest pain, abdominal pain, headache triggers",
-          "Phase 5: Sparse high-signal graph — symptom_likelihoods filtered to P≥0.3 edges",
-          "Phase 6: Bayesian model upgraded: posterior ∝ prior × Π(likelihood × specificity) × organ_weight",
-          "Phase 7: Signal strength metric tracks diagnostic specificity per scenario",
+          "World Model layer inserted between PCIE and Graph Retrieval (Wave 0.5)",
+          "Organ system activation via organ_system_activation_rules (75+ rules)",
+          "Physiology inference: symptom → physiological process → disease hypothesis",
+          "Dangerous diagnosis injection with minimum probability floor",
+          "Reasoning traces stored in clinical_reasoning_traces table",
+          "World model boosts graph retrieval and Bayesian scoring",
+          "SOAP notes enriched with physiological states and risk levels",
         ],
         previous_fixes: [
-          "Graph retrieval uses symptom_likelihoods as primary source (1220+ rows)",
-          "Column name fix: likelihood_value (was 'likelihood')",
+          "Phase 1–7: Signal-optimized Bayesian with specificity × organ-system weighting",
+          "Graph retrieval uses symptom_likelihoods as primary source",
           "SOAP uses deterministic template assembly (<1ms)",
           "Direct DB queries replaced sequential edge function calls",
         ],
