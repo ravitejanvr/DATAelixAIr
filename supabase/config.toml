@@ -123,4 +123,8 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.expand-likelihoods-deep-batch2]
     verify_jwt = false
+  [functions.expand-likelihoods-deep-batch3]
+    verify_jwt = false
+  [functions.expand-likelihoods-deep-batch4]
+    verify_jwt = false
     verify_jwt = false
