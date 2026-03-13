@@ -57,6 +57,7 @@ import { runMetaReasoning, resolveReasoningConflict, type MetaReasoningOutput, t
 import { testHypotheses, type HypothesisTestResult } from "@/services/hypothesis_testing/client";
 import { planEvidence, type EvidencePlanResult } from "@/services/evidence_planning/client";
 import { runCausalReasoning, type CausalReasoningResult } from "@/services/causal_reasoning/client";
+import { getCalibrationFactors, buildCalibrationMap, type CalibrationResult } from "@/services/learning_system/calibration_client";
 
 // ── Public Types ──
 
