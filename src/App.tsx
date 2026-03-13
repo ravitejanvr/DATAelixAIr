@@ -57,6 +57,7 @@ import PlatformAdmin from "./pages/PlatformAdmin";
 import PilotRequest from "./pages/PilotRequest";
 import AiPipelineTest from "./pages/AiPipelineTest";
 import PipelineTrace from "./pages/PipelineTrace";
+import SystemValidation from "./pages/SystemValidation";
 
 const queryClient = new QueryClient();
 
@@ -190,6 +191,7 @@ const App = () => (
               <Route path="/platform-admin/*" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><PlatformAdmin /></PlatformAdminLayout></ProtectedRoute>} />
               <Route path="/admin/ai-pipeline-test" element={<ProtectedRoute allowedRoles={["platform_admin"]}><AiPipelineTest /></ProtectedRoute>} />
               <Route path="/admin/pipeline-trace" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PipelineTrace /></ProtectedRoute>} />
+              <Route path="/admin/system-validation" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><SystemValidation /></PlatformAdminLayout></ProtectedRoute>} />
 
               {/* Layer 1: Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
