@@ -1712,6 +1712,13 @@ export async function runUnifiedClinicalPipeline(
     hypothesis_testing: hypothesisTestResult,
     evidence_plan: evidencePlanResult,
     conflict_resolution: conflictResult,
+    diagnostic_loop: diagnosticLoopExecuted ? {
+      executed: true,
+      reason: diagnosticLoopReason,
+      candidates_pruned: ddxResult ? ddxResult.differential_diagnoses.length : 0,
+      candidates_remaining: ddxResult ? ddxResult.differential_diagnoses.length : 0,
+      iteration_ms: lat.diagnostic_loop || 0,
+    } : null,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: lat,

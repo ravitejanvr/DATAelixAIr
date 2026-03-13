@@ -111,6 +111,7 @@ const ENGINE_FIELD_CONSUMPTION: Record<PipelineStage, readonly string[]> = {
   meta_reasoning: ["symptoms", "vitals.temperature", "vitals.spo2", "vitals.pulse", "vitals.bp_systolic", "medical_history", "current_medications", "allergies"],
   hypothesis_testing: ["symptoms", "patient_age", "patient_sex", "allergies", "current_medications"],
   evidence_planning: ["symptoms", "patient_age", "patient_sex"],
+  diagnostic_loop: ["symptoms", "patient_age", "patient_sex", "allergies", "current_medications"],
   cockpit: TRACKED_FIELDS as unknown as string[],
 };
 

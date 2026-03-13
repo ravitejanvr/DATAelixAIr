@@ -24,6 +24,7 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
   hypothesis: "Hypo",
   hypothesis_testing: "HypoTest",
   evidence_planning: "EvPlan",
+  diagnostic_loop: "DxLoop",
   safety: "Safety",
   uncertainty: "Uncert",
   soap: "SOAP",
@@ -32,7 +33,7 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
 
 const STAGE_ORDER: PipelineStage[] = [
   "pcie", "context_enrichment", "ddx", "physiology", "hypothesis_testing", "evidence",
-  "bayesian", "guideline", "hypothesis", "evidence_planning", "safety", "uncertainty", "soap", "cockpit",
+  "bayesian", "guideline", "hypothesis", "evidence_planning", "diagnostic_loop", "safety", "uncertainty", "soap", "cockpit",
 ];
 
 function ContextProcessingMap({ lineage }: { lineage: LineageReport }) {
