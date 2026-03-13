@@ -21,6 +21,7 @@ export type PipelineStage =
   | "hypothesis"
   | "safety"
   | "uncertainty"
+  | "hypothesis_testing"
   | "soap"
   | "cockpit";
 
@@ -106,6 +107,7 @@ const ENGINE_FIELD_CONSUMPTION: Record<PipelineStage, readonly string[]> = {
   uncertainty: ["symptoms", "medical_history", "current_medications", "allergies", "vitals.temperature", "vitals.spo2", "vitals.pulse", "vitals.bp_systolic", "risk_flags", "lab_results"],
   soap: ["chief_complaint", "symptoms", "associated_symptoms", "symptom_duration", "medical_history", "family_history", "current_medications", "allergies", "vitals.bp_systolic", "vitals.bp_diastolic", "vitals.pulse", "vitals.temperature", "vitals.spo2", "vitals.respiratory_rate", "vitals.weight_kg", "vitals.height_cm", "lab_results", "risk_factors", "risk_flags", "context_confidence"],
   meta_reasoning: ["symptoms", "vitals.temperature", "vitals.spo2", "vitals.pulse", "vitals.bp_systolic", "medical_history", "current_medications", "allergies"],
+  hypothesis_testing: ["symptoms", "patient_age", "patient_sex", "allergies", "current_medications"],
   cockpit: TRACKED_FIELDS as unknown as string[],
 };
 
