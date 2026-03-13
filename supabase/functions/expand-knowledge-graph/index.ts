@@ -442,8 +442,8 @@ Deno.serve(async (req) => {
         if (error) addLog(`  Priors error: ${error.message}`);
       }
 
-      // STEP 4: Symptom likelihoods
-      addLog("Step 4: Inserting symptom likelihoods...");
+      // STEP 4: Symptom likelihoods (upsert)
+      addLog("Step 4: Upserting symptom likelihoods...");
       const likRows: { symptom_id: string; diagnosis_id: string; likelihood_value: number }[] = [];
       for (const d of diseases) {
         const dId = allDiagIds[d.name];
@@ -457,39 +457,39 @@ Deno.serve(async (req) => {
       let likInserted = 0;
       for (let i = 0; i < likRows.length; i += 200) {
         const chunk = likRows.slice(i, i + 200);
-        const { error } = await supabase.from("symptom_likelihoods").insert(chunk);
+        const { error } = await supabase.from("symptom_likelihoods").upsert(chunk, { onConflict: "symptom_id,diagnosis_id", ignoreDuplicates: false });
         if (error) addLog(`  Likelihoods error (batch ${i}): ${error.message}`);
         else likInserted += chunk.length;
       }
-      addLog(`  Likelihoods inserted: ${likInserted}`);
+      addLog(`  Likelihoods upserted: ${likInserted}`);
 
       // STEP 5: Disease tests
-      addLog("Step 5: Inserting disease tests...");
+      addLog("Step 5: Upserting disease tests...");
       const testRows = diseases.flatMap(d => d.tests.map(([tname, tcat, tstr]) => ({
         disease_name: d.name, test_name: tname, test_category: tcat, diagnostic_strength: tstr,
       })));
       let testsInserted = 0;
       for (let i = 0; i < testRows.length; i += 200) {
         const chunk = testRows.slice(i, i + 200);
-        const { error } = await supabase.from("disease_tests").insert(chunk);
+        const { error } = await supabase.from("disease_tests").upsert(chunk, { onConflict: "disease_name,test_name", ignoreDuplicates: true });
         if (error) addLog(`  Tests error: ${error.message}`);
         else testsInserted += chunk.length;
       }
-      addLog(`  Tests inserted: ${testsInserted}`);
+      addLog(`  Tests upserted: ${testsInserted}`);
 
       // STEP 6: Disease treatments
-      addLog("Step 6: Inserting treatments...");
+      addLog("Step 6: Upserting treatments...");
       const txRows = diseases.flatMap(d => d.treatments.map(([drug, cls, line, src]) => ({
         disease_name: d.name, drug_name: drug, drug_class: cls, line_of_treatment: line, guideline_source: src,
       })));
       let txInserted = 0;
       for (let i = 0; i < txRows.length; i += 200) {
         const chunk = txRows.slice(i, i + 200);
-        const { error } = await supabase.from("disease_treatments").insert(chunk);
+        const { error } = await supabase.from("disease_treatments").upsert(chunk, { onConflict: "disease_name,drug_name", ignoreDuplicates: true });
         if (error) addLog(`  Treatments error: ${error.message}`);
         else txInserted += chunk.length;
       }
-      addLog(`  Treatments inserted: ${txInserted}`);
+      addLog(`  Treatments upserted: ${txInserted}`);
     }
 
     // STEP 7: Dangerous diagnoses expansion
