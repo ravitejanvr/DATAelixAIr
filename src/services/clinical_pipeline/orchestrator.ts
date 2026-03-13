@@ -135,6 +135,8 @@ export interface PipelineResult {
   lineage: LineageReport | null;
   /** PCIE context graph — full clinical state snapshot */
   context_graph: UnifiedClinicalContextGraph | null;
+  /** Wave 6 — Cognitive layer (runs async, populated after pipeline returns) */
+  cognitive_layer: CognitiveLayerResult | null;
 }
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
