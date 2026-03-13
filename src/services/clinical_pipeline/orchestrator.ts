@@ -9,6 +9,7 @@
  *   Wave 2 — Parallel Context Analysis (DDX, Physiology, Preindexed)
  *   Wave 2b — Evidence Retrieval (enriched with DDX results)
  *   Wave 2c — Hypothesis Testing (graph-based DDX validation)
+ *   Wave 2d — Causal Reasoning (causal chains, convergent pathways, counterfactuals)
  *   Wave 3 — Parallel Clinical Reasoning (Bayesian, Guidelines, Hypotheses, Evidence Planning)
  *   Wave 3.5 — Reasoning Conflict Resolution
  *   Wave 3.6 — Bounded Diagnostic Loop (iterative refinement if confidence is low)
