@@ -922,6 +922,45 @@ export type Database = {
           },
         ]
       }
+      clinical_engine_logs: {
+        Row: {
+          created_at: string
+          engine_name: string
+          error_message: string | null
+          execution_time_ms: number
+          id: string
+          input_context_id: string | null
+          output_summary: Json | null
+          status: string
+          validation_run_id: string | null
+          visit_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          engine_name: string
+          error_message?: string | null
+          execution_time_ms?: number
+          id?: string
+          input_context_id?: string | null
+          output_summary?: Json | null
+          status?: string
+          validation_run_id?: string | null
+          visit_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          engine_name?: string
+          error_message?: string | null
+          execution_time_ms?: number
+          id?: string
+          input_context_id?: string | null
+          output_summary?: Json | null
+          status?: string
+          validation_run_id?: string | null
+          visit_id?: string | null
+        }
+        Relationships: []
+      }
       clinical_guidelines: {
         Row: {
           applicable_drugs: string[]
