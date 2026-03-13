@@ -1401,6 +1401,8 @@ export async function runUnifiedClinicalPipeline(
     hybrid_reasoning: hybridReasoning,
     soap_fallback: soapFallback,
     multi_agent: multiAgentResult,
+    meta_reasoning: metaReasoningResult,
+    conflict_resolution: conflictResult,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: lat,
