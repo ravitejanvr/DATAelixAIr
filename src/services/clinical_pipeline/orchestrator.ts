@@ -89,6 +89,7 @@ export interface PipelineResult {
   multi_agent: OrchestratorResponse | null;
   meta_reasoning: MetaReasoningOutput | null;
   hypothesis_testing: HypothesisTestResult | null;
+  evidence_plan: EvidencePlanResult | null;
   conflict_resolution: ConflictResolution | null;
   guideline_summary: {
     guideline_sources_used: string[];
