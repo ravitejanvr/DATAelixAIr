@@ -649,8 +649,8 @@ Deno.serve(async (req) => {
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
       supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
-      supabase.from("symptom_physiology_map").select("symptom:symptoms!inner(symptom_name), physiology_process, organ_system"),
-      supabase.from("physiology_diagnosis_map").select("physiology_process:physiological_states!inner(state_name), disease_name:diagnoses!inner(diagnosis_name), confidence_score"),
+      supabase.from("symptom_physiology_map").select("symptoms!inner(symptom_name), physiological_states!inner(state_name, anatomical_systems:system_id(system_name)), confidence_score"),
+      supabase.from("physiology_diagnosis_map").select("physiological_states!inner(state_name), diagnoses!inner(diagnosis_name), relevance_score"),
     ]);
 
     const specificityMap: Record<string, number> = {};
@@ -672,15 +672,15 @@ Deno.serve(async (req) => {
 
     // Flatten joined physiology map
     const physiologyMap = (physMapRes.data || []).map((r: any) => ({
-      symptom: r.symptom?.symptom_name || "",
-      physiology_process: r.physiology_process || "",
-      organ_system: r.organ_system || "",
+      symptom: r.symptoms?.symptom_name || "",
+      physiology_process: r.physiological_states?.state_name || "",
+      organ_system: r.physiological_states?.anatomical_systems?.system_name || "",
     })).filter((r: any) => r.symptom && r.physiology_process);
 
     const physiologyDiagMap = (physDiagRes.data || []).map((r: any) => ({
-      physiology_process: r.physiology_process?.state_name || "",
-      disease_name: r.disease_name?.diagnosis_name || "",
-      confidence_score: r.confidence_score || 0.5,
+      physiology_process: r.physiological_states?.state_name || "",
+      disease_name: r.diagnoses?.diagnosis_name || "",
+      confidence_score: r.relevance_score || 0.5,
     })).filter((r: any) => r.physiology_process && r.disease_name);
 
     // ═══════════════════════════════════════════════════════════════════
