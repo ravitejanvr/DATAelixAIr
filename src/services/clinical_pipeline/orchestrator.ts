@@ -939,6 +939,30 @@ export async function runUnifiedClinicalPipeline(
   }
   onProgress?.("hypothesis_testing", { hypothesis_testing: hypothesisTestResult });
 
+  // ── Apply episodic memory priors to DDX probabilities ──
+  if (episodicMemoryResult && ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const episodicPriors = buildEpisodicPriors(episodicMemoryResult);
+    if (episodicPriors.size > 0) {
+      let episodicBoostCount = 0;
+      ddxResult = {
+        ...ddxResult,
+        differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
+          const factor = episodicPriors.get(d.diagnosis_name.toLowerCase());
+          if (factor && factor !== 1.0) {
+            episodicBoostCount++;
+            const adjusted = Math.round(d.probability * factor);
+            return { ...d, probability: Math.max(1, Math.min(95, adjusted)) };
+          }
+          return d;
+        }).sort((a, b) => b.probability - a.probability),
+      };
+      if (episodicBoostCount > 0) {
+        console.log(`[Pipeline] Episodic: Boosted ${episodicBoostCount} DDX candidates from memory priors.`);
+        pcieCore.addReasoningTrace("episodic_memory" as any, `Episodic priors applied to ${episodicBoostCount} candidates`);
+      }
+    }
+  }
+
   // ── Apply learned calibration factors to DDX probabilities ──
   await calibrationPromise; // Ensure calibration data is ready
   if (calibrationResult && ddxResult && ddxResult.differential_diagnoses.length > 0) {
