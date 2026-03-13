@@ -478,18 +478,18 @@ Deno.serve(async (req) => {
       addLog(`  Tests upserted: ${testsInserted}`);
 
       // STEP 6: Disease treatments
-      addLog("Step 6: Inserting treatments...");
+      addLog("Step 6: Upserting treatments...");
       const txRows = diseases.flatMap(d => d.treatments.map(([drug, cls, line, src]) => ({
         disease_name: d.name, drug_name: drug, drug_class: cls, line_of_treatment: line, guideline_source: src,
       })));
       let txInserted = 0;
       for (let i = 0; i < txRows.length; i += 200) {
         const chunk = txRows.slice(i, i + 200);
-        const { error } = await supabase.from("disease_treatments").insert(chunk);
+        const { error } = await supabase.from("disease_treatments").upsert(chunk, { onConflict: "disease_name,drug_name", ignoreDuplicates: true });
         if (error) addLog(`  Treatments error: ${error.message}`);
         else txInserted += chunk.length;
       }
-      addLog(`  Treatments inserted: ${txInserted}`);
+      addLog(`  Treatments upserted: ${txInserted}`);
     }
 
     // STEP 7: Dangerous diagnoses expansion
