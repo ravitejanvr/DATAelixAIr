@@ -57,6 +57,7 @@ import { runMetaReasoning, resolveReasoningConflict, type MetaReasoningOutput, t
 import { testHypotheses, type HypothesisTestResult } from "@/services/hypothesis_testing/client";
 import { planEvidence, type EvidencePlanResult } from "@/services/evidence_planning/client";
 import { runCausalReasoning, type CausalReasoningResult } from "@/services/causal_reasoning/client";
+import { getCalibrationFactors, buildCalibrationMap, type CalibrationResult } from "@/services/learning_system/calibration_client";
 
 // ── Public Types ──
 
@@ -105,6 +106,7 @@ export interface PipelineResult {
   conflict_resolution: ConflictResolution | null;
   diagnostic_loop: DiagnosticLoopMeta | null;
   causal_reasoning: CausalReasoningResult | null;
+  calibration: CalibrationResult | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
@@ -416,7 +418,7 @@ export async function runUnifiedClinicalPipeline(
     bayesian: null, ddx: null, uncertainty: null, hypotheses: null,
     guideline_alignment: null, guideline_compliance: null, evidence: null,
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
-    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, causal_reasoning: null, guideline_summary: null,
+    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, causal_reasoning: null, calibration: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
     cache_stats: cache, lineage: null, context_graph: null,
   };
@@ -542,6 +544,12 @@ export async function runUnifiedClinicalPipeline(
   } else {
     console.log("[Pipeline] 🔬 Cache bypass enabled (trace/benchmark mode)");
   }
+
+  // ── Prefetch calibration data (non-blocking, resolves before Wave 3) ──
+  let calibrationResult: CalibrationResult | null = null;
+  const calibrationPromise = getCalibrationFactors(input.clinic_id || undefined)
+    .then(r => { calibrationResult = r; })
+    .catch(() => {});
 
   // ═══════════════════════════════════════════════════════
   // WAVE 1 — Context Preparation (sync, ~5ms)
@@ -854,6 +862,33 @@ export async function runUnifiedClinicalPipeline(
     lineageTracker.recordEngineResult("hypothesis_testing", !!hypothesisTestResult);
   }
   onProgress?.("hypothesis_testing", { hypothesis_testing: hypothesisTestResult });
+
+  // ── Apply learned calibration factors to DDX probabilities ──
+  await calibrationPromise; // Ensure calibration data is ready
+  if (calibrationResult && ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const calMap = buildCalibrationMap(calibrationResult);
+    if (calMap.size > 0) {
+      let calibratedCount = 0;
+      ddxResult = {
+        ...ddxResult,
+        differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
+          const factor = calMap.get(d.diagnosis_name.toLowerCase());
+          if (factor && factor !== 1.0) {
+            calibratedCount++;
+            const adjusted = d.must_not_miss
+              ? Math.max(d.probability, Math.round(d.probability * factor))
+              : Math.round(d.probability * factor);
+            return { ...d, probability: Math.max(1, Math.min(95, adjusted)) };
+          }
+          return d;
+        }).sort((a, b) => b.probability - a.probability),
+      };
+      if (calibratedCount > 0) {
+        console.log(`[Pipeline] Learning: Applied calibration to ${calibratedCount} DDX candidates.`);
+        pcieCore.addReasoningTrace("learning" as any, `Calibrated ${calibratedCount} priors from ${calibrationResult.summary.total_outcomes_analyzed} historical outcomes`);
+      }
+    }
+  }
 
   // ═══════════════════════════════════════════════════════
   // WAVE 2d — Causal Reasoning (parallel with nothing — runs after DDX adjustments)
@@ -1774,6 +1809,7 @@ export async function runUnifiedClinicalPipeline(
       iteration_ms: lat.diagnostic_loop || 0,
     } : null,
     causal_reasoning: causalReasoningResult,
+    calibration: calibrationResult,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: lat,

@@ -24,3 +24,16 @@ export type {
   BiasMetric,
   BiasAuditResult,
 } from "./client";
+
+export {
+  getCalibrationFactors,
+  buildCalibrationMap,
+  clearCalibrationCache,
+} from "./calibration_client";
+
+export type {
+  PriorCalibration,
+  OutcomeCalibration,
+  GraphExpansionSuggestion,
+  CalibrationResult,
+} from "./calibration_client";
