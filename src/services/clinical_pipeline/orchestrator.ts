@@ -1001,13 +1001,6 @@ export async function runUnifiedClinicalPipeline(
       );
       if (conflictResult.resolution_method !== "agreement") {
         console.log(`[Pipeline] Wave 3.5: Conflict resolved — ${conflictResult.explanation}`);
-        recordOversightEvent({
-          event_type: "reasoning_conflict",
-          severity: "info",
-          stage: "conflict_resolution",
-          message: conflictResult.explanation,
-          metadata: { ddx_top: conflictResult.ddx_top, bayesian_top: conflictResult.bayesian_top, method: conflictResult.resolution_method },
-        });
       }
     }
   }
