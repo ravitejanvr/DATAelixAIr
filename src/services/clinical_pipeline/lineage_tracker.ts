@@ -12,6 +12,7 @@
 export type PipelineStage =
   | "pcie"
   | "context_enrichment"
+  | "meta_reasoning"
   | "ddx"
   | "physiology"
   | "evidence"
