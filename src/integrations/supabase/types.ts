@@ -1116,6 +1116,65 @@ export type Database = {
         }
         Relationships: []
       }
+      clustered_symptom_patterns: {
+        Row: {
+          alert_level: string | null
+          associated_diagnoses: Json | null
+          centroid_vector: Json | null
+          clinic_id: string | null
+          cluster_confidence: number | null
+          cluster_id: string
+          discovery_method: string | null
+          first_detected: string
+          id: string
+          is_novel: boolean | null
+          last_updated: string
+          metadata: Json | null
+          patient_count: number
+          symptom_set: string[]
+        }
+        Insert: {
+          alert_level?: string | null
+          associated_diagnoses?: Json | null
+          centroid_vector?: Json | null
+          clinic_id?: string | null
+          cluster_confidence?: number | null
+          cluster_id: string
+          discovery_method?: string | null
+          first_detected?: string
+          id?: string
+          is_novel?: boolean | null
+          last_updated?: string
+          metadata?: Json | null
+          patient_count?: number
+          symptom_set?: string[]
+        }
+        Update: {
+          alert_level?: string | null
+          associated_diagnoses?: Json | null
+          centroid_vector?: Json | null
+          clinic_id?: string | null
+          cluster_confidence?: number | null
+          cluster_id?: string
+          discovery_method?: string | null
+          first_detected?: string
+          id?: string
+          is_novel?: boolean | null
+          last_updated?: string
+          metadata?: Json | null
+          patient_count?: number
+          symptom_set?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clustered_symptom_patterns_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consultations: {
         Row: {
           ai_summary: string | null
@@ -1236,6 +1295,75 @@ export type Database = {
           },
           {
             foreignKeyName: "consultations_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      counterfactual_simulations: {
+        Row: {
+          clinic_id: string
+          counterfactual_top_diagnosis: string | null
+          created_at: string
+          critical_symptoms: string[] | null
+          diagnosis_changed: boolean | null
+          execution_ms: number | null
+          fragility_score: number | null
+          id: string
+          modification_type: string
+          modified_symptoms: string[]
+          original_symptoms: string[]
+          original_top_diagnosis: string | null
+          reasoning_trace: Json | null
+          supporting_symptoms: string[] | null
+          visit_id: string | null
+        }
+        Insert: {
+          clinic_id: string
+          counterfactual_top_diagnosis?: string | null
+          created_at?: string
+          critical_symptoms?: string[] | null
+          diagnosis_changed?: boolean | null
+          execution_ms?: number | null
+          fragility_score?: number | null
+          id?: string
+          modification_type?: string
+          modified_symptoms?: string[]
+          original_symptoms?: string[]
+          original_top_diagnosis?: string | null
+          reasoning_trace?: Json | null
+          supporting_symptoms?: string[] | null
+          visit_id?: string | null
+        }
+        Update: {
+          clinic_id?: string
+          counterfactual_top_diagnosis?: string | null
+          created_at?: string
+          critical_symptoms?: string[] | null
+          diagnosis_changed?: boolean | null
+          execution_ms?: number | null
+          fragility_score?: number | null
+          id?: string
+          modification_type?: string
+          modified_symptoms?: string[]
+          original_symptoms?: string[]
+          original_top_diagnosis?: string | null
+          reasoning_trace?: Json | null
+          supporting_symptoms?: string[] | null
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "counterfactual_simulations_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "counterfactual_simulations_visit_id_fkey"
             columns: ["visit_id"]
             isOneToOne: false
             referencedRelation: "patient_visits"
@@ -1547,6 +1675,190 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "diagnostic_hypotheses_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diagnostic_information_gain: {
+        Row: {
+          clinic_id: string | null
+          created_at: string
+          differentiates_between: string[] | null
+          discrimination_score: number | null
+          id: string
+          information_gain: number
+          priority: string | null
+          result_confirmed_hypothesis: boolean | null
+          rules_out_diagnoses: string[] | null
+          supports_diagnoses: string[] | null
+          test_category: string | null
+          test_name: string
+          visit_id: string | null
+          was_ordered: boolean | null
+        }
+        Insert: {
+          clinic_id?: string | null
+          created_at?: string
+          differentiates_between?: string[] | null
+          discrimination_score?: number | null
+          id?: string
+          information_gain?: number
+          priority?: string | null
+          result_confirmed_hypothesis?: boolean | null
+          rules_out_diagnoses?: string[] | null
+          supports_diagnoses?: string[] | null
+          test_category?: string | null
+          test_name: string
+          visit_id?: string | null
+          was_ordered?: boolean | null
+        }
+        Update: {
+          clinic_id?: string | null
+          created_at?: string
+          differentiates_between?: string[] | null
+          discrimination_score?: number | null
+          id?: string
+          information_gain?: number
+          priority?: string | null
+          result_confirmed_hypothesis?: boolean | null
+          rules_out_diagnoses?: string[] | null
+          supports_diagnoses?: string[] | null
+          test_category?: string | null
+          test_name?: string
+          visit_id?: string | null
+          was_ordered?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnostic_information_gain_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnostic_information_gain_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diagnostic_outcomes: {
+        Row: {
+          ai_diagnosis: string
+          ai_diagnosis_id: string | null
+          clinic_id: string
+          confirmed_at: string | null
+          confirmed_diagnosis: string | null
+          confirmed_diagnosis_id: string | null
+          consultation_id: string | null
+          correction_type: string | null
+          created_at: string
+          days_to_resolution: number | null
+          doctor_diagnosis_id: string | null
+          doctor_final_diagnosis: string
+          doctor_id: string
+          follow_up_required: boolean | null
+          id: string
+          metadata: Json | null
+          outcome_status: string
+          patient_id: string
+          similarity_score: number | null
+          treatment_effective: boolean | null
+          updated_at: string
+          visit_id: string | null
+        }
+        Insert: {
+          ai_diagnosis: string
+          ai_diagnosis_id?: string | null
+          clinic_id: string
+          confirmed_at?: string | null
+          confirmed_diagnosis?: string | null
+          confirmed_diagnosis_id?: string | null
+          consultation_id?: string | null
+          correction_type?: string | null
+          created_at?: string
+          days_to_resolution?: number | null
+          doctor_diagnosis_id?: string | null
+          doctor_final_diagnosis: string
+          doctor_id: string
+          follow_up_required?: boolean | null
+          id?: string
+          metadata?: Json | null
+          outcome_status?: string
+          patient_id: string
+          similarity_score?: number | null
+          treatment_effective?: boolean | null
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Update: {
+          ai_diagnosis?: string
+          ai_diagnosis_id?: string | null
+          clinic_id?: string
+          confirmed_at?: string | null
+          confirmed_diagnosis?: string | null
+          confirmed_diagnosis_id?: string | null
+          consultation_id?: string | null
+          correction_type?: string | null
+          created_at?: string
+          days_to_resolution?: number | null
+          doctor_diagnosis_id?: string | null
+          doctor_final_diagnosis?: string
+          doctor_id?: string
+          follow_up_required?: boolean | null
+          id?: string
+          metadata?: Json | null
+          outcome_status?: string
+          patient_id?: string
+          similarity_score?: number | null
+          treatment_effective?: boolean | null
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnostic_outcomes_ai_diagnosis_id_fkey"
+            columns: ["ai_diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnostic_outcomes_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnostic_outcomes_confirmed_diagnosis_id_fkey"
+            columns: ["confirmed_diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnostic_outcomes_consultation_id_fkey"
+            columns: ["consultation_id"]
+            isOneToOne: false
+            referencedRelation: "consultations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnostic_outcomes_doctor_diagnosis_id_fkey"
+            columns: ["doctor_diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnostic_outcomes_visit_id_fkey"
             columns: ["visit_id"]
             isOneToOne: false
             referencedRelation: "patient_visits"
@@ -2161,6 +2473,97 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      episodic_case_memory: {
+        Row: {
+          ai_top_diagnosis: string | null
+          chief_complaint: string | null
+          clinic_id: string
+          confidence_score: number | null
+          created_at: string
+          differential_diagnoses: Json | null
+          doctor_id: string
+          final_diagnosis: string | null
+          final_diagnosis_id: string | null
+          id: string
+          metadata: Json | null
+          organ_system: string | null
+          outcome_status: string | null
+          patient_age: number | null
+          patient_id: string
+          patient_sex: string | null
+          symptom_vector: string[]
+          updated_at: string
+          visit_id: string | null
+          was_ai_correct: boolean | null
+        }
+        Insert: {
+          ai_top_diagnosis?: string | null
+          chief_complaint?: string | null
+          clinic_id: string
+          confidence_score?: number | null
+          created_at?: string
+          differential_diagnoses?: Json | null
+          doctor_id: string
+          final_diagnosis?: string | null
+          final_diagnosis_id?: string | null
+          id?: string
+          metadata?: Json | null
+          organ_system?: string | null
+          outcome_status?: string | null
+          patient_age?: number | null
+          patient_id: string
+          patient_sex?: string | null
+          symptom_vector?: string[]
+          updated_at?: string
+          visit_id?: string | null
+          was_ai_correct?: boolean | null
+        }
+        Update: {
+          ai_top_diagnosis?: string | null
+          chief_complaint?: string | null
+          clinic_id?: string
+          confidence_score?: number | null
+          created_at?: string
+          differential_diagnoses?: Json | null
+          doctor_id?: string
+          final_diagnosis?: string | null
+          final_diagnosis_id?: string | null
+          id?: string
+          metadata?: Json | null
+          organ_system?: string | null
+          outcome_status?: string | null
+          patient_age?: number | null
+          patient_id?: string
+          patient_sex?: string | null
+          symptom_vector?: string[]
+          updated_at?: string
+          visit_id?: string | null
+          was_ai_correct?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "episodic_case_memory_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "episodic_case_memory_final_diagnosis_id_fkey"
+            columns: ["final_diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "episodic_case_memory_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       evidence_sources: {
         Row: {
@@ -3081,6 +3484,71 @@ export type Database = {
         }
         Relationships: []
       }
+      learning_updates: {
+        Row: {
+          applied_at: string
+          batch_id: string | null
+          clinic_id: string | null
+          confidence: string | null
+          delta: number | null
+          direction: string | null
+          id: string
+          metadata: Json | null
+          new_value: number | null
+          old_value: number | null
+          reverted_at: string | null
+          sample_size: number | null
+          source: string | null
+          target_entity: string
+          target_id: string | null
+          update_type: string
+        }
+        Insert: {
+          applied_at?: string
+          batch_id?: string | null
+          clinic_id?: string | null
+          confidence?: string | null
+          delta?: number | null
+          direction?: string | null
+          id?: string
+          metadata?: Json | null
+          new_value?: number | null
+          old_value?: number | null
+          reverted_at?: string | null
+          sample_size?: number | null
+          source?: string | null
+          target_entity: string
+          target_id?: string | null
+          update_type?: string
+        }
+        Update: {
+          applied_at?: string
+          batch_id?: string | null
+          clinic_id?: string | null
+          confidence?: string | null
+          delta?: number | null
+          direction?: string | null
+          id?: string
+          metadata?: Json | null
+          new_value?: number | null
+          old_value?: number | null
+          reverted_at?: string | null
+          sample_size?: number | null
+          source?: string | null
+          target_entity?: string
+          target_id?: string | null
+          update_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_updates_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       medical_evidence: {
         Row: {
           abstract: string | null
@@ -3238,6 +3706,86 @@ export type Database = {
             columns: ["prescription_id"]
             isOneToOne: false
             referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      model_calibration_metrics: {
+        Row: {
+          avg_confidence: number | null
+          avg_latency_ms: number | null
+          breakdown_by_organ_system: Json | null
+          breakdown_by_specialty: Json | null
+          calibration_error: number | null
+          clinic_id: string | null
+          correction_rate: number | null
+          created_at: string
+          danger_detection_rate: number | null
+          id: string
+          learning_updates_applied: number | null
+          metadata: Json | null
+          metric_period: string
+          overconfidence_rate: number | null
+          period_end: string
+          period_start: string
+          top1_accuracy: number | null
+          top3_accuracy: number | null
+          top5_accuracy: number | null
+          total_cases: number
+          underconfidence_rate: number | null
+        }
+        Insert: {
+          avg_confidence?: number | null
+          avg_latency_ms?: number | null
+          breakdown_by_organ_system?: Json | null
+          breakdown_by_specialty?: Json | null
+          calibration_error?: number | null
+          clinic_id?: string | null
+          correction_rate?: number | null
+          created_at?: string
+          danger_detection_rate?: number | null
+          id?: string
+          learning_updates_applied?: number | null
+          metadata?: Json | null
+          metric_period?: string
+          overconfidence_rate?: number | null
+          period_end: string
+          period_start: string
+          top1_accuracy?: number | null
+          top3_accuracy?: number | null
+          top5_accuracy?: number | null
+          total_cases?: number
+          underconfidence_rate?: number | null
+        }
+        Update: {
+          avg_confidence?: number | null
+          avg_latency_ms?: number | null
+          breakdown_by_organ_system?: Json | null
+          breakdown_by_specialty?: Json | null
+          calibration_error?: number | null
+          clinic_id?: string | null
+          correction_rate?: number | null
+          created_at?: string
+          danger_detection_rate?: number | null
+          id?: string
+          learning_updates_applied?: number | null
+          metadata?: Json | null
+          metric_period?: string
+          overconfidence_rate?: number | null
+          period_end?: string
+          period_start?: string
+          top1_accuracy?: number | null
+          top3_accuracy?: number | null
+          top5_accuracy?: number | null
+          total_cases?: number
+          underconfidence_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "model_calibration_metrics_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
             referencedColumns: ["id"]
           },
         ]

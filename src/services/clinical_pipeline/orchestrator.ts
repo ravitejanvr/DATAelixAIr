@@ -60,6 +60,7 @@ import { planEvidence, type EvidencePlanResult } from "@/services/evidence_plann
 import { runCausalReasoning, type CausalReasoningResult } from "@/services/causal_reasoning/client";
 import { getCalibrationFactors, buildCalibrationMap, type CalibrationResult } from "@/services/learning_system/calibration_client";
 import { queryEpisodicMemory, buildEpisodicPriors, type EpisodicMemoryResult } from "@/services/episodic_memory/client";
+import { runCognitiveLayer, type CognitiveLayerResult } from "@/services/cognitive";
 
 // ── Public Types ──
 
@@ -134,6 +135,8 @@ export interface PipelineResult {
   lineage: LineageReport | null;
   /** PCIE context graph — full clinical state snapshot */
   context_graph: UnifiedClinicalContextGraph | null;
+  /** Wave 6 — Cognitive layer (runs async, populated after pipeline returns) */
+  cognitive_layer: CognitiveLayerResult | null;
 }
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
@@ -424,7 +427,7 @@ export async function runUnifiedClinicalPipeline(
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
     multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, causal_reasoning: null, calibration: null, episodic_memory: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
-    cache_stats: cache, lineage: null, context_graph: null,
+    cache_stats: cache, lineage: null, context_graph: null, cognitive_layer: null,
   };
 
   if (!isNewPipelineEnabled()) {
@@ -1881,6 +1884,32 @@ export async function runUnifiedClinicalPipeline(
 
   const contextGraph = pcieCore.getGraph();
 
+  // ── Wave 6 — Clinical Cognitive Layer (async, fire-and-forget) ──
+  // Does NOT block the pipeline return. Learning signals are recorded
+  // asynchronously for batch calibration.
+  const topDiagnosis = ddxResult?.differential_diagnoses?.[0];
+  if (input.clinic_id && !input.skip_cache) {
+    runCognitiveLayer({
+      case: {
+        visit_id: input.visit_id || undefined,
+        patient_id: (input.clinical_context as any).patient_id || "",
+        clinic_id: input.clinic_id,
+        doctor_id: (input.clinical_context as any).doctor_id || "",
+        symptom_vector: symptoms,
+        chief_complaint: ctx.chief_complaint,
+        final_diagnosis: topDiagnosis?.diagnosis_name,
+        ai_top_diagnosis: topDiagnosis?.diagnosis_name,
+        organ_system: dominantSystem || undefined,
+        confidence_score: uncertaintyResult?.confidence_score,
+        differential_diagnoses: ddxResult?.differential_diagnoses?.slice(0, 5),
+        patient_age: ctx.patient_age ?? undefined,
+        patient_sex: ctx.patient_sex ?? undefined,
+      },
+      clinic_id: input.clinic_id,
+      run_discovery: false, // Discovery runs on a schedule, not per-consultation
+    }).catch(e => console.warn("[Pipeline] Cognitive layer error (non-blocking):", e));
+  }
+
   onProgress?.("complete", {});
 
   return {
@@ -1920,6 +1949,7 @@ export async function runUnifiedClinicalPipeline(
     cache_stats: cache,
     lineage: lineageReport,
     context_graph: { ...contextGraph } as UnifiedClinicalContextGraph,
+    cognitive_layer: null, // Populated async — check episodic_case_memory table
   };
 }
 
