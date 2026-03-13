@@ -579,6 +579,37 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("context", { enriched_context: enrichedContext });
 
   // ═══════════════════════════════════════════════════════
+  // WAVE 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
+  // ═══════════════════════════════════════════════════════
+  const w15Start = performance.now();
+  let metaReasoningResult: MetaReasoningOutput | null = null;
+  try {
+    metaReasoningResult = await runMetaReasoning({
+      symptoms,
+      vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp_systolic: vitals.bp_systolic },
+      history: ctx.medical_history,
+      medications: ctx.current_medications,
+      allergies: ctx.allergies,
+      chief_complaint: ctx.chief_complaint,
+    });
+    console.log(
+      `[Pipeline] Wave 1.5: Meta-reasoning complete — ` +
+      `organs=[${metaReasoningResult.world_state.organ_systems.join(",")}] ` +
+      `risk=${metaReasoningResult.world_state.risk_level} ` +
+      `hypotheses=${metaReasoningResult.world_state.hypotheses.length} ` +
+      `pathways=[${metaReasoningResult.activated_pathways.join(",")}]`
+    );
+    lineageTracker.recordEngineResult("meta_reasoning", true);
+    pcieCore.addReasoningTrace("meta_reasoning", `World model: ${metaReasoningResult.world_state.organ_systems.join(", ")} | risk=${metaReasoningResult.world_state.risk_level}`);
+  } catch (e) {
+    console.warn("[Pipeline] Wave 1.5: Meta-reasoning failed, continuing without world model:", e);
+    lineageTracker.recordEngineResult("meta_reasoning", false);
+  }
+  waveLat.wave15_meta_reasoning = Math.round(performance.now() - w15Start);
+  lat.meta_reasoning = waveLat.wave15_meta_reasoning;
+  onProgress?.("meta_reasoning", { meta_reasoning: metaReasoningResult });
+
+  // ═══════════════════════════════════════════════════════
   // WAVE 2 — Parallel Context Analysis
   //   • Physiological State Engine
   //   • DDX Engine (Knowledge Graph traversal)
