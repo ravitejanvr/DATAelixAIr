@@ -350,7 +350,7 @@ Deno.serve(async (req) => {
     for (const s of systems || []) systemIds[s.system_name] = s.id;
 
     for (let i = 0; i < physStates.length; i += 50) {
-      const chunk = physStates.slice(i, i + 50).map(s => ({ state_name: s.state_name, description: s.description, system_id: systemIds[s.organ_system] || null }));
+      const chunk = physStates.slice(i, i + 50).map(s => ({ state_name: s.state_name, description: s.description, system_id: systemIds[s.organ_system] || Object.values(systemIds)[0] }));
       await supabase.from("physiological_states").upsert(chunk, { onConflict: "state_name", ignoreDuplicates: true });
     }
 
@@ -420,7 +420,7 @@ Deno.serve(async (req) => {
     const symPhysRows: any[] = [];
     for (const [sym, phys, conf, rel] of symPhysMaps) {
       const sId = allSymIds[sym]; const pId = allPhysIds[phys];
-      if (sId && pId) symPhysRows.push({ symptom_id: sId, physiological_state_id: pId, confidence_score: conf, relevance_score: rel });
+      if (sId && pId) symPhysRows.push({ symptom_id: sId, physiological_state_id: pId, confidence_score: conf });
     }
     for (let i = 0; i < symPhysRows.length; i += 100) {
       await supabase.from("symptom_physiology_map").upsert(symPhysRows.slice(i, i + 100), { onConflict: "symptom_id,physiological_state_id", ignoreDuplicates: true });
@@ -461,7 +461,7 @@ Deno.serve(async (req) => {
     const physDiagRows: any[] = [];
     for (const [phys, diag, conf, rel] of physDiagMaps) {
       const pId = allPhysIds[phys]; const dId = allDiagIds[diag];
-      if (pId && dId) physDiagRows.push({ physiological_state_id: pId, diagnosis_id: dId, confidence_score: conf, relevance_score: rel });
+      if (pId && dId) physDiagRows.push({ physiological_state_id: pId, diagnosis_id: dId, relevance_score: rel });
     }
     for (let i = 0; i < physDiagRows.length; i += 100) {
       await supabase.from("physiology_diagnosis_map").upsert(physDiagRows.slice(i, i + 100), { onConflict: "physiological_state_id,diagnosis_id", ignoreDuplicates: true });
