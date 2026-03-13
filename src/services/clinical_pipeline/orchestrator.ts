@@ -1809,6 +1809,7 @@ export async function runUnifiedClinicalPipeline(
       iteration_ms: lat.diagnostic_loop || 0,
     } : null,
     causal_reasoning: causalReasoningResult,
+    calibration: calibrationResult,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: lat,
