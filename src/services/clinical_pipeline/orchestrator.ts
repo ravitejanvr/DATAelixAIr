@@ -401,7 +401,7 @@ export async function runUnifiedClinicalPipeline(
     bayesian: null, ddx: null, uncertainty: null, hypotheses: null,
     guideline_alignment: null, guideline_compliance: null, evidence: null,
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
-    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, conflict_resolution: null, guideline_summary: null,
+    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
     cache_stats: cache, lineage: null, context_graph: null,
   };
