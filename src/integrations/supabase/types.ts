@@ -4741,6 +4741,30 @@ export type Database = {
           },
         ]
       }
+      symptom_organ_system_map: {
+        Row: {
+          created_at: string
+          id: string
+          organ_system: string
+          symptom: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organ_system: string
+          symptom: string
+          weight?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organ_system?: string
+          symptom?: string
+          weight?: number
+        }
+        Relationships: []
+      }
       symptom_physiology_map: {
         Row: {
           confidence_score: number
@@ -4773,6 +4797,41 @@ export type Database = {
           },
           {
             foreignKeyName: "symptom_physiology_map_symptom_id_fkey"
+            columns: ["symptom_id"]
+            isOneToOne: false
+            referencedRelation: "symptoms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      symptom_specificity: {
+        Row: {
+          created_at: string
+          id: string
+          organ_system: string
+          specificity_score: number
+          symptom_id: string | null
+          symptom_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organ_system?: string
+          specificity_score?: number
+          symptom_id?: string | null
+          symptom_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organ_system?: string
+          specificity_score?: number
+          symptom_id?: string | null
+          symptom_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "symptom_specificity_symptom_id_fkey"
             columns: ["symptom_id"]
             isOneToOne: false
             referencedRelation: "symptoms"
