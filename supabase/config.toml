@@ -109,3 +109,5 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.calculate-diagnostic-probabilities]
     verify_jwt = false
+  [functions.extract-knowledge-graph]
+    verify_jwt = false
