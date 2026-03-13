@@ -16,7 +16,8 @@ export interface OversightEvent {
     | "context_incomplete"
     | "hypothesis_low_confidence"
     | "pipeline_error"
-    | "dangerous_diagnosis_injected";
+    | "dangerous_diagnosis_injected"
+    | "epidemiological_cluster";
   severity: "info" | "warning" | "critical";
   stage: string;
   message: string;
