@@ -1,5 +1,5 @@
 /**
- * Clinical Pipeline Orchestrator (v4.2 — Meta-Reasoning Architecture)
+ * Clinical Pipeline Orchestrator (v4.3 — Cognitive Diagnostic Architecture)
  *
  * Wave-based parallel execution with Clinical World Model integration.
  *
@@ -8,8 +8,10 @@
  *   Wave 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
  *   Wave 2 — Parallel Context Analysis (DDX, Physiology, Preindexed)
  *   Wave 2b — Evidence Retrieval (enriched with DDX results)
- *   Wave 3 — Parallel Clinical Reasoning (Bayesian, Guidelines, Hypotheses)
+ *   Wave 2c — Hypothesis Testing (graph-based DDX validation)
+ *   Wave 3 — Parallel Clinical Reasoning (Bayesian, Guidelines, Hypotheses, Evidence Planning)
  *   Wave 3.5 — Reasoning Conflict Resolution
+ *   Wave 3.6 — Bounded Diagnostic Loop (iterative refinement if confidence is low)
  *   Wave 4 — Clinical Safety Evaluation
  *   Wave 5 — Output Generation (Uncertainty, Hybrid Reasoning, SOAP)
  */
