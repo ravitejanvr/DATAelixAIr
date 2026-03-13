@@ -555,6 +555,19 @@ export async function runUnifiedClinicalPipeline(
     .then(r => { calibrationResult = r; })
     .catch(() => {});
 
+  // ── Prefetch episodic memory (non-blocking, resolves before Wave 2 DDX) ──
+  let episodicMemoryResult: EpisodicMemoryResult | null = null;
+  const episodicPromise = queryEpisodicMemory({
+    patient_id: (ctx as any).patient_id || undefined,
+    doctor_id: (ctx as any).doctor_id || undefined,
+    clinic_id: input.clinic_id || undefined,
+    symptoms,
+    chief_complaint: ctx.chief_complaint,
+    patient_age: ctx.patient_age,
+    patient_sex: ctx.patient_sex,
+  }).then(r => { episodicMemoryResult = r; })
+    .catch(e => { console.warn("[Pipeline] Episodic memory prefetch failed:", e); });
+
   // ═══════════════════════════════════════════════════════
   // WAVE 1 — Context Preparation (sync, ~5ms)
   // ═══════════════════════════════════════════════════════
