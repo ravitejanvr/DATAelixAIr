@@ -649,8 +649,8 @@ Deno.serve(async (req) => {
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
       supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
-      supabase.from("symptom_physiology_map").select("symptom:symptoms!inner(symptom_name), physiology_process, organ_system"),
-      supabase.from("physiology_diagnosis_map").select("physiology_process:physiological_states!inner(state_name), disease_name:diagnoses!inner(diagnosis_name), confidence_score"),
+      supabase.from("symptom_physiology_map").select("symptoms!inner(symptom_name), physiological_states!inner(state_name, anatomical_systems:system_id(system_name)), confidence_score"),
+      supabase.from("physiology_diagnosis_map").select("physiological_states!inner(state_name), diagnoses!inner(diagnosis_name), relevance_score"),
     ]);
 
     const specificityMap: Record<string, number> = {};
