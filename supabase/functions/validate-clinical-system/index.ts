@@ -504,7 +504,7 @@ Deno.serve(async (req) => {
       "symptom_likelihoods", "disease_tests", "disease_treatments",
       "physiological_states", "symptom_physiology_map", "physiology_diagnosis_map",
       "drug_master", "clinical_guidelines", "dangerous_diagnoses",
-      "diagnosis_drug_map", "diagnosis_lab_map",
+      "diagnosis_drug_map", "diagnosis_lab_map", "guideline_registry",
     ];
 
     const countResults = await Promise.all(
