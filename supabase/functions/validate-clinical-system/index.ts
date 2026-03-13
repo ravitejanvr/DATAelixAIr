@@ -109,15 +109,33 @@ async function queryGraph(supabase: any, symptoms: string[]) {
     const matchedSymptoms = (symptomRows || []).map((s: any) => s.symptom_name);
 
     if (symptomIds.length === 0) {
-      return { diagnoses: [], suggested_labs: [], suggested_drugs: [], physiology_states: [], matched_symptoms: matchedSymptoms, latency_ms: Date.now() - start };
+      return { diagnoses: [], suggested_labs: [], suggested_drugs: [], physiology_states: [], matched_symptoms: matchedSymptoms, guidelines: [], latency_ms: Date.now() - start };
     }
 
-    // Get diagnosis candidates via symptom_diagnosis_map
+    // Use symptom_likelihoods as the PRIMARY relationship table (1220+ rows vs 152 in symptom_diagnosis_map)
+    const { data: lkRows } = await supabase
+      .from("symptom_likelihoods")
+      .select("diagnosis_id, symptom_id, likelihood_value")
+      .in("symptom_id", symptomIds);
+
+    // Also check symptom_diagnosis_map for additional coverage
     const { data: sdmRows } = await supabase
       .from("symptom_diagnosis_map")
       .select("diagnosis_id")
       .in("symptom_id", symptomIds);
-    const diagnosisIds = [...new Set((sdmRows || []).map((r: any) => r.diagnosis_id))];
+
+    // Merge diagnosis IDs from both sources
+    const diagnosisIdSet = new Set<string>();
+    const scoreMap: Record<string, number> = {};
+    for (const lk of (lkRows || [])) {
+      diagnosisIdSet.add(lk.diagnosis_id);
+      scoreMap[lk.diagnosis_id] = (scoreMap[lk.diagnosis_id] || 0) + (lk.likelihood_value || 0.5);
+    }
+    for (const sdm of (sdmRows || [])) {
+      diagnosisIdSet.add(sdm.diagnosis_id);
+      if (!scoreMap[sdm.diagnosis_id]) scoreMap[sdm.diagnosis_id] = 0.3;
+    }
+    const diagnosisIds = [...diagnosisIdSet];
 
     // Get diagnosis names
     let diagnoses: any[] = [];
@@ -126,79 +144,66 @@ async function queryGraph(supabase: any, symptoms: string[]) {
         .from("diagnoses")
         .select("id, diagnosis_name, icd10_code, category")
         .in("id", diagnosisIds.slice(0, 20));
-      diagnoses = dxRows || [];
+      diagnoses = (dxRows || []).map((d: any) => ({
+        ...d,
+        score: scoreMap[d.id] || 0.1,
+      })).sort((a: any, b: any) => b.score - a.score);
     }
 
-    // Get symptom likelihoods for scoring
-    let likelihoods: any[] = [];
-    if (diagnosisIds.length > 0) {
-      const { data: lkRows } = await supabase
-        .from("symptom_likelihoods")
-        .select("diagnosis_id, symptom_id, likelihood")
-        .in("diagnosis_id", diagnosisIds.slice(0, 20))
-        .in("symptom_id", symptomIds);
-      likelihoods = lkRows || [];
-    }
-
-    // Score diagnoses
-    const scoreMap: Record<string, number> = {};
-    for (const lk of likelihoods) {
-      scoreMap[lk.diagnosis_id] = (scoreMap[lk.diagnosis_id] || 0) + (lk.likelihood || 0.5);
-    }
-    diagnoses = diagnoses.map(d => ({
-      ...d,
-      score: scoreMap[d.id] || 0.1,
-    })).sort((a, b) => b.score - a.score);
-
-    // Get labs for top diagnoses
-    const topDxIds = diagnoses.slice(0, 5).map(d => d.id);
-    let labs: any[] = [];
-    if (topDxIds.length > 0) {
-      const { data: labMapRows } = await supabase
-        .from("diagnosis_lab_map")
-        .select("lab_test_id, priority")
-        .in("diagnosis_id", topDxIds);
-      const labIds = [...new Set((labMapRows || []).map((r: any) => r.lab_test_id))];
-      if (labIds.length > 0) {
-        const { data: labRows } = await supabase
-          .from("lab_tests")
-          .select("id, test_name, category")
-          .in("id", labIds.slice(0, 10));
-        labs = labRows || [];
-      }
-    }
-
-    // Get drugs for top diagnoses
-    let drugs: any[] = [];
-    if (topDxIds.length > 0) {
-      const { data: drugMapRows } = await supabase
-        .from("diagnosis_drug_map")
-        .select("generic_name, line_of_treatment")
-        .in("diagnosis_id", topDxIds);
-      drugs = (drugMapRows || []).map((r: any) => ({ generic_name: r.generic_name, line: r.line_of_treatment }));
-    }
-
-    // Get physiology states via symptom_physiology_map
-    let physiologyStates: any[] = [];
-    if (symptomIds.length > 0) {
-      const { data: physRows } = await supabase
-        .from("symptom_physiology_map")
-        .select("physiology_process, organ_system")
-        .in("symptom_id", symptomIds);
-      physiologyStates = physRows || [];
-    }
+    // Get labs, drugs, physiology in parallel
+    const topDxIds = diagnoses.slice(0, 5).map((d: any) => d.id);
+    const [labResult, drugResult, physResult, guidelineResult] = await Promise.all([
+      // Labs
+      topDxIds.length > 0
+        ? supabase.from("diagnosis_lab_map").select("lab_test_id, priority").in("diagnosis_id", topDxIds)
+            .then(async (r: any) => {
+              const labIds = [...new Set((r.data || []).map((x: any) => x.lab_test_id))];
+              if (labIds.length === 0) return [];
+              const { data } = await supabase.from("lab_tests").select("id, test_name, category").in("id", labIds.slice(0, 10));
+              return data || [];
+            })
+        : Promise.resolve([]),
+      // Drugs
+      topDxIds.length > 0
+        ? supabase.from("diagnosis_drug_map").select("generic_name, line_of_treatment").in("diagnosis_id", topDxIds)
+            .then((r: any) => (r.data || []).map((x: any) => ({ generic_name: x.generic_name, line: x.line_of_treatment })))
+        : Promise.resolve([]),
+      // Physiology
+      symptomIds.length > 0
+        ? supabase.from("symptom_physiology_map").select("physiology_process, organ_system").in("symptom_id", symptomIds)
+            .then((r: any) => r.data || [])
+        : Promise.resolve([]),
+      // Guidelines
+      topDxIds.length > 0
+        ? (async () => {
+            const topDxNames = diagnoses.slice(0, 5).map((d: any) => d.diagnosis_name);
+            const { data: grRows } = await supabase
+              .from("guideline_registry")
+              .select("id, organization, title, condition, recommendation_text, applicable_drugs, applicable_tests")
+              .or(topDxNames.map((n: string) => `condition.ilike.%${n}%`).join(","))
+              .limit(5);
+            const { data: cgRows } = await supabase
+              .from("clinical_guidelines")
+              .select("id, source_organization, title, condition, recommendation_text")
+              .or(topDxNames.map((n: string) => `condition.ilike.%${n}%`).join(","))
+              .limit(5);
+            return [...(grRows || []), ...(cgRows || [])];
+          })()
+        : Promise.resolve([]),
+    ]);
 
     return {
       diagnoses,
-      suggested_labs: labs,
-      suggested_drugs: drugs,
-      physiology_states: physiologyStates,
+      suggested_labs: labResult,
+      suggested_drugs: drugResult,
+      physiology_states: physResult,
       matched_symptoms: matchedSymptoms,
+      guidelines: guidelineResult,
       latency_ms: Date.now() - start,
     };
   } catch (e) {
     console.error("[Graph] Error:", e);
-    return { diagnoses: [], suggested_labs: [], suggested_drugs: [], physiology_states: [], matched_symptoms: [], latency_ms: Date.now() - start, error: String(e) };
+    return { diagnoses: [], suggested_labs: [], suggested_drugs: [], physiology_states: [], matched_symptoms: [], guidelines: [], latency_ms: Date.now() - start, error: String(e) };
   }
 }
 
