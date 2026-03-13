@@ -1724,6 +1724,7 @@ export async function runUnifiedClinicalPipeline(
       candidates_remaining: ddxResult ? ddxResult.differential_diagnoses.length : 0,
       iteration_ms: lat.diagnostic_loop || 0,
     } : null,
+    causal_reasoning: causalReasoningResult,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: lat,
