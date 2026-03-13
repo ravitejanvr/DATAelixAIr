@@ -508,7 +508,7 @@ Deno.serve(async (req) => {
     for (const s of systems || []) systemIds[s.system_name] = s.id;
 
     const stateRows = physStates.map(s => ({
-      state_name: s.state_name, description: s.description, system_id: systemIds[s.organ_system] || null,
+      state_name: s.state_name, description: s.description, system_id: systemIds[s.organ_system] || systemIds["cardiovascular"] || Object.values(systemIds)[0],
     }));
     for (let i = 0; i < stateRows.length; i += 50) {
       const { error } = await supabase.from("physiological_states").upsert(stateRows.slice(i, i + 50), { onConflict: "state_name", ignoreDuplicates: true });
@@ -618,7 +618,7 @@ Deno.serve(async (req) => {
       const sId = allSymIds[sym];
       const pId = allPhysIds[phys];
       if (sId && pId) {
-        symPhysRows.push({ symptom_id: sId, physiological_state_id: pId, confidence_score: conf, relevance_score: rel });
+        symPhysRows.push({ symptom_id: sId, physiological_state_id: pId, confidence_score: conf });
       }
     }
     for (let i = 0; i < symPhysRows.length; i += 100) {
@@ -681,7 +681,7 @@ Deno.serve(async (req) => {
       const pId = allPhysIds[phys];
       const dId = allDiagIds[diag];
       if (pId && dId) {
-        physDiagRows.push({ physiological_state_id: pId, diagnosis_id: dId, confidence_score: conf, relevance_score: rel });
+        physDiagRows.push({ physiological_state_id: pId, diagnosis_id: dId, relevance_score: rel });
       }
     }
     for (let i = 0; i < physDiagRows.length; i += 100) {
