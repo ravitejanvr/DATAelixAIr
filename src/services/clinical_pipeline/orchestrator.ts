@@ -6,6 +6,7 @@
  *   Wave 0 — PCIE Context Hydration
  *   Wave 1 — Context Preparation
  *   Wave 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
+ *   Wave 1.8 — Episodic Memory (patient history, doctor patterns, epidemiology)
  *   Wave 2 — Parallel Context Analysis (DDX, Physiology, Preindexed)
  *   Wave 2b — Evidence Retrieval (enriched with DDX results)
  *   Wave 2c — Hypothesis Testing (graph-based DDX validation)
@@ -58,6 +59,7 @@ import { testHypotheses, type HypothesisTestResult } from "@/services/hypothesis
 import { planEvidence, type EvidencePlanResult } from "@/services/evidence_planning/client";
 import { runCausalReasoning, type CausalReasoningResult } from "@/services/causal_reasoning/client";
 import { getCalibrationFactors, buildCalibrationMap, type CalibrationResult } from "@/services/learning_system/calibration_client";
+import { queryEpisodicMemory, buildEpisodicPriors, type EpisodicMemoryResult } from "@/services/episodic_memory/client";
 
 // ── Public Types ──
 
@@ -107,6 +109,7 @@ export interface PipelineResult {
   diagnostic_loop: DiagnosticLoopMeta | null;
   causal_reasoning: CausalReasoningResult | null;
   calibration: CalibrationResult | null;
+  episodic_memory: EpisodicMemoryResult | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
@@ -153,6 +156,7 @@ const TIMEOUT = {
   HYBRID:          10000,
   SOAP:            4000,
   CAUSAL_REASONING: 4000,
+  EPISODIC_MEMORY:  3000,
 } as const;
 
 // ── Organ-System Weighting ──
@@ -418,7 +422,7 @@ export async function runUnifiedClinicalPipeline(
     bayesian: null, ddx: null, uncertainty: null, hypotheses: null,
     guideline_alignment: null, guideline_compliance: null, evidence: null,
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
-    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, causal_reasoning: null, calibration: null, guideline_summary: null,
+    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, causal_reasoning: null, calibration: null, episodic_memory: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
     cache_stats: cache, lineage: null, context_graph: null,
   };
@@ -551,6 +555,19 @@ export async function runUnifiedClinicalPipeline(
     .then(r => { calibrationResult = r; })
     .catch(() => {});
 
+  // ── Prefetch episodic memory (non-blocking, resolves before Wave 2 DDX) ──
+  let episodicMemoryResult: EpisodicMemoryResult | null = null;
+  const episodicPromise = queryEpisodicMemory({
+    patient_id: (ctx as any).patient_id || undefined,
+    doctor_id: (ctx as any).doctor_id || undefined,
+    clinic_id: input.clinic_id || undefined,
+    symptoms,
+    chief_complaint: ctx.chief_complaint,
+    patient_age: ctx.patient_age,
+    patient_sex: ctx.patient_sex,
+  }).then(r => { episodicMemoryResult = r; })
+    .catch(e => { console.warn("[Pipeline] Episodic memory prefetch failed:", e); });
+
   // ═══════════════════════════════════════════════════════
   // WAVE 1 — Context Preparation (sync, ~5ms)
   // ═══════════════════════════════════════════════════════
@@ -637,6 +654,65 @@ export async function runUnifiedClinicalPipeline(
   waveLat.wave15_meta_reasoning = Math.round(performance.now() - w15Start);
   lat.meta_reasoning = waveLat.wave15_meta_reasoning;
   onProgress?.("meta_reasoning", { meta_reasoning: metaReasoningResult });
+
+  // ═══════════════════════════════════════════════════════
+  // WAVE 1.8 — Episodic Memory (resolve prefetch)
+  // Patient longitudinal recall, doctor patterns, epidemiological signals.
+  // Non-blocking prefetch started earlier; we resolve here before DDX.
+  // ═══════════════════════════════════════════════════════
+  const w18Start = performance.now();
+  await episodicPromise; // Resolve the prefetch
+  if (episodicMemoryResult) {
+    const signals = episodicMemoryResult.memory_signals;
+    console.log(
+      `[Pipeline] Wave 1.8: Episodic memory loaded — ` +
+      `patient_visits=${episodicMemoryResult.patient_memory?.total_past_visits || 0} ` +
+      `doctor_consults=${episodicMemoryResult.doctor_patterns?.top_diagnoses.length || 0} ` +
+      `clusters=${episodicMemoryResult.cross_patient?.recent_symptom_clusters.length || 0} ` +
+      `signals=[${signals.join(",")}] (${episodicMemoryResult.execution_ms}ms)`
+    );
+    lineageTracker.recordEngineResult("episodic_memory", true);
+    pcieCore.addReasoningTrace(
+      "episodic_memory" as any,
+      `Episodic: ${episodicMemoryResult.patient_memory?.total_past_visits || 0} past visits, ` +
+      `${episodicMemoryResult.patient_memory?.recurring_conditions.length || 0} recurrences, ` +
+      `${episodicMemoryResult.cross_patient?.recent_symptom_clusters.length || 0} clusters`
+    );
+
+    // Inject epidemiological and recurrence signals as risk flags
+    if (episodicMemoryResult.patient_memory?.longitudinal_risk_signals.length) {
+      const existing = ctx.risk_flags || [];
+      (ctx as any).risk_flags = [
+        ...existing,
+        ...episodicMemoryResult.patient_memory.longitudinal_risk_signals.map(s => `[Episodic] ${s}`),
+      ];
+    }
+    if (episodicMemoryResult.cross_patient?.seasonal_alerts.length) {
+      const existing = ctx.risk_flags || [];
+      (ctx as any).risk_flags = [
+        ...existing,
+        ...episodicMemoryResult.cross_patient.seasonal_alerts.map(s => `[Seasonal] ${s}`),
+      ];
+    }
+    // Outbreak alert → oversight event
+    const outbreakClusters = episodicMemoryResult.cross_patient?.recent_symptom_clusters.filter(
+      c => c.alert_level === "outbreak" || c.alert_level === "elevated"
+    ) || [];
+    for (const cluster of outbreakClusters) {
+      recordOversightEvent({
+        event_type: "epidemiological_cluster",
+        severity: cluster.alert_level === "outbreak" ? "critical" : "warning",
+        stage: "episodic_memory",
+        message: `${cluster.alert_level.toUpperCase()}: ${cluster.patient_count} patients with similar symptoms in last 7 days`,
+        metadata: { symptom_cluster: cluster.symptom_cluster, patient_count: cluster.patient_count },
+      });
+    }
+  } else {
+    lineageTracker.recordEngineResult("episodic_memory", false);
+  }
+  waveLat.wave18_episodic_memory = Math.round(performance.now() - w18Start);
+  lat.episodic_memory = waveLat.wave18_episodic_memory;
+  onProgress?.("episodic_memory", { episodic_memory: episodicMemoryResult });
 
   // ═══════════════════════════════════════════════════════
   // WAVE 2 — Parallel Context Analysis
@@ -862,6 +938,30 @@ export async function runUnifiedClinicalPipeline(
     lineageTracker.recordEngineResult("hypothesis_testing", !!hypothesisTestResult);
   }
   onProgress?.("hypothesis_testing", { hypothesis_testing: hypothesisTestResult });
+
+  // ── Apply episodic memory priors to DDX probabilities ──
+  if (episodicMemoryResult && ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const episodicPriors = buildEpisodicPriors(episodicMemoryResult);
+    if (episodicPriors.size > 0) {
+      let episodicBoostCount = 0;
+      ddxResult = {
+        ...ddxResult,
+        differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
+          const factor = episodicPriors.get(d.diagnosis_name.toLowerCase());
+          if (factor && factor !== 1.0) {
+            episodicBoostCount++;
+            const adjusted = Math.round(d.probability * factor);
+            return { ...d, probability: Math.max(1, Math.min(95, adjusted)) };
+          }
+          return d;
+        }).sort((a, b) => b.probability - a.probability),
+      };
+      if (episodicBoostCount > 0) {
+        console.log(`[Pipeline] Episodic: Boosted ${episodicBoostCount} DDX candidates from memory priors.`);
+        pcieCore.addReasoningTrace("episodic_memory" as any, `Episodic priors applied to ${episodicBoostCount} candidates`);
+      }
+    }
+  }
 
   // ── Apply learned calibration factors to DDX probabilities ──
   await calibrationPromise; // Ensure calibration data is ready
@@ -1810,6 +1910,7 @@ export async function runUnifiedClinicalPipeline(
     } : null,
     causal_reasoning: causalReasoningResult,
     calibration: calibrationResult,
+    episodic_memory: episodicMemoryResult,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: lat,

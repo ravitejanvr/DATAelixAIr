@@ -16,6 +16,7 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
   pcie: "PCIE",
   context_enrichment: "Context",
   meta_reasoning: "Meta",
+  episodic_memory: "Memory",
   ddx: "DDX",
   physiology: "Physio",
   evidence: "Evidence",
@@ -34,7 +35,7 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
 };
 
 const STAGE_ORDER: PipelineStage[] = [
-  "pcie", "context_enrichment", "ddx", "physiology", "hypothesis_testing", "causal_reasoning", "learning", "evidence",
+  "pcie", "context_enrichment", "episodic_memory", "ddx", "physiology", "hypothesis_testing", "causal_reasoning", "learning", "evidence",
   "bayesian", "guideline", "hypothesis", "evidence_planning", "diagnostic_loop", "safety", "uncertainty", "soap", "cockpit",
 ];
 

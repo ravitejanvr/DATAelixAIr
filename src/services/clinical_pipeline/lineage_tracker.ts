@@ -13,6 +13,7 @@ export type PipelineStage =
   | "pcie"
   | "context_enrichment"
   | "meta_reasoning"
+  | "episodic_memory"
   | "ddx"
   | "physiology"
   | "evidence"
@@ -115,6 +116,7 @@ const ENGINE_FIELD_CONSUMPTION: Record<PipelineStage, readonly string[]> = {
   evidence_planning: ["symptoms", "patient_age", "patient_sex"],
   diagnostic_loop: ["symptoms", "patient_age", "patient_sex", "allergies", "current_medications"],
   causal_reasoning: ["symptoms", "patient_age", "patient_sex"],
+  episodic_memory: ["chief_complaint", "symptoms", "patient_age", "patient_sex", "medical_history", "current_medications", "risk_flags"],
   learning: ["symptoms", "medical_history", "current_medications"],
   cockpit: TRACKED_FIELDS as unknown as string[],
 };
