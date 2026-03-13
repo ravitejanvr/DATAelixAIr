@@ -455,7 +455,7 @@ async function runCase(bc: BenchmarkCaseV7): Promise<CaseResultV7> {
 
 async function persistCase(runId: string, r: CaseResultV7, idx: number, bc: BenchmarkCaseV7) {
   try {
-    await supabase.from("benchmark_runs").insert({
+    const { error } = await supabase.from("benchmark_runs").insert({
       run_group_id: runId,
       benchmark_version: "benchmark_v7",
       pipeline_type: "cognitive_v4.3_iterative",
