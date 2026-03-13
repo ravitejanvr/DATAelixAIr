@@ -24,6 +24,7 @@ export type PipelineStage =
   | "hypothesis_testing"
   | "evidence_planning"
   | "diagnostic_loop"
+  | "causal_reasoning"
   | "soap"
   | "cockpit";
 
