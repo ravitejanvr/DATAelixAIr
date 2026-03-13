@@ -855,6 +855,54 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("hypothesis_testing", { hypothesis_testing: hypothesisTestResult });
 
   // ═══════════════════════════════════════════════════════
+  // WAVE 2d — Causal Reasoning (parallel with nothing — runs after DDX adjustments)
+  // Builds causal chains, convergent pathways, counterfactuals, and conflict detection.
+  // Deterministic, graph-only — no LLM. Target: <300ms.
+  // ═══════════════════════════════════════════════════════
+  let causalReasoningResult: CausalReasoningResult | null = null;
+  if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const w2dStart = performance.now();
+    try {
+      causalReasoningResult = await withTimeout(
+        runCausalReasoning({
+          symptoms,
+          candidate_diagnoses: ddxResult.differential_diagnoses.slice(0, 8).map(d => ({
+            diagnosis_id: d.diagnosis_id,
+            diagnosis_name: d.diagnosis_name,
+            probability: d.probability,
+            must_not_miss: d.must_not_miss,
+          })),
+          patient_age: ctx.patient_age,
+          patient_sex: ctx.patient_sex,
+        }),
+        TIMEOUT.CAUSAL_REASONING,
+        "causal_reasoning",
+      );
+      if (causalReasoningResult) {
+        console.log(
+          `[Pipeline] Wave 2d: Causal reasoning complete — ` +
+          `${causalReasoningResult.summary.total_chains} chains, ` +
+          `${causalReasoningResult.summary.convergent_pathways_detected} convergent pathways, ` +
+          `${causalReasoningResult.summary.causal_conflicts_detected} conflicts ` +
+          `(${causalReasoningResult.execution_ms}ms)`,
+        );
+        pcieCore.addReasoningTrace(
+          "causal_reasoning" as any,
+          `Causal: ${causalReasoningResult.summary.total_chains} chains, ` +
+          `${causalReasoningResult.summary.convergent_pathways_detected} convergent, ` +
+          `${causalReasoningResult.summary.causal_conflicts_detected} conflicts`,
+        );
+      }
+    } catch {
+      console.warn("[Pipeline] Wave 2d: Causal reasoning failed — continuing without causal analysis.");
+    }
+    lat.causal_reasoning = Math.round(performance.now() - w2dStart);
+    waveLat.wave2d_causal_reasoning = lat.causal_reasoning;
+    lineageTracker.recordEngineResult("causal_reasoning" as any, !!causalReasoningResult);
+  }
+  onProgress?.("causal_reasoning", { causal_reasoning: causalReasoningResult } as any);
+
+  // ═══════════════════════════════════════════════════════
   // WAVE 3 — Parallel Clinical Reasoning
   //   • Bayesian Probability Engine
   //   • Guideline Compliance Engine
