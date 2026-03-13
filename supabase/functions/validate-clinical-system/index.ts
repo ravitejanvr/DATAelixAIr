@@ -642,7 +642,7 @@ Deno.serve(async (req) => {
         graph_diagnoses: graphDiagnoses.slice(0, 5),
         graph_labs: graphLabs.slice(0, 5),
         graph_drugs: graphDrugs.slice(0, 5),
-        graph_guidelines: [],
+        graph_guidelines: (graphResult.guidelines || []).map((g: any) => g.title || g.organization || "").slice(0, 5),
         bayesian_top: bayesianResult.diagnoses[0] || null,
         bayesian_count: bayesianResult.diagnoses.length,
         safety_alert_count: safetyAlertCount,
