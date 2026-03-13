@@ -1085,6 +1085,7 @@ export async function runUnifiedClinicalPipeline(
   lineageTracker.recordEngineResult("bayesian", !!bayesianResult);
   lineageTracker.recordEngineResult("guideline", !!guidelineAlignment || !!guidelineCompliance);
   lineageTracker.recordEngineResult("hypothesis", !!hypotheses && hypotheses.hypotheses.length > 0);
+  lineageTracker.recordEngineResult("evidence_planning", !!evidencePlanResult);
   lineageTracker.captureSnapshot("Wave 3 (Reasoning)", "bayesian", {
     chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
     symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
