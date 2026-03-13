@@ -16,8 +16,10 @@ import {
   TrendingUp, BarChart3, Zap, Filter, ChevronDown, ChevronUp,
 } from "lucide-react";
 import {
-  runBenchmarkV6, BENCHMARK_CASES_V6, getCaseDistribution, getDifficultyDistribution,
+  runBenchmarkV6Batched, BENCHMARK_CASES_V6, getCaseDistribution, getDifficultyDistribution,
+  loadPersistedV6Results, getCompletedCaseCount,
 } from "@/services/benchmark_v6";
+import type { BatchProgress } from "@/services/benchmark_v6";
 import type {
   BenchmarkSuiteResultV6, CaseResultV6, Specialty,
 } from "@/services/benchmark_v6/types";
