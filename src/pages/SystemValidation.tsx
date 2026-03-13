@@ -718,7 +718,7 @@ function LiveValidationView({ report }: { report: ValidationReport }) {
             {Object.entries(report.graph_integrity.table_counts).map(([table, count]) => (
               <div key={table} className="bg-muted/50 rounded-lg p-2">
                 <p className="text-[10px] text-muted-foreground truncate">{table}</p>
-                <p className="text-sm font-semibold">{(count as number).toLocaleString()}</p>
+                <p className="text-sm font-semibold">{((count as number) ?? 0).toLocaleString()}</p>
               </div>
             ))}
           </div>
