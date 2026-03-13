@@ -354,6 +354,7 @@ export default function PlatformAdmin() {
             <TabsTrigger value="simulation"><Zap className="h-3.5 w-3.5 mr-1" /> Simulation</TabsTrigger>
             <TabsTrigger value="benchmarks"><BarChart3 className="h-3.5 w-3.5 mr-1" /> Benchmarks</TabsTrigger>
             <TabsTrigger value="benchmarks-v6"><Brain className="h-3.5 w-3.5 mr-1" /> Benchmark v6</TabsTrigger>
+            <TabsTrigger value="benchmarks-v7"><Brain className="h-3.5 w-3.5 mr-1" /> Benchmark v7</TabsTrigger>
           </TabsList>
 
           {/* Pilots Tab */}
