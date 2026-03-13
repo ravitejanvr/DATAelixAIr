@@ -498,8 +498,11 @@ async function persistCase(runId: string, r: CaseResultV7, idx: number, bc: Benc
       } as any,
       triggered_by: "benchmark_v7_suite",
     });
+    if (error) {
+      console.error(`[BenchmarkV7] Persist error for ${r.case_id}:`, error.message, error.details);
+    }
   } catch (e) {
-    console.error(`[BenchmarkV7] Persist failed for ${r.case_id}:`, e);
+    console.error(`[BenchmarkV7] Persist exception for ${r.case_id}:`, e);
   }
 }
 
