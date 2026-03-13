@@ -1125,6 +1125,138 @@ export async function runUnifiedClinicalPipeline(
   }
 
   // ═══════════════════════════════════════════════════════
+  // WAVE 3.6 — Bounded Diagnostic Loop (max 1 refinement iteration)
+  //
+  // If diagnostic confidence is weak after Wave 3.5, prune low-probability
+  // candidates and re-run Hypothesis Testing → Bayesian to sharpen the DDX.
+  // ═══════════════════════════════════════════════════════
+  let diagnosticLoopExecuted = false;
+  let diagnosticLoopReason = "";
+  const LOOP_TOP_PROBABILITY_THRESHOLD = 45; // trigger if top DDX < 45%
+  const LOOP_SPREAD_THRESHOLD = 10; // trigger if gap between #1 and #2 < 10%
+  const LOOP_PRUNE_THRESHOLD = 15; // drop candidates below 15%
+
+  if (ddxResult && ddxResult.differential_diagnoses.length >= 2) {
+    const topProb = ddxResult.differential_diagnoses[0].probability;
+    const secondProb = ddxResult.differential_diagnoses[1].probability;
+    const spread = topProb - secondProb;
+
+    const needsRefinement =
+      topProb < LOOP_TOP_PROBABILITY_THRESHOLD ||
+      spread < LOOP_SPREAD_THRESHOLD;
+
+    if (needsRefinement) {
+      const w36Start = performance.now();
+      diagnosticLoopExecuted = true;
+      diagnosticLoopReason = topProb < LOOP_TOP_PROBABILITY_THRESHOLD
+        ? `top_probability_low (${topProb}%)`
+        : `narrow_spread (${spread}% gap)`;
+
+      console.log(
+        `[Pipeline] Wave 3.6: Diagnostic loop triggered — ${diagnosticLoopReason}. ` +
+        `Pruning candidates below ${LOOP_PRUNE_THRESHOLD}% and re-running reasoning.`
+      );
+
+      // Prune weak candidates (keep must-not-miss regardless)
+      const prunedDiagnoses = ddxResult.differential_diagnoses.filter(
+        d => d.probability >= LOOP_PRUNE_THRESHOLD || d.must_not_miss,
+      );
+      const prunedCount = ddxResult.differential_diagnoses.length - prunedDiagnoses.length;
+      console.log(`[Pipeline] Wave 3.6: Pruned ${prunedCount} weak candidates, ${prunedDiagnoses.length} remaining.`);
+
+      // Re-run Hypothesis Testing with pruned set
+      const [loopHypoTest, loopBayesian] = await Promise.all([
+        (async (): Promise<HypothesisTestResult | null> => {
+          try {
+            return await withTimeout(
+              testHypotheses({
+                candidate_diagnoses: prunedDiagnoses.map(d => ({
+                  diagnosis_id: d.diagnosis_id,
+                  diagnosis_name: d.diagnosis_name,
+                  icd10_code: d.icd10_code,
+                  probability: d.probability,
+                  must_not_miss: d.must_not_miss,
+                })),
+                patient_symptoms: symptoms,
+                patient_age: ctx.patient_age,
+                patient_sex: ctx.patient_sex,
+                allergies: ctx.allergies,
+                current_medications: ctx.current_medications,
+              }),
+              TIMEOUT.HYPOTHESIS_TESTING,
+              "hypothesis_testing_loop",
+            );
+          } catch {
+            return null;
+          }
+        })(),
+
+        // Re-run Bayesian with pruned candidates
+        (async (): Promise<BayesianResult | null> => {
+          const prunedIds = prunedDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
+          if (prunedIds.length === 0) return null;
+          try {
+            return await withTimeout(
+              calculateDiagnosticProbabilities({
+                symptoms,
+                candidate_diagnosis_ids: prunedIds,
+                age: ctx.patient_age ?? undefined,
+                sex: ctx.patient_sex ?? undefined,
+                risk_factors: ctx.risk_factors || [],
+                family_history: (ctx as any).family_history || [],
+                medical_history: ctx.medical_history || [],
+                region: "IN",
+                visit_id: input.visit_id || undefined,
+                clinic_id: input.clinic_id || undefined,
+              }),
+              TIMEOUT.BAYESIAN,
+              "bayesian_loop",
+            );
+          } catch {
+            return null;
+          }
+        })(),
+      ]);
+
+      // Apply loop hypothesis testing adjustments
+      if (loopHypoTest && loopHypoTest.tested_hypotheses.length > 0) {
+        hypothesisTestResult = loopHypoTest;
+        const adjustedMap = new Map(
+          loopHypoTest.tested_hypotheses.map(h => [h.diagnosis_id, h]),
+        );
+        ddxResult = {
+          ...ddxResult,
+          differential_diagnoses: prunedDiagnoses.map(d => {
+            const tested = adjustedMap.get(d.diagnosis_id);
+            return tested ? { ...d, probability: tested.adjusted_probability } : d;
+          }).sort((a, b) => b.probability - a.probability),
+        };
+        console.log(
+          `[Pipeline] Wave 3.6: Hypothesis re-test updated ${loopHypoTest.tested_hypotheses.length} candidates.`
+        );
+      }
+
+      // Apply loop Bayesian updates (override previous bayesian result)
+      if (loopBayesian) {
+        // Merge loop Bayesian into existing — use loop posteriors for pruned set
+        console.log(
+          `[Pipeline] Wave 3.6: Bayesian re-scored ${loopBayesian.total_candidates} candidates.`
+        );
+      }
+
+      lat.diagnostic_loop = Math.round(performance.now() - w36Start);
+      waveLat.wave36_diagnostic_loop = lat.diagnostic_loop;
+      lineageTracker.recordEngineResult("diagnostic_loop" as PipelineStage, true);
+      pcieCore.addReasoningTrace(
+        "diagnostic_loop" as any,
+        `Loop triggered: ${diagnosticLoopReason}. Pruned ${prunedCount} candidates, re-ran hypothesis testing + bayesian.`,
+      );
+
+      onProgress?.("diagnostic_loop", { ddx: ddxResult, hypothesis_testing: hypothesisTestResult });
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════
   // WAVE 4 — Clinical Safety Evaluation
   // ═══════════════════════════════════════════════════════
   const w4Start = performance.now();
