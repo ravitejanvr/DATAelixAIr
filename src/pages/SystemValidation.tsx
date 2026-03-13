@@ -343,7 +343,7 @@ function PersistedBenchmarkView({ summary }: { summary: PersistedSummary }) {
                     </TableCell>
                     <TableCell>
                       <span className="text-xs">{r.confidence_label}</span>
-                      <span className="text-[10px] text-muted-foreground ml-1">({(r.confidence_score * 100).toFixed(0)}%)</span>
+                      <span className="text-[10px] text-muted-foreground ml-1">({((r.confidence_score ?? 0) * 100).toFixed(0)}%)</span>
                     </TableCell>
                     <TableCell>
                       <Badge className={`${gradeColor(r.lab_agreement)} text-[10px]`}>{r.lab_agreement}%</Badge>
