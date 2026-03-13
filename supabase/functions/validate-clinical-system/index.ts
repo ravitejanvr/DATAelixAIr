@@ -6,96 +6,344 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// ── Benchmark Scenarios ──
+// ── 50 Benchmark Scenarios ──
 const BENCHMARK_SCENARIOS = [
-  {
-    id: "viral_fever", name: "Viral Fever",
-    chief_complaint: "fever and body aches for 3 days",
-    symptoms: ["fever", "body aches", "headache", "fatigue", "sore throat"],
-    vitals: { temperature: 38.5, pulse: 95, bp_systolic: 118, bp_diastolic: 76, spo2: 97 },
-    history: [], medications: [], allergies: [],
-    expected_diagnoses: ["influenza", "viral infection", "dengue fever", "COVID-19"],
-    expected_organ_system: "infectious",
-  },
-  {
-    id: "bacterial_pneumonia", name: "Bacterial Pneumonia",
-    chief_complaint: "productive cough with fever and chest pain",
-    symptoms: ["cough", "fever", "chest pain", "shortness of breath", "sputum production", "fatigue"],
-    vitals: { temperature: 39.2, pulse: 110, bp_systolic: 125, bp_diastolic: 80, spo2: 92, respiratory_rate: 28 },
-    history: ["smoking"], medications: [], allergies: [],
-    expected_diagnoses: ["community-acquired pneumonia", "pneumonia", "bronchitis"],
-    expected_organ_system: "respiratory",
-  },
-  {
-    id: "myocardial_infarction", name: "Myocardial Infarction",
-    chief_complaint: "severe crushing chest pain radiating to left arm",
+  // ═══ EMERGENCY MEDICINE (10) ═══
+  { id: "em_mi", name: "Acute MI", specialty: "emergency", chief_complaint: "severe crushing chest pain radiating to left arm",
     symptoms: ["chest pain", "left arm pain", "shortness of breath", "diaphoresis", "nausea"],
     vitals: { temperature: 37.0, pulse: 120, bp_systolic: 160, bp_diastolic: 95, spo2: 94 },
-    history: ["hypertension", "diabetes", "smoking"],
-    medications: ["metformin", "amlodipine"], allergies: [],
+    history: ["hypertension", "diabetes", "smoking"], medications: ["metformin", "amlodipine"], allergies: [],
     expected_diagnoses: ["acute myocardial infarction", "myocardial infarction", "acute coronary syndrome"],
-    expected_organ_system: "cardiovascular",
-  },
-  {
-    id: "appendicitis", name: "Appendicitis",
-    chief_complaint: "severe right lower abdominal pain with nausea",
+    expected_organ_system: "cardiovascular", danger_expected: true },
+  { id: "em_pe", name: "Pulmonary Embolism", specialty: "emergency", chief_complaint: "sudden shortness of breath with pleuritic chest pain",
+    symptoms: ["shortness of breath", "chest pain", "tachycardia", "hemoptysis", "leg swelling"],
+    vitals: { temperature: 37.2, pulse: 125, bp_systolic: 100, bp_diastolic: 60, spo2: 88 },
+    history: ["recent surgery", "obesity"], medications: [], allergies: [],
+    expected_diagnoses: ["pulmonary embolism"], expected_organ_system: "respiratory", danger_expected: true },
+  { id: "em_stroke", name: "Acute Ischemic Stroke", specialty: "emergency", chief_complaint: "sudden weakness on right side with speech difficulty",
+    symptoms: ["weakness", "speech difficulty", "facial drooping", "confusion", "headache"],
+    vitals: { temperature: 37.1, pulse: 88, bp_systolic: 180, bp_diastolic: 100, spo2: 96 },
+    history: ["hypertension", "atrial fibrillation"], medications: ["warfarin", "lisinopril"], allergies: [],
+    expected_diagnoses: ["acute ischemic stroke", "stroke", "transient ischemic attack"],
+    expected_organ_system: "neurological", danger_expected: true },
+  { id: "em_sah", name: "Subarachnoid Hemorrhage", specialty: "emergency", chief_complaint: "sudden thunderclap headache, worst headache of my life",
+    symptoms: ["headache", "neck stiffness", "nausea", "vomiting", "photophobia", "confusion"],
+    vitals: { temperature: 37.5, pulse: 100, bp_systolic: 190, bp_diastolic: 110, spo2: 97 },
+    history: ["smoking"], medications: [], allergies: [],
+    expected_diagnoses: ["subarachnoid hemorrhage"], expected_organ_system: "neurological", danger_expected: true },
+  { id: "em_sepsis", name: "Sepsis", specialty: "emergency", chief_complaint: "high fever with confusion and low blood pressure",
+    symptoms: ["fever", "confusion", "tachycardia", "hypotension", "fatigue", "chills"],
+    vitals: { temperature: 39.8, pulse: 130, bp_systolic: 85, bp_diastolic: 50, spo2: 91, respiratory_rate: 28 },
+    history: ["diabetes", "urinary tract infection"], medications: ["metformin"], allergies: [],
+    expected_diagnoses: ["sepsis", "septic shock", "urosepsis"],
+    expected_organ_system: "infectious", danger_expected: true },
+  { id: "em_pneumothorax", name: "Tension Pneumothorax", specialty: "emergency", chief_complaint: "sudden severe chest pain with difficulty breathing after trauma",
+    symptoms: ["chest pain", "shortness of breath", "tachycardia", "decreased breath sounds"],
+    vitals: { temperature: 37.0, pulse: 135, bp_systolic: 80, bp_diastolic: 50, spo2: 84, respiratory_rate: 34 },
+    history: ["trauma"], medications: [], allergies: [],
+    expected_diagnoses: ["tension pneumothorax", "pneumothorax"],
+    expected_organ_system: "respiratory", danger_expected: true },
+  { id: "em_anaphylaxis", name: "Anaphylaxis", specialty: "emergency", chief_complaint: "sudden swelling of lips and tongue with difficulty breathing after eating peanuts",
+    symptoms: ["shortness of breath", "wheezing", "rash", "swelling", "hypotension", "tachycardia"],
+    vitals: { temperature: 37.0, pulse: 130, bp_systolic: 75, bp_diastolic: 40, spo2: 88 },
+    history: ["peanut allergy"], medications: [], allergies: ["peanuts"],
+    expected_diagnoses: ["anaphylaxis", "anaphylactic shock"],
+    expected_organ_system: "immunological", danger_expected: true },
+  { id: "em_dka", name: "Diabetic Ketoacidosis", specialty: "emergency", chief_complaint: "nausea vomiting abdominal pain and confusion in a diabetic patient",
+    symptoms: ["nausea", "vomiting", "abdominal pain", "confusion", "dehydration", "fruity breath"],
+    vitals: { temperature: 37.2, pulse: 115, bp_systolic: 95, bp_diastolic: 55, spo2: 96, respiratory_rate: 30 },
+    history: ["type 1 diabetes"], medications: ["insulin"], allergies: [],
+    expected_diagnoses: ["diabetic ketoacidosis", "DKA"],
+    expected_organ_system: "endocrine", danger_expected: true },
+  { id: "em_meningitis", name: "Bacterial Meningitis", specialty: "emergency", chief_complaint: "severe headache with neck stiffness and high fever",
+    symptoms: ["headache", "neck stiffness", "fever", "photophobia", "nausea", "confusion"],
+    vitals: { temperature: 39.5, pulse: 115, bp_systolic: 130, bp_diastolic: 85, spo2: 96 },
+    history: [], medications: [], allergies: ["penicillin"],
+    expected_diagnoses: ["meningitis", "bacterial meningitis"],
+    expected_organ_system: "neurological", danger_expected: true },
+  { id: "em_appendicitis", name: "Acute Appendicitis", specialty: "emergency", chief_complaint: "periumbilical pain migrating to right lower quadrant with fever",
     symptoms: ["abdominal pain", "nausea", "vomiting", "fever", "loss of appetite"],
     vitals: { temperature: 38.3, pulse: 100, bp_systolic: 130, bp_diastolic: 80, spo2: 98 },
     history: [], medications: [], allergies: [],
     expected_diagnoses: ["appendicitis", "acute appendicitis"],
-    expected_organ_system: "gastrointestinal",
-  },
-  {
-    id: "stroke", name: "Acute Ischemic Stroke",
-    chief_complaint: "sudden weakness on right side with speech difficulty",
-    symptoms: ["weakness", "speech difficulty", "facial drooping", "confusion", "headache"],
-    vitals: { temperature: 37.1, pulse: 88, bp_systolic: 180, bp_diastolic: 100, spo2: 96 },
-    history: ["hypertension", "atrial fibrillation"],
-    medications: ["warfarin", "lisinopril"], allergies: [],
-    expected_diagnoses: ["acute ischemic stroke", "stroke", "transient ischemic attack"],
-    expected_organ_system: "neurological",
-  },
-  {
-    id: "asthma_exacerbation", name: "Asthma Exacerbation",
-    chief_complaint: "wheezing and difficulty breathing",
+    expected_organ_system: "gastrointestinal", danger_expected: true },
+
+  // ═══ CARDIOLOGY (5) ═══
+  { id: "card_angina", name: "Stable Angina", specialty: "cardiology", chief_complaint: "chest pain on exertion relieved by rest",
+    symptoms: ["chest pain", "exertional dyspnea", "fatigue"],
+    vitals: { temperature: 37.0, pulse: 78, bp_systolic: 145, bp_diastolic: 90, spo2: 97 },
+    history: ["hypertension", "smoking"], medications: ["amlodipine"], allergies: [],
+    expected_diagnoses: ["stable angina", "angina pectoris", "chronic coronary disease"],
+    expected_organ_system: "cardiovascular", danger_expected: false },
+  { id: "card_hf", name: "Congestive Heart Failure", specialty: "cardiology", chief_complaint: "progressive shortness of breath, leg swelling and fatigue over 2 weeks",
+    symptoms: ["shortness of breath", "leg swelling", "fatigue", "orthopnea", "paroxysmal nocturnal dyspnea"],
+    vitals: { temperature: 37.0, pulse: 95, bp_systolic: 155, bp_diastolic: 95, spo2: 92 },
+    history: ["hypertension", "diabetes", "prior MI"], medications: ["lisinopril", "metformin"], allergies: [],
+    expected_diagnoses: ["congestive heart failure", "heart failure", "CHF"],
+    expected_organ_system: "cardiovascular", danger_expected: true },
+  { id: "card_afib", name: "Atrial Fibrillation", specialty: "cardiology", chief_complaint: "palpitations and irregular heartbeat with dizziness",
+    symptoms: ["palpitations", "dizziness", "fatigue", "shortness of breath", "chest discomfort"],
+    vitals: { temperature: 37.0, pulse: 145, bp_systolic: 130, bp_diastolic: 80, spo2: 96 },
+    history: ["hypertension"], medications: ["amlodipine"], allergies: [],
+    expected_diagnoses: ["atrial fibrillation", "arrhythmia", "AF"],
+    expected_organ_system: "cardiovascular", danger_expected: false },
+  { id: "card_pericarditis", name: "Acute Pericarditis", specialty: "cardiology", chief_complaint: "sharp chest pain worse when lying down, improved by leaning forward",
+    symptoms: ["chest pain", "fever", "pericardial friction rub", "dyspnea"],
+    vitals: { temperature: 38.1, pulse: 92, bp_systolic: 125, bp_diastolic: 78, spo2: 97 },
+    history: ["recent viral illness"], medications: [], allergies: [],
+    expected_diagnoses: ["acute pericarditis", "pericarditis"],
+    expected_organ_system: "cardiovascular", danger_expected: false },
+  { id: "card_hyp_crisis", name: "Hypertensive Crisis", specialty: "cardiology", chief_complaint: "severe headache with blurred vision and very high blood pressure",
+    symptoms: ["headache", "blurred vision", "nausea", "chest pain", "confusion"],
+    vitals: { temperature: 37.0, pulse: 100, bp_systolic: 210, bp_diastolic: 130, spo2: 96 },
+    history: ["hypertension", "non-compliance with medication"], medications: ["amlodipine"], allergies: [],
+    expected_diagnoses: ["hypertensive crisis", "hypertensive emergency", "malignant hypertension"],
+    expected_organ_system: "cardiovascular", danger_expected: true },
+
+  // ═══ PULMONOLOGY (5) ═══
+  { id: "pulm_pneumonia", name: "Community-Acquired Pneumonia", specialty: "pulmonology", chief_complaint: "productive cough with fever and chest pain for 5 days",
+    symptoms: ["cough", "fever", "chest pain", "shortness of breath", "sputum production", "fatigue"],
+    vitals: { temperature: 39.2, pulse: 110, bp_systolic: 125, bp_diastolic: 80, spo2: 92, respiratory_rate: 28 },
+    history: ["smoking"], medications: [], allergies: [],
+    expected_diagnoses: ["community-acquired pneumonia", "pneumonia", "bacterial pneumonia"],
+    expected_organ_system: "respiratory", danger_expected: false },
+  { id: "pulm_asthma", name: "Asthma Exacerbation", specialty: "pulmonology", chief_complaint: "wheezing and difficulty breathing for 2 hours",
     symptoms: ["wheezing", "shortness of breath", "cough", "chest tightness"],
     vitals: { temperature: 37.0, pulse: 105, bp_systolic: 120, bp_diastolic: 78, spo2: 91, respiratory_rate: 30 },
     history: ["asthma"], medications: ["salbutamol inhaler"], allergies: ["aspirin"],
     expected_diagnoses: ["asthma", "asthma exacerbation", "bronchospasm"],
-    expected_organ_system: "respiratory",
-  },
-  {
-    id: "meningitis", name: "Meningitis",
-    chief_complaint: "severe headache with neck stiffness and fever",
-    symptoms: ["headache", "neck stiffness", "fever", "photophobia", "nausea", "confusion"],
-    vitals: { temperature: 39.5, pulse: 115, bp_systolic: 130, bp_diastolic: 85, spo2: 96 },
-    history: [], medications: [], allergies: ["penicillin"],
-    expected_diagnoses: ["meningitis", "bacterial meningitis", "viral meningitis"],
-    expected_organ_system: "neurological",
-  },
-  {
-    id: "gastroenteritis", name: "Gastroenteritis",
-    chief_complaint: "diarrhea and vomiting for 2 days",
+    expected_organ_system: "respiratory", danger_expected: false },
+  { id: "pulm_copd", name: "COPD Exacerbation", specialty: "pulmonology", chief_complaint: "worsening cough with increased sputum and breathlessness over 3 days",
+    symptoms: ["cough", "sputum production", "shortness of breath", "wheezing", "fatigue"],
+    vitals: { temperature: 37.8, pulse: 100, bp_systolic: 135, bp_diastolic: 85, spo2: 89, respiratory_rate: 26 },
+    history: ["COPD", "smoking 30 pack-years"], medications: ["tiotropium", "salbutamol"], allergies: [],
+    expected_diagnoses: ["COPD exacerbation", "COPD", "chronic obstructive pulmonary disease"],
+    expected_organ_system: "respiratory", danger_expected: false },
+  { id: "pulm_tb", name: "Pulmonary Tuberculosis", specialty: "pulmonology", chief_complaint: "chronic cough for 3 weeks with night sweats and weight loss",
+    symptoms: ["cough", "night sweats", "weight loss", "fever", "hemoptysis", "fatigue"],
+    vitals: { temperature: 38.0, pulse: 90, bp_systolic: 115, bp_diastolic: 70, spo2: 95 },
+    history: ["contact with TB patient"], medications: [], allergies: [],
+    expected_diagnoses: ["pulmonary tuberculosis", "tuberculosis", "TB"],
+    expected_organ_system: "respiratory", danger_expected: true },
+  { id: "pulm_effusion", name: "Pleural Effusion", specialty: "pulmonology", chief_complaint: "progressive breathlessness with dull chest pain",
+    symptoms: ["shortness of breath", "chest pain", "cough", "decreased breath sounds"],
+    vitals: { temperature: 37.5, pulse: 88, bp_systolic: 120, bp_diastolic: 75, spo2: 93 },
+    history: ["congestive heart failure"], medications: ["furosemide"], allergies: [],
+    expected_diagnoses: ["pleural effusion"],
+    expected_organ_system: "respiratory", danger_expected: false },
+
+  // ═══ GASTROENTEROLOGY (5) ═══
+  { id: "gi_gerd", name: "GERD", specialty: "gastroenterology", chief_complaint: "burning chest pain after meals with acid taste in mouth",
+    symptoms: ["heartburn", "acid reflux", "chest pain", "dysphagia", "nausea"],
+    vitals: { temperature: 37.0, pulse: 72, bp_systolic: 120, bp_diastolic: 78, spo2: 99 },
+    history: ["obesity"], medications: [], allergies: [],
+    expected_diagnoses: ["GERD", "gastroesophageal reflux disease", "acid reflux"],
+    expected_organ_system: "gastrointestinal", danger_expected: false },
+  { id: "gi_pancreatitis", name: "Acute Pancreatitis", specialty: "gastroenterology", chief_complaint: "severe epigastric pain radiating to back with vomiting",
+    symptoms: ["abdominal pain", "nausea", "vomiting", "epigastric pain", "fever"],
+    vitals: { temperature: 38.5, pulse: 110, bp_systolic: 105, bp_diastolic: 65, spo2: 96 },
+    history: ["alcohol use", "gallstones"], medications: [], allergies: [],
+    expected_diagnoses: ["acute pancreatitis", "pancreatitis"],
+    expected_organ_system: "gastrointestinal", danger_expected: true },
+  { id: "gi_cholecystitis", name: "Acute Cholecystitis", specialty: "gastroenterology", chief_complaint: "right upper quadrant pain after fatty meal with fever",
+    symptoms: ["abdominal pain", "nausea", "vomiting", "fever", "right upper quadrant pain"],
+    vitals: { temperature: 38.2, pulse: 95, bp_systolic: 130, bp_diastolic: 82, spo2: 98 },
+    history: ["gallstones"], medications: [], allergies: [],
+    expected_diagnoses: ["acute cholecystitis", "cholecystitis", "gallbladder inflammation"],
+    expected_organ_system: "gastrointestinal", danger_expected: false },
+  { id: "gi_gastroenteritis", name: "Viral Gastroenteritis", specialty: "gastroenterology", chief_complaint: "watery diarrhea and vomiting for 2 days",
     symptoms: ["diarrhea", "vomiting", "abdominal pain", "nausea", "fever", "dehydration"],
     vitals: { temperature: 38.0, pulse: 100, bp_systolic: 105, bp_diastolic: 65, spo2: 98 },
     history: [], medications: [], allergies: [],
     expected_diagnoses: ["gastroenteritis", "viral gastroenteritis", "food poisoning"],
-    expected_organ_system: "gastrointestinal",
-  },
+    expected_organ_system: "gastrointestinal", danger_expected: false },
+  { id: "gi_obstruction", name: "Small Bowel Obstruction", specialty: "gastroenterology", chief_complaint: "colicky abdominal pain with vomiting and inability to pass stool",
+    symptoms: ["abdominal pain", "vomiting", "constipation", "abdominal distension", "nausea"],
+    vitals: { temperature: 37.8, pulse: 105, bp_systolic: 110, bp_diastolic: 70, spo2: 97 },
+    history: ["previous abdominal surgery"], medications: [], allergies: [],
+    expected_diagnoses: ["bowel obstruction", "small bowel obstruction", "intestinal obstruction"],
+    expected_organ_system: "gastrointestinal", danger_expected: true },
+
+  // ═══ NEUROLOGY (5) ═══
+  { id: "neuro_migraine", name: "Migraine with Aura", specialty: "neurology", chief_complaint: "severe unilateral throbbing headache with visual disturbances",
+    symptoms: ["headache", "nausea", "photophobia", "visual aura", "phonophobia"],
+    vitals: { temperature: 37.0, pulse: 78, bp_systolic: 125, bp_diastolic: 80, spo2: 99 },
+    history: ["migraine"], medications: ["sumatriptan"], allergies: [],
+    expected_diagnoses: ["migraine", "migraine with aura"],
+    expected_organ_system: "neurological", danger_expected: false },
+  { id: "neuro_epilepsy", name: "Generalized Seizure", specialty: "neurology", chief_complaint: "witnessed convulsion with loss of consciousness lasting 3 minutes",
+    symptoms: ["seizure", "loss of consciousness", "confusion", "tongue biting", "incontinence"],
+    vitals: { temperature: 37.5, pulse: 100, bp_systolic: 140, bp_diastolic: 85, spo2: 94 },
+    history: ["epilepsy"], medications: ["levetiracetam"], allergies: [],
+    expected_diagnoses: ["epilepsy", "generalized seizure", "tonic-clonic seizure"],
+    expected_organ_system: "neurological", danger_expected: true },
+  { id: "neuro_gbs", name: "Guillain-Barré Syndrome", specialty: "neurology", chief_complaint: "ascending weakness in both legs over 3 days with tingling",
+    symptoms: ["weakness", "tingling", "numbness", "difficulty walking", "areflexia"],
+    vitals: { temperature: 37.0, pulse: 80, bp_systolic: 120, bp_diastolic: 75, spo2: 97 },
+    history: ["recent respiratory infection"], medications: [], allergies: [],
+    expected_diagnoses: ["Guillain-Barré syndrome", "GBS"],
+    expected_organ_system: "neurological", danger_expected: true },
+  { id: "neuro_parkinsons", name: "Parkinson's Disease", specialty: "neurology", chief_complaint: "progressive tremor in right hand with stiffness and slow movements",
+    symptoms: ["tremor", "rigidity", "bradykinesia", "postural instability", "shuffling gait"],
+    vitals: { temperature: 37.0, pulse: 68, bp_systolic: 130, bp_diastolic: 78, spo2: 98 },
+    history: [], medications: [], allergies: [],
+    expected_diagnoses: ["Parkinson's disease", "parkinsonism"],
+    expected_organ_system: "neurological", danger_expected: false },
+  { id: "neuro_ms", name: "Multiple Sclerosis Relapse", specialty: "neurology", chief_complaint: "blurred vision in one eye with weakness and numbness",
+    symptoms: ["blurred vision", "weakness", "numbness", "fatigue", "optic neuritis"],
+    vitals: { temperature: 37.0, pulse: 74, bp_systolic: 118, bp_diastolic: 72, spo2: 99 },
+    history: ["multiple sclerosis"], medications: ["interferon beta"], allergies: [],
+    expected_diagnoses: ["multiple sclerosis", "MS relapse", "demyelinating disease"],
+    expected_organ_system: "neurological", danger_expected: false },
+
+  // ═══ ENDOCRINOLOGY (5) ═══
+  { id: "endo_hypothyroid", name: "Hypothyroidism", specialty: "endocrinology", chief_complaint: "fatigue weight gain and cold intolerance for 3 months",
+    symptoms: ["fatigue", "weight gain", "cold intolerance", "constipation", "dry skin", "hair loss"],
+    vitals: { temperature: 36.2, pulse: 58, bp_systolic: 115, bp_diastolic: 72, spo2: 99 },
+    history: ["family history of thyroid disease"], medications: [], allergies: [],
+    expected_diagnoses: ["hypothyroidism", "Hashimoto's thyroiditis", "underactive thyroid"],
+    expected_organ_system: "endocrine", danger_expected: false },
+  { id: "endo_hyperthyroid", name: "Hyperthyroidism / Graves", specialty: "endocrinology", chief_complaint: "weight loss with tremor and palpitations despite eating well",
+    symptoms: ["weight loss", "palpitations", "tremor", "heat intolerance", "diarrhea", "anxiety"],
+    vitals: { temperature: 37.5, pulse: 115, bp_systolic: 140, bp_diastolic: 70, spo2: 99 },
+    history: ["family history of autoimmune disease"], medications: [], allergies: [],
+    expected_diagnoses: ["hyperthyroidism", "Graves' disease", "thyrotoxicosis"],
+    expected_organ_system: "endocrine", danger_expected: false },
+  { id: "endo_dm2", name: "Type 2 Diabetes (New)", specialty: "endocrinology", chief_complaint: "increased thirst frequent urination and blurred vision for 2 months",
+    symptoms: ["polyuria", "polydipsia", "blurred vision", "fatigue", "weight loss"],
+    vitals: { temperature: 37.0, pulse: 80, bp_systolic: 135, bp_diastolic: 85, spo2: 99 },
+    history: ["obesity", "family history of diabetes"], medications: [], allergies: [],
+    expected_diagnoses: ["type 2 diabetes", "diabetes mellitus", "diabetes"],
+    expected_organ_system: "endocrine", danger_expected: false },
+  { id: "endo_addison", name: "Adrenal Insufficiency", specialty: "endocrinology", chief_complaint: "chronic fatigue with hyperpigmentation and dizziness on standing",
+    symptoms: ["fatigue", "hyperpigmentation", "dizziness", "nausea", "weight loss", "hypotension"],
+    vitals: { temperature: 37.0, pulse: 90, bp_systolic: 90, bp_diastolic: 55, spo2: 98 },
+    history: ["autoimmune disease"], medications: [], allergies: [],
+    expected_diagnoses: ["Addison's disease", "adrenal insufficiency", "primary adrenal insufficiency"],
+    expected_organ_system: "endocrine", danger_expected: true },
+  { id: "endo_cushing", name: "Cushing's Syndrome", specialty: "endocrinology", chief_complaint: "weight gain in face and trunk with easy bruising and stretch marks",
+    symptoms: ["weight gain", "moon facies", "easy bruising", "striae", "hypertension", "fatigue"],
+    vitals: { temperature: 37.0, pulse: 82, bp_systolic: 155, bp_diastolic: 95, spo2: 99 },
+    history: ["long-term steroid use"], medications: ["prednisone"], allergies: [],
+    expected_diagnoses: ["Cushing's syndrome", "hypercortisolism"],
+    expected_organ_system: "endocrine", danger_expected: false },
+
+  // ═══ INFECTIOUS DISEASES (5) ═══
+  { id: "id_dengue", name: "Dengue Fever", specialty: "infectious", chief_complaint: "high fever with severe body aches and rash for 4 days",
+    symptoms: ["fever", "body aches", "headache", "rash", "retro-orbital pain", "fatigue"],
+    vitals: { temperature: 39.5, pulse: 105, bp_systolic: 100, bp_diastolic: 60, spo2: 97 },
+    history: ["travel to endemic area"], medications: [], allergies: [],
+    expected_diagnoses: ["dengue fever", "dengue"],
+    expected_organ_system: "infectious", danger_expected: true },
+  { id: "id_malaria", name: "Malaria", specialty: "infectious", chief_complaint: "cyclical fever with chills and rigors every 48 hours",
+    symptoms: ["fever", "chills", "rigors", "headache", "fatigue", "nausea", "splenomegaly"],
+    vitals: { temperature: 40.0, pulse: 110, bp_systolic: 105, bp_diastolic: 65, spo2: 96 },
+    history: ["travel to malaria-endemic area"], medications: [], allergies: [],
+    expected_diagnoses: ["malaria", "plasmodium infection"],
+    expected_organ_system: "infectious", danger_expected: true },
+  { id: "id_uti", name: "Urinary Tract Infection", specialty: "infectious", chief_complaint: "burning urination with frequency and lower abdominal pain",
+    symptoms: ["dysuria", "urinary frequency", "abdominal pain", "urgency", "hematuria"],
+    vitals: { temperature: 37.8, pulse: 82, bp_systolic: 120, bp_diastolic: 75, spo2: 99 },
+    history: [], medications: [], allergies: [],
+    expected_diagnoses: ["urinary tract infection", "UTI", "cystitis"],
+    expected_organ_system: "genitourinary", danger_expected: false },
+  { id: "id_cellulitis", name: "Cellulitis", specialty: "infectious", chief_complaint: "red hot swollen area on lower leg with fever",
+    symptoms: ["skin redness", "swelling", "warmth", "fever", "pain", "tenderness"],
+    vitals: { temperature: 38.5, pulse: 90, bp_systolic: 125, bp_diastolic: 78, spo2: 98 },
+    history: ["diabetes"], medications: ["metformin"], allergies: [],
+    expected_diagnoses: ["cellulitis", "skin infection"],
+    expected_organ_system: "dermatological", danger_expected: false },
+  { id: "id_viral_fever", name: "Viral Upper Respiratory Infection", specialty: "infectious", chief_complaint: "sore throat with runny nose and mild fever for 3 days",
+    symptoms: ["sore throat", "rhinorrhea", "fever", "cough", "body aches", "fatigue"],
+    vitals: { temperature: 38.0, pulse: 85, bp_systolic: 118, bp_diastolic: 72, spo2: 98 },
+    history: [], medications: [], allergies: [],
+    expected_diagnoses: ["viral infection", "upper respiratory infection", "common cold", "influenza"],
+    expected_organ_system: "infectious", danger_expected: false },
+
+  // ═══ PEDIATRICS (5) ═══
+  { id: "peds_bronchiolitis", name: "Bronchiolitis (Infant)", specialty: "pediatrics", chief_complaint: "6-month-old with wheezing cough and poor feeding",
+    symptoms: ["wheezing", "cough", "poor feeding", "tachypnea", "nasal congestion"],
+    vitals: { temperature: 38.0, pulse: 160, bp_systolic: 80, bp_diastolic: 50, spo2: 92, respiratory_rate: 50 },
+    history: ["premature birth"], medications: [], allergies: [],
+    expected_diagnoses: ["bronchiolitis", "RSV infection", "viral bronchiolitis"],
+    expected_organ_system: "respiratory", danger_expected: false },
+  { id: "peds_otitis", name: "Acute Otitis Media", specialty: "pediatrics", chief_complaint: "3-year-old with ear pain fever and irritability",
+    symptoms: ["ear pain", "fever", "irritability", "hearing loss", "ear discharge"],
+    vitals: { temperature: 38.5, pulse: 120, bp_systolic: 90, bp_diastolic: 60, spo2: 99 },
+    history: ["recurrent ear infections"], medications: [], allergies: [],
+    expected_diagnoses: ["acute otitis media", "otitis media", "ear infection"],
+    expected_organ_system: "ENT", danger_expected: false },
+  { id: "peds_croup", name: "Croup", specialty: "pediatrics", chief_complaint: "2-year-old with barking cough and stridor at night",
+    symptoms: ["barking cough", "stridor", "hoarseness", "fever", "respiratory distress"],
+    vitals: { temperature: 38.2, pulse: 130, bp_systolic: 85, bp_diastolic: 55, spo2: 94, respiratory_rate: 40 },
+    history: [], medications: [], allergies: [],
+    expected_diagnoses: ["croup", "laryngotracheobronchitis", "viral croup"],
+    expected_organ_system: "respiratory", danger_expected: false },
+  { id: "peds_kawasaki", name: "Kawasaki Disease", specialty: "pediatrics", chief_complaint: "4-year-old with persistent high fever, rash, and red eyes for 5 days",
+    symptoms: ["fever", "rash", "conjunctivitis", "swollen lymph nodes", "cracked lips", "swollen hands"],
+    vitals: { temperature: 39.5, pulse: 140, bp_systolic: 90, bp_diastolic: 55, spo2: 98 },
+    history: [], medications: [], allergies: [],
+    expected_diagnoses: ["Kawasaki disease"],
+    expected_organ_system: "cardiovascular", danger_expected: true },
+  { id: "peds_febrile_seizure", name: "Febrile Seizure", specialty: "pediatrics", chief_complaint: "18-month-old with convulsion during high fever episode",
+    symptoms: ["seizure", "fever", "loss of consciousness", "confusion"],
+    vitals: { temperature: 39.8, pulse: 150, bp_systolic: 85, bp_diastolic: 55, spo2: 95 },
+    history: ["prior febrile seizure"], medications: [], allergies: [],
+    expected_diagnoses: ["febrile seizure"],
+    expected_organ_system: "neurological", danger_expected: true },
+
+  // ═══ NEPHROLOGY (3) ═══
+  { id: "neph_aki", name: "Acute Kidney Injury", specialty: "nephrology", chief_complaint: "decreased urine output with swelling and confusion",
+    symptoms: ["oliguria", "edema", "confusion", "nausea", "fatigue"],
+    vitals: { temperature: 37.2, pulse: 95, bp_systolic: 155, bp_diastolic: 95, spo2: 96 },
+    history: ["diabetes", "hypertension", "recent NSAID use"], medications: ["metformin", "ibuprofen"], allergies: [],
+    expected_diagnoses: ["acute kidney injury", "AKI", "acute renal failure"],
+    expected_organ_system: "renal", danger_expected: true },
+  { id: "neph_ckd", name: "Chronic Kidney Disease", specialty: "nephrology", chief_complaint: "progressive fatigue with leg swelling and decreased urine",
+    symptoms: ["fatigue", "edema", "nausea", "decreased appetite", "itching"],
+    vitals: { temperature: 37.0, pulse: 82, bp_systolic: 160, bp_diastolic: 100, spo2: 97 },
+    history: ["diabetes", "hypertension for 15 years"], medications: ["metformin", "lisinopril"], allergies: [],
+    expected_diagnoses: ["chronic kidney disease", "CKD", "renal insufficiency"],
+    expected_organ_system: "renal", danger_expected: false },
+  { id: "neph_stones", name: "Nephrolithiasis", specialty: "nephrology", chief_complaint: "severe colicky flank pain radiating to groin with blood in urine",
+    symptoms: ["flank pain", "hematuria", "nausea", "vomiting", "dysuria"],
+    vitals: { temperature: 37.2, pulse: 100, bp_systolic: 145, bp_diastolic: 85, spo2: 99 },
+    history: ["prior kidney stones"], medications: [], allergies: [],
+    expected_diagnoses: ["nephrolithiasis", "kidney stones", "renal calculi"],
+    expected_organ_system: "renal", danger_expected: false },
+
+  // ═══ HEMATOLOGY (2) ═══
+  { id: "heme_ida", name: "Iron Deficiency Anemia", specialty: "hematology", chief_complaint: "progressive fatigue with pallor and pica for 2 months",
+    symptoms: ["fatigue", "pallor", "pica", "shortness of breath", "dizziness", "brittle nails"],
+    vitals: { temperature: 37.0, pulse: 95, bp_systolic: 110, bp_diastolic: 68, spo2: 98 },
+    history: ["heavy menstrual periods"], medications: [], allergies: [],
+    expected_diagnoses: ["iron deficiency anemia", "anemia"],
+    expected_organ_system: "hematological", danger_expected: false },
+  { id: "heme_dvt", name: "Deep Vein Thrombosis", specialty: "hematology", chief_complaint: "swollen painful left calf after long flight",
+    symptoms: ["leg swelling", "calf pain", "warmth", "redness", "tenderness"],
+    vitals: { temperature: 37.2, pulse: 88, bp_systolic: 125, bp_diastolic: 78, spo2: 98 },
+    history: ["oral contraceptive use", "recent long-haul flight"], medications: ["oral contraceptive"], allergies: [],
+    expected_diagnoses: ["deep vein thrombosis", "DVT", "venous thromboembolism"],
+    expected_organ_system: "hematological", danger_expected: true },
 ];
 
 // ── Dangerous diagnosis triggers ──
 const DANGEROUS_TRIGGERS: Record<string, string[]> = {
   "chest pain": ["myocardial infarction", "pulmonary embolism", "aortic dissection", "pneumothorax"],
-  "headache": ["subarachnoid hemorrhage", "meningitis"],
+  "headache": ["subarachnoid hemorrhage", "meningitis", "stroke"],
   "neck stiffness": ["meningitis", "subarachnoid hemorrhage"],
-  "abdominal pain": ["appendicitis", "ectopic pregnancy", "bowel perforation"],
-  "shortness of breath": ["pulmonary embolism", "pneumothorax", "acute heart failure"],
-  "weakness": ["stroke", "transient ischemic attack"],
+  "abdominal pain": ["appendicitis", "ectopic pregnancy", "bowel perforation", "pancreatitis"],
+  "shortness of breath": ["pulmonary embolism", "pneumothorax", "acute heart failure", "anaphylaxis"],
+  "weakness": ["stroke", "transient ischemic attack", "Guillain-Barré syndrome"],
   "speech difficulty": ["stroke"],
   "facial drooping": ["stroke"],
-  "hemoptysis": ["pulmonary embolism"],
+  "hemoptysis": ["pulmonary embolism", "tuberculosis"],
   "syncope": ["cardiac arrhythmia", "aortic dissection"],
+  "confusion": ["meningitis", "stroke", "sepsis", "DKA"],
+  "seizure": ["status epilepticus", "meningitis"],
+  "fever": ["sepsis", "meningitis"],
+  "hypotension": ["sepsis", "anaphylaxis"],
+  "leg swelling": ["deep vein thrombosis", "heart failure"],
 };
 
 function normalize(s: string): string {
@@ -111,7 +359,7 @@ function fuzzyMatch(actual: string[], expected: string[]): string[] {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// WORLD MODEL — Builds ClinicalWorldState from symptoms + lookup data
+// WORLD MODEL
 // ════════════════════════════════════════════════════════════════════
 interface WorldModelState {
   organ_systems: string[];
@@ -126,8 +374,7 @@ interface WorldModelState {
 }
 
 function buildWorldModel(
-  symptoms: string[],
-  vitals: any,
+  symptoms: string[], vitals: any,
   activationRules: Array<{ symptom: string; organ_system: string; activation_weight: number }>,
   physiologyMap: Array<{ symptom: string; physiology_process: string; organ_system: string }>,
   physiologyDiagMap: Array<{ physiology_process: string; disease_name: string; confidence_score: number }>,
@@ -136,7 +383,6 @@ function buildWorldModel(
   const start = Date.now();
   const syms = symptoms.map(s => s.toLowerCase());
 
-  // 1. Organ System Activation using activation rules
   const systemScores: Record<string, number> = {};
   for (const s of syms) {
     const rules = activationRules.filter(r => r.symptom.toLowerCase() === s);
@@ -147,7 +393,6 @@ function buildWorldModel(
   const sortedSystems = Object.entries(systemScores).sort(([, a], [, b]) => b - a);
   const activeOrganSystems = sortedSystems.filter(([, w]) => w >= 1.0).map(([s]) => s);
 
-  // 2. Physiology Inference
   const physiologicalStates: WorldModelState["physiological_states"] = [];
   const seenProcesses = new Set<string>();
   for (const s of syms) {
@@ -156,37 +401,24 @@ function buildWorldModel(
       if (!seenProcesses.has(m.physiology_process)) {
         seenProcesses.add(m.physiology_process);
         const spec = specificityMap[s] || 0.35;
-        physiologicalStates.push({
-          process: m.physiology_process,
-          organ_system: m.organ_system,
-          confidence: Math.round(Math.min(1.0, spec * 1.2) * 100) / 100,
-        });
+        physiologicalStates.push({ process: m.physiology_process, organ_system: m.organ_system, confidence: Math.round(Math.min(1.0, spec * 1.2) * 100) / 100 });
       }
     }
   }
 
-  // 3. Physiology → Disease Hypotheses
   const hypotheses: WorldModelState["hypotheses"] = [];
   const seenDiseases = new Set<string>();
   for (const ps of physiologicalStates) {
-    const matches = physiologyDiagMap.filter(
-      pd => pd.physiology_process.toLowerCase() === ps.process.toLowerCase()
-    );
+    const matches = physiologyDiagMap.filter(pd => pd.physiology_process.toLowerCase() === ps.process.toLowerCase());
     for (const m of matches) {
       const key = m.disease_name.toLowerCase();
       if (!seenDiseases.has(key)) {
         seenDiseases.add(key);
-        hypotheses.push({
-          disease: m.disease_name,
-          confidence: Math.round(ps.confidence * (m.confidence_score || 0.5) * 100) / 100,
-          organ_system: ps.organ_system,
-          source: "physiology",
-        });
+        hypotheses.push({ disease: m.disease_name, confidence: Math.round(ps.confidence * (m.confidence_score || 0.5) * 100) / 100, organ_system: ps.organ_system, source: "physiology" });
       }
     }
   }
 
-  // 4. Dangerous Diagnosis Injection
   const dangerousConditions: string[] = [];
   for (const s of syms) {
     const dangers = DANGEROUS_TRIGGERS[s];
@@ -204,24 +436,15 @@ function buildWorldModel(
     }
   }
 
-  // 5. Reasoning Traces
   const traces: WorldModelState["reasoning_traces"] = [];
   for (const ps of physiologicalStates) {
-    const matchedDiseases = physiologyDiagMap.filter(
-      pd => pd.physiology_process.toLowerCase() === ps.process.toLowerCase()
-    );
+    const matchedDiseases = physiologyDiagMap.filter(pd => pd.physiology_process.toLowerCase() === ps.process.toLowerCase());
     const originSymptom = physiologyMap.find(p => p.physiology_process === ps.process)?.symptom || "unknown";
     for (const md of matchedDiseases.slice(0, 2)) {
-      traces.push({
-        symptom: originSymptom,
-        physiology: ps.process,
-        disease: md.disease_name,
-        chain: `${originSymptom} → ${ps.process} → ${md.disease_name}`,
-      });
+      traces.push({ symptom: originSymptom, physiology: ps.process, disease: md.disease_name, chain: `${originSymptom} → ${ps.process} → ${md.disease_name}` });
     }
   }
 
-  // 6. Risk Level
   let riskLevel = "low";
   if (dangerousConditions.length > 0) riskLevel = "high";
   if (dangerousConditions.length >= 3) riskLevel = "critical";
@@ -233,79 +456,42 @@ function buildWorldModel(
     }
   }
 
-  // 7. State Confidence
-  const avgSpec = syms.length > 0
-    ? syms.reduce((a, s) => a + (specificityMap[s] || 0.35), 0) / syms.length : 0.3;
+  const avgSpec = syms.length > 0 ? syms.reduce((a, s) => a + (specificityMap[s] || 0.35), 0) / syms.length : 0.3;
   const stateConfidence = Math.round(Math.min(0.95, avgSpec + (activeOrganSystems.length > 0 ? 0.15 : 0) + (physiologicalStates.length > 0 ? 0.1 : 0)) * 100) / 100;
 
   hypotheses.sort((a, b) => b.confidence - a.confidence);
 
-  return {
-    organ_systems: activeOrganSystems,
-    organ_system_weights: systemScores,
-    physiological_states: physiologicalStates,
-    hypotheses,
-    dangerous_conditions: dangerousConditions,
-    risk_level: riskLevel,
-    state_confidence: stateConfidence,
-    reasoning_traces: traces,
-    latency_ms: Date.now() - start,
-  };
+  return { organ_systems: activeOrganSystems, organ_system_weights: systemScores, physiological_states: physiologicalStates, hypotheses, dangerous_conditions: dangerousConditions, risk_level: riskLevel, state_confidence: stateConfidence, reasoning_traces: traces, latency_ms: Date.now() - start };
 }
 
-// ── Wave 1: Graph Retrieval (boosted by world model) ──
+// ── Wave 1: Graph Retrieval ──
 async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldModelState) {
   const start = Date.now();
   try {
-    const { data: symptomRows } = await supabase
-      .from("symptoms")
-      .select("id, symptom_name")
-      .or(symptoms.map(s => `symptom_name.ilike.%${s}%`).join(","));
+    const { data: symptomRows } = await supabase.from("symptoms").select("id, symptom_name").or(symptoms.map(s => `symptom_name.ilike.%${s}%`).join(","));
     const symptomIds = (symptomRows || []).map((s: any) => s.id);
     const matchedSymptoms = (symptomRows || []).map((s: any) => s.symptom_name);
-
-    if (symptomIds.length === 0) {
-      return { diagnoses: [], suggested_labs: [], suggested_drugs: [], physiology_states: [], matched_symptoms: matchedSymptoms, guidelines: [], latency_ms: Date.now() - start };
-    }
+    if (symptomIds.length === 0) return { diagnoses: [], suggested_labs: [], suggested_drugs: [], physiology_states: [], matched_symptoms: matchedSymptoms, guidelines: [], latency_ms: Date.now() - start };
 
     const [lkRes, sdmRes] = await Promise.all([
       supabase.from("symptom_likelihoods").select("diagnosis_id, symptom_id, likelihood_value").in("symptom_id", symptomIds),
       supabase.from("symptom_diagnosis_map").select("diagnosis_id").in("symptom_id", symptomIds),
     ]);
-
     const diagnosisIdSet = new Set<string>();
     const scoreMap: Record<string, number> = {};
-    for (const lk of (lkRes.data || [])) {
-      diagnosisIdSet.add(lk.diagnosis_id);
-      scoreMap[lk.diagnosis_id] = (scoreMap[lk.diagnosis_id] || 0) + (lk.likelihood_value || 0.5);
-    }
-    for (const sdm of (sdmRes.data || [])) {
-      diagnosisIdSet.add(sdm.diagnosis_id);
-      if (!scoreMap[sdm.diagnosis_id]) scoreMap[sdm.diagnosis_id] = 0.3;
-    }
+    for (const lk of (lkRes.data || [])) { diagnosisIdSet.add(lk.diagnosis_id); scoreMap[lk.diagnosis_id] = (scoreMap[lk.diagnosis_id] || 0) + (lk.likelihood_value || 0.5); }
+    for (const sdm of (sdmRes.data || [])) { diagnosisIdSet.add(sdm.diagnosis_id); if (!scoreMap[sdm.diagnosis_id]) scoreMap[sdm.diagnosis_id] = 0.3; }
     const diagnosisIds = [...diagnosisIdSet];
 
     let diagnoses: any[] = [];
     if (diagnosisIds.length > 0) {
-      const { data: dxRows } = await supabase
-        .from("diagnoses").select("id, diagnosis_name, icd10_code, category")
-        .in("id", diagnosisIds.slice(0, 30));
-
-      // Apply world model organ-system boost
+      const { data: dxRows } = await supabase.from("diagnoses").select("id, diagnosis_name, icd10_code, category").in("id", diagnosisIds.slice(0, 30));
       const dominantSystem = worldModel.organ_systems[0] || "";
       diagnoses = (dxRows || []).map((d: any) => {
         let score = scoreMap[d.id] || 0.1;
-        // Boost diseases matching world model's dominant organ system
-        if (dominantSystem && d.category?.toLowerCase().includes(dominantSystem.toLowerCase())) {
-          score *= 1.3;
-        }
-        // Boost diseases that appear in world model hypotheses
-        const wmHypothesis = worldModel.hypotheses.find(
-          h => normalize(h.disease) === normalize(d.diagnosis_name)
-        );
-        if (wmHypothesis) {
-          score *= (1.0 + wmHypothesis.confidence);
-        }
+        if (dominantSystem && d.category?.toLowerCase().includes(dominantSystem.toLowerCase())) score *= 1.3;
+        const wmH = worldModel.hypotheses.find(h => normalize(h.disease) === normalize(d.diagnosis_name));
+        if (wmH) score *= (1.0 + wmH.confidence);
         return { ...d, score };
       }).sort((a: any, b: any) => b.score - a.score);
     }
@@ -316,30 +502,19 @@ async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldMo
     const [labResult, drugResult, physResult, guidelineResult] = await Promise.all([
       topDxIds.length > 0
         ? supabase.from("diagnosis_lab_map").select("lab_test_id, priority").in("diagnosis_id", topDxIds)
-            .then(async (r: any) => {
-              const labIds = [...new Set((r.data || []).map((x: any) => x.lab_test_id))];
-              if (labIds.length === 0) return [];
-              const { data } = await supabase.from("lab_tests").select("id, test_name, category").in("id", labIds.slice(0, 10));
-              return data || [];
-            })
+            .then(async (r: any) => { const labIds = [...new Set((r.data || []).map((x: any) => x.lab_test_id))]; if (labIds.length === 0) return []; const { data } = await supabase.from("lab_tests").select("id, test_name, category").in("id", labIds.slice(0, 10)); return data || []; })
         : Promise.resolve([]),
       topDxIds.length > 0
-        ? supabase.from("diagnosis_drug_map").select("generic_name, line_of_treatment").in("diagnosis_id", topDxIds)
-            .then((r: any) => (r.data || []).map((x: any) => ({ generic_name: x.generic_name, line: x.line_of_treatment })))
+        ? supabase.from("diagnosis_drug_map").select("generic_name, line_of_treatment").in("diagnosis_id", topDxIds).then((r: any) => (r.data || []).map((x: any) => ({ generic_name: x.generic_name, line: x.line_of_treatment })))
         : Promise.resolve([]),
       symptomIds.length > 0
-        ? supabase.from("symptom_physiology_map").select("physiology_process, organ_system").in("symptom_id", symptomIds)
-            .then((r: any) => r.data || [])
+        ? supabase.from("symptom_physiology_map").select("physiology_process, organ_system").in("symptom_id", symptomIds).then((r: any) => r.data || [])
         : Promise.resolve([]),
       topDxIds.length > 0
         ? (async () => {
             const [grRes, cgRes] = await Promise.all([
-              supabase.from("guideline_registry")
-                .select("id, organization, title, condition, recommendation_text, applicable_drugs, applicable_tests")
-                .or(topDxNames.map((n: string) => `condition.ilike.%${n}%`).join(",")).limit(5),
-              supabase.from("clinical_guidelines")
-                .select("id, source_organization, title, condition, recommendation_text")
-                .or(topDxNames.map((n: string) => `condition.ilike.%${n}%`).join(",")).limit(5),
+              supabase.from("guideline_registry").select("id, organization, title, condition, recommendation_text, applicable_drugs, applicable_tests").or(topDxNames.map((n: string) => `condition.ilike.%${n}%`).join(",")).limit(5),
+              supabase.from("clinical_guidelines").select("id, source_organization, title, condition, recommendation_text").or(topDxNames.map((n: string) => `condition.ilike.%${n}%`).join(",")).limit(5),
             ]);
             return [...(grRes.data || []), ...(cgRes.data || [])];
           })()
@@ -358,42 +533,22 @@ async function runDDX(supabase: any, graphResult: any, scenario: any, worldModel
   const start = Date.now();
   try {
     const diagnoses = (graphResult.diagnoses || []).slice(0, 10);
-    if (diagnoses.length === 0) {
-      return { differential_diagnoses: [], suggested_medications: [], recommended_labs: [], latency_ms: Date.now() - start };
-    }
-
+    if (diagnoses.length === 0) return { differential_diagnoses: [], suggested_medications: [], recommended_labs: [], dominant_organ_system: "", latency_ms: Date.now() - start };
     const dominantSystem = worldModel.organ_systems[0] || "";
-
-    // Check dangerous diagnoses
     const dxIds = diagnoses.map((d: any) => d.id);
-    const { data: dangerousRows } = await supabase
-      .from("dangerous_diagnoses").select("diagnosis_id, severity_level, must_not_miss")
-      .in("diagnosis_id", dxIds);
+    const { data: dangerousRows } = await supabase.from("dangerous_diagnoses").select("diagnosis_id, severity_level, must_not_miss").in("diagnosis_id", dxIds);
     const dangerousSet = new Set((dangerousRows || []).map((d: any) => d.diagnosis_id));
-
-    // Also mark world model dangerous conditions
     const wmDangerousNames = new Set(worldModel.dangerous_conditions.map(normalize));
 
     const ranked = diagnoses.map((d: any, idx: number) => {
       let prob = Math.max(5, 95 - idx * 12) * (d.score || 0.5);
-      // World model organ system boost
-      if (dominantSystem && d.category?.toLowerCase().includes(dominantSystem)) {
-        prob *= 1.3;
-      }
+      if (dominantSystem && d.category?.toLowerCase().includes(dominantSystem)) prob *= 1.3;
       const isDangerous = dangerousSet.has(d.id) || wmDangerousNames.has(normalize(d.diagnosis_name));
       if (isDangerous) prob = Math.max(prob, 15);
-      return {
-        diagnosis_id: d.id, diagnosis_name: d.diagnosis_name,
-        icd10_code: d.icd10_code || "", probability: Math.min(95, Math.round(prob)),
-        category: d.category || "", is_dangerous: isDangerous,
-      };
+      return { diagnosis_id: d.id, diagnosis_name: d.diagnosis_name, icd10_code: d.icd10_code || "", probability: Math.min(95, Math.round(prob)), category: d.category || "", is_dangerous: isDangerous };
     }).sort((a: any, b: any) => b.probability - a.probability);
 
-    return {
-      differential_diagnoses: ranked, suggested_medications: graphResult.suggested_drugs || [],
-      recommended_labs: graphResult.suggested_labs || [], dominant_organ_system: dominantSystem,
-      latency_ms: Date.now() - start,
-    };
+    return { differential_diagnoses: ranked, suggested_medications: graphResult.suggested_drugs || [], recommended_labs: graphResult.suggested_labs || [], dominant_organ_system: dominantSystem, latency_ms: Date.now() - start };
   } catch (e) {
     console.error("[DDX] Error:", e);
     return { differential_diagnoses: [], suggested_medications: [], recommended_labs: [], latency_ms: Date.now() - start, error: String(e) };
@@ -401,61 +556,38 @@ async function runDDX(supabase: any, graphResult: any, scenario: any, worldModel
 }
 
 // ── Wave 3: Bayesian Engine ──
-async function runBayesian(
-  supabase: any, ddxResult: any, scenario: any,
-  specificityMap: Record<string, number>,
-  worldModel: WorldModelState,
-) {
+async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState) {
   const start = Date.now();
   try {
     const candidates = (ddxResult.differential_diagnoses || []).slice(0, 8);
     if (candidates.length === 0) return { diagnoses: [], signal_strength: 0, latency_ms: Date.now() - start };
-
     const dxIds = candidates.map((c: any) => c.diagnosis_id).filter(Boolean);
     const symptomNames = scenario.symptoms;
     const [priorRes, symptomRes] = await Promise.all([
       supabase.from("disease_priors").select("diagnosis_id, base_prevalence, age_modifier, sex_modifier").in("diagnosis_id", dxIds),
       supabase.from("symptoms").select("id, symptom_name").or(symptomNames.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")),
     ]);
-
     const priorMap: Record<string, number> = {};
-    for (const p of (priorRes.data || [])) {
-      let prior = p.base_prevalence || 0.01;
-      if (p.age_modifier && typeof p.age_modifier === "object") {
-        const ageKey = scenario.age || 45;
-        if (ageKey >= 60) prior *= (p.age_modifier["elderly"] || 1);
-        else if (ageKey >= 40) prior *= (p.age_modifier["middle_aged"] || 1);
-        else prior *= (p.age_modifier["young_adult"] || 1);
-      }
-      priorMap[p.diagnosis_id] = prior;
-    }
-
+    for (const p of (priorRes.data || [])) { let prior = p.base_prevalence || 0.01; priorMap[p.diagnosis_id] = prior; }
     const symptomIds = (symptomRes.data || []).map((s: any) => s.id);
     const symptomNameById: Record<string, string> = {};
     for (const s of (symptomRes.data || [])) symptomNameById[s.id] = s.symptom_name;
 
     let likelihoodMap: Record<string, Record<string, number>> = {};
     if (symptomIds.length > 0 && dxIds.length > 0) {
-      const { data: lkRows } = await supabase
-        .from("symptom_likelihoods").select("diagnosis_id, symptom_id, likelihood_value")
-        .in("diagnosis_id", dxIds).in("symptom_id", symptomIds);
-      for (const lk of (lkRows || [])) {
-        if (!likelihoodMap[lk.diagnosis_id]) likelihoodMap[lk.diagnosis_id] = {};
-        likelihoodMap[lk.diagnosis_id][lk.symptom_id] = lk.likelihood_value;
-      }
+      const { data: lkRows } = await supabase.from("symptom_likelihoods").select("diagnosis_id, symptom_id, likelihood_value").in("diagnosis_id", dxIds).in("symptom_id", symptomIds);
+      for (const lk of (lkRows || [])) { if (!likelihoodMap[lk.diagnosis_id]) likelihoodMap[lk.diagnosis_id] = {}; likelihoodMap[lk.diagnosis_id][lk.symptom_id] = lk.likelihood_value; }
     }
 
-    // World model organ system data
     const dominantSystem = worldModel.organ_systems[0] || "";
     const systemWeight = Math.min(2.0, 1.0 + ((worldModel.organ_system_weights[dominantSystem] || 1.0) - 1.0) * 0.3);
-
     let totalSignalStrength = 0;
+
     const posteriors = candidates.map((c: any) => {
       const prior = priorMap[c.diagnosis_id] || 0.01;
       const likelihoods = likelihoodMap[c.diagnosis_id] || {};
       let logPosterior = Math.log(prior);
       let symptomSignal = 0;
-
       for (const sId of symptomIds) {
         const lk = likelihoods[sId] || 0.3;
         const sName = symptomNameById[sId] || "";
@@ -464,39 +596,19 @@ async function runBayesian(
         logPosterior += Math.log(weightedLk);
         symptomSignal += specificity;
       }
-
-      // World model organ system boost
-      const categoryLower = (c.category || "").toLowerCase();
-      if (dominantSystem && categoryLower.includes(dominantSystem.toLowerCase())) {
-        logPosterior += Math.log(systemWeight);
-      }
-
-      // World model hypothesis confidence boost
+      if (dominantSystem && (c.category || "").toLowerCase().includes(dominantSystem.toLowerCase())) logPosterior += Math.log(systemWeight);
       const wmH = worldModel.hypotheses.find(h => normalize(h.disease) === normalize(c.diagnosis_name));
-      if (wmH && wmH.confidence > 0.1) {
-        logPosterior += Math.log(1.0 + wmH.confidence * 0.5);
-      }
-
+      if (wmH && wmH.confidence > 0.1) logPosterior += Math.log(1.0 + wmH.confidence * 0.5);
       totalSignalStrength += symptomSignal;
-
-      return {
-        diagnosis_id: c.diagnosis_id, diagnosis_name: c.diagnosis_name,
-        prior, posterior: Math.exp(logPosterior), is_dangerous: c.is_dangerous || false,
-      };
+      return { diagnosis_id: c.diagnosis_id, diagnosis_name: c.diagnosis_name, prior, posterior: Math.exp(logPosterior), is_dangerous: c.is_dangerous || false };
     });
 
     const totalPosterior = posteriors.reduce((a, p) => a + p.posterior, 0);
     const normalized = posteriors.map(p => ({
-      ...p,
-      posterior_probability: totalPosterior > 0 ? Math.round((p.posterior / totalPosterior) * 10000) / 100 : 0,
+      ...p, posterior_probability: totalPosterior > 0 ? Math.round((p.posterior / totalPosterior) * 10000) / 100 : 0,
     })).sort((a, b) => b.posterior_probability - a.posterior_probability);
-
-    for (const n of normalized) {
-      if (n.is_dangerous && n.posterior_probability < 3) n.posterior_probability = 3;
-    }
-
+    for (const n of normalized) { if (n.is_dangerous && n.posterior_probability < 3) n.posterior_probability = 3; }
     const avgSignal = symptomIds.length > 0 ? totalSignalStrength / (symptomIds.length * candidates.length) : 0;
-
     return { diagnoses: normalized, signal_strength: Math.round(avgSignal * 100) / 100, latency_ms: Date.now() - start };
   } catch (e) {
     console.error("[Bayesian] Error:", e);
@@ -508,60 +620,36 @@ async function runBayesian(
 async function runSafety(supabase: any, scenario: any, ddxResult: any, worldModel: WorldModelState) {
   const start = Date.now();
   try {
-    const allMeds = [...new Set([
-      ...scenario.medications,
-      ...(ddxResult.suggested_medications || []).map((m: any) => m.generic_name).filter(Boolean),
-    ])];
-
+    const allMeds = [...new Set([...scenario.medications, ...(ddxResult.suggested_medications || []).map((m: any) => m.generic_name).filter(Boolean)])];
     let interactionFlags: any[] = [];
     if (allMeds.length >= 2) {
-      const { data: interactions } = await supabase
-        .from("drug_interactions").select("drug_a, drug_b, severity, interaction_description, recommended_action")
-        .or(allMeds.map(m => `drug_a.ilike.%${m}%,drug_b.ilike.%${m}%`).join(","));
-      interactionFlags = (interactions || []).map((i: any) => ({
-        drugs: [i.drug_a, i.drug_b], severity: i.severity,
-        description: i.interaction_description, action: i.recommended_action,
-      }));
+      const { data: interactions } = await supabase.from("drug_interactions").select("drug_a, drug_b, severity, interaction_description, recommended_action").or(allMeds.map(m => `drug_a.ilike.%${m}%,drug_b.ilike.%${m}%`).join(","));
+      interactionFlags = (interactions || []).map((i: any) => ({ drugs: [i.drug_a, i.drug_b], severity: i.severity, description: i.interaction_description, action: i.recommended_action }));
     }
-
     let allergyFlags: any[] = [];
     if (scenario.allergies.length > 0 && allMeds.length > 0) {
       for (const allergy of scenario.allergies) {
-        for (const med of allMeds) {
-          if (normalize(allergy) === normalize(med)) {
-            allergyFlags.push({ drug: med, allergy, severity: "critical", description: `Patient allergic to ${allergy}` });
-          }
-        }
+        for (const med of allMeds) { if (normalize(allergy) === normalize(med)) allergyFlags.push({ drug: med, allergy, severity: "critical", description: `Allergic to ${allergy}` }); }
       }
     }
-
     const vitalsDangers: any[] = [];
     const v = scenario.vitals;
-    if (v.spo2 && v.spo2 < 92) vitalsDangers.push({ parameter: "SpO2", value: v.spo2, threshold: 92, severity: "critical", message: "Hypoxemia detected" });
+    if (v.spo2 && v.spo2 < 92) vitalsDangers.push({ parameter: "SpO2", value: v.spo2, threshold: 92, severity: "critical", message: "Hypoxemia" });
     if (v.temperature && v.temperature >= 39.5) vitalsDangers.push({ parameter: "Temperature", value: v.temperature, threshold: 39.5, severity: "warning", message: "High fever" });
-    if (v.pulse && v.pulse >= 120) vitalsDangers.push({ parameter: "Heart Rate", value: v.pulse, threshold: 120, severity: "warning", message: "Tachycardia" });
-    if (v.bp_systolic && v.bp_systolic >= 180) vitalsDangers.push({ parameter: "Systolic BP", value: v.bp_systolic, threshold: 180, severity: "critical", message: "Hypertensive crisis" });
-    if (v.bp_systolic && v.bp_systolic < 90) vitalsDangers.push({ parameter: "Systolic BP", value: v.bp_systolic, threshold: 90, severity: "critical", message: "Hypotension" });
-    if (v.respiratory_rate && v.respiratory_rate >= 28) vitalsDangers.push({ parameter: "Respiratory Rate", value: v.respiratory_rate, threshold: 28, severity: "warning", message: "Tachypnea" });
+    if (v.pulse && v.pulse >= 120) vitalsDangers.push({ parameter: "HR", value: v.pulse, threshold: 120, severity: "warning", message: "Tachycardia" });
+    if (v.bp_systolic && v.bp_systolic >= 180) vitalsDangers.push({ parameter: "SBP", value: v.bp_systolic, threshold: 180, severity: "critical", message: "Hypertensive crisis" });
+    if (v.bp_systolic && v.bp_systolic < 90) vitalsDangers.push({ parameter: "SBP", value: v.bp_systolic, threshold: 90, severity: "critical", message: "Hypotension" });
+    if (v.respiratory_rate && v.respiratory_rate >= 28) vitalsDangers.push({ parameter: "RR", value: v.respiratory_rate, threshold: 28, severity: "warning", message: "Tachypnea" });
 
     const emergencyPatterns: any[] = [];
-    // Include world model dangerous conditions
-    for (const dc of worldModel.dangerous_conditions) {
-      emergencyPatterns.push({ diagnosis: dc, probability: 0, message: `Must-not-miss: ${dc}`, source: "world_model" });
-    }
+    for (const dc of worldModel.dangerous_conditions) { emergencyPatterns.push({ diagnosis: dc, probability: 0, message: `Must-not-miss: ${dc}`, source: "world_model" }); }
     for (const dd of (ddxResult.differential_diagnoses || []).filter((d: any) => d.is_dangerous)) {
-      if (!emergencyPatterns.find(e => normalize(e.diagnosis) === normalize(dd.diagnosis_name))) {
-        emergencyPatterns.push({ diagnosis: dd.diagnosis_name, probability: dd.probability, message: `Must-not-miss: ${dd.diagnosis_name}` });
-      }
+      if (!emergencyPatterns.find(e => normalize(e.diagnosis) === normalize(dd.diagnosis_name))) emergencyPatterns.push({ diagnosis: dd.diagnosis_name, probability: dd.probability, message: `Must-not-miss: ${dd.diagnosis_name}` });
     }
 
-    return {
-      interaction_flags: interactionFlags, allergy_flags: allergyFlags,
-      vitals_dangers: vitalsDangers, emergency_patterns: emergencyPatterns,
+    return { interaction_flags: interactionFlags, allergy_flags: allergyFlags, vitals_dangers: vitalsDangers, emergency_patterns: emergencyPatterns,
       safety_score: Math.max(0, 100 - interactionFlags.length * 15 - allergyFlags.length * 25 - vitalsDangers.length * 10 - emergencyPatterns.length * 5),
-      world_model_risk_level: worldModel.risk_level,
-      latency_ms: Date.now() - start,
-    };
+      world_model_risk_level: worldModel.risk_level, latency_ms: Date.now() - start };
   } catch (e) {
     console.error("[Safety] Error:", e);
     return { interaction_flags: [], allergy_flags: [], vitals_dangers: [], emergency_patterns: [], safety_score: 50, world_model_risk_level: "unknown", latency_ms: Date.now() - start, error: String(e) };
@@ -571,80 +659,55 @@ async function runSafety(supabase: any, scenario: any, ddxResult: any, worldMode
 // ── Wave 5: SOAP Builder ──
 function buildSOAP(scenario: any, ddxResult: any, bayesianResult: any, safetyResult: any, worldModel: WorldModelState) {
   const start = Date.now();
-  const subjParts: string[] = [];
-  subjParts.push(`Chief complaint: ${scenario.chief_complaint}.`);
+  const subjParts = [`Chief complaint: ${scenario.chief_complaint}.`];
   if (scenario.symptoms.length > 0) subjParts.push(`Symptoms: ${scenario.symptoms.join(", ")}.`);
-  if (scenario.history.length > 0) subjParts.push(`Past medical history: ${scenario.history.join(", ")}.`);
-  if (scenario.medications.length > 0) subjParts.push(`Current medications: ${scenario.medications.join(", ")}.`);
+  if (scenario.history.length > 0) subjParts.push(`PMH: ${scenario.history.join(", ")}.`);
+  if (scenario.medications.length > 0) subjParts.push(`Medications: ${scenario.medications.join(", ")}.`);
   if (scenario.allergies.length > 0) subjParts.push(`Allergies: ${scenario.allergies.join(", ")}.`);
 
   const objParts: string[] = [];
   const v = scenario.vitals;
-  const vitalsStr: string[] = [];
-  if (v.bp_systolic && v.bp_diastolic) vitalsStr.push(`BP: ${v.bp_systolic}/${v.bp_diastolic} mmHg`);
-  if (v.pulse) vitalsStr.push(`HR: ${v.pulse} bpm`);
-  if (v.temperature) vitalsStr.push(`Temp: ${v.temperature}°C`);
-  if (v.spo2) vitalsStr.push(`SpO2: ${v.spo2}%`);
-  if (v.respiratory_rate) vitalsStr.push(`RR: ${v.respiratory_rate}/min`);
-  if (vitalsStr.length > 0) objParts.push(`Vitals: ${vitalsStr.join(", ")}.`);
-  // Include world model physiological states in objective
-  if (worldModel.physiological_states.length > 0) {
-    objParts.push(`Inferred physiology: ${worldModel.physiological_states.map(p => `${p.process} (${Math.round(p.confidence * 100)}%)`).join(", ")}.`);
-  }
+  const vs: string[] = [];
+  if (v.bp_systolic && v.bp_diastolic) vs.push(`BP: ${v.bp_systolic}/${v.bp_diastolic}`);
+  if (v.pulse) vs.push(`HR: ${v.pulse}`);
+  if (v.temperature) vs.push(`T: ${v.temperature}°C`);
+  if (v.spo2) vs.push(`SpO2: ${v.spo2}%`);
+  if (v.respiratory_rate) vs.push(`RR: ${v.respiratory_rate}`);
+  if (vs.length > 0) objParts.push(`Vitals: ${vs.join(", ")}.`);
+  if (worldModel.physiological_states.length > 0) objParts.push(`Physiology: ${worldModel.physiological_states.map(p => `${p.process} (${Math.round(p.confidence * 100)}%)`).join(", ")}.`);
 
   const assessParts: string[] = [];
-  // World model organ systems
-  if (worldModel.organ_systems.length > 0) {
-    assessParts.push(`Active organ systems: ${worldModel.organ_systems.join(", ")}.`);
-  }
+  if (worldModel.organ_systems.length > 0) assessParts.push(`Active systems: ${worldModel.organ_systems.join(", ")}.`);
   const topDx = (ddxResult.differential_diagnoses || []).slice(0, 5);
-  if (topDx.length > 0) {
-    const dxList = topDx.map((d: any, i: number) => `${i + 1}. ${d.diagnosis_name} (${d.probability}%)`).join("\n");
-    assessParts.push(`Differential diagnosis:\n${dxList}`);
-  }
+  if (topDx.length > 0) assessParts.push(`DDX:\n${topDx.map((d: any, i: number) => `${i + 1}. ${d.diagnosis_name} (${d.probability}%)`).join("\n")}`);
   const bayesTop = (bayesianResult.diagnoses || [])[0];
-  if (bayesTop) assessParts.push(`Bayesian confidence: ${bayesTop.diagnosis_name} (${bayesTop.posterior_probability}%).`);
-  if ((safetyResult.emergency_patterns || []).length > 0) {
-    assessParts.push(`⚠️ Emergency: ${safetyResult.emergency_patterns.map((e: any) => e.message).join("; ")}`);
-  }
-  assessParts.push(`Risk level: ${worldModel.risk_level.toUpperCase()}.`);
+  if (bayesTop) assessParts.push(`Bayesian: ${bayesTop.diagnosis_name} (${bayesTop.posterior_probability}%).`);
+  if ((safetyResult.emergency_patterns || []).length > 0) assessParts.push(`⚠️ ${safetyResult.emergency_patterns.map((e: any) => e.message).join("; ")}`);
+  assessParts.push(`Risk: ${worldModel.risk_level.toUpperCase()}.`);
 
   const planParts: string[] = [];
   const recLabs = (ddxResult.recommended_labs || []).slice(0, 5);
-  if (recLabs.length > 0) planParts.push(`Investigations: ${recLabs.map((l: any) => l.test_name).join(", ")}.`);
+  if (recLabs.length > 0) planParts.push(`Tests: ${recLabs.map((l: any) => l.test_name).join(", ")}.`);
   const recMeds = (ddxResult.suggested_medications || []).slice(0, 5);
   if (recMeds.length > 0) planParts.push(`Medications: ${recMeds.map((m: any) => m.generic_name).join(", ")}.`);
-  if ((safetyResult.vitals_dangers || []).length > 0) {
-    planParts.push(`Vitals monitoring: ${safetyResult.vitals_dangers.map((v: any) => v.message).join("; ")}.`);
-  }
 
-  return {
-    sections: {
-      subjective: subjParts.join(" ") || "No subjective data.",
-      objective: objParts.join(" ") || "No objective findings.",
-      assessment: assessParts.join("\n") || "Insufficient data.",
-      plan: planParts.join("\n") || "Further evaluation recommended.",
-    },
-    soap_valid: true, latency_ms: Date.now() - start,
-  };
+  return { sections: { subjective: subjParts.join(" "), objective: objParts.join(" ") || "No objective data.", assessment: assessParts.join("\n") || "Insufficient data.", plan: planParts.join("\n") || "Further evaluation." }, soap_valid: true, latency_ms: Date.now() - start };
 }
 
+// ════════════════════════════════════════════════════════════════════
+// MAIN HANDLER
+// ════════════════════════════════════════════════════════════════════
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const totalStart = Date.now();
-
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
     const validationRunId = crypto.randomUUID();
 
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 0: Load all lookup tables in parallel
-    // ═══════════════════════════════════════════════════════════════════
+    // Load lookup tables in parallel
     const [specRes, organRes, activationRes, physMapRes, physDiagRes] = await Promise.all([
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
@@ -654,66 +717,18 @@ Deno.serve(async (req) => {
     ]);
 
     const specificityMap: Record<string, number> = {};
-    const specificityOrganMap: Record<string, string> = {};
-    for (const s of (specRes.data || [])) {
-      specificityMap[s.symptom_name.toLowerCase()] = parseFloat(s.specificity_score);
-      specificityOrganMap[s.symptom_name.toLowerCase()] = s.organ_system;
-    }
+    for (const s of (specRes.data || [])) specificityMap[s.symptom_name.toLowerCase()] = parseFloat(s.specificity_score);
 
-    const organWeightMap: Record<string, Record<string, number>> = {};
-    for (const o of (organRes.data || [])) {
-      if (!organWeightMap[o.symptom.toLowerCase()]) organWeightMap[o.symptom.toLowerCase()] = {};
-      organWeightMap[o.symptom.toLowerCase()][o.organ_system] = parseFloat(o.weight);
-    }
+    const activationRules = (activationRes.data || []).map((r: any) => ({ symptom: r.symptom, organ_system: r.organ_system, activation_weight: parseFloat(r.activation_weight) }));
+    const physiologyMap = (physMapRes.data || []).map((r: any) => ({ symptom: r.symptoms?.symptom_name || "", physiology_process: r.physiological_states?.state_name || "", organ_system: r.physiological_states?.anatomical_systems?.system_name || "" })).filter((r: any) => r.symptom && r.physiology_process);
+    const physiologyDiagMap = (physDiagRes.data || []).map((r: any) => ({ physiology_process: r.physiological_states?.state_name || "", disease_name: r.diagnoses?.diagnosis_name || "", confidence_score: r.relevance_score || 0.5 })).filter((r: any) => r.physiology_process && r.disease_name);
 
-    const activationRules = (activationRes.data || []).map((r: any) => ({
-      symptom: r.symptom, organ_system: r.organ_system, activation_weight: parseFloat(r.activation_weight),
-    }));
-
-    // Flatten joined physiology map
-    const physiologyMap = (physMapRes.data || []).map((r: any) => ({
-      symptom: r.symptoms?.symptom_name || "",
-      physiology_process: r.physiological_states?.state_name || "",
-      organ_system: r.physiological_states?.anatomical_systems?.system_name || "",
-    })).filter((r: any) => r.symptom && r.physiology_process);
-
-    const physiologyDiagMap = (physDiagRes.data || []).map((r: any) => ({
-      physiology_process: r.physiological_states?.state_name || "",
-      disease_name: r.diagnoses?.diagnosis_name || "",
-      confidence_score: r.relevance_score || 0.5,
-    })).filter((r: any) => r.physiology_process && r.disease_name);
-
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 1: Knowledge Graph Integrity Check
-    // ═══════════════════════════════════════════════════════════════════
+    // ═══ STEP 1: Graph Integrity ═══
     const step1Start = Date.now();
-    const tableNames = [
-      "diagnoses", "symptoms", "symptom_diagnosis_map", "disease_priors",
-      "symptom_likelihoods", "disease_tests", "disease_treatments",
-      "physiological_states", "symptom_physiology_map", "physiology_diagnosis_map",
-      "drug_master", "clinical_guidelines", "dangerous_diagnoses",
-      "diagnosis_drug_map", "diagnosis_lab_map", "guideline_registry",
-      "symptom_specificity", "symptom_organ_system_map",
-      "organ_system_activation_rules", "clinical_reasoning_traces",
-    ];
-
-    const countResults = await Promise.all(
-      tableNames.map(name => supabase.from(name).select("id", { count: "exact", head: true }))
-    );
+    const tableNames = ["diagnoses", "symptoms", "symptom_diagnosis_map", "disease_priors", "symptom_likelihoods", "disease_tests", "disease_treatments", "physiological_states", "symptom_physiology_map", "physiology_diagnosis_map", "drug_master", "clinical_guidelines", "dangerous_diagnoses", "diagnosis_drug_map", "diagnosis_lab_map", "guideline_registry", "symptom_specificity", "symptom_organ_system_map", "organ_system_activation_rules"];
+    const countResults = await Promise.all(tableNames.map(name => supabase.from(name).select("id", { count: "exact", head: true })));
     const tableCounts: Record<string, number> = {};
     tableNames.forEach((name, i) => { tableCounts[name] = countResults[i].count ?? 0; });
-
-    const totalDiseases = tableCounts.diagnoses;
-    const totalSymptoms = tableCounts.symptoms;
-    const totalRelationships = tableCounts.symptom_diagnosis_map + tableCounts.symptom_likelihoods +
-      tableCounts.symptom_physiology_map + tableCounts.physiology_diagnosis_map +
-      tableCounts.diagnosis_drug_map + tableCounts.diagnosis_lab_map;
-    const avgEdgesPerDisease = totalDiseases > 0 ? Math.round((totalRelationships / totalDiseases) * 10) / 10 : 0;
-
-    const specCoverage = tableCounts.symptom_specificity;
-    const organCoverage = tableCounts.symptom_organ_system_map;
-    const highSpecCount = (specRes.data || []).filter((s: any) => parseFloat(s.specificity_score) >= 0.7).length;
-    const lowSpecCount = (specRes.data || []).filter((s: any) => parseFloat(s.specificity_score) < 0.35).length;
 
     const graphGaps: string[] = [];
     if (tableCounts.symptom_likelihoods < 2000) graphGaps.push(`symptom_likelihoods: ${tableCounts.symptom_likelihoods}/10000`);
@@ -721,294 +736,221 @@ Deno.serve(async (req) => {
     if (tableCounts.physiological_states < 100) graphGaps.push(`physiological_states: ${tableCounts.physiological_states}/200`);
     if (tableCounts.clinical_guidelines < 50) graphGaps.push(`clinical_guidelines: ${tableCounts.clinical_guidelines}/50`);
 
-    const graphIntegrity = {
-      table_counts: tableCounts,
-      total_diseases: totalDiseases, total_symptoms: totalSymptoms,
-      total_relationships: totalRelationships, avg_edges_per_disease: avgEdgesPerDisease,
-      signal_optimization: {
-        specificity_entries: specCoverage,
-        organ_system_entries: organCoverage,
-        high_specificity_symptoms: highSpecCount,
-        low_specificity_symptoms: lowSpecCount,
-        avg_specificity: (specRes.data || []).length > 0
-          ? Math.round((specRes.data || []).reduce((a: number, s: any) => a + parseFloat(s.specificity_score), 0) / (specRes.data || []).length * 100) / 100
-          : 0,
-        activation_rules_count: activationRules.length,
-      },
-      world_model: {
-        activation_rules: activationRules.length,
-        physiology_map_entries: physiologyMap.length,
-        physiology_diag_entries: physiologyDiagMap.length,
-        reasoning_traces_stored: tableCounts.clinical_reasoning_traces,
-      },
-      gaps: graphGaps,
-      status: graphGaps.length === 0 ? "healthy" : graphGaps.length <= 2 ? "partial" : "degraded",
-      latency_ms: Date.now() - step1Start,
-    };
-
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 2: Benchmark Scenarios with World Model
-    // ═══════════════════════════════════════════════════════════════════
-    const scenarioResults = [];
+    // ═══ STEP 2: Run 50 Scenarios ═══
+    const scenarioResults: any[] = [];
     const engineLogs: any[] = [];
-    const allReasoningTraces: any[] = [];
+    const specialtyStats: Record<string, { total: number; passed: number; danger_expected: number; danger_detected: number; latency_sum: number }> = {};
 
     for (const scenario of BENCHMARK_SCENARIOS) {
       const scenarioStart = Date.now();
       const waveLatency: Record<string, number> = {};
-      const pipelineTrace: Record<string, any> = {};
 
-      // Wave 0: PCIE context
+      // Wave 0: PCIE
       const w0Start = Date.now();
-      const pcieFields = [
-        "chief_complaint", "symptoms", "associated_symptoms", "medical_history",
-        "current_medications", "allergies", "family_history", "risk_factors",
-        "vitals", "lab_results", "risk_flags", "context_confidence",
-      ];
       const context = {
-        chief_complaint: scenario.chief_complaint, symptoms: scenario.symptoms,
-        associated_symptoms: [], vitals: scenario.vitals,
-        medical_history: scenario.history, current_medications: scenario.medications,
-        allergies: scenario.allergies, family_history: [], risk_factors: scenario.history,
-        lab_results: [], risk_flags: [], context_confidence: 0.85,
+        chief_complaint: scenario.chief_complaint, symptoms: scenario.symptoms, vitals: scenario.vitals,
+        medical_history: scenario.history, current_medications: scenario.medications, allergies: scenario.allergies,
         patient_age: 45, patient_sex: "male",
       };
-      const populatedFields = pcieFields.filter(f => {
-        const v = (context as any)[f];
-        return v !== undefined && v !== null && (typeof v !== 'object' || (Array.isArray(v) ? v.length > 0 : Object.keys(v).length > 0) || typeof v === 'number');
-      });
       waveLatency.wave0_pcie_ms = Date.now() - w0Start;
-      pipelineTrace.pcie_total_fields = pcieFields.length;
-      pipelineTrace.pcie_populated_fields = populatedFields.length;
-      pipelineTrace.pcie_confidence = context.context_confidence;
 
-      // ═══ NEW: Wave 0.5 — Clinical World Model ═══
-      const wmStart = Date.now();
-      const worldModel = buildWorldModel(
-        scenario.symptoms, scenario.vitals,
-        activationRules, physiologyMap, physiologyDiagMap, specificityMap,
-      );
+      // Wave 0.5: World Model
+      const worldModel = buildWorldModel(scenario.symptoms, scenario.vitals, activationRules, physiologyMap, physiologyDiagMap, specificityMap);
       waveLatency.wave05_world_model_ms = worldModel.latency_ms;
-      pipelineTrace.world_model = {
-        organ_systems: worldModel.organ_systems,
-        organ_system_weights: worldModel.organ_system_weights,
-        physiological_states: worldModel.physiological_states.length,
-        hypotheses_count: worldModel.hypotheses.length,
-        top_hypotheses: worldModel.hypotheses.slice(0, 3).map(h => `${h.disease} (${h.confidence})`),
-        dangerous_conditions: worldModel.dangerous_conditions,
-        risk_level: worldModel.risk_level,
-        state_confidence: worldModel.state_confidence,
-        reasoning_traces_count: worldModel.reasoning_traces.length,
-      };
-      engineLogs.push({
-        engine_name: "world_model", validation_run_id: validationRunId,
-        execution_time_ms: worldModel.latency_ms, status: worldModel.organ_systems.length > 0 ? "ok" : "degraded",
-        output_summary: {
-          organ_systems: worldModel.organ_systems.length,
-          physiological_states: worldModel.physiological_states.length,
-          hypotheses: worldModel.hypotheses.length,
-          dangerous: worldModel.dangerous_conditions.length,
-          risk_level: worldModel.risk_level,
-        },
-      });
 
-      // Store reasoning traces
-      for (const trace of worldModel.reasoning_traces) {
-        allReasoningTraces.push({
-          validation_run_id: validationRunId,
-          scenario_id: scenario.id,
-          symptom: trace.symptom,
-          physiology_process: trace.physiology,
-          disease: trace.disease,
-          evidence_chain: trace.chain,
-          organ_system: worldModel.organ_systems[0] || "general",
-          source: "world_model",
-        });
-      }
-
-      // Compute avg specificity for this scenario's symptoms
-      const scenarioSpecificities = scenario.symptoms.map(s => specificityMap[s.toLowerCase()] || 0.35);
-      const avgSpecificity = scenarioSpecificities.length > 0
-        ? scenarioSpecificities.reduce((a, b) => a + b, 0) / scenarioSpecificities.length : 0;
-      pipelineTrace.avg_symptom_specificity = Math.round(avgSpecificity * 100) / 100;
-
-      // Wave 1: Graph (boosted by world model)
-      const w1Start = Date.now();
+      // Wave 1: Graph
       const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel);
-      waveLatency.wave1_graph_ms = Date.now() - w1Start;
-      pipelineTrace.graph_diagnoses_count = graphResult.diagnoses.length;
-      pipelineTrace.graph_matched_symptoms = graphResult.matched_symptoms.length;
-      pipelineTrace.graph_physiology_count = graphResult.physiology_states.length;
-      engineLogs.push({ engine_name: "graph_engine", validation_run_id: validationRunId, execution_time_ms: waveLatency.wave1_graph_ms, status: graphResult.diagnoses.length > 0 ? "ok" : "empty", output_summary: { diagnoses: graphResult.diagnoses.length, labs: graphResult.suggested_labs.length } });
+      waveLatency.wave1_graph_ms = graphResult.latency_ms;
 
-      // Wave 2: DDX (uses world model)
-      const w2Start = Date.now();
+      // Wave 2: DDX
       const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
-      waveLatency.wave2_ddx_ms = Date.now() - w2Start;
-      pipelineTrace.ddx_count = ddxResult.differential_diagnoses.length;
-      pipelineTrace.ddx_dominant_system = ddxResult.dominant_organ_system;
-      engineLogs.push({ engine_name: "ddx_engine", validation_run_id: validationRunId, execution_time_ms: waveLatency.wave2_ddx_ms, status: ddxResult.differential_diagnoses.length > 0 ? "ok" : "empty", output_summary: { diagnoses: ddxResult.differential_diagnoses.length } });
+      waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
 
-      // Wave 3: Bayesian (uses world model)
-      const w3Start = Date.now();
+      // Wave 3: Bayesian
       const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel);
-      waveLatency.wave3_bayesian_ms = Date.now() - w3Start;
-      pipelineTrace.bayesian_count = bayesianResult.diagnoses.length;
-      pipelineTrace.bayesian_top = bayesianResult.diagnoses[0]?.diagnosis_name || null;
-      pipelineTrace.bayesian_signal_strength = bayesianResult.signal_strength || 0;
-      engineLogs.push({ engine_name: "bayesian_engine", validation_run_id: validationRunId, execution_time_ms: waveLatency.wave3_bayesian_ms, status: bayesianResult.diagnoses.length > 0 ? "ok" : "empty", output_summary: { diagnoses: bayesianResult.diagnoses.length, signal: bayesianResult.signal_strength } });
+      waveLatency.wave3_bayesian_ms = bayesianResult.latency_ms;
 
-      // Wave 4: Safety (uses world model)
-      const w4Start = Date.now();
+      // Wave 4: Safety
       const safetyResult = await runSafety(supabase, scenario, ddxResult, worldModel);
-      waveLatency.wave4_safety_ms = Date.now() - w4Start;
-      const safetyAlertCount = safetyResult.interaction_flags.length + safetyResult.allergy_flags.length + safetyResult.vitals_dangers.length + safetyResult.emergency_patterns.length;
-      pipelineTrace.safety_alerts = safetyAlertCount;
-      pipelineTrace.safety_score = safetyResult.safety_score;
-      pipelineTrace.world_model_risk_level = safetyResult.world_model_risk_level;
-      engineLogs.push({ engine_name: "safety_engine", validation_run_id: validationRunId, execution_time_ms: waveLatency.wave4_safety_ms, status: "ok", output_summary: { alerts: safetyAlertCount, score: safetyResult.safety_score } });
+      waveLatency.wave4_safety_ms = safetyResult.latency_ms;
 
-      // Wave 5: SOAP (uses world model)
-      const w5Start = Date.now();
+      // Wave 5: SOAP
       const soapResult = buildSOAP(scenario, ddxResult, bayesianResult, safetyResult, worldModel);
-      waveLatency.wave5_soap_ms = Date.now() - w5Start;
-      pipelineTrace.soap_sections = Object.keys(soapResult.sections);
-      engineLogs.push({ engine_name: "soap_engine", validation_run_id: validationRunId, execution_time_ms: waveLatency.wave5_soap_ms, status: "ok", output_summary: { sections: Object.keys(soapResult.sections).length } });
+      waveLatency.wave5_soap_ms = soapResult.latency_ms;
 
-      const totalScenarioMs = Date.now() - scenarioStart;
+      const totalMs = Date.now() - scenarioStart;
 
       // Evaluate
-      const ddxDiagnoses = ddxResult.differential_diagnoses.map((d: any) => d.diagnosis_name);
+      const ddxDiagnoses = (ddxResult.differential_diagnoses || []).map((d: any) => d.diagnosis_name);
       const matchedDx = fuzzyMatch(ddxDiagnoses, scenario.expected_diagnoses);
       const dxMatchRate = scenario.expected_diagnoses.length > 0 ? matchedDx.length / scenario.expected_diagnoses.length : 0;
-      const graphDiagnoses = graphResult.diagnoses.map((d: any) => d.diagnosis_name);
-      const graphLabs = graphResult.suggested_labs.map((l: any) => l.test_name || "");
-      const graphDrugs = graphResult.suggested_drugs.map((d: any) => d.generic_name || "");
+
+      // Top-N accuracy
+      const top1Match = matchedDx.length > 0 && ddxDiagnoses.length > 0 && fuzzyMatch([ddxDiagnoses[0]], scenario.expected_diagnoses).length > 0;
+      const top3Dx = ddxDiagnoses.slice(0, 3);
+      const top3Match = fuzzyMatch(top3Dx, scenario.expected_diagnoses).length > 0;
+      const top5Dx = ddxDiagnoses.slice(0, 5);
+      const top5Match = fuzzyMatch(top5Dx, scenario.expected_diagnoses).length > 0;
+
+      // Danger detection
+      const dangerDetected = safetyResult.emergency_patterns.length > 0 || worldModel.dangerous_conditions.length > 0;
+
+      const passed = dxMatchRate >= 0.5 || matchedDx.length >= 1;
+
+      // Specialty tracking
+      const spec = scenario.specialty;
+      if (!specialtyStats[spec]) specialtyStats[spec] = { total: 0, passed: 0, danger_expected: 0, danger_detected: 0, latency_sum: 0 };
+      specialtyStats[spec].total++;
+      if (passed) specialtyStats[spec].passed++;
+      if (scenario.danger_expected) specialtyStats[spec].danger_expected++;
+      if (scenario.danger_expected && dangerDetected) specialtyStats[spec].danger_detected++;
+      specialtyStats[spec].latency_sum += totalMs;
+
+      engineLogs.push({ engine_name: "benchmark_50", validation_run_id: validationRunId, execution_time_ms: totalMs, status: passed ? "success" : "failed",
+        output_summary: { scenario: scenario.id, diagnoses: ddxDiagnoses.length, matched: matchedDx.length, danger: dangerDetected } });
 
       scenarioResults.push({
-        scenario_id: scenario.id, scenario_name: scenario.name,
-        expected_organ_system: scenario.expected_organ_system,
-        passed: dxMatchRate >= 0.5 || matchedDx.length >= 1,
-        diagnosis_match_rate: Math.round(dxMatchRate * 100) / 100,
-        matched_diagnoses: matchedDx, actual_diagnoses: ddxDiagnoses.slice(0, 5),
-        graph_diagnoses: graphDiagnoses.slice(0, 5), graph_labs: graphLabs.slice(0, 5),
-        graph_drugs: graphDrugs.slice(0, 5),
-        graph_guidelines: (graphResult.guidelines || []).map((g: any) => g.title || g.organization || "").slice(0, 5),
-        bayesian_top: bayesianResult.diagnoses[0] || null,
-        bayesian_count: bayesianResult.diagnoses.length,
-        safety_alert_count: safetyAlertCount,
-        danger_detected: safetyResult.emergency_patterns.length > 0,
-        soap_generated: soapResult.soap_valid,
-        world_model: {
-          organ_systems: worldModel.organ_systems,
-          risk_level: worldModel.risk_level,
-          state_confidence: worldModel.state_confidence,
-          hypotheses_count: worldModel.hypotheses.length,
-          top_hypotheses: worldModel.hypotheses.slice(0, 3),
-          dangerous_conditions: worldModel.dangerous_conditions,
-          physiological_states: worldModel.physiological_states.slice(0, 5),
-          reasoning_traces: worldModel.reasoning_traces.slice(0, 5),
-        },
-        engine_status: {
-          world_model: worldModel.organ_systems.length > 0 || worldModel.hypotheses.length > 0,
-          graph_engine: graphResult.diagnoses.length > 0,
-          ddx_engine: ddxResult.differential_diagnoses.length > 0,
-          bayesian_engine: bayesianResult.diagnoses.length > 0,
-          safety_engine: true, soap_engine: soapResult.soap_valid,
-        },
+        id: scenario.id, name: scenario.name, specialty: scenario.specialty,
+        danger_expected: scenario.danger_expected,
+        passed, top1_match: top1Match, top3_match: top3Match, top5_match: top5Match,
+        diagnosis_match_rate: Math.round(dxMatchRate * 100),
+        matched_diagnoses: matchedDx,
+        actual_top5: ddxDiagnoses.slice(0, 5),
+        bayesian_top: bayesianResult.diagnoses[0]?.diagnosis_name || null,
+        bayesian_top_prob: bayesianResult.diagnoses[0]?.posterior_probability || 0,
+        danger_detected: dangerDetected,
+        danger_conditions: worldModel.dangerous_conditions,
+        safety_alerts: safetyResult.emergency_patterns.length + safetyResult.vitals_dangers.length,
+        graph_matched_symptoms: graphResult.matched_symptoms.length,
+        graph_diagnoses_found: graphResult.diagnoses.length,
+        suggested_labs: (ddxResult.recommended_labs || []).map((l: any) => l.test_name).slice(0, 5),
+        suggested_drugs: (ddxResult.suggested_medications || []).map((m: any) => m.generic_name).slice(0, 5),
+        world_model: { organ_systems: worldModel.organ_systems, risk_level: worldModel.risk_level, hypotheses: worldModel.hypotheses.length, physiology: worldModel.physiological_states.length, traces: worldModel.reasoning_traces.length },
         wave_latency: waveLatency,
-        total_latency_ms: totalScenarioMs,
-        pipeline_trace: pipelineTrace,
+        total_latency_ms: totalMs,
+        soap_valid: soapResult.soap_valid,
+        failure_reasons: !passed ? [
+          graphResult.diagnoses.length === 0 ? "graph_miss" : null,
+          matchedDx.length === 0 ? "no_diagnosis_match" : null,
+          graphResult.matched_symptoms.length < scenario.symptoms.length * 0.5 ? "symptom_coverage_gap" : null,
+        ].filter(Boolean) : [],
       });
     }
 
-    // Write engine logs + reasoning traces
-    await Promise.all([
-      supabase.from("clinical_engine_logs").insert(engineLogs),
-      allReasoningTraces.length > 0 ? supabase.from("clinical_reasoning_traces").insert(allReasoningTraces) : Promise.resolve(),
-    ]);
+    // Write engine logs
+    await supabase.from("clinical_engine_logs").insert(engineLogs);
 
-    // ═══════════════════════════════════════════════════════════════════
-    // Aggregate
-    // ═══════════════════════════════════════════════════════════════════
+    // ═══ AGGREGATE METRICS ═══
+    const total = scenarioResults.length;
     const passedCount = scenarioResults.filter(s => s.passed).length;
-    const avgDxMatch = scenarioResults.reduce((a, s) => a + s.diagnosis_match_rate, 0) / scenarioResults.length;
-    const avgLatency = scenarioResults.reduce((a, s) => a + s.total_latency_ms, 0) / scenarioResults.length;
+    const top1Count = scenarioResults.filter(s => s.top1_match).length;
+    const top3Count = scenarioResults.filter(s => s.top3_match).length;
+    const top5Count = scenarioResults.filter(s => s.top5_match).length;
+
+    const dangerExpected = scenarioResults.filter(s => s.danger_expected);
+    const dangerDetectedCorrectly = dangerExpected.filter(s => s.danger_detected).length;
+    const dangerDetectionRate = dangerExpected.length > 0 ? Math.round((dangerDetectedCorrectly / dangerExpected.length) * 100) : 0;
+
+    const avgLatency = Math.round(scenarioResults.reduce((a, s) => a + s.total_latency_ms, 0) / total);
+    const latencies = scenarioResults.map(s => s.total_latency_ms).sort((a, b) => a - b);
+    const p50 = latencies[Math.floor(latencies.length * 0.5)] || 0;
+    const p95 = latencies[Math.floor(latencies.length * 0.95)] || 0;
+    const p99 = latencies[Math.floor(latencies.length * 0.99)] || 0;
 
     const waveKeys = ["wave0_pcie_ms", "wave05_world_model_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
     const avgWaveLatency: Record<string, number> = {};
-    for (const key of waveKeys) {
-      avgWaveLatency[key] = Math.round(scenarioResults.reduce((a, s) => a + (s.wave_latency[key] || 0), 0) / scenarioResults.length);
+    for (const key of waveKeys) avgWaveLatency[key] = Math.round(scenarioResults.reduce((a, s) => a + (s.wave_latency[key] || 0), 0) / total);
+
+    // Failure analysis
+    const failedScenarios = scenarioResults.filter(s => !s.passed);
+    const failureReasonCounts: Record<string, number> = {};
+    for (const f of failedScenarios) {
+      for (const r of f.failure_reasons) {
+        failureReasonCounts[r] = (failureReasonCounts[r] || 0) + 1;
+      }
     }
 
-    const engineHealthRaw: Record<string, number> = {
-      world_model: scenarioResults.filter(s => s.engine_status.world_model).length,
-      graph_engine: scenarioResults.filter(s => s.engine_status.graph_engine).length,
-      ddx_engine: scenarioResults.filter(s => s.engine_status.ddx_engine).length,
-      bayesian_engine: scenarioResults.filter(s => s.engine_status.bayesian_engine).length,
-      safety_engine: scenarioResults.filter(s => s.engine_status.safety_engine).length,
-      soap_engine: scenarioResults.filter(s => s.engine_status.soap_engine).length,
-    };
-
-    const totalMs = Date.now() - totalStart;
+    // Graph coverage gaps from failures
+    const graphMisses = failedScenarios.filter(s => s.failure_reasons.includes("graph_miss"));
+    const symptomGaps = failedScenarios.filter(s => s.failure_reasons.includes("symptom_coverage_gap"));
 
     const report = {
       validation_id: validationRunId,
       timestamp: new Date().toISOString(),
-      total_duration_ms: totalMs,
-      graph_integrity: graphIntegrity,
+      total_duration_ms: Date.now() - totalStart,
+
+      graph_integrity: {
+        table_counts: tableCounts,
+        gaps: graphGaps,
+        status: graphGaps.length === 0 ? "healthy" : graphGaps.length <= 2 ? "partial" : "degraded",
+      },
+
       benchmark: {
-        total_scenarios: BENCHMARK_SCENARIOS.length,
-        passed: passedCount, failed: BENCHMARK_SCENARIOS.length - passedCount,
-        pass_rate: Math.round((passedCount / BENCHMARK_SCENARIOS.length) * 100),
-        avg_diagnosis_match: Math.round(avgDxMatch * 100),
+        total_scenarios: total,
+        passed: passedCount,
+        failed: total - passedCount,
+        pass_rate: Math.round((passedCount / total) * 100),
+
+        accuracy: {
+          top1: Math.round((top1Count / total) * 100),
+          top3: Math.round((top3Count / total) * 100),
+          top5: Math.round((top5Count / total) * 100),
+          avg_diagnosis_match: Math.round(scenarioResults.reduce((a, s) => a + s.diagnosis_match_rate, 0) / total),
+        },
+
+        safety: {
+          danger_scenarios: dangerExpected.length,
+          danger_detected: dangerDetectedCorrectly,
+          detection_rate: dangerDetectionRate,
+          missed_dangers: dangerExpected.filter(s => !s.danger_detected).map(s => ({ id: s.id, name: s.name })),
+        },
+
+        latency: {
+          avg_ms: avgLatency,
+          p50_ms: p50,
+          p95_ms: p95,
+          p99_ms: p99,
+          avg_wave_latency: avgWaveLatency,
+          meets_5s_target: avgLatency < 5000,
+        },
+
+        by_specialty: Object.entries(specialtyStats).map(([spec, stats]) => ({
+          specialty: spec,
+          total: stats.total,
+          passed: stats.passed,
+          pass_rate: Math.round((stats.passed / stats.total) * 100),
+          danger_detection_rate: stats.danger_expected > 0 ? Math.round((stats.danger_detected / stats.danger_expected) * 100) : null,
+          avg_latency_ms: Math.round(stats.latency_sum / stats.total),
+        })),
+
         scenarios: scenarioResults,
       },
-      engine_health: Object.fromEntries(
-        Object.entries(engineHealthRaw).map(([k, v]) => [
-          k, { active: v, total: BENCHMARK_SCENARIOS.length, rate: Math.round((v / BENCHMARK_SCENARIOS.length) * 100) },
-        ])
-      ),
-      latency: {
-        avg_total_ms: Math.round(avgLatency),
-        avg_wave_latency: avgWaveLatency,
-        target_ms: 5000, meets_target: avgLatency < 5000,
+
+      failure_analysis: {
+        total_failures: failedScenarios.length,
+        by_reason: failureReasonCounts,
+        graph_misses: graphMisses.map(s => ({ id: s.id, name: s.name, specialty: s.specialty })),
+        symptom_gaps: symptomGaps.map(s => ({ id: s.id, name: s.name, matched: s.graph_matched_symptoms })),
+        by_specialty: Object.entries(specialtyStats).filter(([, s]) => s.total > s.passed).map(([spec, s]) => ({ specialty: spec, failed: s.total - s.passed })),
       },
+
+      coverage_analysis: {
+        graph_size: { diagnoses: tableCounts.diagnoses, symptoms: tableCounts.symptoms, likelihoods: tableCounts.symptom_likelihoods, physiology_states: tableCounts.physiological_states, dangerous: tableCounts.dangerous_diagnoses, guidelines: tableCounts.clinical_guidelines },
+        expansion_needed: graphGaps,
+      },
+
       recommendations: [
-        ...(tableCounts.symptom_likelihoods < 5000 ? ["Expand symptom_likelihoods to 10,000+ for better Bayesian inference"] : []),
-        ...(tableCounts.disease_priors < 300 ? ["Add more disease priors to cover 500+ diseases"] : []),
-        ...(tableCounts.clinical_guidelines < 50 ? ["Populate clinical_guidelines for guideline retrieval"] : []),
-        ...(passedCount < BENCHMARK_SCENARIOS.length ? [`${BENCHMARK_SCENARIOS.length - passedCount} scenarios failed — review DDX coverage`] : []),
-        ...(avgLatency > 5000 ? ["Pipeline latency exceeds 5s target"] : []),
+        ...(tableCounts.symptom_likelihoods < 5000 ? ["Expand symptom_likelihoods to 10,000+ for better Bayesian signal"] : []),
+        ...(tableCounts.disease_priors < 300 ? ["Add disease priors for 500+ diseases"] : []),
+        ...(failedScenarios.length > 10 ? [`${failedScenarios.length} scenarios failed — review graph coverage`] : []),
+        ...(dangerDetectionRate < 90 ? [`Danger detection at ${dangerDetectionRate}% — expand dangerous_diagnoses triggers`] : []),
+        ...(avgLatency > 2000 ? ["Average latency high — optimize graph queries"] : []),
       ],
-      repair_log: {
-        fixes_applied: [
-          "World Model layer inserted between PCIE and Graph Retrieval (Wave 0.5)",
-          "Organ system activation via organ_system_activation_rules (75+ rules)",
-          "Physiology inference: symptom → physiological process → disease hypothesis",
-          "Dangerous diagnosis injection with minimum probability floor",
-          "Reasoning traces stored in clinical_reasoning_traces table",
-          "World model boosts graph retrieval and Bayesian scoring",
-          "SOAP notes enriched with physiological states and risk levels",
-        ],
-        previous_fixes: [
-          "Phase 1–7: Signal-optimized Bayesian with specificity × organ-system weighting",
-          "Graph retrieval uses symptom_likelihoods as primary source",
-          "SOAP uses deterministic template assembly (<1ms)",
-          "Direct DB queries replaced sequential edge function calls",
-        ],
-      },
     };
 
-    return new Response(JSON.stringify(report), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify(report), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("validate-clinical-system error:", err);
-    return new Response(
-      JSON.stringify({ error: err.message || "Validation failed" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: err.message || "Validation failed" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
