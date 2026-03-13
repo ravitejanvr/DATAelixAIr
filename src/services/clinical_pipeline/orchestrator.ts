@@ -106,6 +106,7 @@ export interface PipelineResult {
   conflict_resolution: ConflictResolution | null;
   diagnostic_loop: DiagnosticLoopMeta | null;
   causal_reasoning: CausalReasoningResult | null;
+  calibration: CalibrationResult | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
