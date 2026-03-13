@@ -41,7 +41,6 @@ export interface ExtractionPipelineResult {
 
 /**
  * Run the knowledge extraction pipeline for a set of diseases.
- * Each disease triggers PubMed retrieval → AI extraction → graph insertion.
  */
 export async function runKnowledgeExtraction(
   diseases: string[],
@@ -101,30 +100,31 @@ export async function getGraphCoverage(): Promise<{
 
 /**
  * Get diseases that have fewer than N symptom likelihood relationships.
- * These are candidates for extraction.
  */
 export async function getUnderconnectedDiseases(
   minRelationships = 5,
   limit = 50
 ): Promise<string[]> {
+  // Get all diagnoses
   const { data: allDiagnoses } = await supabase
     .from("diagnoses")
-    .select("diagnosis_name")
+    .select("id, diagnosis_name")
     .limit(500);
 
   if (!allDiagnoses) return [];
 
+  // Get coverage counts per diagnosis_id
   const { data: covered } = await supabase
     .from("symptom_likelihoods")
-    .select("disease_name");
+    .select("diagnosis_id");
 
   const coverageMap: Record<string, number> = {};
   for (const row of covered || []) {
-    coverageMap[row.disease_name] = (coverageMap[row.disease_name] || 0) + 1;
+    coverageMap[row.diagnosis_id] = (coverageMap[row.diagnosis_id] || 0) + 1;
   }
 
   return allDiagnoses
-    .filter((d) => (coverageMap[d.diagnosis_name.toLowerCase()] || 0) < minRelationships)
+    .filter((d) => (coverageMap[d.id] || 0) < minRelationships)
     .map((d) => d.diagnosis_name)
     .slice(0, limit);
 }
