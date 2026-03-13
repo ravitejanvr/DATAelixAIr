@@ -22,6 +22,7 @@ import PipelineDebug from "@/pages/PipelineDebug";
 import PipelineSimulation from "@/pages/PipelineSimulation";
 import BenchmarkDashboard from "@/pages/BenchmarkDashboard";
 import BenchmarkDashboardV6 from "@/pages/BenchmarkDashboardV6";
+import BenchmarkDashboardV7 from "@/pages/BenchmarkDashboardV7";
 import type { MonitoringDashboardData } from "@/layers/monitoring/api";
 import { fetchMonitoringDashboard } from "@/layers/monitoring/api";
 import { MODEL_REGISTRY, DATA_ACCESS_MATRIX, ROLE_LABELS } from "@/layers/governance/api";
