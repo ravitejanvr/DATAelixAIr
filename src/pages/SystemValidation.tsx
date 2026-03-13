@@ -821,7 +821,7 @@ function LiveValidationView({ report }: { report: ValidationReport }) {
                     {s.world_model ? (
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-1">
-                          {statusIcon(s.engine_status.world_model)}
+                          {statusIcon(s.engine_status?.world_model ?? false)}
                           {riskBadge(s.world_model.risk_level)}
                         </div>
                         <span className="text-[9px] text-muted-foreground block">
