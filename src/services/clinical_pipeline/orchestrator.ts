@@ -1251,7 +1251,7 @@ export async function runUnifiedClinicalPipeline(
 
       lat.diagnostic_loop = Math.round(performance.now() - w36Start);
       waveLat.wave36_diagnostic_loop = lat.diagnostic_loop;
-      lineageTracker.recordEngineResult("diagnostic_loop" as PipelineStage, true);
+      lineageTracker.recordEngineResult("diagnostic_loop", true);
       pcieCore.addReasoningTrace(
         "diagnostic_loop" as any,
         `Loop triggered: ${diagnosticLoopReason}. Pruned ${prunedCount} candidates, re-ran hypothesis testing + bayesian.`,
