@@ -656,6 +656,65 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("meta_reasoning", { meta_reasoning: metaReasoningResult });
 
   // ═══════════════════════════════════════════════════════
+  // WAVE 1.8 — Episodic Memory (resolve prefetch)
+  // Patient longitudinal recall, doctor patterns, epidemiological signals.
+  // Non-blocking prefetch started earlier; we resolve here before DDX.
+  // ═══════════════════════════════════════════════════════
+  const w18Start = performance.now();
+  await episodicPromise; // Resolve the prefetch
+  if (episodicMemoryResult) {
+    const signals = episodicMemoryResult.memory_signals;
+    console.log(
+      `[Pipeline] Wave 1.8: Episodic memory loaded — ` +
+      `patient_visits=${episodicMemoryResult.patient_memory?.total_past_visits || 0} ` +
+      `doctor_consults=${episodicMemoryResult.doctor_patterns?.top_diagnoses.length || 0} ` +
+      `clusters=${episodicMemoryResult.cross_patient?.recent_symptom_clusters.length || 0} ` +
+      `signals=[${signals.join(",")}] (${episodicMemoryResult.execution_ms}ms)`
+    );
+    lineageTracker.recordEngineResult("episodic_memory", true);
+    pcieCore.addReasoningTrace(
+      "episodic_memory" as any,
+      `Episodic: ${episodicMemoryResult.patient_memory?.total_past_visits || 0} past visits, ` +
+      `${episodicMemoryResult.patient_memory?.recurring_conditions.length || 0} recurrences, ` +
+      `${episodicMemoryResult.cross_patient?.recent_symptom_clusters.length || 0} clusters`
+    );
+
+    // Inject epidemiological and recurrence signals as risk flags
+    if (episodicMemoryResult.patient_memory?.longitudinal_risk_signals.length) {
+      const existing = ctx.risk_flags || [];
+      (ctx as any).risk_flags = [
+        ...existing,
+        ...episodicMemoryResult.patient_memory.longitudinal_risk_signals.map(s => `[Episodic] ${s}`),
+      ];
+    }
+    if (episodicMemoryResult.cross_patient?.seasonal_alerts.length) {
+      const existing = ctx.risk_flags || [];
+      (ctx as any).risk_flags = [
+        ...existing,
+        ...episodicMemoryResult.cross_patient.seasonal_alerts.map(s => `[Seasonal] ${s}`),
+      ];
+    }
+    // Outbreak alert → oversight event
+    const outbreakClusters = episodicMemoryResult.cross_patient?.recent_symptom_clusters.filter(
+      c => c.alert_level === "outbreak" || c.alert_level === "elevated"
+    ) || [];
+    for (const cluster of outbreakClusters) {
+      recordOversightEvent({
+        event_type: "epidemiological_cluster",
+        severity: cluster.alert_level === "outbreak" ? "critical" : "warning",
+        stage: "episodic_memory",
+        message: `${cluster.alert_level.toUpperCase()}: ${cluster.patient_count} patients with similar symptoms in last 7 days`,
+        metadata: { symptom_cluster: cluster.symptom_cluster, patient_count: cluster.patient_count },
+      });
+    }
+  } else {
+    lineageTracker.recordEngineResult("episodic_memory", false);
+  }
+  waveLat.wave18_episodic_memory = Math.round(performance.now() - w18Start);
+  lat.episodic_memory = waveLat.wave18_episodic_memory;
+  onProgress?.("episodic_memory", { episodic_memory: episodicMemoryResult });
+
+  // ═══════════════════════════════════════════════════════
   // WAVE 2 — Parallel Context Analysis
   //   • Physiological State Engine
   //   • DDX Engine (Knowledge Graph traversal)
