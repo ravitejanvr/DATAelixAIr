@@ -85,7 +85,8 @@ export interface PipelineResult {
   hybrid_reasoning: HybridReasoningResult | null;
   soap_fallback: SOAPGeneratorResult | null;
   multi_agent: OrchestratorResponse | null;
-  guideline_summary: {
+  meta_reasoning: MetaReasoningOutput | null;
+  conflict_resolution: ConflictResolution | null;
     guideline_sources_used: string[];
     guideline_compliance_score: number;
     conflicts_detected: Array<{
