@@ -442,8 +442,8 @@ Deno.serve(async (req) => {
         if (error) addLog(`  Priors error: ${error.message}`);
       }
 
-      // STEP 4: Symptom likelihoods
-      addLog("Step 4: Inserting symptom likelihoods...");
+      // STEP 4: Symptom likelihoods (upsert)
+      addLog("Step 4: Upserting symptom likelihoods...");
       const likRows: { symptom_id: string; diagnosis_id: string; likelihood_value: number }[] = [];
       for (const d of diseases) {
         const dId = allDiagIds[d.name];
@@ -457,11 +457,11 @@ Deno.serve(async (req) => {
       let likInserted = 0;
       for (let i = 0; i < likRows.length; i += 200) {
         const chunk = likRows.slice(i, i + 200);
-        const { error } = await supabase.from("symptom_likelihoods").insert(chunk);
+        const { error } = await supabase.from("symptom_likelihoods").upsert(chunk, { onConflict: "symptom_id,diagnosis_id", ignoreDuplicates: false });
         if (error) addLog(`  Likelihoods error (batch ${i}): ${error.message}`);
         else likInserted += chunk.length;
       }
-      addLog(`  Likelihoods inserted: ${likInserted}`);
+      addLog(`  Likelihoods upserted: ${likInserted}`);
 
       // STEP 5: Disease tests
       addLog("Step 5: Inserting disease tests...");
