@@ -6,6 +6,7 @@
  *   Wave 0 — PCIE Context Hydration
  *   Wave 1 — Context Preparation
  *   Wave 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
+ *   Wave 1.8 — Episodic Memory (patient history, doctor patterns, epidemiology)
  *   Wave 2 — Parallel Context Analysis (DDX, Physiology, Preindexed)
  *   Wave 2b — Evidence Retrieval (enriched with DDX results)
  *   Wave 2c — Hypothesis Testing (graph-based DDX validation)
