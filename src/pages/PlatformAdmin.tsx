@@ -13,7 +13,7 @@ import {
   Building2, Users, FileText, Check, X, Loader2, ShieldAlert, Ban,
   Activity, TrendingUp, Clock, AlertTriangle, CheckCircle, XCircle, Zap,
   Shield, Cpu, Lock, Eye, UserCheck, UserX, MessageSquare, Flag,
-  BarChart3, Mail, Phone, MapPin, BookOpen, Lightbulb, Database
+  BarChart3, Mail, Phone, MapPin, BookOpen, Lightbulb, Database, Brain
 } from "lucide-react";
 import AdminArticleEditor from "@/components/blog/AdminArticleEditor";
 import InnovationDashboard from "@/components/admin/InnovationDashboard";
@@ -21,6 +21,7 @@ import TerminologyAdmin from "@/pages/TerminologyAdmin";
 import PipelineDebug from "@/pages/PipelineDebug";
 import PipelineSimulation from "@/pages/PipelineSimulation";
 import BenchmarkDashboard from "@/pages/BenchmarkDashboard";
+import BenchmarkDashboardV6 from "@/pages/BenchmarkDashboardV6";
 import type { MonitoringDashboardData } from "@/layers/monitoring/api";
 import { fetchMonitoringDashboard } from "@/layers/monitoring/api";
 import { MODEL_REGISTRY, DATA_ACCESS_MATRIX, ROLE_LABELS } from "@/layers/governance/api";
@@ -114,7 +115,7 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
-type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation" | "terminology" | "pipeline-debug" | "simulation" | "benchmarks";
+type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation" | "terminology" | "pipeline-debug" | "simulation" | "benchmarks" | "benchmarks-v6";
 
 const getTabFromPath = (pathname: string): AdminTab => {
   const tabSegment = pathname.split("/")[2];
@@ -130,6 +131,7 @@ const getTabFromPath = (pathname: string): AdminTab => {
   if (tabSegment === "pipeline-debug") return "pipeline-debug";
   if (tabSegment === "simulation") return "simulation";
   if (tabSegment === "benchmarks") return "benchmarks";
+  if (tabSegment === "benchmarks-v6") return "benchmarks-v6";
   return "pilots";
 };
 
@@ -349,6 +351,7 @@ export default function PlatformAdmin() {
             <TabsTrigger value="pipeline-debug"><Cpu className="h-3.5 w-3.5 mr-1" /> Pipeline Debug</TabsTrigger>
             <TabsTrigger value="simulation"><Zap className="h-3.5 w-3.5 mr-1" /> Simulation</TabsTrigger>
             <TabsTrigger value="benchmarks"><BarChart3 className="h-3.5 w-3.5 mr-1" /> Benchmarks</TabsTrigger>
+            <TabsTrigger value="benchmarks-v6"><Brain className="h-3.5 w-3.5 mr-1" /> Benchmark v6</TabsTrigger>
           </TabsList>
 
           {/* Pilots Tab */}
@@ -662,6 +665,11 @@ export default function PlatformAdmin() {
           {/* Benchmarks Tab */}
           <TabsContent value="benchmarks" className="mt-4">
             <BenchmarkDashboard />
+          </TabsContent>
+
+          {/* Benchmark v6 Tab */}
+          <TabsContent value="benchmarks-v6" className="mt-4">
+            <BenchmarkDashboardV6 />
           </TabsContent>
         </Tabs>
       </div>
