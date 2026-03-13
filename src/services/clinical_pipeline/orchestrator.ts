@@ -72,6 +72,14 @@ export interface PipelineInput {
   };
 }
 
+export interface DiagnosticLoopMeta {
+  executed: boolean;
+  reason: string;
+  candidates_pruned: number;
+  candidates_remaining: number;
+  iteration_ms: number;
+}
+
 export interface PipelineResult {
   enabled: boolean;
   enriched_context: EnrichedClinicalContext | null;
@@ -91,6 +99,7 @@ export interface PipelineResult {
   hypothesis_testing: HypothesisTestResult | null;
   evidence_plan: EvidencePlanResult | null;
   conflict_resolution: ConflictResolution | null;
+  diagnostic_loop: DiagnosticLoopMeta | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
