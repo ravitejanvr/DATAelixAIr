@@ -360,7 +360,7 @@ function PersistedBenchmarkView({ summary }: { summary: PersistedSummary }) {
       </Card>
 
       <p className="text-xs text-muted-foreground text-center">
-        Benchmark data from: {new Date(runTimestamp).toLocaleString()} · {totalRuns} total scenarios recovered from database
+        Benchmark data from: {runTimestamp ? new Date(runTimestamp).toLocaleString() : "Unknown"} · {totalRuns} total scenarios recovered from database
       </p>
     </div>
   );
