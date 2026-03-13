@@ -8,9 +8,17 @@ import {
 } from "@/components/ui/table";
 import {
   Play, Loader2, CheckCircle, XCircle, Database, Activity,
-  Clock, Shield, Brain, Beaker, AlertTriangle, FileText,
+  Clock, Shield, Brain, Beaker, AlertTriangle, FileText, Zap, Target,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+interface SignalOptimization {
+  specificity_entries: number;
+  organ_system_entries: number;
+  high_specificity_symptoms: number;
+  low_specificity_symptoms: number;
+  avg_specificity: number;
+}
 
 interface ValidationReport {
   validation_id: string;
@@ -22,6 +30,7 @@ interface ValidationReport {
     total_symptoms: number;
     total_relationships: number;
     avg_edges_per_disease: number;
+    signal_optimization?: SignalOptimization;
     gaps: string[];
     status: string;
     latency_ms: number;
@@ -32,28 +41,28 @@ interface ValidationReport {
     failed: number;
     pass_rate: number;
     avg_diagnosis_match: number;
-      scenarios: Array<{
-        scenario_id: string;
-        scenario_name: string;
-        expected_organ_system: string;
-        passed: boolean;
-        diagnosis_match_rate: number;
-        matched_diagnoses: string[];
-        actual_diagnoses: string[];
-        graph_diagnoses: string[];
-        graph_labs: string[];
-        graph_drugs: string[];
-        graph_guidelines: string[];
-        bayesian_top: any;
-        bayesian_count: number;
-        safety_alert_count: number;
-        danger_detected: boolean;
-        soap_generated: boolean;
-        engine_status: Record<string, boolean>;
-        wave_latency: Record<string, number>;
-        total_latency_ms: number;
-        pipeline_trace?: Record<string, any>;
-      }>;
+    scenarios: Array<{
+      scenario_id: string;
+      scenario_name: string;
+      expected_organ_system: string;
+      passed: boolean;
+      diagnosis_match_rate: number;
+      matched_diagnoses: string[];
+      actual_diagnoses: string[];
+      graph_diagnoses: string[];
+      graph_labs: string[];
+      graph_drugs: string[];
+      graph_guidelines: string[];
+      bayesian_top: any;
+      bayesian_count: number;
+      safety_alert_count: number;
+      danger_detected: boolean;
+      soap_generated: boolean;
+      engine_status: Record<string, boolean>;
+      wave_latency: Record<string, number>;
+      total_latency_ms: number;
+      pipeline_trace?: Record<string, any>;
+    }>;
   };
   engine_health: Record<string, { active: number; total: number; rate: number }>;
   latency: {
@@ -81,6 +90,12 @@ function latencyColor(ms: number) {
   return "text-destructive";
 }
 
+function specificityBadge(score: number) {
+  if (score >= 0.7) return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 text-[9px]">High</Badge>;
+  if (score >= 0.4) return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400 text-[9px]">Mod</Badge>;
+  return <Badge className="bg-muted text-muted-foreground text-[9px]">Low</Badge>;
+}
+
 export default function SystemValidation() {
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [running, setRunning] = useState(false);
@@ -104,11 +119,10 @@ export default function SystemValidation() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">System Validation</h1>
-          <p className="text-sm text-muted-foreground">Full clinical reasoning pipeline validation & benchmarking</p>
+          <p className="text-sm text-muted-foreground">Signal-optimized clinical reasoning pipeline validation</p>
         </div>
         <Button onClick={handleRun} disabled={running} size="lg">
           {running ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
@@ -120,7 +134,7 @@ export default function SystemValidation() {
         <Card>
           <CardContent className="py-8 text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-            <p className="text-muted-foreground">Running 8 benchmark scenarios through 6 pipeline waves…</p>
+            <p className="text-muted-foreground">Running 8 benchmark scenarios with specificity-weighted Bayesian inference…</p>
             <p className="text-xs text-muted-foreground mt-1">This may take 30–60 seconds</p>
           </CardContent>
         </Card>
@@ -137,7 +151,7 @@ export default function SystemValidation() {
       {report && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Card>
               <CardContent className="pt-4 pb-3">
                 <div className="flex items-center gap-2 mb-1">
@@ -162,9 +176,25 @@ export default function SystemValidation() {
               <CardContent className="pt-4 pb-3">
                 <div className="flex items-center gap-2 mb-1">
                   <Brain className="h-4 w-4 text-primary" />
-                  <span className="text-xs font-medium text-muted-foreground">Avg Diagnosis Match</span>
+                  <span className="text-xs font-medium text-muted-foreground">Avg Dx Match</span>
                 </div>
                 <p className="text-2xl font-bold">{report.benchmark.avg_diagnosis_match}%</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Target className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground">Signal Strength</span>
+                </div>
+                {report.graph_integrity.signal_optimization ? (
+                  <>
+                    <p className="text-2xl font-bold">{report.graph_integrity.signal_optimization.avg_specificity}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {report.graph_integrity.signal_optimization.high_specificity_symptoms} high · {report.graph_integrity.signal_optimization.low_specificity_symptoms} low
+                    </p>
+                  </>
+                ) : <p className="text-2xl font-bold text-muted-foreground">—</p>}
               </CardContent>
             </Card>
             <Card>
@@ -181,6 +211,42 @@ export default function SystemValidation() {
             </Card>
           </div>
 
+          {/* Signal Optimization Panel */}
+          {report.graph_integrity.signal_optimization && (
+            <Card className="border-primary/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-primary" />
+                  Signal Optimization
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground">Specificity Entries</p>
+                    <p className="text-lg font-bold">{report.graph_integrity.signal_optimization.specificity_entries}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground">Organ System Maps</p>
+                    <p className="text-lg font-bold">{report.graph_integrity.signal_optimization.organ_system_entries}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground">High Specificity</p>
+                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{report.graph_integrity.signal_optimization.high_specificity_symptoms}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground">Low Specificity</p>
+                    <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{report.graph_integrity.signal_optimization.low_specificity_symptoms}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground">Avg Specificity</p>
+                    <p className="text-lg font-bold">{report.graph_integrity.signal_optimization.avg_specificity}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Knowledge Graph Integrity */}
           <Card>
             <CardHeader className="pb-3">
@@ -193,7 +259,7 @@ export default function SystemValidation() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 md:grid-cols-5 gap-3 mb-4">
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
                 {Object.entries(report.graph_integrity.table_counts).map(([table, count]) => (
                   <div key={table} className="bg-muted/50 rounded-lg p-2">
                     <p className="text-[10px] text-muted-foreground truncate">{table}</p>
@@ -234,7 +300,7 @@ export default function SystemValidation() {
             </CardContent>
           </Card>
 
-          {/* Wave Latency Breakdown */}
+          {/* Wave Latency */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -274,10 +340,10 @@ export default function SystemValidation() {
                     <TableHead className="text-xs">Scenario</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs">Dx Match</TableHead>
-                    <TableHead className="text-xs">Graph</TableHead>
+                    <TableHead className="text-xs">Specificity</TableHead>
+                    <TableHead className="text-xs">Organ Sys</TableHead>
                     <TableHead className="text-xs">Bayesian</TableHead>
                     <TableHead className="text-xs">Safety</TableHead>
-                    <TableHead className="text-xs">SOAP</TableHead>
                     <TableHead className="text-xs">Latency</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -295,10 +361,28 @@ export default function SystemValidation() {
                           {Math.round(s.diagnosis_match_rate * 100)}%
                         </Badge>
                       </TableCell>
-                      <TableCell>{statusIcon(s.engine_status.graph_engine)}</TableCell>
+                      <TableCell>
+                        {s.pipeline_trace?.avg_symptom_specificity !== undefined
+                          ? specificityBadge(s.pipeline_trace.avg_symptom_specificity)
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-[10px] text-muted-foreground">
+                          {s.pipeline_trace?.dominant_organ_system || "—"}
+                        </span>
+                        {s.pipeline_trace?.organ_system_weight && (
+                          <span className="text-[9px] ml-1 text-primary">
+                            ×{s.pipeline_trace.organ_system_weight}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {statusIcon(s.engine_status.bayesian_engine)}
-                        <span className="text-[10px] text-muted-foreground ml-1">{s.bayesian_count}</span>
+                        {s.pipeline_trace?.bayesian_signal_strength !== undefined && (
+                          <span className="text-[9px] text-muted-foreground ml-1">
+                            σ{s.pipeline_trace.bayesian_signal_strength}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {statusIcon(s.engine_status.safety_engine)}
@@ -306,7 +390,6 @@ export default function SystemValidation() {
                           <Badge variant="outline" className="text-[9px] ml-1">{s.safety_alert_count}</Badge>
                         )}
                       </TableCell>
-                      <TableCell>{statusIcon(s.soap_generated)}</TableCell>
                       <TableCell>
                         <span className={`text-xs font-mono ${latencyColor(s.total_latency_ms)}`}>
                           {(s.total_latency_ms / 1000).toFixed(1)}s
@@ -364,17 +447,21 @@ export default function SystemValidation() {
                   </div>
                 </div>
                 {s.pipeline_trace && (
-                  <div className="bg-muted/30 rounded-lg p-2 mt-2">
-                    <p className="font-medium text-muted-foreground mb-1">PCIE Context</p>
-                    <div className="flex gap-4">
-                      <span>Fields: {s.pipeline_trace.pcie_populated_fields}/{s.pipeline_trace.pcie_total_fields}</span>
-                      <span>Confidence: {((s.pipeline_trace.pcie_confidence || 0) * 100).toFixed(0)}%</span>
-                      <span>Bayesian top: {s.pipeline_trace.bayesian_top || "—"}</span>
-                      <span>Safety: {s.pipeline_trace.safety_score ?? "—"}</span>
+                  <div className="bg-muted/30 rounded-lg p-2 mt-2 space-y-1">
+                    <div className="flex gap-4 flex-wrap">
+                      <span className="text-muted-foreground">PCIE: {s.pipeline_trace.pcie_populated_fields}/{s.pipeline_trace.pcie_total_fields} fields</span>
+                      <span className="text-muted-foreground">Confidence: {((s.pipeline_trace.pcie_confidence || 0) * 100).toFixed(0)}%</span>
+                      <span className="text-muted-foreground">Bayesian: {s.pipeline_trace.bayesian_top || "—"}</span>
+                      <span className="text-muted-foreground">Safety: {s.pipeline_trace.safety_score ?? "—"}</span>
+                    </div>
+                    <div className="flex gap-4 flex-wrap">
+                      <span className="text-primary">Specificity: {s.pipeline_trace.avg_symptom_specificity ?? "—"}</span>
+                      <span className="text-primary">Organ: {s.pipeline_trace.dominant_organ_system || "—"} ×{s.pipeline_trace.organ_system_weight ?? "—"}</span>
+                      <span className="text-primary">Signal: σ{s.pipeline_trace.bayesian_signal_strength ?? "—"}</span>
                     </div>
                   </div>
                 )}
-                <div className="flex gap-4 text-[10px] text-muted-foreground pt-1 border-t border-border">
+                <div className="flex gap-4 text-[10px] text-muted-foreground pt-1 border-t border-border flex-wrap">
                   {Object.entries(s.wave_latency).map(([k, v]) => (
                     <span key={k}>{k.replace(/_ms$/, "").replace(/wave\d_/, "")}: {Math.round(v as number)}ms</span>
                   ))}
@@ -389,26 +476,28 @@ export default function SystemValidation() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Shield className="h-4 w-4 text-blue-500" />
-                  Pipeline Repair Log
+                  Signal Optimization Log
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Fixes Applied</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Optimizations Applied</p>
                   <ul className="space-y-0.5">
                     {((report as any).repair_log.fixes_applied || []).map((f: string, i: number) => (
                       <li key={i} className="text-xs text-emerald-600 dark:text-emerald-400">✓ {f}</li>
                     ))}
                   </ul>
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Previous Issues Resolved</p>
-                  <ul className="space-y-0.5">
-                    {((report as any).repair_log.previous_issues || []).map((f: string, i: number) => (
-                      <li key={i} className="text-xs text-muted-foreground">• {f}</li>
-                    ))}
-                  </ul>
-                </div>
+                {((report as any).repair_log.previous_fixes || []).length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Previous Fixes</p>
+                    <ul className="space-y-0.5">
+                      {((report as any).repair_log.previous_fixes || []).map((f: string, i: number) => (
+                        <li key={i} className="text-xs text-muted-foreground">• {f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -432,7 +521,6 @@ export default function SystemValidation() {
             </Card>
           )}
 
-          {/* Footer */}
           <p className="text-xs text-muted-foreground text-center">
             Validation ID: {report.validation_id} · Duration: {(report.total_duration_ms / 1000).toFixed(1)}s · {report.timestamp}
           </p>
