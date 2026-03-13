@@ -545,6 +545,12 @@ export async function runUnifiedClinicalPipeline(
     console.log("[Pipeline] 🔬 Cache bypass enabled (trace/benchmark mode)");
   }
 
+  // ── Prefetch calibration data (non-blocking, resolves before Wave 3) ──
+  let calibrationResult: CalibrationResult | null = null;
+  const calibrationPromise = getCalibrationFactors(input.clinic_id || undefined)
+    .then(r => { calibrationResult = r; })
+    .catch(() => {});
+
   // ═══════════════════════════════════════════════════════
   // WAVE 1 — Context Preparation (sync, ~5ms)
   // ═══════════════════════════════════════════════════════
