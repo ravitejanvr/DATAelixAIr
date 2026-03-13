@@ -451,7 +451,7 @@ Deno.serve(async (req) => {
         if (likelihood < 0.3) continue;
         try {
           const sId = await ensureSymptom(symptom);
-          allRows.push({ symptom_id: sId, diagnosis_id: dId, likelihood });
+          allRows.push({ symptom_id: sId, diagnosis_id: dId, likelihood_value: likelihood });
         } catch (e) {
           results.push(`⚠️ Symptom: ${symptom} - ${e.message}`);
         }
