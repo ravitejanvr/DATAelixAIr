@@ -96,10 +96,10 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
     // Evidence plan eval
     const evPlan = o1?.evidence_plan;
     const evPlanEval: EvidencePlanEvaluation = evPlan ? {
-      tests_recommended: evPlan.recommended_tests?.map((t: any) => t.test_name || t) || [],
-      test_selection_accuracy: matchRate(evPlan.recommended_tests?.map((t: any) => t.test_name || t) || [], bc.ground_truth.recommended_tests),
-      test_relevance_score: evPlan.information_gain_score || 0,
-      information_gain_score: evPlan.information_gain_score || 0,
+      tests_recommended: evPlan.planned_tests?.map((t: any) => t.test_name || t) || [],
+      test_selection_accuracy: matchRate(evPlan.planned_tests?.map((t: any) => t.test_name || t) || [], bc.ground_truth.recommended_tests),
+      test_relevance_score: evPlan.summary?.max_information_gain || 0,
+      information_gain_score: evPlan.summary?.max_information_gain || 0,
     } : { tests_recommended: [], test_selection_accuracy: 0, test_relevance_score: 0, information_gain_score: 0 };
 
     // Bayesian eval
