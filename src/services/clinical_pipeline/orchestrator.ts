@@ -427,7 +427,7 @@ export async function runUnifiedClinicalPipeline(
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
     multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, causal_reasoning: null, calibration: null, episodic_memory: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
-    cache_stats: cache, lineage: null, context_graph: null,
+    cache_stats: cache, lineage: null, context_graph: null, cognitive_layer: null,
   };
 
   if (!isNewPipelineEnabled()) {
