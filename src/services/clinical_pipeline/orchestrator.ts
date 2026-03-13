@@ -771,6 +771,73 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("evidence", { evidence });
 
   // ═══════════════════════════════════════════════════════
+  // WAVE 2c — Hypothesis Testing (validates DDX against symptom_likelihoods)
+  // Deterministic, graph-only — no LLM. Target: <200ms.
+  // ═══════════════════════════════════════════════════════
+  let hypothesisTestResult: HypothesisTestResult | null = null;
+  if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const w2cStart = performance.now();
+    try {
+      hypothesisTestResult = await withTimeout(
+        testHypotheses({
+          candidate_diagnoses: ddxResult.differential_diagnoses.map(d => ({
+            diagnosis_id: d.diagnosis_id,
+            diagnosis_name: d.diagnosis_name,
+            icd10_code: d.icd10_code,
+            probability: d.probability,
+            must_not_miss: d.must_not_miss,
+          })),
+          patient_symptoms: symptoms,
+          patient_age: ctx.patient_age,
+          patient_sex: ctx.patient_sex,
+          allergies: ctx.allergies,
+          current_medications: ctx.current_medications,
+        }),
+        TIMEOUT.HYPOTHESIS_TESTING,
+        "hypothesis_testing",
+      );
+      if (hypothesisTestResult) {
+        console.log(
+          `[Pipeline] Wave 2c: Hypothesis testing complete — ` +
+          `supported=${hypothesisTestResult.summary.supported}, ` +
+          `partial=${hypothesisTestResult.summary.partially_supported}, ` +
+          `weak=${hypothesisTestResult.summary.weakly_supported} ` +
+          `(${hypothesisTestResult.execution_ms}ms)`,
+        );
+        // Update DDX probabilities with evidence-adjusted values
+        if (hypothesisTestResult.tested_hypotheses.length > 0) {
+          const adjustedMap = new Map(
+            hypothesisTestResult.tested_hypotheses.map(h => [h.diagnosis_id, h]),
+          );
+          ddxResult = {
+            ...ddxResult,
+            differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
+              const tested = adjustedMap.get(d.diagnosis_id);
+              if (tested) {
+                return {
+                  ...d,
+                  probability: tested.adjusted_probability,
+                };
+              }
+              return d;
+            }).sort((a, b) => b.probability - a.probability),
+          };
+        }
+        pcieCore.addReasoningTrace(
+          "hypothesis_testing",
+          `Tested ${hypothesisTestResult.summary.total_tested} hypotheses: ${hypothesisTestResult.summary.supported} supported`,
+        );
+      }
+    } catch {
+      console.warn("[Pipeline] Wave 2c: Hypothesis testing failed — continuing with original DDX scores.");
+    }
+    lat.hypothesis_testing = Math.round(performance.now() - w2cStart);
+    waveLat.wave2c_hypothesis_testing = lat.hypothesis_testing;
+    lineageTracker.recordEngineResult("hypothesis_testing", !!hypothesisTestResult);
+  }
+  onProgress?.("hypothesis_testing", { hypothesis_testing: hypothesisTestResult });
+
+  // ═══════════════════════════════════════════════════════
   // WAVE 3 — Parallel Clinical Reasoning
   //   • Bayesian Probability Engine
   //   • Guideline Compliance Engine
