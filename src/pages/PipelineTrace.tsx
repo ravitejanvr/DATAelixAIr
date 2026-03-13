@@ -23,6 +23,7 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
   guideline: "Guide",
   hypothesis: "Hypo",
   hypothesis_testing: "HypoTest",
+  evidence_planning: "EvPlan",
   safety: "Safety",
   uncertainty: "Uncert",
   soap: "SOAP",
