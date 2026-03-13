@@ -672,15 +672,15 @@ Deno.serve(async (req) => {
 
     // Flatten joined physiology map
     const physiologyMap = (physMapRes.data || []).map((r: any) => ({
-      symptom: r.symptom?.symptom_name || "",
-      physiology_process: r.physiology_process || "",
-      organ_system: r.organ_system || "",
+      symptom: r.symptoms?.symptom_name || "",
+      physiology_process: r.physiological_states?.state_name || "",
+      organ_system: r.physiological_states?.anatomical_systems?.system_name || "",
     })).filter((r: any) => r.symptom && r.physiology_process);
 
     const physiologyDiagMap = (physDiagRes.data || []).map((r: any) => ({
-      physiology_process: r.physiology_process?.state_name || "",
-      disease_name: r.disease_name?.diagnosis_name || "",
-      confidence_score: r.confidence_score || 0.5,
+      physiology_process: r.physiological_states?.state_name || "",
+      disease_name: r.diagnoses?.diagnosis_name || "",
+      confidence_score: r.relevance_score || 0.5,
     })).filter((r: any) => r.physiology_process && r.disease_name);
 
     // ═══════════════════════════════════════════════════════════════════
