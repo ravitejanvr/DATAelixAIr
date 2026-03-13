@@ -556,7 +556,7 @@ function LiveValidationView({ report }: { report: ValidationReport }) {
               <Database className="h-4 w-4 text-primary" />
               <span className="text-xs font-medium text-muted-foreground">Knowledge Graph</span>
             </div>
-            <p className="text-2xl font-bold">{report.graph_integrity.total_relationships.toLocaleString()}</p>
+            <p className="text-2xl font-bold">{(report.graph_integrity.total_relationships ?? 0).toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">{report.graph_integrity.total_diseases} diseases · {report.graph_integrity.total_symptoms} symptoms</p>
           </CardContent>
         </Card>
