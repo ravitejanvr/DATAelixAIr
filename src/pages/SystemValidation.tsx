@@ -32,27 +32,28 @@ interface ValidationReport {
     failed: number;
     pass_rate: number;
     avg_diagnosis_match: number;
-    scenarios: Array<{
-      scenario_id: string;
-      scenario_name: string;
-      expected_organ_system: string;
-      passed: boolean;
-      diagnosis_match_rate: number;
-      matched_diagnoses: string[];
-      actual_diagnoses: string[];
-      graph_diagnoses: string[];
-      graph_labs: string[];
-      graph_drugs: string[];
-      graph_guidelines: string[];
-      bayesian_top: any;
-      bayesian_count: number;
-      safety_alert_count: number;
-      danger_detected: boolean;
-      soap_generated: boolean;
-      engine_status: Record<string, boolean>;
-      wave_latency: Record<string, number>;
-      total_latency_ms: number;
-    }>;
+      scenarios: Array<{
+        scenario_id: string;
+        scenario_name: string;
+        expected_organ_system: string;
+        passed: boolean;
+        diagnosis_match_rate: number;
+        matched_diagnoses: string[];
+        actual_diagnoses: string[];
+        graph_diagnoses: string[];
+        graph_labs: string[];
+        graph_drugs: string[];
+        graph_guidelines: string[];
+        bayesian_top: any;
+        bayesian_count: number;
+        safety_alert_count: number;
+        danger_detected: boolean;
+        soap_generated: boolean;
+        engine_status: Record<string, boolean>;
+        wave_latency: Record<string, number>;
+        total_latency_ms: number;
+        pipeline_trace?: Record<string, any>;
+      }>;
   };
   engine_health: Record<string, { active: number; total: number; rate: number }>;
   latency: {
@@ -328,7 +329,7 @@ export default function SystemValidation() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   <div>
                     <p className="font-medium text-muted-foreground mb-1">DDX Diagnoses</p>
                     {s.actual_diagnoses.length > 0 ? s.actual_diagnoses.map((d, i) => (
@@ -355,7 +356,24 @@ export default function SystemValidation() {
                       <p key={i}>{d}</p>
                     )) : <p className="text-muted-foreground italic">None</p>}
                   </div>
+                  <div>
+                    <p className="font-medium text-muted-foreground mb-1">Guidelines</p>
+                    {s.graph_guidelines.length > 0 ? s.graph_guidelines.map((g, i) => (
+                      <p key={i} className="text-blue-600 dark:text-blue-400">{g}</p>
+                    )) : <p className="text-muted-foreground italic">None</p>}
+                  </div>
                 </div>
+                {s.pipeline_trace && (
+                  <div className="bg-muted/30 rounded-lg p-2 mt-2">
+                    <p className="font-medium text-muted-foreground mb-1">PCIE Context</p>
+                    <div className="flex gap-4">
+                      <span>Fields: {s.pipeline_trace.pcie_populated_fields}/{s.pipeline_trace.pcie_total_fields}</span>
+                      <span>Confidence: {((s.pipeline_trace.pcie_confidence || 0) * 100).toFixed(0)}%</span>
+                      <span>Bayesian top: {s.pipeline_trace.bayesian_top || "—"}</span>
+                      <span>Safety: {s.pipeline_trace.safety_score ?? "—"}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-4 text-[10px] text-muted-foreground pt-1 border-t border-border">
                   {Object.entries(s.wave_latency).map(([k, v]) => (
                     <span key={k}>{k.replace(/_ms$/, "").replace(/wave\d_/, "")}: {Math.round(v as number)}ms</span>
