@@ -877,17 +877,18 @@ export async function runUnifiedClinicalPipeline(
   // Deterministic, graph-only — no LLM. Target: <200ms.
   // ═══════════════════════════════════════════════════════
   let hypothesisTestResult: HypothesisTestResult | null = null;
-  if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
+  const dxWithIds = ddxResult?.differential_diagnoses?.filter(d => d.diagnosis_name) || [];
+  if (dxWithIds.length > 0) {
     const w2cStart = performance.now();
     try {
       hypothesisTestResult = await withTimeout(
         testHypotheses({
-          candidate_diagnoses: ddxResult.differential_diagnoses.map(d => ({
-            diagnosis_id: d.diagnosis_id,
+          candidate_diagnoses: dxWithIds.map((d, i) => ({
+            diagnosis_id: d.diagnosis_id || `fallback-${i}-${d.diagnosis_name?.replace(/\s+/g, '-').toLowerCase()}`,
             diagnosis_name: d.diagnosis_name,
-            icd10_code: d.icd10_code,
-            probability: d.probability,
-            must_not_miss: d.must_not_miss,
+            icd10_code: d.icd10_code || null,
+            probability: d.probability || 0,
+            must_not_miss: d.must_not_miss || false,
           })),
           patient_symptoms: symptoms,
           patient_age: ctx.patient_age,
@@ -1368,12 +1369,12 @@ export async function runUnifiedClinicalPipeline(
           try {
             return await withTimeout(
               testHypotheses({
-                candidate_diagnoses: prunedDiagnoses.map(d => ({
-                  diagnosis_id: d.diagnosis_id,
+                candidate_diagnoses: prunedDiagnoses.map((d, i) => ({
+                  diagnosis_id: d.diagnosis_id || `fallback-loop-${i}-${d.diagnosis_name?.replace(/\s+/g, '-').toLowerCase()}`,
                   diagnosis_name: d.diagnosis_name,
-                  icd10_code: d.icd10_code,
-                  probability: d.probability,
-                  must_not_miss: d.must_not_miss,
+                  icd10_code: d.icd10_code || null,
+                  probability: d.probability || 0,
+                  must_not_miss: d.must_not_miss || false,
                 })),
                 patient_symptoms: symptoms,
                 patient_age: ctx.patient_age,
