@@ -674,6 +674,11 @@ export default function PlatformAdmin() {
           <TabsContent value="benchmarks-v6" className="mt-4">
             <BenchmarkDashboardV6 />
           </TabsContent>
+
+          {/* Benchmark v7 Tab */}
+          <TabsContent value="benchmarks-v7" className="mt-4">
+            <BenchmarkDashboardV7 />
+          </TabsContent>
         </Tabs>
       </div>
     </>
