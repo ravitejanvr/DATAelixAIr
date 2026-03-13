@@ -1,13 +1,15 @@
 /**
- * Clinical Pipeline Orchestrator (v4.1 — Wave-Based Parallel Architecture)
+ * Clinical Pipeline Orchestrator (v4.2 — Meta-Reasoning Architecture)
  *
- * Adaptive timeouts, organ-system weighting, enriched evidence retrieval.
+ * Wave-based parallel execution with Clinical World Model integration.
  *
  *   Wave 0 — PCIE Context Hydration
  *   Wave 1 — Context Preparation
+ *   Wave 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
  *   Wave 2 — Parallel Context Analysis (DDX, Physiology, Preindexed)
  *   Wave 2b — Evidence Retrieval (enriched with DDX results)
  *   Wave 3 — Parallel Clinical Reasoning (Bayesian, Guidelines, Hypotheses)
+ *   Wave 3.5 — Reasoning Conflict Resolution
  *   Wave 4 — Clinical Safety Evaluation
  *   Wave 5 — Output Generation (Uncertainty, Hybrid Reasoning, SOAP)
  */
@@ -48,6 +50,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { LineageTracker, type LineageReport } from "@/services/clinical_pipeline/lineage_tracker";
 import { PCIECore } from "@/services/pcie/core";
 import type { UnifiedClinicalContextGraph } from "@/services/pcie/context_graph";
+import { runMetaReasoning, resolveReasoningConflict, type MetaReasoningOutput, type ConflictResolution } from "@/services/meta_reasoning";
 
 // ── Public Types ──
 
@@ -82,6 +85,8 @@ export interface PipelineResult {
   hybrid_reasoning: HybridReasoningResult | null;
   soap_fallback: SOAPGeneratorResult | null;
   multi_agent: OrchestratorResponse | null;
+  meta_reasoning: MetaReasoningOutput | null;
+  conflict_resolution: ConflictResolution | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
@@ -390,7 +395,7 @@ export async function runUnifiedClinicalPipeline(
     bayesian: null, ddx: null, uncertainty: null, hypotheses: null,
     guideline_alignment: null, guideline_compliance: null, evidence: null,
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
-    multi_agent: null, guideline_summary: null,
+    multi_agent: null, meta_reasoning: null, conflict_resolution: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
     cache_stats: cache, lineage: null, context_graph: null,
   };
@@ -572,6 +577,37 @@ export async function runUnifiedClinicalPipeline(
   });
   lineageTracker.recordEngineResult("context_enrichment", !!enrichedContext);
   onProgress?.("context", { enriched_context: enrichedContext });
+
+  // ═══════════════════════════════════════════════════════
+  // WAVE 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
+  // ═══════════════════════════════════════════════════════
+  const w15Start = performance.now();
+  let metaReasoningResult: MetaReasoningOutput | null = null;
+  try {
+    metaReasoningResult = await runMetaReasoning({
+      symptoms,
+      vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp_systolic: vitals.bp_systolic },
+      history: ctx.medical_history,
+      medications: ctx.current_medications,
+      allergies: ctx.allergies,
+      chief_complaint: ctx.chief_complaint,
+    });
+    console.log(
+      `[Pipeline] Wave 1.5: Meta-reasoning complete — ` +
+      `organs=[${metaReasoningResult.world_state.organ_systems.join(",")}] ` +
+      `risk=${metaReasoningResult.world_state.risk_level} ` +
+      `hypotheses=${metaReasoningResult.world_state.hypotheses.length} ` +
+      `pathways=[${metaReasoningResult.activated_pathways.join(",")}]`
+    );
+    lineageTracker.recordEngineResult("meta_reasoning", true);
+    pcieCore.addReasoningTrace("meta_reasoning", `World model: ${metaReasoningResult.world_state.organ_systems.join(", ")} | risk=${metaReasoningResult.world_state.risk_level}`);
+  } catch (e) {
+    console.warn("[Pipeline] Wave 1.5: Meta-reasoning failed, continuing without world model:", e);
+    lineageTracker.recordEngineResult("meta_reasoning", false);
+  }
+  waveLat.wave15_meta_reasoning = Math.round(performance.now() - w15Start);
+  lat.meta_reasoning = waveLat.wave15_meta_reasoning;
+  onProgress?.("meta_reasoning", { meta_reasoning: metaReasoningResult });
 
   // ═══════════════════════════════════════════════════════
   // WAVE 2 — Parallel Context Analysis
@@ -948,6 +984,26 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("bayesian", { bayesian: bayesianResult });
   onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
+
+  // ═══════════════════════════════════════════════════════
+  // WAVE 3.5 — Reasoning Conflict Resolution
+  // ═══════════════════════════════════════════════════════
+  let conflictResult: ConflictResolution | null = null;
+  if (metaReasoningResult && ddxResult && bayesianResult) {
+    const ddxTop = ddxResult.differential_diagnoses[0];
+    const bayesTop = bayesianResult.diagnoses[0];
+    if (ddxTop && bayesTop) {
+      conflictResult = resolveReasoningConflict(
+        ddxTop.diagnosis_name, ddxTop.probability,
+        bayesTop.diagnosis_id ? (bayesTop as any).diagnosis_name || "" : "",
+        (bayesTop as any).posterior_probability || bayesTop.posterior_probability || 0,
+        metaReasoningResult.world_state,
+      );
+      if (conflictResult.resolution_method !== "agreement") {
+        console.log(`[Pipeline] Wave 3.5: Conflict resolved — ${conflictResult.explanation}`);
+      }
+    }
+  }
 
   // ═══════════════════════════════════════════════════════
   // WAVE 4 — Clinical Safety Evaluation
@@ -1396,6 +1452,8 @@ export async function runUnifiedClinicalPipeline(
     hybrid_reasoning: hybridReasoning,
     soap_fallback: soapFallback,
     multi_agent: multiAgentResult,
+    meta_reasoning: metaReasoningResult,
+    conflict_resolution: conflictResult,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: lat,
