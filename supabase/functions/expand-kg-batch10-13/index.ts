@@ -360,7 +360,7 @@ Deno.serve(async (req) => {
     for (const s of systems || []) systemIds[s.system_name] = s.id;
 
     for (let i = 0; i < physStates.length; i += 50) {
-      const chunk = physStates.slice(i, i + 50).map(s => ({ state_name: s.state_name, description: s.description, system_id: systemIds[s.organ_system] || null }));
+      const chunk = physStates.slice(i, i + 50).map(s => ({ state_name: s.state_name, description: s.description, system_id: systemIds[s.organ_system] || Object.values(systemIds)[0] }));
       await supabase.from("physiological_states").upsert(chunk, { onConflict: "state_name", ignoreDuplicates: true });
     }
 
