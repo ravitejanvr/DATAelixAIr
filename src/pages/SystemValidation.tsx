@@ -343,7 +343,7 @@ function PersistedBenchmarkView({ summary }: { summary: PersistedSummary }) {
                     </TableCell>
                     <TableCell>
                       <span className="text-xs">{r.confidence_label}</span>
-                      <span className="text-[10px] text-muted-foreground ml-1">({(r.confidence_score * 100).toFixed(0)}%)</span>
+                      <span className="text-[10px] text-muted-foreground ml-1">({((r.confidence_score ?? 0) * 100).toFixed(0)}%)</span>
                     </TableCell>
                     <TableCell>
                       <Badge className={`${gradeColor(r.lab_agreement)} text-[10px]`}>{r.lab_agreement}%</Badge>
@@ -360,7 +360,7 @@ function PersistedBenchmarkView({ summary }: { summary: PersistedSummary }) {
       </Card>
 
       <p className="text-xs text-muted-foreground text-center">
-        Benchmark data from: {new Date(runTimestamp).toLocaleString()} · {totalRuns} total scenarios recovered from database
+        Benchmark data from: {runTimestamp ? new Date(runTimestamp).toLocaleString() : "Unknown"} · {totalRuns} total scenarios recovered from database
       </p>
     </div>
   );
@@ -556,7 +556,7 @@ function LiveValidationView({ report }: { report: ValidationReport }) {
               <Database className="h-4 w-4 text-primary" />
               <span className="text-xs font-medium text-muted-foreground">Knowledge Graph</span>
             </div>
-            <p className="text-2xl font-bold">{report.graph_integrity.total_relationships.toLocaleString()}</p>
+            <p className="text-2xl font-bold">{(report.graph_integrity.total_relationships ?? 0).toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">{report.graph_integrity.total_diseases} diseases · {report.graph_integrity.total_symptoms} symptoms</p>
           </CardContent>
         </Card>
@@ -718,7 +718,7 @@ function LiveValidationView({ report }: { report: ValidationReport }) {
             {Object.entries(report.graph_integrity.table_counts).map(([table, count]) => (
               <div key={table} className="bg-muted/50 rounded-lg p-2">
                 <p className="text-[10px] text-muted-foreground truncate">{table}</p>
-                <p className="text-sm font-semibold">{(count as number).toLocaleString()}</p>
+                <p className="text-sm font-semibold">{((count as number) ?? 0).toLocaleString()}</p>
               </div>
             ))}
           </div>
