@@ -87,6 +87,7 @@ export interface PipelineResult {
   soap_fallback: SOAPGeneratorResult | null;
   multi_agent: OrchestratorResponse | null;
   meta_reasoning: MetaReasoningOutput | null;
+  hypothesis_testing: HypothesisTestResult | null;
   conflict_resolution: ConflictResolution | null;
   guideline_summary: {
     guideline_sources_used: string[];
