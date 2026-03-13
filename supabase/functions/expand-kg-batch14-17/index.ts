@@ -420,7 +420,7 @@ Deno.serve(async (req) => {
     const symPhysRows: any[] = [];
     for (const [sym, phys, conf, rel] of symPhysMaps) {
       const sId = allSymIds[sym]; const pId = allPhysIds[phys];
-      if (sId && pId) symPhysRows.push({ symptom_id: sId, physiological_state_id: pId, confidence_score: conf, relevance_score: rel });
+      if (sId && pId) symPhysRows.push({ symptom_id: sId, physiological_state_id: pId, confidence_score: conf });
     }
     for (let i = 0; i < symPhysRows.length; i += 100) {
       await supabase.from("symptom_physiology_map").upsert(symPhysRows.slice(i, i + 100), { onConflict: "symptom_id,physiological_state_id", ignoreDuplicates: true });
