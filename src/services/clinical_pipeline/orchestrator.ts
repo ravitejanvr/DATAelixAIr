@@ -50,6 +50,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { LineageTracker, type LineageReport } from "@/services/clinical_pipeline/lineage_tracker";
 import { PCIECore } from "@/services/pcie/core";
 import type { UnifiedClinicalContextGraph } from "@/services/pcie/context_graph";
+import { runMetaReasoning, resolveReasoningConflict, type MetaReasoningOutput, type ConflictResolution } from "@/services/meta_reasoning";
 
 // ── Public Types ──
 
