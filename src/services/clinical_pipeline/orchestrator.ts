@@ -1884,6 +1884,32 @@ export async function runUnifiedClinicalPipeline(
 
   const contextGraph = pcieCore.getGraph();
 
+  // ── Wave 6 — Clinical Cognitive Layer (async, fire-and-forget) ──
+  // Does NOT block the pipeline return. Learning signals are recorded
+  // asynchronously for batch calibration.
+  const topDiagnosis = ddxResult?.differential_diagnoses?.[0];
+  if (input.clinic_id && !input.skip_cache) {
+    runCognitiveLayer({
+      case: {
+        visit_id: input.visit_id || undefined,
+        patient_id: input.clinical_context.patient_id || "",
+        clinic_id: input.clinic_id,
+        doctor_id: input.clinical_context.doctor_id || "",
+        symptom_vector: symptoms,
+        chief_complaint: ctx.chief_complaint,
+        final_diagnosis: topDiagnosis?.diagnosis_name,
+        ai_top_diagnosis: topDiagnosis?.diagnosis_name,
+        organ_system: dominantSystem || undefined,
+        confidence_score: uncertaintyResult?.confidence_score,
+        differential_diagnoses: ddxResult?.differential_diagnoses?.slice(0, 5),
+        patient_age: ctx.patient_age ?? undefined,
+        patient_sex: ctx.patient_sex ?? undefined,
+      },
+      clinic_id: input.clinic_id,
+      run_discovery: false, // Discovery runs on a schedule, not per-consultation
+    }).catch(e => console.warn("[Pipeline] Cognitive layer error (non-blocking):", e));
+  }
+
   onProgress?.("complete", {});
 
   return {
@@ -1923,6 +1949,7 @@ export async function runUnifiedClinicalPipeline(
     cache_stats: cache,
     lineage: lineageReport,
     context_graph: { ...contextGraph } as UnifiedClinicalContextGraph,
+    cognitive_layer: null, // Populated async — check episodic_case_memory table
   };
 }
 
