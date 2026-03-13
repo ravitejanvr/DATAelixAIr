@@ -149,6 +149,7 @@ const TIMEOUT = {
   UNCERTAINTY:     8000,
   HYBRID:          10000,
   SOAP:            4000,
+  CAUSAL_REASONING: 4000,
 } as const;
 
 // ── Organ-System Weighting ──
