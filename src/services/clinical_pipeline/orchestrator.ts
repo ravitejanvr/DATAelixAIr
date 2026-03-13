@@ -109,6 +109,7 @@ export interface PipelineResult {
   diagnostic_loop: DiagnosticLoopMeta | null;
   causal_reasoning: CausalReasoningResult | null;
   calibration: CalibrationResult | null;
+  episodic_memory: EpisodicMemoryResult | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
