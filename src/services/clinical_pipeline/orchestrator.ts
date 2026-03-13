@@ -1910,6 +1910,7 @@ export async function runUnifiedClinicalPipeline(
     } : null,
     causal_reasoning: causalReasoningResult,
     calibration: calibrationResult,
+    episodic_memory: episodicMemoryResult,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: lat,
