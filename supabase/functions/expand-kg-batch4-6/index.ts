@@ -681,7 +681,7 @@ Deno.serve(async (req) => {
       const pId = allPhysIds[phys];
       const dId = allDiagIds[diag];
       if (pId && dId) {
-        physDiagRows.push({ physiological_state_id: pId, diagnosis_id: dId, confidence_score: conf, relevance_score: rel });
+        physDiagRows.push({ physiological_state_id: pId, diagnosis_id: dId, relevance_score: rel });
       }
     }
     for (let i = 0; i < physDiagRows.length; i += 100) {
