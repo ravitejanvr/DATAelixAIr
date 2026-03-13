@@ -60,6 +60,7 @@ import { planEvidence, type EvidencePlanResult } from "@/services/evidence_plann
 import { runCausalReasoning, type CausalReasoningResult } from "@/services/causal_reasoning/client";
 import { getCalibrationFactors, buildCalibrationMap, type CalibrationResult } from "@/services/learning_system/calibration_client";
 import { queryEpisodicMemory, buildEpisodicPriors, type EpisodicMemoryResult } from "@/services/episodic_memory/client";
+import { runCognitiveLayer, type CognitiveLayerResult } from "@/services/cognitive";
 
 // ── Public Types ──
 
