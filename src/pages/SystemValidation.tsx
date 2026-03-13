@@ -365,6 +365,36 @@ export default function SystemValidation() {
             </Card>
           ))}
 
+          {/* Repair Log */}
+          {(report as any).repair_log && (
+            <Card className="border-blue-200 dark:border-blue-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-blue-500" />
+                  Pipeline Repair Log
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Fixes Applied</p>
+                  <ul className="space-y-0.5">
+                    {((report as any).repair_log.fixes_applied || []).map((f: string, i: number) => (
+                      <li key={i} className="text-xs text-emerald-600 dark:text-emerald-400">✓ {f}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Previous Issues Resolved</p>
+                  <ul className="space-y-0.5">
+                    {((report as any).repair_log.previous_issues || []).map((f: string, i: number) => (
+                      <li key={i} className="text-xs text-muted-foreground">• {f}</li>
+                    ))}
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Recommendations */}
           {report.recommendations.length > 0 && (
             <Card className="border-amber-200 dark:border-amber-800">
