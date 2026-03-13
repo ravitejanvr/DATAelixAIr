@@ -9,6 +9,7 @@ import {
 import {
   Play, Loader2, CheckCircle, XCircle, Database, Activity,
   Clock, Shield, Brain, Beaker, AlertTriangle, FileText, Zap, Target,
+  Globe, Layers, ArrowRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,6 +19,25 @@ interface SignalOptimization {
   high_specificity_symptoms: number;
   low_specificity_symptoms: number;
   avg_specificity: number;
+  activation_rules_count?: number;
+}
+
+interface WorldModelInfo {
+  activation_rules: number;
+  physiology_map_entries: number;
+  physiology_diag_entries: number;
+  reasoning_traces_stored: number;
+}
+
+interface ScenarioWorldModel {
+  organ_systems: string[];
+  risk_level: string;
+  state_confidence: number;
+  hypotheses_count: number;
+  top_hypotheses: Array<{ disease: string; confidence: number; organ_system: string; source: string }>;
+  dangerous_conditions: string[];
+  physiological_states: Array<{ process: string; organ_system: string; confidence: number }>;
+  reasoning_traces: Array<{ symptom: string; physiology: string; disease: string; chain: string }>;
 }
 
 interface ValidationReport {
@@ -31,6 +51,7 @@ interface ValidationReport {
     total_relationships: number;
     avg_edges_per_disease: number;
     signal_optimization?: SignalOptimization;
+    world_model?: WorldModelInfo;
     gaps: string[];
     status: string;
     latency_ms: number;
@@ -58,6 +79,7 @@ interface ValidationReport {
       safety_alert_count: number;
       danger_detected: boolean;
       soap_generated: boolean;
+      world_model?: ScenarioWorldModel;
       engine_status: Record<string, boolean>;
       wave_latency: Record<string, number>;
       total_latency_ms: number;
@@ -96,6 +118,15 @@ function specificityBadge(score: number) {
   return <Badge className="bg-muted text-muted-foreground text-[9px]">Low</Badge>;
 }
 
+function riskBadge(level: string) {
+  switch (level) {
+    case "critical": return <Badge className="bg-destructive/20 text-destructive text-[9px]">CRITICAL</Badge>;
+    case "high": return <Badge className="bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400 text-[9px]">HIGH</Badge>;
+    case "moderate": return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400 text-[9px]">MOD</Badge>;
+    default: return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 text-[9px]">LOW</Badge>;
+  }
+}
+
 export default function SystemValidation() {
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [running, setRunning] = useState(false);
@@ -122,7 +153,7 @@ export default function SystemValidation() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">System Validation</h1>
-          <p className="text-sm text-muted-foreground">Signal-optimized clinical reasoning pipeline validation</p>
+          <p className="text-sm text-muted-foreground">Clinical World Model + Signal-optimized reasoning pipeline</p>
         </div>
         <Button onClick={handleRun} disabled={running} size="lg">
           {running ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
@@ -134,8 +165,8 @@ export default function SystemValidation() {
         <Card>
           <CardContent className="py-8 text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-            <p className="text-muted-foreground">Running 8 benchmark scenarios with specificity-weighted Bayesian inference…</p>
-            <p className="text-xs text-muted-foreground mt-1">This may take 30–60 seconds</p>
+            <p className="text-muted-foreground">Running 8 scenarios through Clinical World Model + reasoning pipeline…</p>
+            <p className="text-xs text-muted-foreground mt-1">PCIE → World Model → Graph → DDX → Bayesian → Safety → SOAP</p>
           </CardContent>
         </Card>
       )}
@@ -151,7 +182,7 @@ export default function SystemValidation() {
       {report && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <Card>
               <CardContent className="pt-4 pb-3">
                 <div className="flex items-center gap-2 mb-1">
@@ -184,6 +215,16 @@ export default function SystemValidation() {
             <Card>
               <CardContent className="pt-4 pb-3">
                 <div className="flex items-center gap-2 mb-1">
+                  <Globe className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground">World Model</span>
+                </div>
+                <p className="text-2xl font-bold">{report.engine_health.world_model?.rate || 0}%</p>
+                <p className="text-xs text-muted-foreground">{report.engine_health.world_model?.active || 0}/{report.engine_health.world_model?.total || 0} active</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 mb-1">
                   <Target className="h-4 w-4 text-primary" />
                   <span className="text-xs font-medium text-muted-foreground">Signal Strength</span>
                 </div>
@@ -210,6 +251,54 @@ export default function SystemValidation() {
               </CardContent>
             </Card>
           </div>
+
+          {/* World Model Overview */}
+          {report.graph_integrity.world_model && (
+            <Card className="border-primary/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-primary" />
+                  Clinical World Model
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground">Activation Rules</p>
+                    <p className="text-lg font-bold">{report.graph_integrity.world_model.activation_rules}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground">Physiology Map</p>
+                    <p className="text-lg font-bold">{report.graph_integrity.world_model.physiology_map_entries}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground">Physiology→Dx Map</p>
+                    <p className="text-lg font-bold">{report.graph_integrity.world_model.physiology_diag_entries}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground">Reasoning Traces</p>
+                    <p className="text-lg font-bold">{report.graph_integrity.world_model.reasoning_traces_stored}</p>
+                  </div>
+                </div>
+                {/* Pipeline Flow */}
+                <div className="flex items-center gap-1 text-[10px] text-muted-foreground justify-center flex-wrap">
+                  <span className="px-2 py-1 bg-muted rounded">PCIE</span>
+                  <ArrowRight className="h-3 w-3" />
+                  <span className="px-2 py-1 bg-primary/20 text-primary rounded font-medium">World Model</span>
+                  <ArrowRight className="h-3 w-3" />
+                  <span className="px-2 py-1 bg-muted rounded">Graph</span>
+                  <ArrowRight className="h-3 w-3" />
+                  <span className="px-2 py-1 bg-muted rounded">DDX</span>
+                  <ArrowRight className="h-3 w-3" />
+                  <span className="px-2 py-1 bg-muted rounded">Bayesian</span>
+                  <ArrowRight className="h-3 w-3" />
+                  <span className="px-2 py-1 bg-muted rounded">Safety</span>
+                  <ArrowRight className="h-3 w-3" />
+                  <span className="px-2 py-1 bg-muted rounded">SOAP</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Signal Optimization Panel */}
           {report.graph_integrity.signal_optimization && (
@@ -287,7 +376,7 @@ export default function SystemValidation() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                 {Object.entries(report.engine_health).map(([engine, stats]) => (
                   <div key={engine} className="bg-muted/50 rounded-lg p-3 text-center">
                     <p className="text-[10px] text-muted-foreground mb-1">{engine.replace(/_/g, " ")}</p>
@@ -309,14 +398,15 @@ export default function SystemValidation() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+              <div className="grid grid-cols-3 md:grid-cols-7 gap-3">
                 {Object.entries(report.latency.avg_wave_latency).map(([wave, ms]) => {
                   const label = wave.replace(/_ms$/, "").replace(/_/g, " ");
+                  const isWorldModel = wave.includes("world_model");
                   return (
-                    <div key={wave} className="bg-muted/50 rounded-lg p-2 text-center">
-                      <p className="text-[10px] text-muted-foreground">{label}</p>
+                    <div key={wave} className={`rounded-lg p-2 text-center ${isWorldModel ? "bg-primary/10 border border-primary/30" : "bg-muted/50"}`}>
+                      <p className={`text-[10px] ${isWorldModel ? "text-primary font-medium" : "text-muted-foreground"}`}>{label}</p>
                       <p className={`text-sm font-bold ${latencyColor(ms as number)}`}>
-                        {((ms as number) / 1000).toFixed(1)}s
+                        {(ms as number) < 10 ? `${ms}ms` : `${((ms as number) / 1000).toFixed(1)}s`}
                       </p>
                     </div>
                   );
@@ -340,8 +430,8 @@ export default function SystemValidation() {
                     <TableHead className="text-xs">Scenario</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs">Dx Match</TableHead>
+                    <TableHead className="text-xs">World Model</TableHead>
                     <TableHead className="text-xs">Specificity</TableHead>
-                    <TableHead className="text-xs">Organ Sys</TableHead>
                     <TableHead className="text-xs">Bayesian</TableHead>
                     <TableHead className="text-xs">Safety</TableHead>
                     <TableHead className="text-xs">Latency</TableHead>
@@ -362,19 +452,22 @@ export default function SystemValidation() {
                         </Badge>
                       </TableCell>
                       <TableCell>
+                        {s.world_model ? (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1">
+                              {statusIcon(s.engine_status.world_model)}
+                              {riskBadge(s.world_model.risk_level)}
+                            </div>
+                            <span className="text-[9px] text-muted-foreground block">
+                              {s.world_model.organ_systems.join(", ") || "—"}
+                            </span>
+                          </div>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell>
                         {s.pipeline_trace?.avg_symptom_specificity !== undefined
                           ? specificityBadge(s.pipeline_trace.avg_symptom_specificity)
                           : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-[10px] text-muted-foreground">
-                          {s.pipeline_trace?.dominant_organ_system || "—"}
-                        </span>
-                        {s.pipeline_trace?.organ_system_weight && (
-                          <span className="text-[9px] ml-1 text-primary">
-                            ×{s.pipeline_trace.organ_system_weight}
-                          </span>
-                        )}
                       </TableCell>
                       <TableCell>
                         {statusIcon(s.engine_status.bayesian_engine)}
@@ -402,16 +495,81 @@ export default function SystemValidation() {
             </CardContent>
           </Card>
 
-          {/* Scenario Detail Traces */}
+          {/* Scenario Detail Traces with World Model */}
           {report.benchmark.scenarios.map((s) => (
             <Card key={s.scenario_id} className="border-l-4" style={{ borderLeftColor: s.passed ? "hsl(var(--primary))" : "hsl(var(--destructive))" }}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   {statusIcon(s.passed)}
                   {s.scenario_name} — Reasoning Trace
+                  {s.world_model && riskBadge(s.world_model.risk_level)}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
+                {/* World Model State */}
+                {s.world_model && (
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-2">
+                    <p className="text-[10px] font-semibold text-primary flex items-center gap-1">
+                      <Globe className="h-3 w-3" /> Clinical World State
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">Organ Systems</p>
+                        <p className="font-medium">{s.world_model.organ_systems.join(", ") || "none"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">State Confidence</p>
+                        <p className="font-medium">{Math.round(s.world_model.state_confidence * 100)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">Hypotheses</p>
+                        <p className="font-medium">{s.world_model.hypotheses_count}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">Dangerous</p>
+                        <p className="font-medium text-destructive">{s.world_model.dangerous_conditions.length > 0 ? s.world_model.dangerous_conditions.join(", ") : "none"}</p>
+                      </div>
+                    </div>
+                    {/* Physiological States */}
+                    {s.world_model.physiological_states.length > 0 && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-1">Physiological States</p>
+                        <div className="flex flex-wrap gap-1">
+                          {s.world_model.physiological_states.map((ps, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-muted rounded text-[10px]">
+                              {ps.process} <span className="text-muted-foreground">({Math.round(ps.confidence * 100)}%)</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Top Hypotheses */}
+                    {s.world_model.top_hypotheses.length > 0 && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-1">Top Hypotheses</p>
+                        {s.world_model.top_hypotheses.map((h, i) => (
+                          <p key={i} className="text-[10px]">
+                            {i + 1}. {h.disease}
+                            <span className="text-muted-foreground ml-1">({Math.round(h.confidence * 100)}% · {h.source})</span>
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {/* Evidence Chains */}
+                    {s.world_model.reasoning_traces.length > 0 && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-1">Evidence Chains</p>
+                        {s.world_model.reasoning_traces.map((t, i) => (
+                          <p key={i} className="text-[10px] text-primary/80 flex items-center gap-1">
+                            <Layers className="h-3 w-3 shrink-0" />
+                            {t.chain}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   <div>
                     <p className="font-medium text-muted-foreground mb-1">DDX Diagnoses</p>
@@ -456,15 +614,22 @@ export default function SystemValidation() {
                     </div>
                     <div className="flex gap-4 flex-wrap">
                       <span className="text-primary">Specificity: {s.pipeline_trace.avg_symptom_specificity ?? "—"}</span>
-                      <span className="text-primary">Organ: {s.pipeline_trace.dominant_organ_system || "—"} ×{s.pipeline_trace.organ_system_weight ?? "—"}</span>
                       <span className="text-primary">Signal: σ{s.pipeline_trace.bayesian_signal_strength ?? "—"}</span>
+                      {s.pipeline_trace.world_model_risk_level && (
+                        <span className="text-primary">Risk: {s.pipeline_trace.world_model_risk_level}</span>
+                      )}
                     </div>
                   </div>
                 )}
                 <div className="flex gap-4 text-[10px] text-muted-foreground pt-1 border-t border-border flex-wrap">
-                  {Object.entries(s.wave_latency).map(([k, v]) => (
-                    <span key={k}>{k.replace(/_ms$/, "").replace(/wave\d_/, "")}: {Math.round(v as number)}ms</span>
-                  ))}
+                  {Object.entries(s.wave_latency).map(([k, v]) => {
+                    const isWM = k.includes("world_model");
+                    return (
+                      <span key={k} className={isWM ? "text-primary font-medium" : ""}>
+                        {k.replace(/_ms$/, "").replace(/wave\d+_?/, "")}: {Math.round(v as number)}ms
+                      </span>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -476,12 +641,12 @@ export default function SystemValidation() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Shield className="h-4 w-4 text-blue-500" />
-                  Signal Optimization Log
+                  Architecture Log
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Optimizations Applied</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">World Model & Optimizations</p>
                   <ul className="space-y-0.5">
                     {((report as any).repair_log.fixes_applied || []).map((f: string, i: number) => (
                       <li key={i} className="text-xs text-emerald-600 dark:text-emerald-400">✓ {f}</li>
