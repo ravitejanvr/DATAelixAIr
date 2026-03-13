@@ -863,6 +863,33 @@ export async function runUnifiedClinicalPipeline(
   }
   onProgress?.("hypothesis_testing", { hypothesis_testing: hypothesisTestResult });
 
+  // ── Apply learned calibration factors to DDX probabilities ──
+  await calibrationPromise; // Ensure calibration data is ready
+  if (calibrationResult && ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const calMap = buildCalibrationMap(calibrationResult);
+    if (calMap.size > 0) {
+      let calibratedCount = 0;
+      ddxResult = {
+        ...ddxResult,
+        differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
+          const factor = calMap.get(d.diagnosis_name.toLowerCase());
+          if (factor && factor !== 1.0) {
+            calibratedCount++;
+            const adjusted = d.must_not_miss
+              ? Math.max(d.probability, Math.round(d.probability * factor))
+              : Math.round(d.probability * factor);
+            return { ...d, probability: Math.max(1, Math.min(95, adjusted)) };
+          }
+          return d;
+        }).sort((a, b) => b.probability - a.probability),
+      };
+      if (calibratedCount > 0) {
+        console.log(`[Pipeline] Learning: Applied calibration to ${calibratedCount} DDX candidates.`);
+        pcieCore.addReasoningTrace("learning" as any, `Calibrated ${calibratedCount} priors from ${calibrationResult.summary.total_outcomes_analyzed} historical outcomes`);
+      }
+    }
+  }
+
   // ═══════════════════════════════════════════════════════
   // WAVE 2d — Causal Reasoning (parallel with nothing — runs after DDX adjustments)
   // Builds causal chains, convergent pathways, counterfactuals, and conflict detection.
