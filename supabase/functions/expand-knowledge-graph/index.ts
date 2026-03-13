@@ -464,18 +464,18 @@ Deno.serve(async (req) => {
       addLog(`  Likelihoods upserted: ${likInserted}`);
 
       // STEP 5: Disease tests
-      addLog("Step 5: Inserting disease tests...");
+      addLog("Step 5: Upserting disease tests...");
       const testRows = diseases.flatMap(d => d.tests.map(([tname, tcat, tstr]) => ({
         disease_name: d.name, test_name: tname, test_category: tcat, diagnostic_strength: tstr,
       })));
       let testsInserted = 0;
       for (let i = 0; i < testRows.length; i += 200) {
         const chunk = testRows.slice(i, i + 200);
-        const { error } = await supabase.from("disease_tests").insert(chunk);
+        const { error } = await supabase.from("disease_tests").upsert(chunk, { onConflict: "disease_name,test_name", ignoreDuplicates: true });
         if (error) addLog(`  Tests error: ${error.message}`);
         else testsInserted += chunk.length;
       }
-      addLog(`  Tests inserted: ${testsInserted}`);
+      addLog(`  Tests upserted: ${testsInserted}`);
 
       // STEP 6: Disease treatments
       addLog("Step 6: Inserting treatments...");
