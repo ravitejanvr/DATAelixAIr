@@ -15,6 +15,7 @@ import SEO from "@/components/SEO";
 const STAGE_LABELS: Record<PipelineStage, string> = {
   pcie: "PCIE",
   context_enrichment: "Context",
+  meta_reasoning: "Meta",
   ddx: "DDX",
   physiology: "Physio",
   evidence: "Evidence",
