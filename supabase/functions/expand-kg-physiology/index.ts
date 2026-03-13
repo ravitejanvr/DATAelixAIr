@@ -5,14 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ══════════════════════════════════════════════════
-// PHYSIOLOGY EXPANSION
-// Adds new physiological states + symptom→physiology + physiology→diagnosis mappings
-// ══════════════════════════════════════════════════
-
 interface PhysioState {
   state_name: string;
-  organ_system: string;
+  organ_system: string; // mapped to system_id at insert time
   description: string;
 }
 
@@ -88,13 +83,13 @@ function getNewPhysiologicalStates(): PhysioState[] {
     {state_name:"catecholamine excess",organ_system:"endocrine",description:"Excessive catecholamine secretion from adrenal medulla"},
     {state_name:"parathyroid hormone excess",organ_system:"endocrine",description:"Excess PTH causing hypercalcemia"},
     {state_name:"androgen excess",organ_system:"endocrine",description:"Elevated androgen levels causing virilization"},
-    // Hematological
-    {state_name:"iron depletion",organ_system:"hematological",description:"Insufficient iron stores for erythropoiesis"},
-    {state_name:"hemoglobin S polymerization",organ_system:"hematological",description:"Sickling of red blood cells under low oxygen conditions"},
-    {state_name:"platelet destruction immune",organ_system:"hematological",description:"Antibody-mediated platelet destruction"},
-    {state_name:"coagulation cascade activation",organ_system:"hematological",description:"Uncontrolled systemic activation of coagulation and fibrinolysis"},
-    {state_name:"clotting factor deficiency",organ_system:"hematological",description:"Deficiency of coagulation factors causing bleeding"},
-    {state_name:"ineffective erythropoiesis",organ_system:"hematological",description:"Impaired red blood cell production from globin chain imbalance"},
+    // Hematological → hematologic
+    {state_name:"iron depletion",organ_system:"hematologic",description:"Insufficient iron stores for erythropoiesis"},
+    {state_name:"hemoglobin S polymerization",organ_system:"hematologic",description:"Sickling of red blood cells under low oxygen conditions"},
+    {state_name:"platelet destruction immune",organ_system:"hematologic",description:"Antibody-mediated platelet destruction"},
+    {state_name:"coagulation cascade activation",organ_system:"hematologic",description:"Uncontrolled systemic activation of coagulation and fibrinolysis"},
+    {state_name:"clotting factor deficiency",organ_system:"hematologic",description:"Deficiency of coagulation factors causing bleeding"},
+    {state_name:"ineffective erythropoiesis",organ_system:"hematologic",description:"Impaired red blood cell production from globin chain imbalance"},
     // Immune/Inflammatory
     {state_name:"systemic inflammatory response",organ_system:"immune",description:"Dysregulated host immune response to infection"},
     {state_name:"autoimmune joint destruction",organ_system:"immune",description:"Immune-mediated synovitis and joint damage"},
@@ -106,11 +101,11 @@ function getNewPhysiologicalStates(): PhysioState[] {
     {state_name:"parasitic erythrocyte invasion",organ_system:"infectious",description:"Plasmodium parasites invading and destroying red blood cells"},
     {state_name:"viral hemorrhagic mechanism",organ_system:"infectious",description:"Endothelial damage and capillary leak from dengue virus"},
     {state_name:"enteric bacterial infection",organ_system:"infectious",description:"Bacterial invasion of intestinal mucosa"},
-    // Dermatological
-    {state_name:"keratinocyte hyperproliferation",organ_system:"dermatological",description:"Accelerated epidermal turnover with abnormal keratinization"},
-    {state_name:"epidermal barrier dysfunction",organ_system:"dermatological",description:"Impaired skin barrier with filaggrin deficiency"},
-    {state_name:"dermatomal viral reactivation",organ_system:"dermatological",description:"VZV reactivation along sensory nerve distribution"},
-    {state_name:"keratinocyte apoptosis immune",organ_system:"dermatological",description:"Drug-induced immune-mediated keratinocyte destruction"},
+    // Dermatological → dermatologic
+    {state_name:"keratinocyte hyperproliferation",organ_system:"dermatologic",description:"Accelerated epidermal turnover with abnormal keratinization"},
+    {state_name:"epidermal barrier dysfunction",organ_system:"dermatologic",description:"Impaired skin barrier with filaggrin deficiency"},
+    {state_name:"dermatomal viral reactivation",organ_system:"dermatologic",description:"VZV reactivation along sensory nerve distribution"},
+    {state_name:"keratinocyte apoptosis immune",organ_system:"dermatologic",description:"Drug-induced immune-mediated keratinocyte destruction"},
     // Renal
     {state_name:"glomerular filtration decline",organ_system:"renal",description:"Progressive loss of nephron function"},
     {state_name:"renal tubular obstruction",organ_system:"renal",description:"Calculus obstruction of renal collecting system"},
@@ -132,7 +127,6 @@ function getNewPhysiologicalStates(): PhysioState[] {
 
 function getSymptomPhysioLinks(): SymptomPhysioLink[] {
   return [
-    // Cardiovascular chains
     {symptom_name:"chest pain",state_name:"myocardial ischemia",strength:0.85},
     {symptom_name:"chest tightness",state_name:"myocardial ischemia",strength:0.80},
     {symptom_name:"left arm pain",state_name:"myocardial ischemia",strength:0.70},
@@ -156,7 +150,6 @@ function getSymptomPhysioLinks(): SymptomPhysioLink[] {
     {symptom_name:"new heart murmur",state_name:"endocardial infection",strength:0.85},
     {symptom_name:"exertional dyspnea",state_name:"valvular stenosis",strength:0.75},
     {symptom_name:"syncope",state_name:"valvular stenosis",strength:0.65},
-    // Respiratory chains
     {symptom_name:"wheezing",state_name:"airway hyperreactivity",strength:0.85},
     {symptom_name:"chronic cough",state_name:"alveolar destruction",strength:0.70},
     {symptom_name:"progressive dyspnea",state_name:"alveolar destruction",strength:0.80},
@@ -174,7 +167,6 @@ function getSymptomPhysioLinks(): SymptomPhysioLink[] {
     {symptom_name:"night sweats",state_name:"mycobacterial infection",strength:0.70},
     {symptom_name:"snoring",state_name:"upper airway obstruction mechanism",strength:0.70},
     {symptom_name:"witnessed apneas",state_name:"upper airway obstruction mechanism",strength:0.85},
-    // Neurological chains
     {symptom_name:"sudden weakness one side",state_name:"cerebral ischemia",strength:0.90},
     {symptom_name:"facial droop",state_name:"cerebral ischemia",strength:0.85},
     {symptom_name:"speech difficulty",state_name:"cerebral ischemia",strength:0.80},
@@ -197,115 +189,77 @@ function getSymptomPhysioLinks(): SymptomPhysioLink[] {
     {symptom_name:"progressive memory loss",state_name:"neuronal amyloid accumulation",strength:0.85},
     {symptom_name:"severe facial pain",state_name:"trigeminal nerve compression",strength:0.85},
     {symptom_name:"electric shock-like facial pain",state_name:"trigeminal nerve compression",strength:0.90},
-    // GI chains
     {symptom_name:"heartburn",state_name:"gastric acid reflux",strength:0.90},
     {symptom_name:"acid regurgitation",state_name:"gastric acid reflux",strength:0.85},
     {symptom_name:"epigastric pain",state_name:"mucosal ulceration gastric",strength:0.80},
-    {symptom_name:"burning stomach pain",state_name:"mucosal ulceration gastric",strength:0.85},
-    {symptom_name:"severe epigastric pain",state_name:"pancreatic autodigestion",strength:0.85},
-    {symptom_name:"pain radiating to back",state_name:"pancreatic autodigestion",strength:0.80},
-    {symptom_name:"right upper quadrant pain",state_name:"gallbladder inflammation",strength:0.80},
-    {symptom_name:"Murphy sign positive",state_name:"gallbladder inflammation",strength:0.90},
+    {symptom_name:"upper abdominal pain",state_name:"pancreatic autodigestion",strength:0.75},
+    {symptom_name:"epigastric pain radiating to back",state_name:"pancreatic autodigestion",strength:0.85},
     {symptom_name:"jaundice",state_name:"biliary obstruction",strength:0.80},
     {symptom_name:"dark urine",state_name:"biliary obstruction",strength:0.70},
-    {symptom_name:"bloody diarrhea",state_name:"intestinal mucosal inflammation",strength:0.85},
-    {symptom_name:"chronic diarrhea",state_name:"intestinal mucosal inflammation",strength:0.70},
-    {symptom_name:"periumbilical pain migrating to RLQ",state_name:"appendiceal obstruction",strength:0.90},
-    {symptom_name:"right lower quadrant pain",state_name:"appendiceal obstruction",strength:0.80},
-    {symptom_name:"ascites",state_name:"hepatic fibrosis",strength:0.80},
-    {symptom_name:"spider angiomas",state_name:"hepatic fibrosis",strength:0.75},
-    {symptom_name:"bloating",state_name:"gut dysmotility",strength:0.75},
-    {symptom_name:"altered bowel habits",state_name:"gut dysmotility",strength:0.80},
-    {symptom_name:"malabsorption",state_name:"intestinal malabsorption",strength:0.85},
-    {symptom_name:"iron deficiency anemia",state_name:"intestinal malabsorption",strength:0.65},
-    // Endocrine chains
+    {symptom_name:"right upper quadrant pain",state_name:"gallbladder inflammation",strength:0.85},
+    {symptom_name:"Murphy sign positive",state_name:"gallbladder inflammation",strength:0.90},
+    {symptom_name:"bloody diarrhea",state_name:"intestinal mucosal inflammation",strength:0.80},
+    {symptom_name:"right lower quadrant pain",state_name:"appendiceal obstruction",strength:0.85},
+    {symptom_name:"rebound tenderness",state_name:"appendiceal obstruction",strength:0.80},
+    {symptom_name:"ascites",state_name:"hepatic fibrosis",strength:0.75},
+    {symptom_name:"abdominal bloating",state_name:"gut dysmotility",strength:0.70},
+    {symptom_name:"alternating bowel habits",state_name:"gut dysmotility",strength:0.75},
+    {symptom_name:"chronic diarrhea",state_name:"intestinal malabsorption",strength:0.70},
+    {symptom_name:"weight loss",state_name:"intestinal malabsorption",strength:0.60},
     {symptom_name:"polyuria",state_name:"insulin resistance",strength:0.70},
     {symptom_name:"polydipsia",state_name:"insulin resistance",strength:0.70},
-    {symptom_name:"acanthosis nigricans",state_name:"insulin resistance",strength:0.80},
-    {symptom_name:"fruity breath odor",state_name:"ketoacidosis metabolic",strength:0.90},
-    {symptom_name:"Kussmaul respirations",state_name:"ketoacidosis metabolic",strength:0.90},
-    {symptom_name:"cold intolerance",state_name:"thyroid hormone deficiency",strength:0.80},
-    {symptom_name:"weight gain",state_name:"thyroid hormone deficiency",strength:0.70},
+    {symptom_name:"fatigue",state_name:"thyroid hormone deficiency",strength:0.60},
+    {symptom_name:"cold intolerance",state_name:"thyroid hormone deficiency",strength:0.75},
+    {symptom_name:"weight gain",state_name:"thyroid hormone deficiency",strength:0.65},
     {symptom_name:"heat intolerance",state_name:"thyroid hormone excess",strength:0.80},
     {symptom_name:"tremor",state_name:"thyroid hormone excess",strength:0.70},
-    {symptom_name:"exophthalmos",state_name:"thyroid hormone excess",strength:0.85},
+    {symptom_name:"exophthalmos",state_name:"thyroid hormone excess",strength:0.80},
     {symptom_name:"moon face",state_name:"cortisol excess",strength:0.85},
-    {symptom_name:"striae purple",state_name:"cortisol excess",strength:0.85},
     {symptom_name:"buffalo hump",state_name:"cortisol excess",strength:0.85},
-    {symptom_name:"hyperpigmentation",state_name:"adrenal insufficiency",strength:0.85},
-    {symptom_name:"salt craving",state_name:"adrenal insufficiency",strength:0.75},
-    {symptom_name:"episodic headache",state_name:"catecholamine excess",strength:0.75},
-    {symptom_name:"sweating paroxysmal",state_name:"catecholamine excess",strength:0.80},
-    {symptom_name:"hirsutism",state_name:"androgen excess",strength:0.75},
-    {symptom_name:"irregular menstruation",state_name:"androgen excess",strength:0.70},
-    // Hematological chains
-    {symptom_name:"pallor",state_name:"iron depletion",strength:0.70},
-    {symptom_name:"koilonychia",state_name:"iron depletion",strength:0.85},
-    {symptom_name:"pica",state_name:"iron depletion",strength:0.80},
-    {symptom_name:"pain crisis",state_name:"hemoglobin S polymerization",strength:0.90},
+    {symptom_name:"hyperpigmentation skin",state_name:"adrenal insufficiency",strength:0.80},
+    {symptom_name:"episodic hypertension",state_name:"catecholamine excess",strength:0.85},
+    {symptom_name:"bone pain",state_name:"parathyroid hormone excess",strength:0.65},
+    {symptom_name:"kidney stones recurrent",state_name:"parathyroid hormone excess",strength:0.70},
+    {symptom_name:"hirsutism",state_name:"androgen excess",strength:0.80},
+    {symptom_name:"pallor",state_name:"iron depletion",strength:0.65},
+    {symptom_name:"koilonychia",state_name:"iron depletion",strength:0.80},
+    {symptom_name:"sickle cell crisis pain",state_name:"hemoglobin S polymerization",strength:0.90},
     {symptom_name:"petechiae",state_name:"platelet destruction immune",strength:0.80},
-    {symptom_name:"easy bruising",state_name:"platelet destruction immune",strength:0.75},
-    {symptom_name:"bleeding from multiple sites",state_name:"coagulation cascade activation",strength:0.90},
+    {symptom_name:"easy bruising",state_name:"platelet destruction immune",strength:0.70},
+    {symptom_name:"prolonged bleeding",state_name:"clotting factor deficiency",strength:0.85},
     {symptom_name:"hemarthrosis",state_name:"clotting factor deficiency",strength:0.85},
-    {symptom_name:"prolonged bleeding after injury",state_name:"clotting factor deficiency",strength:0.85},
-    {symptom_name:"severe anemia",state_name:"ineffective erythropoiesis",strength:0.85},
-    // Immune chains
-    {symptom_name:"fever",state_name:"systemic inflammatory response",strength:0.70},
-    {symptom_name:"hypotension",state_name:"systemic inflammatory response",strength:0.75},
+    {symptom_name:"high fever",state_name:"systemic inflammatory response",strength:0.70},
     {symptom_name:"tachycardia",state_name:"systemic inflammatory response",strength:0.65},
-    {symptom_name:"joint pain symmetric",state_name:"autoimmune joint destruction",strength:0.80},
-    {symptom_name:"morning stiffness over 1 hour",state_name:"autoimmune joint destruction",strength:0.85},
-    {symptom_name:"butterfly rash",state_name:"autoimmune multisystem inflammation",strength:0.90},
-    {symptom_name:"acute joint pain",state_name:"crystal deposition arthritis",strength:0.80},
-    {symptom_name:"first MTP joint involvement",state_name:"crystal deposition arthritis",strength:0.85},
-    {symptom_name:"new onset headache temporal",state_name:"granulomatous vasculitis",strength:0.80},
+    {symptom_name:"joint swelling symmetric",state_name:"autoimmune joint destruction",strength:0.85},
+    {symptom_name:"morning stiffness prolonged",state_name:"autoimmune joint destruction",strength:0.80},
+    {symptom_name:"malar rash",state_name:"autoimmune multisystem inflammation",strength:0.85},
+    {symptom_name:"acute monoarthritis",state_name:"crystal deposition arthritis",strength:0.85},
+    {symptom_name:"podagra",state_name:"crystal deposition arthritis",strength:0.90},
+    {symptom_name:"temporal headache",state_name:"granulomatous vasculitis",strength:0.75},
     {symptom_name:"jaw claudication",state_name:"granulomatous vasculitis",strength:0.85},
-    {symptom_name:"widespread pain",state_name:"central pain sensitization",strength:0.85},
-    {symptom_name:"tender points",state_name:"central pain sensitization",strength:0.80},
-    // Infectious chains
-    {symptom_name:"fever cyclical",state_name:"parasitic erythrocyte invasion",strength:0.90},
-    {symptom_name:"retro-orbital pain",state_name:"viral hemorrhagic mechanism",strength:0.80},
-    {symptom_name:"step-ladder fever",state_name:"enteric bacterial infection",strength:0.85},
-    // Dermatological chains
-    {symptom_name:"erythematous plaques with silver scales",state_name:"keratinocyte hyperproliferation",strength:0.90},
-    {symptom_name:"Auspitz sign",state_name:"keratinocyte hyperproliferation",strength:0.85},
-    {symptom_name:"pruritus intense",state_name:"epidermal barrier dysfunction",strength:0.80},
-    {symptom_name:"dry skin",state_name:"epidermal barrier dysfunction",strength:0.80},
-    {symptom_name:"vesicular rash dermatomal",state_name:"dermatomal viral reactivation",strength:0.90},
-    {symptom_name:"skin blistering",state_name:"keratinocyte apoptosis immune",strength:0.85},
-    {symptom_name:"mucosal erosions",state_name:"keratinocyte apoptosis immune",strength:0.90},
-    // Renal chains
-    {symptom_name:"decreased urine output",state_name:"glomerular filtration decline",strength:0.75},
-    {symptom_name:"severe flank pain",state_name:"renal tubular obstruction",strength:0.85},
-    {symptom_name:"colicky pain",state_name:"renal tubular obstruction",strength:0.85},
-    // Musculoskeletal chains
-    {symptom_name:"joint pain worse with activity",state_name:"cartilage degeneration",strength:0.85},
+    {symptom_name:"widespread pain",state_name:"central pain sensitization",strength:0.80},
+    {symptom_name:"tender points",state_name:"central pain sensitization",strength:0.85},
+    {symptom_name:"cyclical fever",state_name:"parasitic erythrocyte invasion",strength:0.85},
+    {symptom_name:"hemorrhagic rash",state_name:"viral hemorrhagic mechanism",strength:0.80},
+    {symptom_name:"silvery scales",state_name:"keratinocyte hyperproliferation",strength:0.90},
+    {symptom_name:"pruritic rash",state_name:"epidermal barrier dysfunction",strength:0.75},
+    {symptom_name:"dermatomal vesicles",state_name:"dermatomal viral reactivation",strength:0.90},
+    {symptom_name:"flank pain",state_name:"renal tubular obstruction",strength:0.80},
+    {symptom_name:"hematuria",state_name:"renal tubular obstruction",strength:0.70},
     {symptom_name:"joint crepitus",state_name:"cartilage degeneration",strength:0.80},
-    {symptom_name:"low back pain inflammatory",state_name:"entheseal inflammation",strength:0.80},
-    {symptom_name:"sacroiliac joint pain",state_name:"entheseal inflammation",strength:0.85},
-    // Ophthalmologic chains
-    {symptom_name:"severe eye pain",state_name:"intraocular pressure elevation",strength:0.85},
-    {symptom_name:"halos around lights",state_name:"intraocular pressure elevation",strength:0.80},
-    {symptom_name:"curtain-like visual field loss",state_name:"retinal detachment mechanism",strength:0.90},
-    {symptom_name:"sudden floaters",state_name:"retinal detachment mechanism",strength:0.80},
-    {symptom_name:"sudden painless vision loss",state_name:"retinal vascular occlusion",strength:0.90},
-    {symptom_name:"dark spots in vision",state_name:"retinal microvascular damage",strength:0.70},
-    // Pediatric chains
+    {symptom_name:"low back stiffness morning",state_name:"entheseal inflammation",strength:0.80},
+    {symptom_name:"eye pain acute",state_name:"intraocular pressure elevation",strength:0.85},
+    {symptom_name:"sudden vision loss",state_name:"retinal vascular occlusion",strength:0.90},
+    {symptom_name:"floaters and flashes",state_name:"retinal detachment mechanism",strength:0.85},
     {symptom_name:"barking cough",state_name:"subglottic edema",strength:0.90},
-    {symptom_name:"stridor inspiratory",state_name:"subglottic edema",strength:0.85},
-    {symptom_name:"fever over 5 days",state_name:"systemic vasculitis pediatric",strength:0.85},
-    {symptom_name:"colicky abdominal pain episodic",state_name:"ileocolic intussusception",strength:0.90},
-    {symptom_name:"currant jelly stool",state_name:"ileocolic intussusception",strength:0.90},
-    {symptom_name:"tachypnea",state_name:"small airway viral inflammation",strength:0.75},
+    {symptom_name:"tachypnea infant",state_name:"small airway viral inflammation",strength:0.80},
   ];
 }
 
 function getPhysioDiagLinks(): PhysioDiagLink[] {
   return [
-    // Cardiovascular
-    {state_name:"myocardial ischemia",diagnosis_name:"acute myocardial infarction",strength:0.90},
-    {state_name:"myocardial ischemia",diagnosis_name:"unstable angina",strength:0.85},
     {state_name:"myocardial ischemia",diagnosis_name:"stable angina",strength:0.80},
+    {state_name:"myocardial ischemia",diagnosis_name:"unstable angina",strength:0.85},
     {state_name:"myocardial infarction process",diagnosis_name:"acute myocardial infarction",strength:0.95},
     {state_name:"heart failure pathophysiology",diagnosis_name:"congestive heart failure",strength:0.90},
     {state_name:"cardiac arrhythmia mechanism",diagnosis_name:"atrial fibrillation",strength:0.85},
@@ -313,13 +267,12 @@ function getPhysioDiagLinks(): PhysioDiagLink[] {
     {state_name:"aortic wall dissection",diagnosis_name:"aortic dissection",strength:0.95},
     {state_name:"venous thrombosis",diagnosis_name:"deep vein thrombosis",strength:0.90},
     {state_name:"pulmonary vascular occlusion",diagnosis_name:"pulmonary embolism",strength:0.90},
-    {state_name:"venous thrombosis",diagnosis_name:"pulmonary embolism",strength:0.75},
     {state_name:"valvular stenosis",diagnosis_name:"aortic stenosis",strength:0.85},
     {state_name:"pericardial inflammation",diagnosis_name:"pericarditis",strength:0.90},
     {state_name:"arterial atherosclerosis",diagnosis_name:"peripheral artery disease",strength:0.85},
-    {state_name:"arterial atherosclerosis",diagnosis_name:"stable angina",strength:0.80},
+    {state_name:"arterial atherosclerosis",diagnosis_name:"stable angina",strength:0.75},
     {state_name:"endocardial infection",diagnosis_name:"infective endocarditis",strength:0.90},
-    // Respiratory
+    {state_name:"cardiac tamponade physiology",diagnosis_name:"cardiac tamponade",strength:0.95},
     {state_name:"airway hyperreactivity",diagnosis_name:"asthma",strength:0.90},
     {state_name:"alveolar destruction",diagnosis_name:"chronic obstructive pulmonary disease",strength:0.90},
     {state_name:"pulmonary consolidation",diagnosis_name:"community-acquired pneumonia",strength:0.85},
@@ -328,23 +281,21 @@ function getPhysioDiagLinks(): PhysioDiagLink[] {
     {state_name:"pulmonary fibrotic remodeling",diagnosis_name:"pulmonary fibrosis",strength:0.90},
     {state_name:"alveolar-capillary membrane damage",diagnosis_name:"acute respiratory distress syndrome",strength:0.90},
     {state_name:"mycobacterial infection",diagnosis_name:"tuberculosis",strength:0.90},
-    {state_name:"bronchial infection",diagnosis_name:"bronchiectasis",strength:0.75},
+    {state_name:"bronchial infection",diagnosis_name:"bronchiectasis",strength:0.80},
     {state_name:"granulomatous lung disease",diagnosis_name:"sarcoidosis",strength:0.85},
     {state_name:"upper airway obstruction mechanism",diagnosis_name:"obstructive sleep apnea",strength:0.80},
-    // Neurological
-    {state_name:"cerebral ischemia",diagnosis_name:"ischemic stroke",strength:0.95},
+    {state_name:"cerebral ischemia",diagnosis_name:"ischemic stroke",strength:0.90},
     {state_name:"intracranial hemorrhage mechanism",diagnosis_name:"hemorrhagic stroke",strength:0.90},
-    {state_name:"intracranial hemorrhage mechanism",diagnosis_name:"subarachnoid hemorrhage",strength:0.90},
-    {state_name:"meningeal inflammation",diagnosis_name:"meningitis bacterial",strength:0.90},
+    {state_name:"intracranial hemorrhage mechanism",diagnosis_name:"subarachnoid hemorrhage",strength:0.85},
+    {state_name:"meningeal inflammation",diagnosis_name:"meningitis bacterial",strength:0.85},
     {state_name:"cortical spreading depression",diagnosis_name:"migraine",strength:0.85},
     {state_name:"seizure focus activation",diagnosis_name:"epilepsy",strength:0.90},
     {state_name:"dopaminergic neurodegeneration",diagnosis_name:"Parkinson disease",strength:0.90},
-    {state_name:"demyelination",diagnosis_name:"multiple sclerosis",strength:0.90},
+    {state_name:"demyelination",diagnosis_name:"multiple sclerosis",strength:0.85},
     {state_name:"cholinergic neuromuscular junction blockade",diagnosis_name:"myasthenia gravis",strength:0.90},
     {state_name:"ascending peripheral nerve demyelination",diagnosis_name:"Guillain-Barre syndrome",strength:0.90},
-    {state_name:"neuronal amyloid accumulation",diagnosis_name:"Alzheimer disease",strength:0.85},
-    {state_name:"trigeminal nerve compression",diagnosis_name:"trigeminal neuralgia",strength:0.85},
-    // GI
+    {state_name:"neuronal amyloid accumulation",diagnosis_name:"Alzheimer disease",strength:0.90},
+    {state_name:"trigeminal nerve compression",diagnosis_name:"trigeminal neuralgia",strength:0.90},
     {state_name:"gastric acid reflux",diagnosis_name:"gastroesophageal reflux disease",strength:0.90},
     {state_name:"mucosal ulceration gastric",diagnosis_name:"peptic ulcer disease",strength:0.90},
     {state_name:"pancreatic autodigestion",diagnosis_name:"acute pancreatitis",strength:0.90},
@@ -357,7 +308,6 @@ function getPhysioDiagLinks(): PhysioDiagLink[] {
     {state_name:"hepatic fibrosis",diagnosis_name:"liver cirrhosis",strength:0.90},
     {state_name:"gut dysmotility",diagnosis_name:"irritable bowel syndrome",strength:0.85},
     {state_name:"intestinal malabsorption",diagnosis_name:"celiac disease",strength:0.85},
-    // Endocrine
     {state_name:"insulin resistance",diagnosis_name:"type 2 diabetes mellitus",strength:0.85},
     {state_name:"insulin resistance",diagnosis_name:"polycystic ovary syndrome",strength:0.70},
     {state_name:"absolute insulin deficiency",diagnosis_name:"type 1 diabetes mellitus",strength:0.90},
@@ -369,14 +319,12 @@ function getPhysioDiagLinks(): PhysioDiagLink[] {
     {state_name:"catecholamine excess",diagnosis_name:"pheochromocytoma",strength:0.90},
     {state_name:"parathyroid hormone excess",diagnosis_name:"primary hyperparathyroidism",strength:0.85},
     {state_name:"androgen excess",diagnosis_name:"polycystic ovary syndrome",strength:0.80},
-    // Hematological
     {state_name:"iron depletion",diagnosis_name:"iron deficiency anemia",strength:0.90},
     {state_name:"hemoglobin S polymerization",diagnosis_name:"sickle cell disease",strength:0.95},
     {state_name:"platelet destruction immune",diagnosis_name:"immune thrombocytopenia",strength:0.90},
     {state_name:"coagulation cascade activation",diagnosis_name:"disseminated intravascular coagulation",strength:0.90},
     {state_name:"clotting factor deficiency",diagnosis_name:"hemophilia A",strength:0.90},
     {state_name:"ineffective erythropoiesis",diagnosis_name:"thalassemia major",strength:0.85},
-    // Immune
     {state_name:"systemic inflammatory response",diagnosis_name:"sepsis",strength:0.85},
     {state_name:"autoimmune joint destruction",diagnosis_name:"rheumatoid arthritis",strength:0.90},
     {state_name:"autoimmune multisystem inflammation",diagnosis_name:"systemic lupus erythematosus",strength:0.90},
@@ -384,26 +332,20 @@ function getPhysioDiagLinks(): PhysioDiagLink[] {
     {state_name:"granulomatous vasculitis",diagnosis_name:"giant cell arteritis",strength:0.85},
     {state_name:"central pain sensitization",diagnosis_name:"fibromyalgia",strength:0.85},
     {state_name:"entheseal inflammation",diagnosis_name:"ankylosing spondylitis",strength:0.85},
-    // Infectious
     {state_name:"parasitic erythrocyte invasion",diagnosis_name:"malaria",strength:0.90},
     {state_name:"viral hemorrhagic mechanism",diagnosis_name:"dengue fever",strength:0.85},
     {state_name:"enteric bacterial infection",diagnosis_name:"typhoid fever",strength:0.85},
-    // Dermatological
     {state_name:"keratinocyte hyperproliferation",diagnosis_name:"psoriasis",strength:0.90},
     {state_name:"epidermal barrier dysfunction",diagnosis_name:"eczema atopic dermatitis",strength:0.85},
     {state_name:"dermatomal viral reactivation",diagnosis_name:"herpes zoster",strength:0.90},
     {state_name:"keratinocyte apoptosis immune",diagnosis_name:"Stevens-Johnson syndrome",strength:0.90},
-    // Renal
     {state_name:"glomerular filtration decline",diagnosis_name:"chronic kidney disease",strength:0.85},
     {state_name:"renal tubular obstruction",diagnosis_name:"nephrolithiasis",strength:0.90},
-    // Musculoskeletal
     {state_name:"cartilage degeneration",diagnosis_name:"osteoarthritis",strength:0.90},
-    // Ophthalmologic
     {state_name:"intraocular pressure elevation",diagnosis_name:"acute angle-closure glaucoma",strength:0.90},
     {state_name:"retinal detachment mechanism",diagnosis_name:"retinal detachment",strength:0.90},
     {state_name:"retinal vascular occlusion",diagnosis_name:"central retinal artery occlusion",strength:0.90},
     {state_name:"retinal microvascular damage",diagnosis_name:"diabetic retinopathy",strength:0.85},
-    // Pediatric
     {state_name:"small airway viral inflammation",diagnosis_name:"bronchiolitis",strength:0.85},
     {state_name:"subglottic edema",diagnosis_name:"croup",strength:0.90},
     {state_name:"systemic vasculitis pediatric",diagnosis_name:"Kawasaki disease",strength:0.90},
@@ -421,14 +363,25 @@ Deno.serve(async (req) => {
   const log: string[] = [];
   const addLog = (msg: string) => { log.push(msg); console.log(msg); };
 
-  addLog("=== Physiology Layer Expansion ===");
+  addLog("=== Physiology Layer Expansion v2 ===");
 
   try {
-    // STEP 1: Upsert physiological states
+    // Fetch anatomical system IDs for mapping organ_system → system_id
+    const systemIds: Record<string, string> = {};
+    const { data: systems } = await supabase.from("anatomical_systems").select("id, system_name");
+    if (systems) for (const s of systems) systemIds[s.system_name] = s.id;
+    addLog(`  Anatomical systems loaded: ${Object.keys(systemIds).length}`);
+
+    // STEP 1: Upsert physiological states with correct column: system_id
     const states = getNewPhysiologicalStates();
     addLog(`Upserting ${states.length} physiological states...`);
-    for (let i = 0; i < states.length; i += 50) {
-      const chunk = states.slice(i, i+50);
+    const stateRows = states.map(s => ({
+      state_name: s.state_name,
+      description: s.description,
+      system_id: systemIds[s.organ_system] || null,
+    }));
+    for (let i = 0; i < stateRows.length; i += 50) {
+      const chunk = stateRows.slice(i, i + 50);
       const { error } = await supabase.from("physiological_states").upsert(chunk, { onConflict: "state_name", ignoreDuplicates: true });
       if (error) addLog(`  States error: ${error.message}`);
     }
@@ -437,7 +390,7 @@ Deno.serve(async (req) => {
     const stateIds: Record<string, string> = {};
     let offset = 0;
     while (true) {
-      const { data } = await supabase.from("physiological_states").select("id, state_name").range(offset, offset+999);
+      const { data } = await supabase.from("physiological_states").select("id, state_name").range(offset, offset + 999);
       if (!data || data.length === 0) break;
       for (const r of data) stateIds[r.state_name] = r.id;
       offset += data.length;
@@ -449,25 +402,27 @@ Deno.serve(async (req) => {
     const symIds: Record<string, string> = {};
     offset = 0;
     while (true) {
-      const { data } = await supabase.from("symptoms").select("id, symptom_name").range(offset, offset+999);
+      const { data } = await supabase.from("symptoms").select("id, symptom_name").range(offset, offset + 999);
       if (!data || data.length === 0) break;
       for (const r of data) symIds[r.symptom_name] = r.id;
       offset += data.length;
       if (data.length < 1000) break;
     }
+    addLog(`  Symptoms loaded: ${Object.keys(symIds).length}`);
 
     // Fetch all diagnosis IDs
     const diagIds: Record<string, string> = {};
     offset = 0;
     while (true) {
-      const { data } = await supabase.from("diagnoses").select("id, diagnosis_name").range(offset, offset+999);
+      const { data } = await supabase.from("diagnoses").select("id, diagnosis_name").range(offset, offset + 999);
       if (!data || data.length === 0) break;
       for (const r of data) diagIds[r.diagnosis_name] = r.id;
       offset += data.length;
       if (data.length < 1000) break;
     }
+    addLog(`  Diagnoses loaded: ${Object.keys(diagIds).length}`);
 
-    // STEP 2: Symptom → Physiology links
+    // STEP 2: Symptom → Physiology links (correct column: physiological_state_id, confidence_score)
     const symPhysLinks = getSymptomPhysioLinks();
     addLog(`Upserting ${symPhysLinks.length} symptom→physiology links...`);
     const spRows: any[] = [];
@@ -476,18 +431,19 @@ Deno.serve(async (req) => {
       const symId = symIds[link.symptom_name];
       const stateId = stateIds[link.state_name];
       if (!symId || !stateId) { skippedSP++; continue; }
-      spRows.push({ symptom_id: symId, physiology_state_id: stateId, strength: link.strength });
+      spRows.push({ symptom_id: symId, physiological_state_id: stateId, confidence_score: link.strength });
     }
-    addLog(`  Skipped (missing IDs): ${skippedSP}`);
+    addLog(`  Valid links: ${spRows.length}, Skipped (missing IDs): ${skippedSP}`);
     let spCount = 0;
     for (let i = 0; i < spRows.length; i += 200) {
-      const { error } = await supabase.from("symptom_physiology_map").upsert(spRows.slice(i, i+200), { onConflict: "symptom_id,physiology_state_id", ignoreDuplicates: true });
+      const chunk = spRows.slice(i, i + 200);
+      const { error } = await supabase.from("symptom_physiology_map").upsert(chunk, { onConflict: "symptom_id,physiological_state_id", ignoreDuplicates: true });
       if (error) addLog(`  SP error: ${error.message}`);
-      else spCount += spRows.slice(i, i+200).length;
+      else spCount += chunk.length;
     }
     addLog(`  Symptom→Physiology upserted: ${spCount}`);
 
-    // STEP 3: Physiology → Diagnosis links
+    // STEP 3: Physiology → Diagnosis links (correct column: physiological_state_id, relevance_score)
     const pdLinks = getPhysioDiagLinks();
     addLog(`Upserting ${pdLinks.length} physiology→diagnosis links...`);
     const pdRows: any[] = [];
@@ -496,21 +452,22 @@ Deno.serve(async (req) => {
       const stateId = stateIds[link.state_name];
       const diagId = diagIds[link.diagnosis_name];
       if (!stateId || !diagId) { skippedPD++; addLog(`  SKIP: ${link.state_name} → ${link.diagnosis_name}`); continue; }
-      pdRows.push({ physiology_state_id: stateId, diagnosis_id: diagId, strength: link.strength });
+      pdRows.push({ physiological_state_id: stateId, diagnosis_id: diagId, relevance_score: link.strength });
     }
-    addLog(`  Skipped (missing IDs): ${skippedPD}`);
+    addLog(`  Valid links: ${pdRows.length}, Skipped: ${skippedPD}`);
     let pdCount = 0;
     for (let i = 0; i < pdRows.length; i += 200) {
-      const { error } = await supabase.from("physiology_diagnosis_map").upsert(pdRows.slice(i, i+200), { onConflict: "physiology_state_id,diagnosis_id", ignoreDuplicates: true });
+      const chunk = pdRows.slice(i, i + 200);
+      const { error } = await supabase.from("physiology_diagnosis_map").upsert(chunk, { onConflict: "physiological_state_id,diagnosis_id", ignoreDuplicates: true });
       if (error) addLog(`  PD error: ${error.message}`);
-      else pdCount += pdRows.slice(i, i+200).length;
+      else pdCount += chunk.length;
     }
     addLog(`  Physiology→Diagnosis upserted: ${pdCount}`);
 
     // VALIDATION
     addLog("=== VALIDATION ===");
     const counts: Record<string, number> = {};
-    for (const table of ["physiological_states","symptom_physiology_map","physiology_diagnosis_map"]) {
+    for (const table of ["physiological_states", "symptom_physiology_map", "physiology_diagnosis_map"]) {
       const { count } = await supabase.from(table).select("*", { count: "exact", head: true });
       counts[table] = count || 0;
       addLog(`  ${table}: ${count}`);
