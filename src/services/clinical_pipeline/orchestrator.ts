@@ -986,6 +986,33 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
   // ═══════════════════════════════════════════════════════
+  // WAVE 3.5 — Reasoning Conflict Resolution
+  // ═══════════════════════════════════════════════════════
+  let conflictResult: ConflictResolution | null = null;
+  if (metaReasoningResult && ddxResult && bayesianResult) {
+    const ddxTop = ddxResult.differential_diagnoses[0];
+    const bayesTop = bayesianResult.diagnoses[0];
+    if (ddxTop && bayesTop) {
+      conflictResult = resolveReasoningConflict(
+        ddxTop.diagnosis_name, ddxTop.probability,
+        bayesTop.diagnosis_id ? (bayesTop as any).diagnosis_name || "" : "",
+        (bayesTop as any).posterior_probability || bayesTop.posterior_probability || 0,
+        metaReasoningResult.world_state,
+      );
+      if (conflictResult.resolution_method !== "agreement") {
+        console.log(`[Pipeline] Wave 3.5: Conflict resolved — ${conflictResult.explanation}`);
+        recordOversightEvent({
+          event_type: "reasoning_conflict",
+          severity: "info",
+          stage: "conflict_resolution",
+          message: conflictResult.explanation,
+          metadata: { ddx_top: conflictResult.ddx_top, bayesian_top: conflictResult.bayesian_top, method: conflictResult.resolution_method },
+        });
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════
   // WAVE 4 — Clinical Safety Evaluation
   // ═══════════════════════════════════════════════════════
   const w4Start = performance.now();
