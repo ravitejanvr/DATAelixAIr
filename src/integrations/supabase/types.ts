@@ -1021,6 +1021,59 @@ export type Database = {
         }
         Relationships: []
       }
+      clinical_reasoning_traces: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          disease: string
+          evidence_chain: string
+          id: string
+          organ_system: string | null
+          physiology_process: string
+          scenario_id: string | null
+          source: string | null
+          symptom: string
+          validation_run_id: string | null
+          visit_id: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          disease: string
+          evidence_chain: string
+          id?: string
+          organ_system?: string | null
+          physiology_process: string
+          scenario_id?: string | null
+          source?: string | null
+          symptom: string
+          validation_run_id?: string | null
+          visit_id?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          disease?: string
+          evidence_chain?: string
+          id?: string
+          organ_system?: string | null
+          physiology_process?: string
+          scenario_id?: string | null
+          source?: string | null
+          symptom?: string
+          validation_run_id?: string | null
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_reasoning_traces_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinics: {
         Row: {
           country: string | null
@@ -3330,6 +3383,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      organ_system_activation_rules: {
+        Row: {
+          activation_weight: number
+          created_at: string
+          id: string
+          organ_system: string
+          symptom: string
+        }
+        Insert: {
+          activation_weight?: number
+          created_at?: string
+          id?: string
+          organ_system: string
+          symptom: string
+        }
+        Update: {
+          activation_weight?: number
+          created_at?: string
+          id?: string
+          organ_system?: string
+          symptom?: string
+        }
+        Relationships: []
       }
       outcome_feedback: {
         Row: {
