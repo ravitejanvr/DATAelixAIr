@@ -1,13 +1,15 @@
 /**
- * Clinical Pipeline Orchestrator (v4.1 — Wave-Based Parallel Architecture)
+ * Clinical Pipeline Orchestrator (v4.2 — Meta-Reasoning Architecture)
  *
- * Adaptive timeouts, organ-system weighting, enriched evidence retrieval.
+ * Wave-based parallel execution with Clinical World Model integration.
  *
  *   Wave 0 — PCIE Context Hydration
  *   Wave 1 — Context Preparation
+ *   Wave 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
  *   Wave 2 — Parallel Context Analysis (DDX, Physiology, Preindexed)
  *   Wave 2b — Evidence Retrieval (enriched with DDX results)
  *   Wave 3 — Parallel Clinical Reasoning (Bayesian, Guidelines, Hypotheses)
+ *   Wave 3.5 — Reasoning Conflict Resolution
  *   Wave 4 — Clinical Safety Evaluation
  *   Wave 5 — Output Generation (Uncertainty, Hybrid Reasoning, SOAP)
  */
