@@ -16,8 +16,10 @@ import {
   TrendingUp, BarChart3, Zap, Filter, ChevronDown, ChevronUp,
 } from "lucide-react";
 import {
-  runBenchmarkV6, BENCHMARK_CASES_V6, getCaseDistribution, getDifficultyDistribution,
+  runBenchmarkV6Batched, BENCHMARK_CASES_V6, getCaseDistribution, getDifficultyDistribution,
+  loadPersistedV6Results, getCompletedCaseCount,
 } from "@/services/benchmark_v6";
+import type { BatchProgress } from "@/services/benchmark_v6";
 import type {
   BenchmarkSuiteResultV6, CaseResultV6, Specialty,
 } from "@/services/benchmark_v6/types";
@@ -50,30 +52,49 @@ function latBadge(v: number) {
 export default function BenchmarkDashboardV6() {
   const [result, setResult] = useState<BenchmarkSuiteResultV6 | null>(null);
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState({ current: 0, total: 0, name: "" });
+  const [progress, setProgress] = useState({ current: 0, total: 0, name: "", status: "" });
   const [specialtyFilter, setSpecialtyFilter] = useState<string>("all");
   const [expandedCase, setExpandedCase] = useState<string | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const distribution = getCaseDistribution();
   const diffDist = getDifficultyDistribution();
 
-  const handleRun = async (filter?: string) => {
+  const handleRun = async (filter?: string, startFrom = 0) => {
     setRunning(true);
-    setResult(null);
+    if (startFrom === 0) setResult(null);
+    const ac = new AbortController();
+    setAbortController(ac);
     try {
       const caseFilter = filter && filter !== "all"
         ? (c: any) => c.specialty === filter
         : undefined;
-      const res = await runBenchmarkV6(
-        (i, total, name) => setProgress({ current: i + 1, total, name }),
+      const res = await runBenchmarkV6Batched(
+        (p: BatchProgress) => setProgress({ current: p.caseIndex + 1, total: p.totalCases, name: p.caseName, status: p.status }),
+        undefined,
         caseFilter,
+        { batchSize: 5, delayBetweenBatchesMs: 3000, delayBetweenCasesMs: 500, startFromCase: startFrom, persistResults: true },
+        ac.signal,
       );
       setResult(res);
     } catch (e) {
       console.error("[BenchmarkV6] Suite failed:", e);
     } finally {
       setRunning(false);
+      setAbortController(null);
     }
+  };
+
+  const handleStop = () => { abortController?.abort(); };
+
+  const handleLoadLast = async () => {
+    const res = await loadPersistedV6Results();
+    if (res) setResult(res);
+  };
+
+  const handleResume = async () => {
+    const { count } = await getCompletedCaseCount();
+    handleRun(specialtyFilter, count);
   };
 
   const filteredCases = result?.cases?.filter(c =>
@@ -106,10 +127,19 @@ export default function BenchmarkDashboardV6() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => handleRun(specialtyFilter)} disabled={running} size="sm">
-            {running ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
-            {running ? `Running ${progress.current}/${progress.total}` : "Run Suite"}
-          </Button>
+          {running ? (
+            <Button onClick={handleStop} size="sm" variant="destructive">
+              <XCircle className="h-3.5 w-3.5 mr-1" /> Stop
+            </Button>
+          ) : (
+            <>
+              <Button onClick={handleLoadLast} size="sm" variant="outline">Load Last</Button>
+              <Button onClick={handleResume} size="sm" variant="outline">Resume</Button>
+              <Button onClick={() => handleRun(specialtyFilter)} size="sm">
+                <Play className="h-3.5 w-3.5 mr-1" /> Run Suite
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
