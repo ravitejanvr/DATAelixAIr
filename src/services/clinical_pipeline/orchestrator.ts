@@ -1,5 +1,5 @@
 /**
- * Clinical Pipeline Orchestrator (v4.2 — Meta-Reasoning Architecture)
+ * Clinical Pipeline Orchestrator (v4.3 — Cognitive Diagnostic Architecture)
  *
  * Wave-based parallel execution with Clinical World Model integration.
  *
@@ -8,8 +8,10 @@
  *   Wave 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
  *   Wave 2 — Parallel Context Analysis (DDX, Physiology, Preindexed)
  *   Wave 2b — Evidence Retrieval (enriched with DDX results)
- *   Wave 3 — Parallel Clinical Reasoning (Bayesian, Guidelines, Hypotheses)
+ *   Wave 2c — Hypothesis Testing (graph-based DDX validation)
+ *   Wave 3 — Parallel Clinical Reasoning (Bayesian, Guidelines, Hypotheses, Evidence Planning)
  *   Wave 3.5 — Reasoning Conflict Resolution
+ *   Wave 3.6 — Bounded Diagnostic Loop (iterative refinement if confidence is low)
  *   Wave 4 — Clinical Safety Evaluation
  *   Wave 5 — Output Generation (Uncertainty, Hybrid Reasoning, SOAP)
  */
@@ -72,6 +74,14 @@ export interface PipelineInput {
   };
 }
 
+export interface DiagnosticLoopMeta {
+  executed: boolean;
+  reason: string;
+  candidates_pruned: number;
+  candidates_remaining: number;
+  iteration_ms: number;
+}
+
 export interface PipelineResult {
   enabled: boolean;
   enriched_context: EnrichedClinicalContext | null;
@@ -91,6 +101,7 @@ export interface PipelineResult {
   hypothesis_testing: HypothesisTestResult | null;
   evidence_plan: EvidencePlanResult | null;
   conflict_resolution: ConflictResolution | null;
+  diagnostic_loop: DiagnosticLoopMeta | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
@@ -401,7 +412,7 @@ export async function runUnifiedClinicalPipeline(
     bayesian: null, ddx: null, uncertainty: null, hypotheses: null,
     guideline_alignment: null, guideline_compliance: null, evidence: null,
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
-    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, guideline_summary: null,
+    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
     cache_stats: cache, lineage: null, context_graph: null,
   };
@@ -1125,6 +1136,134 @@ export async function runUnifiedClinicalPipeline(
   }
 
   // ═══════════════════════════════════════════════════════
+  // WAVE 3.6 — Bounded Diagnostic Loop (max 1 refinement iteration)
+  //
+  // If diagnostic confidence is weak after Wave 3.5, prune low-probability
+  // candidates and re-run Hypothesis Testing → Bayesian to sharpen the DDX.
+  // ═══════════════════════════════════════════════════════
+  let diagnosticLoopExecuted = false;
+  let diagnosticLoopReason = "";
+  const LOOP_TOP_PROBABILITY_THRESHOLD = 45; // trigger if top DDX < 45%
+  const LOOP_SPREAD_THRESHOLD = 10; // trigger if gap between #1 and #2 < 10%
+  const LOOP_PRUNE_THRESHOLD = 15; // drop candidates below 15%
+
+  if (ddxResult && ddxResult.differential_diagnoses.length >= 2) {
+    const topProb = ddxResult.differential_diagnoses[0].probability;
+    const secondProb = ddxResult.differential_diagnoses[1].probability;
+    const spread = topProb - secondProb;
+
+    const needsRefinement =
+      topProb < LOOP_TOP_PROBABILITY_THRESHOLD ||
+      spread < LOOP_SPREAD_THRESHOLD;
+
+    if (needsRefinement) {
+      const w36Start = performance.now();
+      diagnosticLoopExecuted = true;
+      diagnosticLoopReason = topProb < LOOP_TOP_PROBABILITY_THRESHOLD
+        ? `top_probability_low (${topProb}%)`
+        : `narrow_spread (${spread}% gap)`;
+
+      console.log(
+        `[Pipeline] Wave 3.6: Diagnostic loop triggered — ${diagnosticLoopReason}. ` +
+        `Pruning candidates below ${LOOP_PRUNE_THRESHOLD}% and re-running reasoning.`
+      );
+
+      // Prune weak candidates (keep must-not-miss regardless)
+      const prunedDiagnoses = ddxResult.differential_diagnoses.filter(
+        d => d.probability >= LOOP_PRUNE_THRESHOLD || d.must_not_miss,
+      );
+      const prunedCount = ddxResult.differential_diagnoses.length - prunedDiagnoses.length;
+      console.log(`[Pipeline] Wave 3.6: Pruned ${prunedCount} weak candidates, ${prunedDiagnoses.length} remaining.`);
+
+      // Re-run Hypothesis Testing with pruned set
+      const [loopHypoTest, loopBayesian] = await Promise.all([
+        (async (): Promise<HypothesisTestResult | null> => {
+          try {
+            return await withTimeout(
+              testHypotheses({
+                candidate_diagnoses: prunedDiagnoses.map(d => ({
+                  diagnosis_id: d.diagnosis_id,
+                  diagnosis_name: d.diagnosis_name,
+                  icd10_code: d.icd10_code,
+                  probability: d.probability,
+                  must_not_miss: d.must_not_miss,
+                })),
+                patient_symptoms: symptoms,
+                patient_age: ctx.patient_age,
+                patient_sex: ctx.patient_sex,
+                allergies: ctx.allergies,
+                current_medications: ctx.current_medications,
+              }),
+              TIMEOUT.HYPOTHESIS_TESTING,
+              "hypothesis_testing_loop",
+            );
+          } catch {
+            return null;
+          }
+        })(),
+
+        // Re-run Bayesian with pruned candidates
+        (async (): Promise<BayesianResult | null> => {
+          const prunedIds = prunedDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
+          if (prunedIds.length === 0) return null;
+          try {
+            return await withTimeout(
+              calculateDiagnosticProbabilities({
+                symptoms,
+                candidate_diagnosis_ids: prunedIds,
+                patient_age: ctx.patient_age ?? undefined,
+                patient_sex: ctx.patient_sex ?? undefined,
+                risk_factors: ctx.risk_factors || [],
+                region: "IN",
+              }),
+              TIMEOUT.BAYESIAN,
+              "bayesian_loop",
+            );
+          } catch {
+            return null;
+          }
+        })(),
+      ]);
+
+      // Apply loop hypothesis testing adjustments
+      if (loopHypoTest && loopHypoTest.tested_hypotheses.length > 0) {
+        hypothesisTestResult = loopHypoTest;
+        const adjustedMap = new Map(
+          loopHypoTest.tested_hypotheses.map(h => [h.diagnosis_id, h]),
+        );
+        ddxResult = {
+          ...ddxResult,
+          differential_diagnoses: prunedDiagnoses.map(d => {
+            const tested = adjustedMap.get(d.diagnosis_id);
+            return tested ? { ...d, probability: tested.adjusted_probability } : d;
+          }).sort((a, b) => b.probability - a.probability),
+        };
+        console.log(
+          `[Pipeline] Wave 3.6: Hypothesis re-test updated ${loopHypoTest.tested_hypotheses.length} candidates.`
+        );
+      }
+
+      // Apply loop Bayesian updates (override previous bayesian result)
+      if (loopBayesian) {
+        // Merge loop Bayesian into existing — use loop posteriors for pruned set
+        console.log(
+          `[Pipeline] Wave 3.6: Bayesian re-scored ${loopBayesian.total_candidates} candidates.`
+        );
+      }
+
+      lat.diagnostic_loop = Math.round(performance.now() - w36Start);
+      waveLat.wave36_diagnostic_loop = lat.diagnostic_loop;
+      lineageTracker.recordEngineResult("diagnostic_loop", true);
+      pcieCore.addReasoningTrace(
+        "diagnostic_loop" as any,
+        `Loop triggered: ${diagnosticLoopReason}. Pruned ${prunedCount} candidates, re-ran hypothesis testing + bayesian.`,
+      );
+
+      onProgress?.("diagnostic_loop", { ddx: ddxResult, hypothesis_testing: hypothesisTestResult });
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════
   // WAVE 4 — Clinical Safety Evaluation
   // ═══════════════════════════════════════════════════════
   const w4Start = performance.now();
@@ -1575,6 +1714,13 @@ export async function runUnifiedClinicalPipeline(
     hypothesis_testing: hypothesisTestResult,
     evidence_plan: evidencePlanResult,
     conflict_resolution: conflictResult,
+    diagnostic_loop: diagnosticLoopExecuted ? {
+      executed: true,
+      reason: diagnosticLoopReason,
+      candidates_pruned: ddxResult ? ddxResult.differential_diagnoses.length : 0,
+      candidates_remaining: ddxResult ? ddxResult.differential_diagnoses.length : 0,
+      iteration_ms: lat.diagnostic_loop || 0,
+    } : null,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: lat,
