@@ -993,10 +993,15 @@ export async function runUnifiedClinicalPipeline(
     const ddxTop = ddxResult.differential_diagnoses[0];
     const bayesTop = bayesianResult.diagnoses[0];
     if (ddxTop && bayesTop) {
+      // Extract Bayesian diagnosis name — may come from different result shapes
+      const bayesTopName = (bayesTop as any).diagnosis_name
+        || (bayesTop as any).diagnosis_id
+        || "";
+      const bayesTopProb = (bayesTop as any).posterior_probability ?? 0;
       conflictResult = resolveReasoningConflict(
         ddxTop.diagnosis_name, ddxTop.probability,
-        bayesTop.diagnosis_id ? (bayesTop as any).diagnosis_name || "" : "",
-        (bayesTop as any).posterior_probability || bayesTop.posterior_probability || 0,
+        bayesTopName,
+        bayesTopProb,
         metaReasoningResult.world_state,
       );
       if (conflictResult.resolution_method !== "agreement") {
