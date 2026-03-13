@@ -32,7 +32,7 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
 
 const STAGE_ORDER: PipelineStage[] = [
   "pcie", "context_enrichment", "ddx", "physiology", "hypothesis_testing", "evidence",
-  "bayesian", "guideline", "hypothesis", "safety", "uncertainty", "soap", "cockpit",
+  "bayesian", "guideline", "hypothesis", "evidence_planning", "safety", "uncertainty", "soap", "cockpit",
 ];
 
 function ContextProcessingMap({ lineage }: { lineage: LineageReport }) {
