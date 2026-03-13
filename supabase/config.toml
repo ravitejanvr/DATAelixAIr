@@ -111,3 +111,11 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.extract-knowledge-graph]
     verify_jwt = false
+  [functions.expand-likelihoods-cardio-pulm]
+    verify_jwt = false
+  [functions.expand-likelihoods-infectious-endo]
+    verify_jwt = false
+  [functions.expand-likelihoods-gi-peds]
+    verify_jwt = false
+  [functions.expand-likelihoods-neuro-general]
+    verify_jwt = false
