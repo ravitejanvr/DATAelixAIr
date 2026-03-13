@@ -848,7 +848,7 @@ export async function runUnifiedClinicalPipeline(
   // ═══════════════════════════════════════════════════════
   const w3Start = performance.now();
 
-  const [bayesianResult, guidelineAlignment, guidelineCompliance, hypothesesRaw] = await Promise.all([
+  const [bayesianResult, guidelineAlignment, guidelineCompliance, hypothesesRaw, evidencePlanResult] = await Promise.all([
     // 3a: Bayesian Engine — fallback to DDX rankings if no candidates
     (async (): Promise<BayesianResult | null> => {
       const candidateIds = ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [];
