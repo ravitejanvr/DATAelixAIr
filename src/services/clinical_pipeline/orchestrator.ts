@@ -1892,9 +1892,9 @@ export async function runUnifiedClinicalPipeline(
     runCognitiveLayer({
       case: {
         visit_id: input.visit_id || undefined,
-        patient_id: input.clinical_context.patient_id || "",
+        patient_id: (input.clinical_context as any).patient_id || "",
         clinic_id: input.clinic_id,
-        doctor_id: input.clinical_context.doctor_id || "",
+        doctor_id: (input.clinical_context as any).doctor_id || "",
         symptom_vector: symptoms,
         chief_complaint: ctx.chief_complaint,
         final_diagnosis: topDiagnosis?.diagnosis_name,
