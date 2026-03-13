@@ -24,6 +24,7 @@ export type PipelineStage =
   | "hypothesis_testing"
   | "evidence_planning"
   | "diagnostic_loop"
+  | "causal_reasoning"
   | "soap"
   | "cockpit";
 
@@ -112,6 +113,7 @@ const ENGINE_FIELD_CONSUMPTION: Record<PipelineStage, readonly string[]> = {
   hypothesis_testing: ["symptoms", "patient_age", "patient_sex", "allergies", "current_medications"],
   evidence_planning: ["symptoms", "patient_age", "patient_sex"],
   diagnostic_loop: ["symptoms", "patient_age", "patient_sex", "allergies", "current_medications"],
+  causal_reasoning: ["symptoms", "patient_age", "patient_sex"],
   cockpit: TRACKED_FIELDS as unknown as string[],
 };
 

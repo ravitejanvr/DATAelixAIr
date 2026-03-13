@@ -9,6 +9,7 @@
  *   Wave 2 — Parallel Context Analysis (DDX, Physiology, Preindexed)
  *   Wave 2b — Evidence Retrieval (enriched with DDX results)
  *   Wave 2c — Hypothesis Testing (graph-based DDX validation)
+ *   Wave 2d — Causal Reasoning (causal chains, convergent pathways, counterfactuals)
  *   Wave 3 — Parallel Clinical Reasoning (Bayesian, Guidelines, Hypotheses, Evidence Planning)
  *   Wave 3.5 — Reasoning Conflict Resolution
  *   Wave 3.6 — Bounded Diagnostic Loop (iterative refinement if confidence is low)
@@ -55,6 +56,7 @@ import type { UnifiedClinicalContextGraph } from "@/services/pcie/context_graph"
 import { runMetaReasoning, resolveReasoningConflict, type MetaReasoningOutput, type ConflictResolution } from "@/services/meta_reasoning";
 import { testHypotheses, type HypothesisTestResult } from "@/services/hypothesis_testing/client";
 import { planEvidence, type EvidencePlanResult } from "@/services/evidence_planning/client";
+import { runCausalReasoning, type CausalReasoningResult } from "@/services/causal_reasoning/client";
 
 // ── Public Types ──
 
@@ -102,6 +104,7 @@ export interface PipelineResult {
   evidence_plan: EvidencePlanResult | null;
   conflict_resolution: ConflictResolution | null;
   diagnostic_loop: DiagnosticLoopMeta | null;
+  causal_reasoning: CausalReasoningResult | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
@@ -147,6 +150,7 @@ const TIMEOUT = {
   UNCERTAINTY:     8000,
   HYBRID:          10000,
   SOAP:            4000,
+  CAUSAL_REASONING: 4000,
 } as const;
 
 // ── Organ-System Weighting ──
@@ -412,7 +416,7 @@ export async function runUnifiedClinicalPipeline(
     bayesian: null, ddx: null, uncertainty: null, hypotheses: null,
     guideline_alignment: null, guideline_compliance: null, evidence: null,
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
-    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, guideline_summary: null,
+    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, causal_reasoning: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
     cache_stats: cache, lineage: null, context_graph: null,
   };
@@ -850,6 +854,54 @@ export async function runUnifiedClinicalPipeline(
     lineageTracker.recordEngineResult("hypothesis_testing", !!hypothesisTestResult);
   }
   onProgress?.("hypothesis_testing", { hypothesis_testing: hypothesisTestResult });
+
+  // ═══════════════════════════════════════════════════════
+  // WAVE 2d — Causal Reasoning (parallel with nothing — runs after DDX adjustments)
+  // Builds causal chains, convergent pathways, counterfactuals, and conflict detection.
+  // Deterministic, graph-only — no LLM. Target: <300ms.
+  // ═══════════════════════════════════════════════════════
+  let causalReasoningResult: CausalReasoningResult | null = null;
+  if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const w2dStart = performance.now();
+    try {
+      causalReasoningResult = await withTimeout(
+        runCausalReasoning({
+          symptoms,
+          candidate_diagnoses: ddxResult.differential_diagnoses.slice(0, 8).map(d => ({
+            diagnosis_id: d.diagnosis_id,
+            diagnosis_name: d.diagnosis_name,
+            probability: d.probability,
+            must_not_miss: d.must_not_miss,
+          })),
+          patient_age: ctx.patient_age,
+          patient_sex: ctx.patient_sex,
+        }),
+        TIMEOUT.CAUSAL_REASONING,
+        "causal_reasoning",
+      );
+      if (causalReasoningResult) {
+        console.log(
+          `[Pipeline] Wave 2d: Causal reasoning complete — ` +
+          `${causalReasoningResult.summary.total_chains} chains, ` +
+          `${causalReasoningResult.summary.convergent_pathways_detected} convergent pathways, ` +
+          `${causalReasoningResult.summary.causal_conflicts_detected} conflicts ` +
+          `(${causalReasoningResult.execution_ms}ms)`,
+        );
+        pcieCore.addReasoningTrace(
+          "causal_reasoning" as any,
+          `Causal: ${causalReasoningResult.summary.total_chains} chains, ` +
+          `${causalReasoningResult.summary.convergent_pathways_detected} convergent, ` +
+          `${causalReasoningResult.summary.causal_conflicts_detected} conflicts`,
+        );
+      }
+    } catch {
+      console.warn("[Pipeline] Wave 2d: Causal reasoning failed — continuing without causal analysis.");
+    }
+    lat.causal_reasoning = Math.round(performance.now() - w2dStart);
+    waveLat.wave2d_causal_reasoning = lat.causal_reasoning;
+    lineageTracker.recordEngineResult("causal_reasoning" as any, !!causalReasoningResult);
+  }
+  onProgress?.("causal_reasoning", { causal_reasoning: causalReasoningResult } as any);
 
   // ═══════════════════════════════════════════════════════
   // WAVE 3 — Parallel Clinical Reasoning
@@ -1721,6 +1773,7 @@ export async function runUnifiedClinicalPipeline(
       candidates_remaining: ddxResult ? ddxResult.differential_diagnoses.length : 0,
       iteration_ms: lat.diagnostic_loop || 0,
     } : null,
+    causal_reasoning: causalReasoningResult,
     guideline_summary,
     logs: getPipelineLogs(),
     stage_latencies: lat,
