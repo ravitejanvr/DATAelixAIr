@@ -87,18 +87,18 @@ async function loadLookupTables(): Promise<{
   _cachedActivationRules = (activationRes.data || []).map((r: any) => ({
     symptom: r.symptom,
     organ_system: r.organ_system,
-    activation_weight: parseFloat(r.activation_weight),
+    activation_weight: parseFloat(String(r.activation_weight)),
   }));
 
   _cachedSpecificityMap = {};
   for (const s of (specRes.data || [])) {
-    _cachedSpecificityMap[s.symptom_name.toLowerCase()] = parseFloat(s.specificity_score);
+    _cachedSpecificityMap[(s as any).symptom_name.toLowerCase()] = parseFloat(String((s as any).specificity_score));
   }
 
   _cachedOrganWeightMap = {};
   for (const o of (organRes.data || [])) {
-    if (!_cachedOrganWeightMap[o.symptom.toLowerCase()]) _cachedOrganWeightMap[o.symptom.toLowerCase()] = {};
-    _cachedOrganWeightMap[o.symptom.toLowerCase()][o.organ_system] = parseFloat(o.weight);
+    if (!_cachedOrganWeightMap[(o as any).symptom.toLowerCase()]) _cachedOrganWeightMap[(o as any).symptom.toLowerCase()] = {};
+    _cachedOrganWeightMap[(o as any).symptom.toLowerCase()][(o as any).organ_system] = parseFloat(String((o as any).weight));
   }
 
   return {
