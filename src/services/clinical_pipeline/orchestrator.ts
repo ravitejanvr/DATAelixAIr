@@ -156,6 +156,7 @@ const TIMEOUT = {
   HYBRID:          10000,
   SOAP:            4000,
   CAUSAL_REASONING: 4000,
+  EPISODIC_MEMORY:  3000,
 } as const;
 
 // ── Organ-System Weighting ──
