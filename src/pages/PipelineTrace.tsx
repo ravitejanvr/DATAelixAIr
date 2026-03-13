@@ -26,6 +26,7 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
   evidence_planning: "EvPlan",
   diagnostic_loop: "DxLoop",
   causal_reasoning: "Causal",
+  learning: "Learn",
   safety: "Safety",
   uncertainty: "Uncert",
   soap: "SOAP",
@@ -33,7 +34,7 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
 };
 
 const STAGE_ORDER: PipelineStage[] = [
-  "pcie", "context_enrichment", "ddx", "physiology", "hypothesis_testing", "causal_reasoning", "evidence",
+  "pcie", "context_enrichment", "ddx", "physiology", "hypothesis_testing", "causal_reasoning", "learning", "evidence",
   "bayesian", "guideline", "hypothesis", "evidence_planning", "diagnostic_loop", "safety", "uncertainty", "soap", "cockpit",
 ];
 
