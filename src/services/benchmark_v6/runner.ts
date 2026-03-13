@@ -1,6 +1,9 @@
 /**
- * Benchmark v6 — Enhanced Runner
- * Executes 205 cases through the full cognitive pipeline with detailed metrics.
+ * Benchmark v6 — Enhanced Runner with Batching & Persistence
+ * Executes 205 cases through the full cognitive pipeline with:
+ * - Configurable batch sizes with inter-batch delays
+ * - Auto-persistence of each batch to benchmark_runs
+ * - Resume from last completed case
  */
 
 import { BENCHMARK_CASES_V6 } from "./cases";
@@ -12,6 +15,7 @@ import type {
   FailureRootCause, Specialty, CaseDifficulty,
 } from "./types";
 import { runClinicalPipeline, type ClinicalPipelineResult } from "@/services/clinical_pipeline_orchestrator";
+import { supabase } from "@/integrations/supabase/client";
 
 // ── Helpers ──
 
@@ -50,6 +54,62 @@ function percentile(arr: number[], p: number): number {
   return sorted[Math.max(0, idx)];
 }
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ── Persist single case result ──
+
+async function persistCaseResult(runId: string, caseResult: CaseResultV6, caseIndex: number, bc: BenchmarkCaseV6) {
+  try {
+    const diagnoses = caseResult.actual_diagnoses || [];
+    await supabase.from("benchmark_runs").insert({
+      run_group_id: runId,
+      benchmark_version: "benchmark_v6",
+      pipeline_type: "cognitive_v4.3",
+      test_case: caseResult.case_name,
+      test_case_index: caseIndex,
+      passed: caseResult.passed,
+      diagnosis_agreement: Math.round(caseResult.diagnosis_match_rate * 100),
+      lab_agreement: Math.round(caseResult.lab_match_rate * 100),
+      medication_agreement: Math.round(caseResult.medication_match_rate * 100),
+      safety_alerts: caseResult.safety.critical_alerts,
+      latency_ms: Math.round(caseResult.latency.total_ms),
+      confidence_score: caseResult.confidence_score,
+      confidence_label: caseResult.confidence_label,
+      guideline_citations: caseResult.guideline_sources.length,
+      failure_reasons: caseResult.failure_reasons,
+      patient_context: bc.context as any,
+      expected_output: bc.ground_truth as any,
+      pipeline_output: {
+        diagnoses,
+        top1_match: caseResult.top1_match,
+        top3_match: caseResult.top3_match,
+        top5_match: caseResult.top5_match,
+        gold_standard_rank: caseResult.gold_standard_rank,
+        specialty: caseResult.specialty,
+        difficulty: caseResult.difficulty,
+        safety: caseResult.safety,
+        latency: caseResult.latency,
+        reasoning_completeness: caseResult.reasoning_trace_completeness,
+        diagnostic_loop: caseResult.diagnostic_loop,
+        hypothesis: caseResult.hypothesis,
+        evidence_plan: caseResult.evidence_plan,
+        bayesian: caseResult.bayesian,
+        failure_root_cause: caseResult.failure_root_cause,
+      } as any,
+      comparison_details: {
+        matched_diagnoses: caseResult.matched_diagnoses,
+        graph_miss: caseResult.graph_miss,
+        graph_symptom_matches: caseResult.graph_symptom_matches,
+      } as any,
+      triggered_by: "benchmark_v6_suite",
+    });
+  } catch (e) {
+    console.error(`[BenchmarkV6] Failed to persist case ${caseResult.case_id}:`, e);
+  }
+}
+
 // ── Run Single Case ──
 
 async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
@@ -57,7 +117,6 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
     const result = await runClinicalPipeline(bc.context);
     const o1 = result.o1_result || null;
 
-    // Extract actuals
     const actualDx = result.ddx_candidates?.diagnoses?.map((d: any) => d.diagnosis) || [];
     const actualLabs = result.recommended_labs?.map((l: any) => l.test_name) || [];
     const actualMeds = result.recommended_medications?.suggestions?.map((s: any) => s.generic_name) || [];
@@ -67,11 +126,9 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
     const labMatch = matchRate(actualLabs, bc.ground_truth.recommended_tests);
     const medMatch = bc.ground_truth.recommended_medications.length === 0 ? 1 : matchRate(actualMeds, bc.ground_truth.recommended_medications);
 
-    // Safety
     const dangerDetected = result.ddx_candidates?.diagnoses?.some((d: any) => d.must_not_miss) ||
       result.safety_alerts?.critical_count > 0;
 
-    // Diagnostic loop eval
     const dxLoop: DiagnosticLoopEvaluation = o1?.diagnostic_loop ? {
       iterations_executed: o1.diagnostic_loop.executed ? 1 : 0,
       hypothesis_changes: o1.diagnostic_loop.candidates_pruned || 0,
@@ -81,7 +138,6 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
       weak_pruned: o1.diagnostic_loop.candidates_pruned || 0,
     } : { iterations_executed: 0, hypothesis_changes: 0, probability_updates: 0, convergence_status: "not_triggered", improved_ranking: false, weak_pruned: 0 };
 
-    // Hypothesis eval
     const hypoTest = o1?.hypothesis_testing;
     const hypoEval: HypothesisEvaluation = hypoTest ? {
       total_tested: hypoTest.summary?.total_tested || 0,
@@ -93,7 +149,6 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
       entropy_reduction: 0,
     } : { total_tested: 0, support_scores: [], contradiction_scores: [], pruning_rate: 0, boosted_correct: false, removed_unsupported: 0, entropy_reduction: 0 };
 
-    // Evidence plan eval
     const evPlan = o1?.evidence_plan;
     const evPlanEval: EvidencePlanEvaluation = evPlan ? {
       tests_recommended: evPlan.planned_tests?.map((t: any) => t.test_name || t) || [],
@@ -102,8 +157,6 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
       information_gain_score: evPlan.summary?.max_information_gain || 0,
     } : { tests_recommended: [], test_selection_accuracy: 0, test_relevance_score: 0, information_gain_score: 0 };
 
-    // Bayesian eval
-    const bayesian = o1?.bayesian;
     const bayesEval: BayesianEvaluation = {
       posterior_accuracy: goldRank ? (goldRank <= 3 ? 1 : 0.5) : 0,
       confidence_calibration: result.confidence_scores?.confidence_score || 0,
@@ -112,7 +165,6 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
       incorrect_lost_probability: false,
     };
 
-    // Safety eval
     const safetyEval: SafetyEvaluation = {
       dangerous_detected: dangerDetected,
       expected_dangerous: bc.ground_truth.danger_flag,
@@ -122,7 +174,6 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
       safety_engine_activated: (result.safety_alerts?.alerts?.length || 0) > 0,
     };
 
-    // Latency
     const lat: LatencyBreakdown = {
       pcie_ms: o1?.stage_latencies?.wave0_pcie || 0,
       world_model_ms: o1?.stage_latencies?.meta_reasoning || 0,
@@ -141,7 +192,6 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
       total_ms: result.latency?.total_ms || o1?.total_latency_ms || 0,
     };
 
-    // Reasoning completeness
     const stagesExpected = 10;
     let stagesExecuted = 0;
     if (o1?.ddx) stagesExecuted++;
@@ -156,7 +206,6 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
     if (o1?.episodic_memory) stagesExecuted++;
     const reasoningCompleteness = stagesExecuted / stagesExpected;
 
-    // Failure reasons
     const failures: string[] = [];
     let rootCause: FailureRootCause | null = null;
     if (!goldRank || goldRank > 3) {
@@ -211,30 +260,243 @@ async function runCase(bc: BenchmarkCaseV6): Promise<CaseResultV6> {
   }
 }
 
-// ── Suite Runner ──
+// ── Batched Suite Runner ──
+
+export interface BatchConfig {
+  batchSize: number;       // Cases per batch (default: 5)
+  delayBetweenBatchesMs: number; // Delay between batches (default: 3000)
+  delayBetweenCasesMs: number;   // Delay between cases within a batch (default: 500)
+  startFromCase: number;   // Resume from this case index (default: 0)
+  persistResults: boolean; // Auto-persist each case to DB (default: true)
+}
+
+const DEFAULT_BATCH_CONFIG: BatchConfig = {
+  batchSize: 5,
+  delayBetweenBatchesMs: 3000,
+  delayBetweenCasesMs: 500,
+  startFromCase: 0,
+  persistResults: true,
+};
+
+export interface BatchProgress {
+  caseIndex: number;
+  totalCases: number;
+  caseName: string;
+  batchNumber: number;
+  totalBatches: number;
+  completedInBatch: number;
+  batchSize: number;
+  status: "running" | "batch_delay" | "credit_error" | "done" | "paused";
+  errorMessage?: string;
+}
+
+export async function runBenchmarkV6Batched(
+  onProgress?: (progress: BatchProgress) => void,
+  onBatchComplete?: (batchResults: CaseResultV6[], batchNumber: number) => void,
+  caseFilter?: (c: BenchmarkCaseV6) => boolean,
+  config?: Partial<BatchConfig>,
+  abortSignal?: AbortSignal,
+): Promise<BenchmarkSuiteResultV6> {
+  const cfg = { ...DEFAULT_BATCH_CONFIG, ...config };
+  const runId = `v6-${Date.now()}`;
+  const cases = caseFilter ? BENCHMARK_CASES_V6.filter(caseFilter) : BENCHMARK_CASES_V6;
+  const startIdx = Math.min(cfg.startFromCase, cases.length);
+  const remainingCases = cases.slice(startIdx);
+  const totalBatches = Math.ceil(remainingCases.length / cfg.batchSize);
+  const allResults: CaseResultV6[] = [];
+
+  for (let batchNum = 0; batchNum < totalBatches; batchNum++) {
+    if (abortSignal?.aborted) break;
+
+    const batchStart = batchNum * cfg.batchSize;
+    const batchCases = remainingCases.slice(batchStart, batchStart + cfg.batchSize);
+    const batchResults: CaseResultV6[] = [];
+
+    for (let j = 0; j < batchCases.length; j++) {
+      if (abortSignal?.aborted) break;
+
+      const globalIdx = startIdx + batchStart + j;
+      onProgress?.({
+        caseIndex: globalIdx,
+        totalCases: cases.length,
+        caseName: batchCases[j].name,
+        batchNumber: batchNum + 1,
+        totalBatches,
+        completedInBatch: j,
+        batchSize: batchCases.length,
+        status: "running",
+      });
+
+      const result = await runCase(batchCases[j]);
+      batchResults.push(result);
+      allResults.push(result);
+
+      // Check for credit errors
+      if (result.failure_reasons.some(f => f.includes("402") || f.includes("credit"))) {
+        onProgress?.({
+          caseIndex: globalIdx,
+          totalCases: cases.length,
+          caseName: batchCases[j].name,
+          batchNumber: batchNum + 1,
+          totalBatches,
+          completedInBatch: j + 1,
+          batchSize: batchCases.length,
+          status: "credit_error",
+          errorMessage: "AI credits exhausted. Partial results saved.",
+        });
+        // Persist whatever we have so far
+        if (cfg.persistResults) {
+          await persistCaseResult(runId, result, globalIdx, batchCases[j]);
+        }
+        return buildSuiteResult(runId, allResults, cases);
+      }
+
+      // Persist individual case
+      if (cfg.persistResults) {
+        await persistCaseResult(runId, result, globalIdx, batchCases[j]);
+      }
+
+      // Delay between cases (within batch)
+      if (j < batchCases.length - 1 && cfg.delayBetweenCasesMs > 0) {
+        await sleep(cfg.delayBetweenCasesMs);
+      }
+    }
+
+    // Notify batch complete
+    onBatchComplete?.(batchResults, batchNum + 1);
+
+    // Delay between batches
+    if (batchNum < totalBatches - 1 && cfg.delayBetweenBatchesMs > 0) {
+      onProgress?.({
+        caseIndex: startIdx + batchStart + batchCases.length,
+        totalCases: cases.length,
+        caseName: `Batch ${batchNum + 1} complete — cooling down...`,
+        batchNumber: batchNum + 1,
+        totalBatches,
+        completedInBatch: batchCases.length,
+        batchSize: batchCases.length,
+        status: "batch_delay",
+      });
+      await sleep(cfg.delayBetweenBatchesMs);
+    }
+  }
+
+  return buildSuiteResult(runId, allResults, cases);
+}
+
+// ── Legacy non-batched runner (preserved for compatibility) ──
 
 export async function runBenchmarkV6(
   onProgress?: (caseIndex: number, total: number, caseName: string) => void,
   caseFilter?: (c: BenchmarkCaseV6) => boolean,
 ): Promise<BenchmarkSuiteResultV6> {
-  const runId = `v6-${Date.now()}`;
-  const cases = caseFilter ? BENCHMARK_CASES_V6.filter(caseFilter) : BENCHMARK_CASES_V6;
-  const results: CaseResultV6[] = [];
+  return runBenchmarkV6Batched(
+    onProgress ? (p) => onProgress(p.caseIndex, p.totalCases, p.caseName) : undefined,
+    undefined,
+    caseFilter,
+    { batchSize: 1, delayBetweenBatchesMs: 0, delayBetweenCasesMs: 0, persistResults: true },
+  );
+}
 
-  for (let i = 0; i < cases.length; i++) {
-    onProgress?.(i, cases.length, cases[i].name);
-    results.push(await runCase(cases[i]));
-  }
+// ── Load persisted v6 results ──
 
+export async function loadPersistedV6Results(): Promise<BenchmarkSuiteResultV6 | null> {
+  // Find the latest v6 run group
+  const { data: latest } = await supabase
+    .from("benchmark_runs")
+    .select("run_group_id")
+    .eq("benchmark_version", "benchmark_v6")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (!latest || latest.length === 0) return null;
+  const runGroupId = latest[0].run_group_id;
+
+  // Load all cases for this run
+  const { data: runs } = await supabase
+    .from("benchmark_runs")
+    .select("*")
+    .eq("run_group_id", runGroupId)
+    .order("test_case_index", { ascending: true });
+
+  if (!runs || runs.length === 0) return null;
+
+  // Reconstruct CaseResultV6 from persisted data
+  const results: CaseResultV6[] = runs.map((r: any) => {
+    const po = r.pipeline_output || {};
+    const expected = r.expected_output || {};
+    return {
+      case_id: `persisted-${r.id}`,
+      case_name: r.test_case,
+      specialty: po.specialty || "unknown",
+      difficulty: po.difficulty || "common",
+      tags: [],
+      top1_match: po.top1_match || false,
+      top3_match: po.top3_match || false,
+      top5_match: po.top5_match || false,
+      diagnosis_match_rate: (r.diagnosis_agreement || 0) / 100,
+      lab_match_rate: (r.lab_agreement || 0) / 100,
+      medication_match_rate: (r.medication_agreement || 0) / 100,
+      gold_standard_rank: po.gold_standard_rank || null,
+      matched_diagnoses: r.comparison_details?.matched_diagnoses || [],
+      actual_diagnoses: po.diagnoses || [],
+      actual_labs: [],
+      actual_medications: [],
+      diagnostic_loop: po.diagnostic_loop || { iterations_executed: 0, hypothesis_changes: 0, probability_updates: 0, convergence_status: "not_triggered", improved_ranking: false, weak_pruned: 0 },
+      hypothesis: po.hypothesis || { total_tested: 0, support_scores: [], contradiction_scores: [], pruning_rate: 0, boosted_correct: false, removed_unsupported: 0, entropy_reduction: 0 },
+      evidence_plan: po.evidence_plan || { tests_recommended: [], test_selection_accuracy: 0, test_relevance_score: 0, information_gain_score: 0 },
+      bayesian: po.bayesian || { posterior_accuracy: 0, confidence_calibration: 0, entropy_reduction: 0, correct_gained_probability: false, incorrect_lost_probability: false },
+      safety: po.safety || { dangerous_detected: false, expected_dangerous: expected.danger_flag || false, safety_score: 0, critical_alerts: r.safety_alerts || 0, false_negative: false, safety_engine_activated: false },
+      latency: po.latency || { pcie_ms: 0, world_model_ms: 0, episodic_memory_ms: 0, ddx_ms: 0, hypothesis_testing_ms: 0, evidence_ms: 0, bayesian_ms: 0, evidence_planning_ms: 0, causal_reasoning_ms: 0, conflict_resolution_ms: 0, safety_ms: 0, uncertainty_ms: 0, soap_ms: 0, diagnostic_loop_ms: 0, total_ms: r.latency_ms || 0 },
+      reasoning_trace_completeness: po.reasoning_completeness || 0,
+      graph_symptom_matches: r.comparison_details?.graph_symptom_matches || 0,
+      graph_miss: r.comparison_details?.graph_miss ?? true,
+      confidence_score: r.confidence_score || 0,
+      confidence_label: r.confidence_label || "Unknown",
+      guideline_sources: [],
+      failure_reasons: r.failure_reasons || [],
+      failure_root_cause: po.failure_root_cause || null,
+      pipeline_output: null,
+      o1_result: null,
+      passed: r.passed || false,
+    };
+  });
+
+  return buildSuiteResult(runGroupId || `v6-persisted`, results, BENCHMARK_CASES_V6);
+}
+
+// ── Get completed case count for a run group ──
+
+export async function getCompletedCaseCount(benchmarkVersion = "benchmark_v6"): Promise<{ runGroupId: string | null; count: number }> {
+  const { data } = await supabase
+    .from("benchmark_runs")
+    .select("run_group_id")
+    .eq("benchmark_version", benchmarkVersion)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (!data || data.length === 0) return { runGroupId: null, count: 0 };
+  const runGroupId = data[0].run_group_id;
+
+  const { count } = await supabase
+    .from("benchmark_runs")
+    .select("*", { count: "exact", head: true })
+    .eq("run_group_id", runGroupId);
+
+  return { runGroupId, count: count || 0 };
+}
+
+// ── Build Suite Result ──
+
+function buildSuiteResult(runId: string, results: CaseResultV6[], allCases: BenchmarkCaseV6[]): BenchmarkSuiteResultV6 {
   const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
-  // Specialty breakdown
-  const specialties = [...new Set(cases.map(c => c.specialty))];
+  const specialties = [...new Set(results.map(c => c.specialty))];
   const bySpecialty: SpecialtyBreakdown[] = specialties.map(s => {
     const sc = results.filter(r => r.specialty === s);
     const dangerCases = sc.filter(r => r.safety.expected_dangerous);
     return {
-      specialty: s, total_cases: sc.length, passed: sc.filter(r => r.passed).length,
+      specialty: s as Specialty, total_cases: sc.length, passed: sc.filter(r => r.passed).length,
       avg_diagnosis_match: avg(sc.map(r => r.diagnosis_match_rate)),
       avg_lab_match: avg(sc.map(r => r.lab_match_rate)),
       avg_latency_ms: avg(sc.map(r => r.latency.total_ms)),
@@ -245,7 +507,6 @@ export async function runBenchmarkV6(
     };
   });
 
-  // Difficulty breakdown
   const difficulties: CaseDifficulty[] = ["common", "moderate", "complex", "rare"];
   const byDifficulty: DifficultyBreakdown[] = difficulties.map(d => {
     const dc = results.filter(r => r.difficulty === d);
@@ -257,7 +518,6 @@ export async function runBenchmarkV6(
     };
   });
 
-  // Latency stats
   const allLatencies = results.map(r => r.latency.total_ms).filter(l => l > 0);
   const latencyStats: LatencyStatistics = {
     avg_total_ms: avg(allLatencies),
@@ -277,7 +537,6 @@ export async function runBenchmarkV6(
     cases_under_5s_pct: allLatencies.length ? allLatencies.filter(l => l < 5000).length / allLatencies.length : 0,
   };
 
-  // Failure analysis
   const failedCases = results.filter(r => !r.passed);
   const byRootCause: Record<FailureRootCause, number> = {
     knowledge_graph_gap: 0, symptom_mapping_gap: 0, physiology_inference_error: 0,
@@ -301,13 +560,12 @@ export async function runBenchmarkV6(
     by_difficulty: failByDiff as Record<CaseDifficulty, number>,
     critical_misses: results.filter(r => r.safety.false_negative).map(r => ({
       case_id: r.case_id, case_name: r.case_name,
-      expected: cases.find(c => c.id === r.case_id)?.ground_truth.gold_standard_diagnosis || "",
+      expected: allCases.find(c => c.id === r.case_id)?.ground_truth.gold_standard_diagnosis || r.case_name,
       actual: r.actual_diagnoses.slice(0, 3),
       root_cause: r.failure_root_cause || "unknown",
     })),
   };
 
-  // KG gaps
   const kgGaps: KnowledgeGraphGap[] = [];
   const graphMissCases = results.filter(r => r.graph_miss);
   if (graphMissCases.length > results.length * 0.2) {
@@ -318,7 +576,6 @@ export async function runBenchmarkV6(
       priority: "critical",
     });
   }
-  // Group graph misses by specialty
   for (const s of specialties) {
     const specMisses = graphMissCases.filter(r => r.specialty === s);
     if (specMisses.length >= 3) {
@@ -331,14 +588,13 @@ export async function runBenchmarkV6(
     }
   }
 
-  // Recommendations
   const recommendations: string[] = [];
   const dangerAll = results.filter(r => r.safety.expected_dangerous);
   const dangerRate = dangerAll.length ? dangerAll.filter(r => r.safety.dangerous_detected).length / dangerAll.length : 1;
-  if (dangerRate < 0.95) recommendations.push(`⚠ Dangerous diagnosis detection at ${(dangerRate * 100).toFixed(0)}% — target ≥95%. Expand must-not-miss trigger symptoms.`);
-  const top1 = results.filter(r => r.top1_match).length / results.length;
-  const top3 = results.filter(r => r.top3_match).length / results.length;
-  if (top1 < 0.65) recommendations.push(`Dx Top-1 accuracy at ${(top1 * 100).toFixed(0)}% — target ≥65%. Expand knowledge graph coverage.`);
+  const top1 = results.length ? results.filter(r => r.top1_match).length / results.length : 0;
+  const top3 = results.length ? results.filter(r => r.top3_match).length / results.length : 0;
+  if (dangerRate < 0.95) recommendations.push(`⚠ Dangerous diagnosis detection at ${(dangerRate * 100).toFixed(0)}% — target ≥95%.`);
+  if (top1 < 0.65) recommendations.push(`Dx Top-1 accuracy at ${(top1 * 100).toFixed(0)}% — target ≥65%.`);
   if (top3 < 0.85) recommendations.push(`Dx Top-3 accuracy at ${(top3 * 100).toFixed(0)}% — target ≥85%.`);
   if (latencyStats.p95_ms > 5000) recommendations.push(`P95 latency ${(latencyStats.p95_ms / 1000).toFixed(1)}s exceeds 5s target.`);
   if (graphMissCases.length > results.length * 0.3) recommendations.push(`${graphMissCases.length} graph misses — prioritize KG expansion.`);
@@ -347,19 +603,19 @@ export async function runBenchmarkV6(
     run_id: runId, run_timestamp: new Date().toISOString(), version: "v6",
     suite_name: "Full Clinical Reasoning Benchmark Suite",
     total_cases: results.length, passed_cases: results.filter(r => r.passed).length,
-    pass_rate: results.filter(r => r.passed).length / results.length,
+    pass_rate: results.length ? results.filter(r => r.passed).length / results.length : 0,
     top1_accuracy: top1, top3_accuracy: top3,
-    top5_accuracy: results.filter(r => r.top5_match).length / results.length,
+    top5_accuracy: results.length ? results.filter(r => r.top5_match).length / results.length : 0,
     avg_diagnosis_match: avg(results.map(r => r.diagnosis_match_rate)),
     avg_lab_match: avg(results.map(r => r.lab_match_rate)),
     avg_medication_match: avg(results.map(r => r.medication_match_rate)),
     danger_detection_rate: dangerRate,
     danger_false_negative_rate: dangerAll.length ? dangerAll.filter(r => r.safety.false_negative).length / dangerAll.length : 0,
-    safety_activation_rate: results.filter(r => r.safety.safety_engine_activated).length / results.length,
+    safety_activation_rate: results.length ? results.filter(r => r.safety.safety_engine_activated).length / results.length : 0,
     avg_confidence_score: avg(results.map(r => r.confidence_score)),
     confidence_calibration_score: 0,
     avg_reasoning_completeness: avg(results.map(r => r.reasoning_trace_completeness)),
-    diagnostic_convergence_rate: results.filter(r => r.diagnostic_loop.convergence_status === "converged").length / results.length,
+    diagnostic_convergence_rate: results.length ? results.filter(r => r.diagnostic_loop.convergence_status === "converged").length / results.length : 0,
     hypothesis_pruning_rate: avg(results.map(r => r.hypothesis.pruning_rate)),
     evidence_plan_accuracy: avg(results.map(r => r.evidence_plan.test_selection_accuracy)),
     latency: latencyStats, by_specialty: bySpecialty, by_difficulty: byDifficulty,
