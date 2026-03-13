@@ -52,6 +52,7 @@ import { PCIECore } from "@/services/pcie/core";
 import type { UnifiedClinicalContextGraph } from "@/services/pcie/context_graph";
 import { runMetaReasoning, resolveReasoningConflict, type MetaReasoningOutput, type ConflictResolution } from "@/services/meta_reasoning";
 import { testHypotheses, type HypothesisTestResult } from "@/services/hypothesis_testing/client";
+import { planEvidence, type EvidencePlanResult } from "@/services/evidence_planning/client";
 
 // ── Public Types ──
 
@@ -88,6 +89,7 @@ export interface PipelineResult {
   multi_agent: OrchestratorResponse | null;
   meta_reasoning: MetaReasoningOutput | null;
   hypothesis_testing: HypothesisTestResult | null;
+  evidence_plan: EvidencePlanResult | null;
   conflict_resolution: ConflictResolution | null;
   guideline_summary: {
     guideline_sources_used: string[];
@@ -130,6 +132,7 @@ const TIMEOUT = {
   GUIDELINE_COMPLIANCE: 12000,
   HYPOTHESIS:      12000,
   HYPOTHESIS_TESTING: 3000,
+  EVIDENCE_PLANNING: 4000,
   UNCERTAINTY:     8000,
   HYBRID:          10000,
   SOAP:            4000,
@@ -398,7 +401,7 @@ export async function runUnifiedClinicalPipeline(
     bayesian: null, ddx: null, uncertainty: null, hypotheses: null,
     guideline_alignment: null, guideline_compliance: null, evidence: null,
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
-    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, conflict_resolution: null, guideline_summary: null,
+    multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
     cache_stats: cache, lineage: null, context_graph: null,
   };
@@ -845,7 +848,7 @@ export async function runUnifiedClinicalPipeline(
   // ═══════════════════════════════════════════════════════
   const w3Start = performance.now();
 
-  const [bayesianResult, guidelineAlignment, guidelineCompliance, hypothesesRaw] = await Promise.all([
+  const [bayesianResult, guidelineAlignment, guidelineCompliance, hypothesesRaw, evidencePlanResult] = await Promise.all([
     // 3a: Bayesian Engine — fallback to DDX rankings if no candidates
     (async (): Promise<BayesianResult | null> => {
       const candidateIds = ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [];
@@ -1034,6 +1037,46 @@ export async function runUnifiedClinicalPipeline(
         return null;
       }
     })(),
+
+    // 3e: Evidence Planning Engine (optimal next tests by information gain)
+    (async (): Promise<EvidencePlanResult | null> => {
+      if (!ddxResult || ddxResult.differential_diagnoses.length < 2) {
+        console.log("[Pipeline] Wave 3: Evidence planning skipped — fewer than 2 DDX candidates.");
+        return null;
+      }
+      const t0 = performance.now();
+      try {
+        const result = await withTimeout(
+          planEvidence({
+            candidate_diagnoses: ddxResult.differential_diagnoses.slice(0, 6).map(d => ({
+              diagnosis_id: d.diagnosis_id,
+              diagnosis_name: d.diagnosis_name,
+              probability: d.probability,
+              must_not_miss: d.must_not_miss,
+            })),
+            patient_symptoms: symptoms,
+            existing_tests: ddxResult.recommended_labs?.map(l => l.test_name) || [],
+            patient_age: ctx.patient_age,
+            patient_sex: ctx.patient_sex,
+          }),
+          TIMEOUT.EVIDENCE_PLANNING,
+          "evidence_planning",
+        );
+        lat.evidence_planning = Math.round(performance.now() - t0);
+        if (result) {
+          console.log(
+            `[Pipeline] Wave 3: Evidence planning complete — ` +
+            `${result.summary.high_value_tests} high-value tests from ${result.summary.total_candidate_tests} candidates ` +
+            `(${result.execution_ms}ms)`,
+          );
+        }
+        return result;
+      } catch {
+        lat.evidence_planning = Math.round(performance.now() - t0);
+        console.warn("[Pipeline] Evidence planning failed — continuing without test recommendations.");
+        return null;
+      }
+    })(),
   ]);
 
   const hypotheses = hypothesesRaw;
@@ -1042,6 +1085,7 @@ export async function runUnifiedClinicalPipeline(
   lineageTracker.recordEngineResult("bayesian", !!bayesianResult);
   lineageTracker.recordEngineResult("guideline", !!guidelineAlignment || !!guidelineCompliance);
   lineageTracker.recordEngineResult("hypothesis", !!hypotheses && hypotheses.hypotheses.length > 0);
+  lineageTracker.recordEngineResult("evidence_planning", !!evidencePlanResult);
   lineageTracker.captureSnapshot("Wave 3 (Reasoning)", "bayesian", {
     chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
     symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
@@ -1529,6 +1573,7 @@ export async function runUnifiedClinicalPipeline(
     multi_agent: multiAgentResult,
     meta_reasoning: metaReasoningResult,
     hypothesis_testing: hypothesisTestResult,
+    evidence_plan: evidencePlanResult,
     conflict_resolution: conflictResult,
     guideline_summary,
     logs: getPipelineLogs(),
