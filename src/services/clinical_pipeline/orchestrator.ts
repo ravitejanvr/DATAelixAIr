@@ -1573,6 +1573,7 @@ export async function runUnifiedClinicalPipeline(
     multi_agent: multiAgentResult,
     meta_reasoning: metaReasoningResult,
     hypothesis_testing: hypothesisTestResult,
+    evidence_plan: evidencePlanResult,
     conflict_resolution: conflictResult,
     guideline_summary,
     logs: getPipelineLogs(),
