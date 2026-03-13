@@ -22,6 +22,7 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
   bayesian: "Bayes",
   guideline: "Guide",
   hypothesis: "Hypo",
+  hypothesis_testing: "HypoTest",
   safety: "Safety",
   uncertainty: "Uncert",
   soap: "SOAP",
@@ -29,7 +30,7 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
 };
 
 const STAGE_ORDER: PipelineStage[] = [
-  "pcie", "context_enrichment", "ddx", "physiology", "evidence",
+  "pcie", "context_enrichment", "ddx", "physiology", "hypothesis_testing", "evidence",
   "bayesian", "guideline", "hypothesis", "safety", "uncertainty", "soap", "cockpit",
 ];
 
