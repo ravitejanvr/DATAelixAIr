@@ -579,11 +579,11 @@ export async function runBenchmarkV7(
           batchNumber: batchNum + 1, totalBatches, completedInBatch: j + 1,
           status: "credit_error", errorMessage: "AI credits exhausted",
         });
-        if (cfg.persistResults) await persistCase(runId, result, globalIdx, batch[j]);
+        if (cfg.persistResults) await persistCase(runId, triggeredBy, result, globalIdx, batch[j]);
         return buildSuiteResult(runId, allResults);
       }
 
-      if (cfg.persistResults) await persistCase(runId, result, globalIdx, batch[j]);
+      if (cfg.persistResults) await persistCase(runId, triggeredBy, result, globalIdx, batch[j]);
       if (j < batch.length - 1 && cfg.delayBetweenCasesMs > 0) await sleep(cfg.delayBetweenCasesMs);
     }
 
