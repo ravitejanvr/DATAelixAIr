@@ -17,7 +17,8 @@ export interface OversightEvent {
     | "hypothesis_low_confidence"
     | "pipeline_error"
     | "dangerous_diagnosis_injected"
-    | "epidemiological_cluster";
+    | "epidemiological_cluster"
+    | "cognitive_pruning";
   severity: "info" | "warning" | "critical";
   stage: string;
   message: string;
