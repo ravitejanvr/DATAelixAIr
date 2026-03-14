@@ -6,10 +6,203 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ══════════════════════════════════════════════════════════════
+// INLINE TERMINOLOGY NORMALIZER
+// Mirrors src/services/context_engine/terminology_normalizer.ts
+// Must be kept in-sync. Resolves synonyms → canonical symptoms
+// so graph lookups always hit the correct symptom rows.
+// ══════════════════════════════════════════════════════════════
+const SYNONYM_MAP: Record<string, string> = {
+  // Respiratory
+  "cough with sputum": "productive cough",
+  "cough with phlegm": "productive cough",
+  "phlegmy cough": "productive cough",
+  "wet cough": "productive cough",
+  "nonproductive cough": "dry cough",
+  "shortness of breath": "dyspnea",
+  "breathlessness": "dyspnea",
+  "difficulty breathing": "dyspnea",
+  "breathing difficulty": "dyspnea",
+  "can't breathe": "dyspnea",
+  "labored breathing": "dyspnea",
+  "sob": "dyspnea",
+  "rhinorrhea": "runny nose",
+  "nasal discharge": "runny nose",
+  "stuffy nose": "nasal congestion",
+  "blocked nose": "nasal congestion",
+  "nose block": "nasal congestion",
+  "sinus pressure": "facial pain",
+  "sinus pain": "facial pain",
+  "coughing up blood": "hemoptysis",
+  "blood in sputum": "hemoptysis",
+  // GI
+  "stomach pain": "abdominal pain",
+  "belly pain": "abdominal pain",
+  "tummy pain": "abdominal pain",
+  "stomach ache": "abdominal pain",
+  "abdominal discomfort": "abdominal pain",
+  "stomach cramps": "abdominal cramps",
+  "belly cramps": "abdominal cramps",
+  "throwing up": "vomiting",
+  "puking": "vomiting",
+  "emesis": "vomiting",
+  "feeling sick": "nausea",
+  "queasy": "nausea",
+  "loose stools": "diarrhea",
+  "loose motions": "diarrhea",
+  "watery stools": "diarrhea",
+  "frequent stools": "diarrhea",
+  "acid reflux": "heartburn",
+  "acidity": "heartburn",
+  "burning in stomach": "epigastric pain",
+  "upper stomach pain": "epigastric pain",
+  "gas": "bloating",
+  "flatulence": "bloating",
+  "indigestion": "bloating",
+  "no appetite": "loss of appetite",
+  "not hungry": "loss of appetite",
+  "poor appetite": "loss of appetite",
+  "decreased appetite": "loss of appetite",
+  "blood in stool": "bloody stool",
+  "rectal bleeding": "bloody stool",
+  "passing blood": "bloody stool",
+  // Cardiovascular
+  "heart racing": "palpitations",
+  "heart pounding": "palpitations",
+  "irregular heartbeat": "palpitations",
+  "fast heart": "tachycardia",
+  "rapid pulse": "tachycardia",
+  "chest tightness": "chest pain",
+  "chest pressure": "chest pain",
+  "chest discomfort": "chest pain",
+  "heavy sweating": "diaphoresis",
+  "profuse sweating": "diaphoresis",
+  "cold sweats": "diaphoresis",
+  "swollen legs": "edema",
+  "swollen feet": "edema",
+  "ankle swelling": "edema",
+  "leg swelling": "edema",
+  "fluid retention": "edema",
+  "cannot lie flat": "orthopnea",
+  "wakes up breathless": "orthopnea",
+  // Neurological
+  "head pain": "headache",
+  "migraine": "headache",
+  "giddiness": "dizziness",
+  "lightheadedness": "dizziness",
+  "vertigo": "dizziness",
+  "room spinning": "dizziness",
+  "passed out": "syncope",
+  "fainted": "syncope",
+  "fainting": "syncope",
+  "loss of consciousness": "syncope",
+  "stiff neck": "neck stiffness",
+  "neck rigidity": "neck stiffness",
+  "sensitivity to light": "photophobia",
+  "light sensitivity": "photophobia",
+  "can't see clearly": "blurred vision",
+  "vision blurry": "blurred vision",
+  "double vision": "blurred vision",
+  "pins and needles": "tingling",
+  "prickling": "tingling",
+  "weakness in arm": "weakness",
+  "weakness in leg": "weakness",
+  "general weakness": "weakness",
+  "body weakness": "weakness",
+  "slurred speech": "speech difficulty",
+  "difficulty speaking": "speech difficulty",
+  "cannot speak": "speech difficulty",
+  // Musculoskeletal
+  "body pain": "body aches",
+  "generalized pain": "body aches",
+  "all over pain": "body aches",
+  "muscle ache": "muscle pain",
+  "myalgia": "muscle pain",
+  "muscle soreness": "muscle pain",
+  "joint ache": "joint pain",
+  "arthralgia": "joint pain",
+  "knee pain": "joint pain",
+  "hip pain": "joint pain",
+  "shoulder pain": "joint pain",
+  "low back pain": "back pain",
+  "lower back pain": "back pain",
+  "lumbar pain": "back pain",
+  "lbp": "back pain",
+  // Genitourinary
+  "painful urination": "dysuria",
+  "burning urination": "dysuria",
+  "urinary burning": "dysuria",
+  "burning when peeing": "dysuria",
+  "peeing a lot": "polyuria",
+  "frequent urination": "polyuria",
+  "urinary frequency": "polyuria",
+  "blood in urine": "hematuria",
+  "side pain": "flank pain",
+  "kidney area pain": "flank pain",
+  "excessive thirst": "polydipsia",
+  "always thirsty": "polydipsia",
+  // Dermatological
+  "skin rash": "rash",
+  "eruption": "rash",
+  "skin lesion": "rash",
+  "hives": "rash",
+  "pruritus": "itching",
+  "scratching": "itching",
+  "itchy skin": "itching",
+  // General/Constitutional
+  "tiredness": "fatigue",
+  "exhaustion": "fatigue",
+  "no energy": "fatigue",
+  "lethargic": "fatigue",
+  "lethargy": "fatigue",
+  "feeling tired": "fatigue",
+  "low grade fever": "mild fever",
+  "slight fever": "mild fever",
+  "high fever": "fever",
+  "temperature": "fever",
+  "febrile": "fever",
+  "pyrexia": "fever",
+  "rigor": "chills",
+  "shivering": "chills",
+  "cold feeling": "chills",
+  "unable to sleep": "insomnia",
+  "sleep problems": "insomnia",
+  "sweating at night": "night sweats",
+  "nocturnal sweating": "night sweats",
+  "lost weight": "weight loss",
+  "losing weight": "weight loss",
+  "unintentional weight loss": "weight loss",
+  "gained weight": "weight gain",
+  "putting on weight": "weight gain",
+  "feeling unwell": "malaise",
+  "generally unwell": "malaise",
+  "not feeling well": "malaise",
+  "dehydrated": "dehydration",
+  "dry mouth": "dehydration",
+};
+
+function normalizeSymptom(s: string): string {
+  const lower = s.toLowerCase().trim();
+  return SYNONYM_MAP[lower] || lower;
+}
+
+function normalizeSymptoms(symptoms: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const s of symptoms) {
+    const n = normalizeSymptom(s);
+    if (!seen.has(n)) { seen.add(n); result.push(n); }
+  }
+  return result;
+}
+
 /**
- * DDX Engine v3 — Bayesian Differential Diagnosis
+ * DDX Engine v5 — Bayesian Differential Diagnosis
  *
- * Pipeline: CCO → symptom resolution → graph traversal → Bayesian scoring
+ * KEY FIX (v5): Uses `symptom_likelihoods` table (5000+ edges)
+ * instead of `symptom_diagnosis_map` (152 edges).
+ * 
+ * Pipeline: Normalize → symptom resolution → graph traversal → Bayesian scoring
  *           → dangerous dx injection → labs/meds/guidelines → output
  *
  * P(D|S) ∝ P(S|D) × P(D) × modifiers(age, vitals, history, risk)
@@ -54,12 +247,10 @@ Deno.serve(async (req) => {
       visit_id = null,
       clinic_id = null,
       cco_id = null,
-      // Physiological context for filtering (Phase 10.5)
       physiological_context = null,
     } = body;
 
     const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
-    const physioSystems = physiological_context?.affected_systems || [];
 
     if (!symptoms.length) {
       return new Response(JSON.stringify({ error: "symptoms[] is required" }), {
@@ -67,7 +258,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    const normalizedSymptoms = symptoms.map((s: string) => s.toLowerCase().trim());
+    // ═══════════════════════════════════════════════════
+    // STAGE 0: TERMINOLOGY NORMALIZATION
+    // ═══════════════════════════════════════════════════
+    const rawSymptoms = symptoms.map((s: string) => s.toLowerCase().trim());
+    const normalizedSymptoms = normalizeSymptoms(rawSymptoms);
     const allergiesLower = allergies.map((a: string) => a.toLowerCase());
     const historyLower = medical_history.map((h: string) => h.toLowerCase());
 
@@ -85,10 +280,14 @@ Deno.serve(async (req) => {
     const matchedNames = new Set((exactMatches || []).map((s: any) => s.symptom_name));
     const unmatched = normalizedSymptoms.filter((s: string) => !matchedNames.has(s));
 
+    // Also try raw (pre-normalization) names for fuzzy
+    const rawUnmatched = rawSymptoms.filter((s: string) => !matchedNames.has(s) && !normalizedSymptoms.includes(s));
+    const allUnmatched = [...new Set([...unmatched, ...rawUnmatched])];
+
     // Fuzzy for unmatched
     let fuzzyMatches: any[] = [];
-    if (unmatched.length > 0) {
-      const fuzzyPromises = unmatched.map(s =>
+    if (allUnmatched.length > 0) {
+      const fuzzyPromises = allUnmatched.map(s =>
         supabase.from("symptoms").select("id, symptom_name").ilike("symptom_name", `%${s}%`).limit(3)
       );
       const fuzzyResults = await Promise.all(fuzzyPromises);
@@ -119,23 +318,24 @@ Deno.serve(async (req) => {
         execution_ms: Date.now() - start,
         stage_latencies: { symptom_resolution: stage1Ms },
         bayesian_model: true,
-        source: "ddx_engine_v3",
+        source: "ddx_engine_v5",
         graph_miss: true,
       });
     }
 
     // ═══════════════════════════════════════════════════
     // STAGE 2: GRAPH TRAVERSAL + BAYESIAN SCORING
+    // Uses symptom_likelihoods (5000+ edges) instead of
+    // symptom_diagnosis_map (152 edges)
     // ═══════════════════════════════════════════════════
     const stageStart2 = Date.now();
 
-    // Parallel: symptom→diagnosis links + base prevalence + dangerous diagnoses
-    const [diagLinksRes, dangerousRes] = await Promise.all([
+    const [likelihoodRes, dangerousRes] = await Promise.all([
       supabase
-        .from("symptom_diagnosis_map")
-        .select("symptom_id, diagnosis_id, confidence_score, diagnoses(id, diagnosis_name, category, icd10_code)")
+        .from("symptom_likelihoods")
+        .select("symptom_id, diagnosis_id, likelihood_value, diagnoses(id, diagnosis_name, category, icd10_code)")
         .in("symptom_id", symptomIds)
-        .order("confidence_score", { ascending: false }),
+        .order("likelihood_value", { ascending: false }),
       supabase
         .from("dangerous_diagnoses")
         .select("*, diagnoses(id, diagnosis_name, icd10_code, category)")
@@ -143,29 +343,28 @@ Deno.serve(async (req) => {
         .order("priority", { ascending: true }),
     ]);
 
-    // Build symptom-to-diagnosis association matrix
-    // For each diagnosis, track which symptoms mapped and their individual confidence
+    // Build symptom→diagnosis association matrix
     interface DiagEntry {
       diagnosis: any;
-      symptom_scores: Map<string, number>;  // symptom_id → confidence_score
+      symptom_scores: Map<string, number>;
       symptom_names: string[];
     }
 
     const diagMap = new Map<string, DiagEntry>();
 
-    for (const link of diagLinksRes.data || []) {
+    for (const link of likelihoodRes.data || []) {
       const d = (link as any).diagnoses;
       if (!d) continue;
       const existing = diagMap.get(d.id);
       const symName = allMatchedSymptoms.find((s: any) => s.id === link.symptom_id)?.symptom_name || "";
       if (existing) {
         if (!existing.symptom_scores.has(link.symptom_id)) {
-          existing.symptom_scores.set(link.symptom_id, link.confidence_score);
+          existing.symptom_scores.set(link.symptom_id, link.likelihood_value);
           if (symName) existing.symptom_names.push(symName);
         }
       } else {
         const scores = new Map<string, number>();
-        scores.set(link.symptom_id, link.confidence_score);
+        scores.set(link.symptom_id, link.likelihood_value);
         diagMap.set(d.id, {
           diagnosis: d,
           symptom_scores: scores,
@@ -176,12 +375,6 @@ Deno.serve(async (req) => {
 
     // ── Bayesian Probability Computation ──
     // P(D|S₁,S₂,...Sₙ) ∝ P(D) × ∏ P(Sᵢ|D)
-    //
-    // P(Sᵢ|D) = confidence_score from symptom_diagnosis_map (0-1)
-    // P(D) = prior probability, estimated from category + prevalence
-    //
-    // Modifiers applied post-hoc for age, vitals, risk factors
-
     const CATEGORY_PRIORS: Record<string, number> = {
       infectious: 0.25,
       respiratory: 0.20,
@@ -200,17 +393,18 @@ Deno.serve(async (req) => {
     };
 
     const DEFAULT_PRIOR = 0.05;
-    const MIN_SCORE_THRESHOLD = 25; // minimum probability % (dangerous diagnoses bypass)
+    const MIN_SCORE_THRESHOLD = 15; // lowered from 25 to allow more candidates through
 
-    // ── Organ System Map ──
+    // Organ System Map
     const ORGAN_SYSTEM_MAP: Record<string, string[]> = {
-      respiratory: ["cough", "dyspnea", "shortness of breath", "wheezing", "sputum", "chest tightness", "hemoptysis", "productive cough"],
-      cardiovascular: ["chest pain", "palpitations", "syncope", "edema", "diaphoresis", "left arm pain", "near-syncope"],
-      gastrointestinal: ["nausea", "vomiting", "diarrhea", "abdominal pain", "abdominal cramps", "constipation", "bloating", "loss of appetite"],
-      neurological: ["headache", "severe headache", "dizziness", "confusion", "seizure", "weakness", "numbness", "photophobia", "neck stiffness", "unsteady gait", "blurred vision"],
-      dermatological: ["rash", "pruritus", "urticaria", "skin rash", "maculopapular rash", "petechial rash"],
-      infectious: ["fever", "high fever", "chills", "rigors", "sweating", "fatigue", "malaise", "body ache", "low-grade fever"],
-      musculoskeletal: ["joint pain", "back pain", "muscle pain", "stiffness", "swelling"],
+      respiratory: ["cough", "dyspnea", "wheezing", "sputum", "chest tightness", "hemoptysis", "productive cough", "tachypnea", "dry cough"],
+      cardiovascular: ["chest pain", "palpitations", "syncope", "edema", "diaphoresis", "orthopnea", "near-syncope"],
+      gastrointestinal: ["nausea", "vomiting", "diarrhea", "abdominal pain", "abdominal cramps", "constipation", "bloating", "loss of appetite", "heartburn", "epigastric pain"],
+      neurological: ["headache", "severe headache", "dizziness", "confusion", "seizure", "weakness", "numbness", "photophobia", "neck stiffness", "blurred vision"],
+      dermatological: ["rash", "itching", "urticaria"],
+      infectious: ["fever", "chills", "fatigue", "malaise", "body aches", "mild fever", "night sweats", "dehydration"],
+      musculoskeletal: ["joint pain", "back pain", "muscle pain", "stiffness"],
+      genitourinary: ["dysuria", "polyuria", "hematuria", "flank pain", "polydipsia"],
     };
 
     const totalSymptomCount = normalizedSymptoms.length;
@@ -248,25 +442,24 @@ Deno.serve(async (req) => {
       if (isElderly && (diagName.includes("infarction") || diagName.includes("stroke") || diagName.includes("pneumonia"))) prior *= 1.8;
       if (isPediatric && (diagName.includes("infarction") || diagName.includes("stroke"))) prior *= 0.1;
 
-      // Sex-adjusted priors
+      // Sex-adjusted
       if (sex === "male" && diagName.includes("ectopic pregnancy")) prior = 0;
       if (sex === "female" && diagName.includes("prostate")) prior = 0;
 
-      // History-adjusted priors
+      // History-adjusted
       if (historyLower.some(h => diagName.includes(h))) prior *= 1.5;
 
       // ∏ P(Sᵢ|D) — likelihood
       let logLikelihood = 0;
       for (const [, score] of entry.symptom_scores) {
-        // Clamp to avoid log(0)
         const p = Math.max(0.01, Math.min(0.99, score));
         logLikelihood += Math.log(p);
       }
       const likelihood = Math.exp(logLikelihood);
 
-      // Symptom coverage bonus: reward diagnoses that explain more symptoms
+      // Symptom coverage bonus
       const coverage = entry.symptom_scores.size / totalSymptomCount;
-      const coverageMultiplier = 0.5 + 0.5 * coverage; // range [0.5, 1.0]
+      const coverageMultiplier = 0.5 + 0.5 * coverage;
 
       // Vital sign modifiers
       let vitalModifier = 1.0;
@@ -302,7 +495,7 @@ Deno.serve(async (req) => {
         diagnosis_name: d.diagnosis_name,
         icd10_code: d.icd10_code,
         category: d.category,
-        probability: 0, // will be normalized
+        probability: 0,
         posterior: rawPosterior,
         prior,
         likelihood,
@@ -313,14 +506,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Normalize posteriors to sum to ~1
+    // Normalize posteriors to sum to ~100
     const totalPosterior = bayesianScores.reduce((s, d) => s + d.posterior, 0) || 1;
     for (const d of bayesianScores) {
       d.probability = Math.round((d.posterior / totalPosterior) * 100);
     }
 
     // ── Organ System Bonus ──
-    // When ≥2 symptoms belong to the same organ system, boost diagnoses in that system
     const symptomSystemCounts: Record<string, number> = {};
     for (const sym of normalizedSymptoms) {
       for (const [system, keywords] of Object.entries(ORGAN_SYSTEM_MAP)) {
@@ -337,27 +529,30 @@ Deno.serve(async (req) => {
       for (const d of bayesianScores) {
         const cat = (d.category || "").toLowerCase();
         if (activeSystems.includes(cat)) {
-          // Apply organ_system_bonus = +25% (equivalent to +0.25 on normalized scale)
           d.probability = Math.min(100, Math.round(d.probability * 1.25));
         }
       }
     }
 
-    // Sort by probability
     bayesianScores.sort((a, b) => b.probability - a.probability);
-
     const stage2Ms = Date.now() - stageStart2;
 
     // ═══════════════════════════════════════════════════
     // STAGE 3: DANGEROUS DIAGNOSIS INJECTION
+    // Normalize trigger terms before matching
     // ═══════════════════════════════════════════════════
     const stageStart3 = Date.now();
     let dangerousInjected = 0;
     const dangerousDiagnosisDetails: any[] = [];
 
     for (const row of dangerousRes.data || []) {
-      const trigger = row.trigger_symptom.toLowerCase();
-      const matched = normalizedSymptoms.some((s: string) => s.includes(trigger) || trigger.includes(s));
+      const triggerRaw = row.trigger_symptom.toLowerCase();
+      const triggerNormalized = normalizeSymptom(triggerRaw);
+      // Match if any normalized input symptom matches the normalized trigger
+      const matched = normalizedSymptoms.some((s: string) =>
+        s === triggerNormalized || s.includes(triggerNormalized) || triggerNormalized.includes(s) ||
+        s === triggerRaw || s.includes(triggerRaw) || triggerRaw.includes(s)
+      );
       if (!matched) continue;
 
       const diagInfo = (row as any).diagnoses;
@@ -369,7 +564,6 @@ Deno.serve(async (req) => {
         bayesianScores[existingIdx].emergency_protocol = row.emergency_protocol;
         bayesianScores[existingIdx].guideline_source = row.guideline_source;
         bayesianScores[existingIdx].severity_level = row.severity_level;
-        // Ensure minimum visibility: at least 5%
         if (bayesianScores[existingIdx].probability < 5) {
           bayesianScores[existingIdx].probability = 5;
         }
@@ -407,30 +601,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Final selection: top 4 by probability + up to 2 must-not-miss
-    // If physiological context provides candidate IDs, boost those diagnoses
+    // Physiology context boost
     if (physioFilter.length > 0) {
       for (const d of bayesianScores) {
         if (physioFilter.includes(d.diagnosis_id)) {
           d.probability = Math.min(100, Math.round(d.probability * 1.2));
         }
       }
-      // Re-sort after boost
       bayesianScores.sort((a, b) => b.probability - a.probability);
     }
 
-    // Apply score threshold: filter out low-scoring diagnoses (dangerous bypass threshold)
+    // Final selection: top 5 by probability + up to 3 must-not-miss
     const aboveThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability >= MIN_SCORE_THRESHOLD);
     const belowThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability < MIN_SCORE_THRESHOLD);
-    const topByProb = aboveThreshold.slice(0, 4);
-    // If not enough above threshold, fill from below to ensure at least 3 candidates
+    const topByProb = aboveThreshold.slice(0, 5);
     while (topByProb.length < 3 && belowThreshold.length > 0) {
       topByProb.push(belowThreshold.shift()!);
     }
     const mustNotMiss = bayesianScores.filter(d => d.must_not_miss).slice(0, 3);
     const finalDifferential = [...topByProb, ...mustNotMiss]
+      .filter((d, i, arr) => arr.findIndex(x => x.diagnosis_id === d.diagnosis_id) === i) // dedup
       .sort((a, b) => b.probability - a.probability)
-      .slice(0, 6);
+      .slice(0, 8);
 
     const diagnosisIds = finalDifferential.map(d => d.diagnosis_id);
     const stage3Ms = Date.now() - stageStart3;
@@ -455,7 +647,7 @@ Deno.serve(async (req) => {
         : Promise.resolve({ data: [] }),
     ]);
 
-    // ── Labs ──
+    // Labs
     const labMap = new Map<string, { test: any; diagnoses: string[]; priority: string }>();
     for (const link of labLinksRes.data || []) {
       const lt = (link as any).lab_tests;
@@ -477,7 +669,7 @@ Deno.serve(async (req) => {
       })
       .map(e => ({ test_name: e.test.test_name, category: e.test.category, priority: e.priority, differentiates: e.diagnoses }));
 
-    // ── Medications ──
+    // Medications
     const genericNames = [...new Set((drugLinksRes.data || []).map((d: any) => d.generic_name))];
     let drugDetails: any[] = [];
     let contraindications: any[] = [];
@@ -530,9 +722,8 @@ Deno.serve(async (req) => {
       };
     }).sort((a: any, b: any) => (a.safe === b.safe ? 0 : a.safe ? -1 : 1));
 
-    // ── Guidelines (merged from guideline_rules + diagnosis_guideline_map) ──
+    // Guidelines
     const guidelineRecommendations: any[] = [];
-
     for (const r of guidelineRulesRes.data || []) {
       const auth = (r as any).guideline_authorities;
       guidelineRecommendations.push({
@@ -546,7 +737,6 @@ Deno.serve(async (req) => {
         for_diagnosis: finalDifferential.find(d => d.diagnosis_id === r.diagnosis_id)?.diagnosis_name || "",
       });
     }
-
     for (const link of guidelineMapRes.data || []) {
       const g = (link as any).guideline_registry;
       if (!g) continue;
@@ -562,7 +752,6 @@ Deno.serve(async (req) => {
         for_diagnosis: finalDifferential.find(d => d.diagnosis_id === link.diagnosis_id)?.diagnosis_name || "",
       });
     }
-
     guidelineRecommendations.sort((a, b) => a.authority_priority - b.authority_priority);
 
     const stage4Ms = Date.now() - stageStart4;
@@ -582,7 +771,7 @@ Deno.serve(async (req) => {
           contradicting_factors: dx.contradicting_factors,
           must_not_miss: dx.must_not_miss,
           icd10_code: dx.icd10_code,
-          source: "ddx_engine_v3",
+          source: "ddx_engine_v5",
           bayesian: true,
         },
         confidence_score: dx.probability / 100,
@@ -601,11 +790,13 @@ Deno.serve(async (req) => {
       success: true,
       duration_ms: totalMs,
       metadata: {
-        version: "v3_bayesian",
+        version: "v5_terminology_fix",
         visit_id,
         cco_id,
-        symptoms_input: normalizedSymptoms,
+        symptoms_raw: rawSymptoms,
+        symptoms_normalized: normalizedSymptoms,
         symptoms_matched: symptomIds.length,
+        candidates_from_graph: diagMap.size,
         diagnoses_returned: finalDifferential.length,
         dangerous_injected: dangerousInjected,
         labs_recommended: recommendedLabs.length,
@@ -622,23 +813,7 @@ Deno.serve(async (req) => {
       },
     }).then(() => {}).catch(() => {});
 
-    // Clean output (remove internal fields)
-    const outputDiagnoses = finalDifferential.map(d => ({
-      diagnosis_id: d.diagnosis_id,
-      diagnosis_name: d.diagnosis_name,
-      icd10_code: d.icd10_code,
-      category: d.category,
-      probability: d.probability,
-      supporting_symptoms: d.supporting_symptoms,
-      contradicting_factors: d.contradicting_factors,
-      symptom_coverage: `${Math.round(d.symptom_coverage * 100)}%`,
-      must_not_miss: d.must_not_miss,
-      ...(d.emergency_protocol ? { emergency_protocol: d.emergency_protocol } : {}),
-      ...(d.severity_level ? { severity_level: d.severity_level } : {}),
-      ...(d.guideline_source ? { guideline_source: d.guideline_source } : {}),
-    }));
-
-    // ── Reasoning Traces (Phase 9) ──
+    // Reasoning traces
     const reasoning_traces = finalDifferential.map(d => {
       const entry = diagMap.get(d.diagnosis_id);
       const symptomEvidence = entry
@@ -664,13 +839,28 @@ Deno.serve(async (req) => {
     });
 
     return respond({
-      differential_diagnoses: outputDiagnoses,
+      differential_diagnoses: finalDifferential.map(d => ({
+        diagnosis_id: d.diagnosis_id,
+        diagnosis_name: d.diagnosis_name,
+        icd10_code: d.icd10_code,
+        category: d.category,
+        probability: d.probability,
+        supporting_symptoms: d.supporting_symptoms,
+        contradicting_factors: d.contradicting_factors,
+        symptom_coverage: `${Math.round(d.symptom_coverage * 100)}%`,
+        must_not_miss: d.must_not_miss,
+        ...(d.emergency_protocol ? { emergency_protocol: d.emergency_protocol } : {}),
+        ...(d.severity_level ? { severity_level: d.severity_level } : {}),
+        ...(d.guideline_source ? { guideline_source: d.guideline_source } : {}),
+      })),
       recommended_labs: recommendedLabs,
       suggested_medications: suggestedMedications,
       guideline_recommendations: guidelineRecommendations,
       dangerous_diagnoses: dangerousDiagnosisDetails,
       matched_symptoms: allMatchedSymptoms.map((s: any) => s.symptom_name),
       unmatched_symptoms: normalizedSymptoms.filter(s => !allMatchedSymptoms.some((ms: any) => ms.symptom_name === s || ms.symptom_name.includes(s))),
+      normalization_applied: rawSymptoms.filter((r: string, i: number) => r !== normalizedSymptoms[i]),
+      candidates_before_filter: diagMap.size,
       dangerous_diagnoses_injected: dangerousInjected,
       must_not_miss_count: dangerousDiagnosisDetails.length,
       organ_systems_active: activeSystems,
@@ -684,7 +874,7 @@ Deno.serve(async (req) => {
         enrichment: stage4Ms,
       },
       bayesian_model: true,
-      source: "ddx_engine_v4_probabilistic",
+      source: "ddx_engine_v5_terminology_fix",
       graph_miss: false,
     });
   } catch (err: any) {
