@@ -377,8 +377,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Bayesian Probability Computation ──
-    // P(D|S₁,S₂,...Sₙ) ∝ P(D) × ∏ P(Sᵢ|D)
+    // ── Bayesian-Inspired Scoring ──
+    // Score = prior × Σ P(Sᵢ|D) × coverage² × modifiers
+    // Uses ADDITIVE likelihood (sum) instead of multiplicative (product)
+    // because without P(¬S|D), products penalize more matches.
     const CATEGORY_PRIORS: Record<string, number> = {
       infectious: 0.25,
       respiratory: 0.20,
@@ -397,7 +399,7 @@ Deno.serve(async (req) => {
     };
 
     const DEFAULT_PRIOR = 0.05;
-    const MIN_SCORE_THRESHOLD = 15; // lowered from 25 to allow more candidates through
+    const MIN_SCORE_THRESHOLD = 5;
 
     // Organ System Map
     const ORGAN_SYSTEM_MAP: Record<string, string[]> = {
@@ -453,17 +455,16 @@ Deno.serve(async (req) => {
       // History-adjusted
       if (historyLower.some(h => diagName.includes(h))) prior *= 1.5;
 
-      // ∏ P(Sᵢ|D) — likelihood
-      let logLikelihood = 0;
+      // Σ P(Sᵢ|D) — ADDITIVE likelihood (rewards more matches)
+      let likelihoodSum = 0;
       for (const [, score] of entry.symptom_scores) {
-        const p = Math.max(0.01, Math.min(0.99, score));
-        logLikelihood += Math.log(p);
+        likelihoodSum += Math.max(0.01, Math.min(0.99, score));
       }
-      const likelihood = Math.exp(logLikelihood);
 
-      // Symptom coverage bonus
+      // Coverage = fraction of patient symptoms explained by this diagnosis
       const coverage = entry.symptom_scores.size / totalSymptomCount;
-      const coverageMultiplier = 0.5 + 0.5 * coverage;
+      // Coverage bonus: quadratic to strongly reward high-coverage diagnoses
+      const coverageBonus = Math.pow(coverage, 1.5);
 
       // Vital sign modifiers
       let vitalModifier = 1.0;
@@ -486,8 +487,8 @@ Deno.serve(async (req) => {
         if (diagName.includes(rf.toLowerCase())) riskModifier *= 1.3;
       }
 
-      // Posterior ∝ prior × likelihood × modifiers
-      const rawPosterior = prior * likelihood * coverageMultiplier * vitalModifier * riskModifier;
+      // Score = prior × likelihoodSum × coverageBonus × modifiers
+      const rawPosterior = prior * likelihoodSum * coverageBonus * vitalModifier * riskModifier;
 
       // Contradicting factors
       const contradicting: string[] = [];
@@ -502,7 +503,7 @@ Deno.serve(async (req) => {
         probability: 0,
         posterior: rawPosterior,
         prior,
-        likelihood,
+        likelihood: likelihoodSum,
         symptom_coverage: coverage,
         supporting_symptoms: entry.symptom_names,
         contradicting_factors: contradicting,
