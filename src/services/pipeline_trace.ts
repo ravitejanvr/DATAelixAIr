@@ -432,4 +432,4 @@ export async function runPipelineTrace(
   };
 }
 
-export { BENCHMARK_CASES_V5 };
+export { BENCHMARK_CASES_V8 as BENCHMARK_CASES_V5 };

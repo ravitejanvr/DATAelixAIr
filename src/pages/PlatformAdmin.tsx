@@ -659,24 +659,9 @@ export default function PlatformAdmin() {
             <PipelineSimulation />
           </TabsContent>
 
-          {/* Benchmarks Tab */}
+          {/* Benchmark Tab */}
           <TabsContent value="benchmarks" className="mt-4">
-            <BenchmarkDashboard />
-          </TabsContent>
-
-          {/* Benchmark v6 Tab */}
-          <TabsContent value="benchmarks-v6" className="mt-4">
-            <BenchmarkDashboardV6 />
-          </TabsContent>
-
-          {/* Benchmark v7 Tab */}
-          <TabsContent value="benchmarks-v7" className="mt-4">
-            <BenchmarkDashboardV7 />
-          </TabsContent>
-
-          {/* Benchmark v8 Tab */}
-          <TabsContent value="benchmarks-v8" className="mt-4">
-            <BenchmarkDashboardV8 />
+            <GPBenchmarkDashboard />
           </TabsContent>
         </Tabs>
       </div>
