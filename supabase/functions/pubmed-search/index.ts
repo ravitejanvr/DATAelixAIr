@@ -38,39 +38,44 @@ async function searchPubMed(query: string, maxResults = 10): Promise<string[]> {
 
 async function fetchPubMedDetails(ids: string[]): Promise<PubMedArticle[]> {
   if (ids.length === 0) return [];
-  const url = `${PUBMED_BASE}/efetch.fcgi?db=pubmed&id=${ids.join(",")}&retmode=xml`;
-  const resp = await fetch(url);
-  const xml = await resp.text();
+  try {
+    const url = `${PUBMED_BASE}/efetch.fcgi?db=pubmed&id=${ids.join(",")}&retmode=xml`;
+    const resp = await fetch(url);
+    const xml = await resp.text();
 
-  const articles: PubMedArticle[] = [];
-  const articleBlocks = xml.split("<PubmedArticle>").slice(1);
+    const articles: PubMedArticle[] = [];
+    const articleBlocks = xml.split("<PubmedArticle>").slice(1);
 
-  for (const block of articleBlocks) {
-    const pmid = block.match(/<PMID[^>]*>(\d+)<\/PMID>/)?.[1] || "";
-    const title = block.match(/<ArticleTitle>([\s\S]*?)<\/ArticleTitle>/)?.[1]?.replace(/<[^>]+>/g, "") || "";
-    const abstractText = block.match(/<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/g)
-      ?.map(t => t.replace(/<[^>]+>/g, "").trim())
-      .join(" ") || "";
-    const journal = block.match(/<Title>([\s\S]*?)<\/Title>/)?.[1] || "";
-    const year = block.match(/<Year>(\d{4})<\/Year>/)?.[1] || "";
-    const doi = block.match(/<ArticleId IdType="doi">([\s\S]*?)<\/ArticleId>/)?.[1] || "";
+    for (const block of articleBlocks) {
+      const pmid = block.match(/<PMID[^>]*>(\d+)<\/PMID>/)?.[1] || "";
+      const title = block.match(/<ArticleTitle>([\s\S]*?)<\/ArticleTitle>/)?.[1]?.replace(/<[^>]+>/g, "") || "";
+      const abstractText = block.match(/<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/g)
+        ?.map(t => t.replace(/<[^>]+>/g, "").trim())
+        .join(" ") || "";
+      const journal = block.match(/<Title>([\s\S]*?)<\/Title>/)?.[1] || "";
+      const year = block.match(/<Year>(\d{4})<\/Year>/)?.[1] || "";
+      const doi = block.match(/<ArticleId IdType="doi">([\s\S]*?)<\/ArticleId>/)?.[1] || "";
 
-    const authorMatches = block.match(/<LastName>([\s\S]*?)<\/LastName>/g) || [];
-    const authors = authorMatches.slice(0, 3).map(a => a.replace(/<[^>]+>/g, ""));
+      const authorMatches = block.match(/<LastName>([\s\S]*?)<\/LastName>/g) || [];
+      const authors = authorMatches.slice(0, 3).map(a => a.replace(/<[^>]+>/g, ""));
 
-    articles.push({
-      pmid,
-      title,
-      abstract: abstractText.substring(0, 1500),
-      authors,
-      journal,
-      year,
-      doi,
-      url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
-    });
+      articles.push({
+        pmid,
+        title,
+        abstract: abstractText.substring(0, 1500),
+        authors,
+        journal,
+        year,
+        doi,
+        url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+      });
+    }
+
+    return articles;
+  } catch (e) {
+    console.warn("[PubMed] efetch failed:", e instanceof Error ? e.message : e);
+    return [];
   }
-
-  return articles;
 }
 
 async function searchEuropePMC(query: string, maxResults = 5): Promise<PubMedArticle[]> {
