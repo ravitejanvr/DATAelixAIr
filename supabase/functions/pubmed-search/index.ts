@@ -20,86 +20,90 @@ interface PubMedArticle {
 }
 
 async function searchPubMed(query: string, maxResults = 10): Promise<string[]> {
-  const url = `${PUBMED_BASE}/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=${maxResults}&retmode=json&sort=relevance`;
-  const resp = await fetch(url);
-  const text = await resp.text();
-  if (!resp.ok || text.trimStart().startsWith("<")) {
-    console.warn("[PubMed] esearch returned non-JSON:", text.substring(0, 200));
-    return [];
-  }
   try {
+    const url = `${PUBMED_BASE}/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=${maxResults}&retmode=json&sort=relevance`;
+    const resp = await fetch(url);
+    const text = await resp.text();
+    if (!resp.ok || text.trimStart().startsWith("<")) {
+      console.warn("[PubMed] esearch returned non-JSON:", text.substring(0, 200));
+      return [];
+    }
     const data = JSON.parse(text);
     return data?.esearchresult?.idlist || [];
-  } catch {
-    console.warn("[PubMed] esearch JSON parse failed");
+  } catch (e) {
+    console.warn("[PubMed] esearch failed:", e instanceof Error ? e.message : e);
     return [];
   }
 }
 
 async function fetchPubMedDetails(ids: string[]): Promise<PubMedArticle[]> {
   if (ids.length === 0) return [];
-  const url = `${PUBMED_BASE}/efetch.fcgi?db=pubmed&id=${ids.join(",")}&retmode=xml`;
-  const resp = await fetch(url);
-  const xml = await resp.text();
+  try {
+    const url = `${PUBMED_BASE}/efetch.fcgi?db=pubmed&id=${ids.join(",")}&retmode=xml`;
+    const resp = await fetch(url);
+    const xml = await resp.text();
 
-  const articles: PubMedArticle[] = [];
-  const articleBlocks = xml.split("<PubmedArticle>").slice(1);
+    const articles: PubMedArticle[] = [];
+    const articleBlocks = xml.split("<PubmedArticle>").slice(1);
 
-  for (const block of articleBlocks) {
-    const pmid = block.match(/<PMID[^>]*>(\d+)<\/PMID>/)?.[1] || "";
-    const title = block.match(/<ArticleTitle>([\s\S]*?)<\/ArticleTitle>/)?.[1]?.replace(/<[^>]+>/g, "") || "";
-    const abstractText = block.match(/<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/g)
-      ?.map(t => t.replace(/<[^>]+>/g, "").trim())
-      .join(" ") || "";
-    const journal = block.match(/<Title>([\s\S]*?)<\/Title>/)?.[1] || "";
-    const year = block.match(/<Year>(\d{4})<\/Year>/)?.[1] || "";
-    const doi = block.match(/<ArticleId IdType="doi">([\s\S]*?)<\/ArticleId>/)?.[1] || "";
+    for (const block of articleBlocks) {
+      const pmid = block.match(/<PMID[^>]*>(\d+)<\/PMID>/)?.[1] || "";
+      const title = block.match(/<ArticleTitle>([\s\S]*?)<\/ArticleTitle>/)?.[1]?.replace(/<[^>]+>/g, "") || "";
+      const abstractText = block.match(/<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/g)
+        ?.map(t => t.replace(/<[^>]+>/g, "").trim())
+        .join(" ") || "";
+      const journal = block.match(/<Title>([\s\S]*?)<\/Title>/)?.[1] || "";
+      const year = block.match(/<Year>(\d{4})<\/Year>/)?.[1] || "";
+      const doi = block.match(/<ArticleId IdType="doi">([\s\S]*?)<\/ArticleId>/)?.[1] || "";
 
-    const authorMatches = block.match(/<LastName>([\s\S]*?)<\/LastName>/g) || [];
-    const authors = authorMatches.slice(0, 3).map(a => a.replace(/<[^>]+>/g, ""));
+      const authorMatches = block.match(/<LastName>([\s\S]*?)<\/LastName>/g) || [];
+      const authors = authorMatches.slice(0, 3).map(a => a.replace(/<[^>]+>/g, ""));
 
-    articles.push({
-      pmid,
-      title,
-      abstract: abstractText.substring(0, 1500),
-      authors,
-      journal,
-      year,
-      doi,
-      url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
-    });
+      articles.push({
+        pmid,
+        title,
+        abstract: abstractText.substring(0, 1500),
+        authors,
+        journal,
+        year,
+        doi,
+        url: `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+      });
+    }
+
+    return articles;
+  } catch (e) {
+    console.warn("[PubMed] efetch failed:", e instanceof Error ? e.message : e);
+    return [];
   }
-
-  return articles;
 }
 
 async function searchEuropePMC(query: string, maxResults = 5): Promise<PubMedArticle[]> {
-  const url = `${EUROPE_PMC_BASE}/search?query=${encodeURIComponent(query)}&resultType=core&pageSize=${maxResults}&format=json`;
-  const resp = await fetch(url);
-  const text = await resp.text();
-  if (!resp.ok || text.trimStart().startsWith("<")) {
-    console.warn("[EuropePMC] returned non-JSON:", text.substring(0, 200));
-    return [];
-  }
-  let data: any;
   try {
-    data = JSON.parse(text);
-  } catch {
-    console.warn("[EuropePMC] JSON parse failed");
+    const url = `${EUROPE_PMC_BASE}/search?query=${encodeURIComponent(query)}&resultType=core&pageSize=${maxResults}&format=json`;
+    const resp = await fetch(url);
+    const text = await resp.text();
+    if (!resp.ok || text.trimStart().startsWith("<")) {
+      console.warn("[EuropePMC] returned non-JSON:", text.substring(0, 200));
+      return [];
+    }
+    const data = JSON.parse(text);
+    const results = data?.resultList?.result || [];
+
+    return results.map((r: any) => ({
+      pmid: r.pmid || r.id || "",
+      title: r.title || "",
+      abstract: (r.abstractText || "").substring(0, 1500),
+      authors: (r.authorString || "").split(", ").slice(0, 3),
+      journal: r.journalTitle || "",
+      year: r.pubYear || "",
+      doi: r.doi || "",
+      url: r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : `https://europepmc.org/article/${r.source}/${r.id}`,
+    }));
+  } catch (e) {
+    console.warn("[EuropePMC] search failed:", e instanceof Error ? e.message : e);
     return [];
   }
-  const results = data?.resultList?.result || [];
-
-  return results.map((r: any) => ({
-    pmid: r.pmid || r.id || "",
-    title: r.title || "",
-    abstract: (r.abstractText || "").substring(0, 1500),
-    authors: (r.authorString || "").split(", ").slice(0, 3),
-    journal: r.journalTitle || "",
-    year: r.pubYear || "",
-    doi: r.doi || "",
-    url: r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : `https://europepmc.org/article/${r.source}/${r.id}`,
-  }));
 }
 
 serve(async (req) => {
@@ -137,7 +141,7 @@ serve(async (req) => {
       );
     }
 
-    await Promise.all(promises);
+    await Promise.allSettled(promises);
 
     // Deduplicate by PMID
     const seen = new Set<string>();
