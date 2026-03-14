@@ -5,14 +5,17 @@
  * to verify architecture correctness, NOT benchmark accuracy.
  *
  * Scenarios:
- *   1. Acute Gastroenteritis (original)
+ *   1. Acute Gastroenteritis
  *   2. Acute Appendicitis
  *   3. Community Acquired Pneumonia
+ *   4. Urinary Tract Infection
+ *   5. Migraine
  */
 
 import type { MergedContextObject } from "@/services/context_service";
 import { runClinicalPipeline, type ClinicalPipelineResult } from "@/services/clinical_pipeline_orchestrator";
 import { runCognitiveController } from "@/services/cognitive/clinical_cognitive_controller";
+import { normalizeWithTrace } from "@/services/context_engine/terminology_normalizer";
 
 // ── Validation Scenarios ──
 
