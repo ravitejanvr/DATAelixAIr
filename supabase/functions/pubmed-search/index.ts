@@ -20,18 +20,18 @@ interface PubMedArticle {
 }
 
 async function searchPubMed(query: string, maxResults = 10): Promise<string[]> {
-  const url = `${PUBMED_BASE}/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=${maxResults}&retmode=json&sort=relevance`;
-  const resp = await fetch(url);
-  const text = await resp.text();
-  if (!resp.ok || text.trimStart().startsWith("<")) {
-    console.warn("[PubMed] esearch returned non-JSON:", text.substring(0, 200));
-    return [];
-  }
   try {
+    const url = `${PUBMED_BASE}/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=${maxResults}&retmode=json&sort=relevance`;
+    const resp = await fetch(url);
+    const text = await resp.text();
+    if (!resp.ok || text.trimStart().startsWith("<")) {
+      console.warn("[PubMed] esearch returned non-JSON:", text.substring(0, 200));
+      return [];
+    }
     const data = JSON.parse(text);
     return data?.esearchresult?.idlist || [];
-  } catch {
-    console.warn("[PubMed] esearch JSON parse failed");
+  } catch (e) {
+    console.warn("[PubMed] esearch failed:", e instanceof Error ? e.message : e);
     return [];
   }
 }
