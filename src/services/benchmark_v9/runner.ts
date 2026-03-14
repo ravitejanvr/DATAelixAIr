@@ -256,7 +256,8 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
         candidate_diagnosis_ids: candidateIds,
         symptoms,
         physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
-        risk_factors: sc.context.medical_history || [],
+        risk_factors: sc.context.risk_factors || [],
+        medical_history: sc.context.medical_history || [],
         region: "IN",
       });
     } catch (e) {
