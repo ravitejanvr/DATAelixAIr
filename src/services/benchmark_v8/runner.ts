@@ -434,6 +434,11 @@ async function runCase(bc: BenchmarkCaseV8): Promise<CaseResultV8> {
       evidence_planning_ms: 0, causal_reasoning_ms: 0, safety_ms: 0, soap_ms: 0,
       diagnostic_loop_ms: 0, cognitive_controller_ms: 0, total_ms: 0,
     };
+    const emptyTrace = {
+      symptoms: bc.context.symptoms || [], physiology: { symptoms_detected: [], physiology_states_activated: [], candidate_diagnosis_ids: [], affected_organ_systems: [], physiology_used: false },
+      candidate_diagnoses: [], bayesian_probabilities: [], hypotheses_pruned: [], final_ranking: [], dangerous_diagnoses_detected: [],
+      failure_type: `Pipeline error: ${error}`,
+    };
     return {
       case_id: bc.id, case_name: bc.name, specialty: bc.specialty,
       difficulty: bc.difficulty, reasoning_category: bc.reasoning_category, tags: bc.tags,
@@ -453,6 +458,7 @@ async function runCase(bc: BenchmarkCaseV8): Promise<CaseResultV8> {
         diagnosis_stable: true, gold_rank_iteration_1: null, gold_rank_iteration_2: null, gold_rank_improved: false,
         snapshots: [],
       },
+      reasoning_trace: emptyTrace,
       safety: { dangerous_detected: false, expected_dangerous: bc.ground_truth.danger_flag, false_negative: bc.ground_truth.danger_flag, safety_alerts: 0, safety_score: 0 },
       latency: emptyLatency,
       reasoning_completeness: 0, confidence_score: 0, confidence_label: "Error", guideline_sources: [],
