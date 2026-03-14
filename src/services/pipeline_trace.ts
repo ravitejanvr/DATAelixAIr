@@ -82,7 +82,7 @@ export async function runPipelineTrace(
   caseIndex: number = 3, // default to v5-04 Cardiac Emergency
   onWaveComplete?: (wave: WaveTrace) => void,
 ): Promise<PipelineTrace> {
-  const bc = BENCHMARK_CASES_V5[caseIndex];
+  const bc = BENCHMARK_CASES_V8[caseIndex];
   if (!bc) throw new Error(`No benchmark case at index ${caseIndex}`);
 
   // Enable O1 pipeline
