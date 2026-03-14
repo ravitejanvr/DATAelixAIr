@@ -141,7 +141,7 @@ serve(async (req) => {
       );
     }
 
-    await Promise.all(promises);
+    await Promise.allSettled(promises);
 
     // Deduplicate by PMID
     const seen = new Set<string>();
