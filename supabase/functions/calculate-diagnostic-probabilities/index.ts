@@ -7,15 +7,20 @@ const corsHeaders = {
 };
 
 /**
- * Bayesian Diagnostic Probability Engine
+ * Bayesian Diagnostic Probability Engine v2 — Log-Likelihood Scoring
  *
- * Computes P(D|E) ∝ P(D) × ∏ P(Sᵢ|D) × ∏ P(Φⱼ|D) × ∏ R(k)
+ * Computes:
+ *   score(D) = log(prior(D))
+ *            + Σ log(P(Sᵢ|D))
+ *            + Σ log(P(Φⱼ|D))
+ *            + Σ log(R(k))
+ *            + coverage_bonus
  *
- * Where:
- *   P(D) = disease prior (base_prevalence × age/sex/region modifiers)
- *   P(Sᵢ|D) = symptom likelihood from symptom_likelihoods table
- *   P(Φⱼ|D) = physiology likelihood from physiology_likelihoods table
- *   R(k) = risk factor modifier weights
+ * Where coverage_bonus = (matched_symptoms / total_symptoms) * 0.25
+ *
+ * Scores are converted to probabilities via softmax normalization.
+ * This eliminates multiplicative underflow that collapses posteriors
+ * when many symptoms are present.
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
