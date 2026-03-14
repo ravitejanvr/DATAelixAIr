@@ -1,55 +1,46 @@
 /**
- * Benchmark v9 — Optimized Fast Runner
+ * Benchmark v9 — Optimized Multi-Scenario Runner
  *
- * PERFORMANCE AUDIT FINDINGS:
- * The original pipeline (~38-50s) made 10+ sequential edge function HTTP calls.
- * Most were unnecessary for diagnostic accuracy validation:
- *   - clinical-reasoning-engine (17s!) — LLM SOAP generation
- *   - retrieve-guidelines (6s) — not needed for diagnosis accuracy
- *   - guideline-compliance (6s) — not needed for diagnosis accuracy
- *   - evidence-retrieval (3.6s) — not needed for diagnosis accuracy
- *   - meta-orchestrator (8s) — multi-agent, not needed
- *   - episodic-memory (0.5s) — patient history, not needed for benchmark
- *   - causal-reasoning (0.7s) — enrichment, not needed for core accuracy
- *   - evidence-planning (1.3s) — enrichment, not needed
+ * Runs 10 controlled scenarios through the core diagnostic pipeline:
+ *   Normalization → Physiology‖DDX → Bayesian → Cognitive → Safety → Ranking
  *
- * OPTIMIZED PIPELINE (target ≤3s):
- *   Stage 1: Input Normalization (in-memory, <1ms)
- *   Stage 2: Physiology Inference (edge function, ~2.5s)
- *     +parallel: DDX Engine (edge function, ~2.7s)
- *   Stage 3: Bayesian Ranking (edge function, ~2.5s)
- *   Stage 4: Cognitive Pruning (in-memory, <1ms)
- *   Stage 5: Safety Evaluation (in-memory from DDX output, <1ms)
- *
- * Total: ~3s (Physiology||DDX in parallel, then Bayesian)
- *
- * Key optimizations:
- *   1. ELIMINATED all LLM calls from diagnostic path
- *   2. PARALLELIZED Physiology + DDX (they were sequential before)
- *   3. ELIMINATED 7 unnecessary edge function calls
- *   4. Safety uses DDX dangerous_diagnoses output (no separate call)
- *   5. Cognitive pruning is pure in-memory (no edge function)
+ * 3 edge function calls per scenario (Physiology + DDX parallel, then Bayesian).
+ * No LLM calls. No guideline/evidence retrieval. Pure diagnostic validation.
  */
 
-import { CONTROLLED_SCENARIO, type BenchmarkCase } from "./scenario";
+import { BENCHMARK_SUITE, type BenchmarkCase } from "./scenario";
 import type {
-  BenchmarkResult, NormalizationTrace, PhysiologyTrace,
-  CandidateGenerationTrace, BayesianTrace, CognitivePruningTrace,
-  SafetyTrace, FinalRankingTrace, StageLatency,
+  BenchmarkResult, BenchmarkSuiteResult, NormalizationTrace,
+  PhysiologyTrace, CandidateGenerationTrace, BayesianTrace,
+  CognitivePruningTrace, SafetyTrace, FinalRankingTrace, StageLatency,
 } from "./types";
 import { normalizeWithTrace } from "@/services/context_engine/terminology_normalizer";
 import { runCognitiveController } from "@/services/cognitive/clinical_cognitive_controller";
-
-// Direct edge function clients — only the 3 essential calls
 import { runDDXEngine, type DDXResult } from "@/services/ddx_engine/client";
 import { generatePhysiologicalContext, type PhysiologicalContextResult } from "@/services/physiology_engine/client";
 import { calculateDiagnosticProbabilities, type BayesianResult } from "@/services/bayesian_engine/client";
 
-// ── Diagnosis matching ──
+// ── Diagnosis matching with synonyms ──
 
 const SYNONYM_MAP: Record<string, string[]> = {
   pneumonia: ["communityacquiredpneumonia", "cap", "lobarpneumonia", "bronchopneumonia"],
   communityacquiredpneumonia: ["pneumonia", "cap"],
+  gastroenteritis: ["acutegastroenteritis", "stomachflu", "viralenteritis"],
+  acutegastroenteritis: ["gastroenteritis"],
+  appendicitis: ["acuteappendicitis"],
+  acuteappendicitis: ["appendicitis"],
+  urinarytractinfection: ["uti", "cystitis", "bladderinfection"],
+  uti: ["urinarytractinfection"],
+  acutecoronarysyndrome: ["acs", "myocardialinfarction", "heartattack", "unstableangina"],
+  myocardialinfarction: ["acutecoronarysyndrome", "heartattack"],
+  diabeticketoacidosis: ["dka"],
+  dka: ["diabeticketoacidosis"],
+  pulmonaryembolism: ["pe", "lungclot"],
+  pe: ["pulmonaryembolism"],
+  asthma: ["asthmaexacerbation", "acuteasthma", "bronchialasthma"],
+  asthmaexacerbation: ["asthma"],
+  sepsis: ["septicemia", "systemicinfection", "bacteremia"],
+  migraine: ["migraineheadache", "migrainewithauraaura"],
 };
 
 function norm(s: string): string {
@@ -64,18 +55,15 @@ function diagMatch(a: string, b: string): boolean {
   return aSyn.includes(nb) || bSyn.includes(na);
 }
 
-// ── Runner ──
+// ── Run single scenario ──
 
-export async function runControlledBenchmark(): Promise<BenchmarkResult> {
-  const sc = CONTROLLED_SCENARIO;
+export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkResult> {
   const stages: StageLatency[] = [];
   const failures: string[] = [];
   const recommendations: string[] = [];
   const t0 = performance.now();
 
-  // ══════════════════════════════════════════════════════════
-  // STAGE 1: Input Normalization (in-memory, <1ms)
-  // ══════════════════════════════════════════════════════════
+  // ── STAGE 1: Input Normalization (in-memory) ──
   const s1 = performance.now();
   const allSymptoms = [...sc.context.symptoms, ...(sc.context.associated_symptoms || [])];
   const normResult = normalizeWithTrace(allSymptoms);
@@ -84,7 +72,7 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
 
   const expectedNormMatch = sc.ground_truth.expected_symptoms_normalized.filter(exp =>
     normResult.normalized.some(n => norm(n) === norm(exp))
-  ).length / sc.ground_truth.expected_symptoms_normalized.length;
+  ).length / Math.max(1, sc.ground_truth.expected_symptoms_normalized.length);
 
   const normalization: NormalizationTrace = {
     raw_tokens: allSymptoms,
@@ -96,14 +84,10 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
   const symptoms = normResult.normalized;
   const vitals = sc.context.vitals;
 
-  // ══════════════════════════════════════════════════════════
-  // STAGE 2 + 3: Physiology + DDX in PARALLEL
-  // (Previously sequential: Physiology → DDX. Now parallel.)
-  // ══════════════════════════════════════════════════════════
+  // ── STAGE 2+3: Physiology + DDX in PARALLEL ──
   const s2 = performance.now();
 
   const [physiologicalContext, ddxResultRaw] = await Promise.all([
-    // Physiology Engine
     (async (): Promise<PhysiologicalContextResult | null> => {
       try {
         return await generatePhysiologicalContext({
@@ -118,12 +102,10 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
           clinic_id: sc.context.clinic_id,
         });
       } catch (e) {
-        console.warn("[Benchmark] Physiology failed:", e);
+        console.warn(`[Benchmark:${sc.id}] Physiology failed:`, e);
         return null;
       }
     })(),
-
-    // DDX Engine (runs in parallel — does NOT wait for physiology)
     (async (): Promise<DDXResult | null> => {
       try {
         return await runDDXEngine({
@@ -142,7 +124,7 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
           clinic_id: sc.context.clinic_id,
         });
       } catch (e) {
-        console.warn("[Benchmark] DDX failed:", e);
+        console.warn(`[Benchmark:${sc.id}] DDX failed:`, e);
         return null;
       }
     })(),
@@ -193,7 +175,7 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
 
   if (physioStates.length === 0) {
     failures.push("Physiology engine returned zero states");
-    recommendations.push("Check symptom_physiology_map coverage for respiratory symptoms");
+    recommendations.push("Check symptom_physiology_map coverage");
   }
 
   // ── DDX trace ──
@@ -217,12 +199,7 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
     error: candidates.length === 0 ? "No candidates generated" : undefined,
   });
 
-  // Add combined parallel stage timing
-  stages.push({
-    stage: "Physiology + DDX (parallel)",
-    latency_ms: s2ms,
-    status: "success",
-  });
+  stages.push({ stage: "Physiology + DDX (parallel)", latency_ms: s2ms, status: "success" });
 
   const candidate_generation: CandidateGenerationTrace = {
     candidates,
@@ -233,14 +210,11 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
   };
 
   if (goldIdx < 0) {
-    failures.push(`"${sc.ground_truth.gold_standard_diagnosis}" not found in candidate set`);
-    recommendations.push("Check symptom_likelihoods edges for pneumonia symptoms");
+    failures.push(`"${sc.ground_truth.gold_standard_diagnosis}" not in candidate set`);
+    recommendations.push("Check symptom_likelihoods edges for this condition");
   }
 
-  // ══════════════════════════════════════════════════════════
-  // STAGE 4: Bayesian Ranking (single edge function call)
-  // Only runs if DDX produced candidates with IDs
-  // ══════════════════════════════════════════════════════════
+  // ── STAGE 4: Bayesian Ranking ──
   const s4 = performance.now();
   let bayesianResult: BayesianResult | null = null;
   const candidateIds = ddxDiagnoses.map((d: any) => d.diagnosis_id).filter(Boolean);
@@ -255,7 +229,7 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
         region: "IN",
       });
     } catch (e) {
-      console.warn("[Benchmark] Bayesian failed:", e);
+      console.warn(`[Benchmark:${sc.id}] Bayesian failed:`, e);
     }
   }
 
@@ -279,9 +253,7 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
     gold_rank_after_bayesian: bayGoldIdx >= 0 ? bayGoldIdx + 1 : null,
   };
 
-  // ══════════════════════════════════════════════════════════
-  // STAGE 5: Cognitive Pruning (in-memory, <1ms)
-  // ══════════════════════════════════════════════════════════
+  // ── STAGE 5: Cognitive Pruning (in-memory) ──
   const s5 = performance.now();
   const cogInput = ddxDiagnoses.map((d: any) => ({
     diagnosis_name: d.diagnosis_name || d.diagnosis || "",
@@ -312,19 +284,13 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
     failures.push("Gold diagnosis was incorrectly pruned by cognitive controller");
   }
 
-  // ══════════════════════════════════════════════════════════
-  // STAGE 6: Safety Evaluation (in-memory from DDX output)
-  // No separate edge function call — uses DDX dangerous_diagnoses
-  // ══════════════════════════════════════════════════════════
+  // ── STAGE 6: Safety Evaluation (from DDX output) ──
   const dangerousList: string[] = [];
-
-  // From DDX must-not-miss flags
   for (const d of ddxDiagnoses) {
     if (d.must_not_miss) {
       dangerousList.push((d.diagnosis_name || "").trim());
     }
   }
-  // From explicit dangerous_diagnoses in DDX output
   if (ddxResult?.dangerous_diagnoses) {
     for (const d of ddxResult.dangerous_diagnoses) {
       const name = typeof d === "string" ? d : (d.diagnosis_name || String(d));
@@ -350,7 +316,7 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
       detectionDetails = "Expected danger but none detected";
     } else {
       safetyCorrect = true;
-      detectionDetails = `Danger correctly detected. ${dangerousInCandidates.length}/${expectedDangerous.length} expected dangerous Dx in candidates. ${uniqueDangerous.length} total dangerous flagged.`;
+      detectionDetails = `Danger correctly detected. ${dangerousInCandidates.length}/${expectedDangerous.length} expected dangerous Dx in candidates. ${uniqueDangerous.length} total flagged.`;
     }
   } else {
     safetyCorrect = !dangerDetected;
@@ -371,9 +337,7 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
     detection_details: detectionDetails,
   };
 
-  // ══════════════════════════════════════════════════════════
-  // STAGE 7: Final Ranked Diagnoses
-  // ══════════════════════════════════════════════════════════
+  // ── STAGE 7: Final Ranked Diagnoses ──
   const finalRanking = candidates.slice(0, 10).map((c: any, i: number) => ({
     rank: i + 1,
     diagnosis: c.name,
@@ -397,7 +361,6 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
 
   const totalMs = Math.round(performance.now() - t0);
 
-  // ── Aggregate Metrics ──
   const metrics = {
     candidate_recall: goldIdx >= 0,
     top1_accuracy: finalGoldRank === 0,
@@ -405,7 +368,7 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
     safety_correct: safety.correct,
     physiology_activated: physioStates.length > 0,
     normalization_applied: normResult.mappings.some(m => m.changed),
-    soap_generated: false, // SOAP skipped in fast benchmark
+    soap_generated: false,
     total_latency_ms: totalMs,
     latency_under_5s: totalMs < 5000,
   };
@@ -413,13 +376,10 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
   const passed = metrics.candidate_recall && metrics.top3_accuracy && metrics.safety_correct;
 
   if (!metrics.top1_accuracy && metrics.candidate_recall) {
-    recommendations.push(`Gold diagnosis ranked #${(finalGoldRank || 0) + 1} — tune likelihood weights or priors`);
+    recommendations.push(`Gold diagnosis ranked #${(finalGoldRank || 0) + 1} — tune likelihood weights`);
   }
   if (!metrics.latency_under_5s) {
     recommendations.push(`Total latency ${(totalMs / 1000).toFixed(1)}s exceeds 5s target`);
-  }
-  if (totalMs > 3000) {
-    recommendations.push(`Latency ${(totalMs / 1000).toFixed(1)}s exceeds 3s optimization target`);
   }
 
   return {
@@ -443,43 +403,79 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
       bayesian_diagnoses_count: bayDiagnoses.length,
       physiology_states_count: physioStates.length,
       dangerous_count: uniqueDangerous.length,
-      edge_function_calls: 3, // Physiology + DDX + Bayesian
-      optimizations: [
-        "Physiology + DDX parallelized",
-        "LLM SOAP generation removed",
-        "Guideline retrieval removed",
-        "Evidence retrieval removed",
-        "Multi-agent pipeline removed",
-        "Episodic memory removed",
-        "Causal reasoning removed",
-        "Evidence planning removed",
-        "Safety extracted from DDX output (no separate call)",
-      ],
+      edge_function_calls: 3,
     },
   };
 }
 
-function buildErrorResult(
-  sc: BenchmarkCase,
-  normalization: NormalizationTrace,
-  stages: StageLatency[],
-  failures: string[],
-  totalMs: number,
-): BenchmarkResult {
+// ── Run full 10-scenario suite ──
+
+export async function runBenchmarkSuite(
+  onProgress?: (scenarioName: string, index: number, total: number) => void,
+): Promise<BenchmarkSuiteResult> {
+  const results: BenchmarkResult[] = [];
+  const suite = BENCHMARK_SUITE;
+
+  for (let i = 0; i < suite.length; i++) {
+    onProgress?.(suite[i].name, i, suite.length);
+    try {
+      const result = await runSingleScenario(suite[i]);
+      results.push(result);
+    } catch (e) {
+      console.error(`[Benchmark] Scenario ${suite[i].id} crashed:`, e);
+      results.push(buildErrorResult(suite[i], e));
+    }
+  }
+
+  const total = results.length;
+  const passed = results.filter(r => r.passed).length;
+  const top1Count = results.filter(r => r.metrics.top1_accuracy).length;
+  const top3Count = results.filter(r => r.metrics.top3_accuracy).length;
+  const top5Count = results.filter(r => r.final_ranking.top5_match).length;
+  const recallCount = results.filter(r => r.metrics.candidate_recall).length;
+  const safetyCount = results.filter(r => r.metrics.safety_correct).length;
+  const latencies = results.map(r => r.metrics.total_latency_ms);
+
+  return {
+    timestamp: new Date().toISOString(),
+    total_scenarios: total,
+    passed,
+    failed: total - passed,
+    top1_accuracy: Math.round((top1Count / total) * 100),
+    top3_accuracy: Math.round((top3Count / total) * 100),
+    top5_accuracy: Math.round((top5Count / total) * 100),
+    candidate_recall: Math.round((recallCount / total) * 100),
+    safety_detection_rate: Math.round((safetyCount / total) * 100),
+    avg_latency_ms: Math.round(latencies.reduce((a, b) => a + b, 0) / total),
+    max_latency_ms: Math.max(...latencies),
+    min_latency_ms: Math.min(...latencies),
+    results,
+    failure_summary: results
+      .filter(r => !r.passed)
+      .map(r => ({ scenario: r.scenario_name, reasons: r.failure_reasons })),
+  };
+}
+
+// ── Backwards-compatible single-scenario runner ──
+export async function runControlledBenchmark(): Promise<BenchmarkResult> {
+  return runSingleScenario(BENCHMARK_SUITE[0]);
+}
+
+function buildErrorResult(sc: BenchmarkCase, error: unknown): BenchmarkResult {
   const empty = { states_activated: [], affected_organ_systems: [], candidate_diagnosis_ids: [], expected_state_match_rate: 0, expected_system_match: false };
   return {
     scenario_id: sc.id, scenario_name: sc.name, timestamp: new Date().toISOString(), passed: false,
-    normalization,
+    normalization: { raw_tokens: sc.context.symptoms, normalized_tokens: [], mappings: [], expected_match_rate: 0 },
     physiology: empty,
     candidate_generation: { candidates: [], candidate_count: 0, gold_in_candidates: false, gold_candidate_rank: null, gold_candidate_probability: null },
     bayesian: { ranked_diagnoses: [], gold_rank_after_bayesian: null },
     cognitive_pruning: { total_evaluated: 0, kept: 0, pruned: 0, escalated: 0, pruned_names: [], gold_pruned: false, quality_score: 0 },
-    safety: { danger_detected: false, expected_danger: sc.ground_truth.danger_flag, safety_alerts: 0, safety_score: 0, dangerous_diagnoses: [], expected_dangerous_diagnoses: sc.ground_truth.expected_dangerous_diagnoses || [], dangerous_diagnoses_in_candidates: [], correct: false, detection_details: "Pipeline failed" },
+    safety: { danger_detected: false, expected_danger: sc.ground_truth.danger_flag, safety_alerts: 0, safety_score: 0, dangerous_diagnoses: [], expected_dangerous_diagnoses: sc.ground_truth.expected_dangerous_diagnoses || [], dangerous_diagnoses_in_candidates: [], correct: false, detection_details: `Pipeline crashed: ${error}` },
     final_ranking: { ranking: [], gold_rank: null, top1_match: false, top3_match: false, top5_match: false },
-    metrics: { candidate_recall: false, top1_accuracy: false, top3_accuracy: false, safety_correct: false, physiology_activated: false, normalization_applied: false, soap_generated: false, total_latency_ms: totalMs, latency_under_5s: totalMs < 5000 },
-    stage_latencies: stages,
-    failure_reasons: failures,
-    recommendations: ["Fix pipeline execution errors before tuning accuracy"],
+    metrics: { candidate_recall: false, top1_accuracy: false, top3_accuracy: false, safety_correct: false, physiology_activated: false, normalization_applied: false, soap_generated: false, total_latency_ms: 0, latency_under_5s: true },
+    stage_latencies: [],
+    failure_reasons: [`Pipeline crash: ${error}`],
+    recommendations: ["Fix pipeline execution errors"],
     raw_output: null,
   };
 }

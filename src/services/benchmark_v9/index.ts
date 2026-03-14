@@ -1,8 +1,8 @@
 /**
- * Benchmark v9 — Single Controlled Scenario Suite
+ * Benchmark v9 — 10-Scenario Controlled Suite
  * Public API
  */
-export { CONTROLLED_SCENARIO } from "./scenario";
+export { CONTROLLED_SCENARIO, BENCHMARK_SUITE } from "./scenario";
 export type { BenchmarkCase } from "./scenario";
-export { runControlledBenchmark } from "./runner";
+export { runControlledBenchmark, runBenchmarkSuite, runSingleScenario } from "./runner";
 export type * from "./types";
