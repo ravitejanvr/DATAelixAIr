@@ -233,19 +233,19 @@ export default function GPBenchmarkDashboard() {
 
   return (
     <div className="space-y-6">
-      <SEO title="Clinical Reasoning Benchmark" description="10-scenario diagnostic engine validation" />
+      <SEO title="Clinical Reasoning Benchmark" description="30-scenario diagnostic engine validation" />
 
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Clinical Reasoning Benchmark</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            10 controlled scenarios · Core diagnostic pipeline validation
+            30 controlled scenarios · Core diagnostic pipeline validation
           </p>
         </div>
         <Button size="sm" onClick={runBenchmark} disabled={running}>
           {running
             ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />{progress || "Running..."}</>
-            : <><Play className="h-3.5 w-3.5 mr-1" /> Run All 10 Scenarios</>
+            : <><Play className="h-3.5 w-3.5 mr-1" /> Run All 30 Scenarios</>
           }
         </Button>
       </div>
