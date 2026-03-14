@@ -321,7 +321,7 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
   // From DDX must-not-miss flags
   for (const d of ddxDiagnoses) {
     if (d.must_not_miss) {
-      dangerousList.push((d.diagnosis_name || d.diagnosis || "").trim());
+      dangerousList.push((d.diagnosis_name || "").trim());
     }
   }
   // From explicit dangerous_diagnoses in DDX output
