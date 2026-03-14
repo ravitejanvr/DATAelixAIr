@@ -416,7 +416,7 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
                 <div key={i} className="flex items-center gap-2 text-xs font-mono">
                   <span className="w-6 text-right text-muted-foreground">#{d.rank}</span>
                   <span className={d.rank === result.final_ranking.gold_rank ? "font-bold text-emerald-600" : ""}>{d.diagnosis}</span>
-                  <span className="text-muted-foreground">({(d.probability * 100).toFixed(1)}%)</span>
+                  <span className="text-muted-foreground">({d.probability > 1 ? d.probability : (d.probability * 100).toFixed(1)}%)</span>
                 </div>
               ))}
               <p className="text-[10px] text-muted-foreground mt-1">
