@@ -565,7 +565,7 @@ function buildErrorResult(sc: BenchmarkCase, error: unknown): BenchmarkResult {
     bayesian: { ranked_diagnoses: [], gold_rank_after_bayesian: null },
     cognitive_pruning: { total_evaluated: 0, kept: 0, pruned: 0, escalated: 0, pruned_names: [], gold_pruned: false, quality_score: 0 },
     safety: { danger_detected: false, expected_danger: sc.ground_truth.danger_flag, safety_alerts: 0, safety_score: 0, dangerous_diagnoses: [], expected_dangerous_diagnoses: sc.ground_truth.expected_dangerous_diagnoses || [], dangerous_diagnoses_in_candidates: [], correct: false, detection_details: `Pipeline crashed: ${error}` },
-    final_ranking: { ranking: [], gold_rank: null, top1_match: false, top3_match: false, top5_match: false },
+    final_ranking: { ranking: [], gold_rank: null, top1_match: false, top3_match: false, top5_match: false, ranking_source: "ddx_fallback" as const },
     metrics: { candidate_recall: false, top1_accuracy: false, top3_accuracy: false, safety_correct: false, physiology_activated: false, normalization_applied: false, soap_generated: false, total_latency_ms: 0, latency_under_5s: true },
     stage_latencies: [],
     failure_reasons: [`Pipeline crash: ${error}`],
