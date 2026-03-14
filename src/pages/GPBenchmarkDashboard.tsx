@@ -322,7 +322,7 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
               <p className="text-[10px] text-muted-foreground">
                 {result.candidate_generation.candidate_count} candidates ·
                 Gold {result.candidate_generation.gold_in_candidates
-                  ? `found at rank #${result.candidate_generation.gold_candidate_rank} (${((result.candidate_generation.gold_candidate_probability || 0) * 100).toFixed(1)}%)`
+                  ? `found at rank #${result.candidate_generation.gold_candidate_rank} (${(result.candidate_generation.gold_candidate_probability || 0) > 1 ? (result.candidate_generation.gold_candidate_probability || 0) : ((result.candidate_generation.gold_candidate_probability || 0) * 100).toFixed(1)}%)`
                   : "NOT FOUND ✗"}
               </p>
             </div>
