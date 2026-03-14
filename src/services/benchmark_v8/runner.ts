@@ -616,7 +616,7 @@ export async function loadPersistedV8Results(): Promise<BenchmarkSuiteResultV8 |
     };
     return {
       case_id: `persisted-${r.id}`, case_name: r.test_case,
-      specialty: po.specialty || "emergency_medicine",
+      specialty: po.specialty || "general_practice",
       difficulty: po.difficulty || "common",
       reasoning_category: po.reasoning_category || "straightforward",
       tags: [],
@@ -637,6 +637,10 @@ export async function loadPersistedV8Results(): Promise<BenchmarkSuiteResultV8 |
         initial_top_probability: 0, final_top_probability: 0, confidence_convergence: 0,
         diagnosis_stable: true, gold_rank_iteration_1: null, gold_rank_iteration_2: null, gold_rank_improved: false,
         snapshots: [],
+      },
+      reasoning_trace: po.reasoning_trace || {
+        symptoms: [], physiology: { symptoms_detected: [], physiology_states_activated: [], candidate_diagnosis_ids: [], affected_organ_systems: [], physiology_used: false },
+        candidate_diagnoses: [], bayesian_probabilities: [], hypotheses_pruned: [], final_ranking: [], dangerous_diagnoses_detected: [],
       },
       safety: po.safety || { dangerous_detected: false, expected_dangerous: false, false_negative: false, safety_alerts: 0, safety_score: 0 },
       latency: po.latency || emptyLatency,
