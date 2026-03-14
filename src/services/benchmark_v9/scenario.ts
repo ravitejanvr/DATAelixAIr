@@ -59,6 +59,7 @@ export const CONTROLLED_SCENARIO: BenchmarkCase = {
     expected_physiology_states: ["pulmonary inflammation", "alveolar", "impaired gas exchange", "respiratory"],
     expected_organ_systems: ["respiratory"],
     recommended_tests: ["Chest X-ray", "CBC", "CRP", "Sputum Culture", "Blood Culture"],
-    danger_flag: false,
+    danger_flag: true,
+    expected_dangerous_diagnoses: ["Pulmonary Embolism", "Myocardial Infarction"],
   },
 };
