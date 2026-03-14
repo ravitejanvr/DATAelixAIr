@@ -375,12 +375,46 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   };
 
   // ── STAGE 7: Final Ranked Diagnoses ──
-  const finalRanking = candidates.slice(0, 10).map((c: any, i: number) => ({
-    rank: i + 1,
-    diagnosis: c.name,
-    diagnosis_id: c.diagnosis_id,
-    probability: c.probability,
-  }));
+  // USE BAYESIAN RE-RANKING when available — this is the critical fix.
+  // Previously, the final ranking used DDX output order directly, ignoring
+  // the Bayesian engine's posterior probabilities entirely.
+  // The Bayesian engine accounts for priors, symptom likelihoods, physiology,
+  // and risk factors — producing a more calibrated ranking.
+
+  let finalRanking: Array<{ rank: number; diagnosis: string; diagnosis_id: string; probability: number }>;
+
+  if (bayDiagnoses.length > 0) {
+    // Build a map from diagnosis_id to Bayesian posterior
+    const bayPosteriorMap = new Map<string, number>();
+    for (const bd of (bayesianResult as any)?.diagnoses || []) {
+      bayPosteriorMap.set(bd.diagnosis_id, bd.posterior_probability || 0);
+    }
+
+    // Merge: use DDX candidates but re-rank by Bayesian posterior
+    const reranked = candidates
+      .map((c: any) => ({
+        name: c.name,
+        diagnosis_id: c.diagnosis_id,
+        probability: bayPosteriorMap.get(c.diagnosis_id) ?? c.probability,
+        must_not_miss: c.must_not_miss,
+      }))
+      .sort((a: any, b: any) => b.probability - a.probability);
+
+    finalRanking = reranked.slice(0, 10).map((c: any, i: number) => ({
+      rank: i + 1,
+      diagnosis: c.name,
+      diagnosis_id: c.diagnosis_id,
+      probability: c.probability,
+    }));
+  } else {
+    // Fallback: use DDX ordering if Bayesian failed
+    finalRanking = candidates.slice(0, 10).map((c: any, i: number) => ({
+      rank: i + 1,
+      diagnosis: c.name,
+      diagnosis_id: c.diagnosis_id,
+      probability: c.probability,
+    }));
+  }
 
   const finalGoldRank = finalRanking.findIndex(d =>
     diagMatch(d.diagnosis, sc.ground_truth.gold_standard_diagnosis)
