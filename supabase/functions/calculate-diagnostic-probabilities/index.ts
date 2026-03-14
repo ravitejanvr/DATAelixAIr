@@ -7,15 +7,18 @@ const corsHeaders = {
 };
 
 /**
- * Bayesian Diagnostic Probability Engine
+ * Bayesian Diagnostic Probability Engine v2 — Specificity-Weighted
  *
- * Computes P(D|E) ∝ P(D) × ∏ P(Sᵢ|D) × ∏ P(Φⱼ|D) × ∏ R(k)
+ * Computes log P(D|E) ∝ log P(D) + Σ wᵢ·log P(Sᵢ|D) + coverage_bonus + Σ log P(Φⱼ|D) + Σ log R(k)
  *
  * Where:
  *   P(D) = disease prior (base_prevalence × age/sex/region modifiers)
  *   P(Sᵢ|D) = symptom likelihood from symptom_likelihoods table
+ *   wᵢ = specificity weight = 1 / log₂(disease_count_i + 1)  — suppresses non-specific symptoms
+ *   coverage_bonus = (matched/total)^1.5 — rewards diagnoses that explain the full presentation
  *   P(Φⱼ|D) = physiology likelihood from physiology_likelihoods table
  *   R(k) = risk factor modifier weights
+ *   Final posteriors use softmax normalization for stable differentiation.
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
