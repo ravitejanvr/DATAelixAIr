@@ -40,7 +40,7 @@ const DEFAULT_CONFIG: LoopConfig = {
   min_top_probability: 45,
   min_probability_gap: 10,
   max_iterations: 2,
-  prune_threshold: 8,
+  prune_threshold: 0,  // disabled — probability-based pruning not allowed
 };
 
 // ── Public API ──
