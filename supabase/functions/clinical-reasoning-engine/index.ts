@@ -152,34 +152,56 @@ serve(async (req) => {
       });
     }
 
-    const allSymptoms = [...new Set([...symptoms, ...(chief_complaint ? [chief_complaint] : [])])];
+    // Normalize symptoms before any graph queries
+    const rawSymptoms = [...new Set([...symptoms, ...(chief_complaint ? [chief_complaint] : [])])];
+    const allSymptoms = normalizeSymptomList(rawSymptoms.map(s => s.toLowerCase().trim()));
+    // Keep originals for unmatched reporting
+    const allSymptomsWithRaw = [...new Set([...allSymptoms, ...rawSymptoms.map(s => s.toLowerCase().trim())])];
     const stageLatencies: Record<string, number> = {};
 
     // ══════════════════════════════════════════════════════
     // PARADIGM 1: SYMBOLIC REASONING (Knowledge Graph)
-    // Rule-based deterministic traversal
+    // Rule-based deterministic traversal via symptom_likelihoods
     // ══════════════════════════════════════════════════════
     const symbolicStart = Date.now();
 
-    // 1a: Resolve symptoms
-    const { data: symptomRows } = await sb
+    // 1a: Resolve symptoms — exact match on normalized terms + fuzzy on raw
+    const { data: exactRows } = await sb
       .from("symptoms")
       .select("id, symptom_name")
-      .or(allSymptoms.map(s => `symptom_name.ilike.%${s.replace(/'/g, "''")}%`).join(","));
+      .in("symptom_name", allSymptoms);
 
-    const matchedSymptomIds = (symptomRows || []).map((s: any) => s.id);
-    const matchedSymptomNames = (symptomRows || []).map((s: any) => s.symptom_name);
-    const unmatchedSymptoms = allSymptoms.filter(
+    const matchedIds = new Set((exactRows || []).map((s: any) => s.id));
+    const matchedNames = new Set((exactRows || []).map((s: any) => s.symptom_name));
+
+    // Fuzzy for unmatched (raw terms that didn't normalize to a match)
+    const unmatchedForFuzzy = allSymptomsWithRaw.filter(s => !matchedNames.has(s));
+    if (unmatchedForFuzzy.length > 0) {
+      const fuzzyPromises = unmatchedForFuzzy.map(s =>
+        sb.from("symptoms").select("id, symptom_name").ilike("symptom_name", `%${s}%`).limit(3)
+      );
+      const fuzzyResults = await Promise.all(fuzzyPromises);
+      for (const res of fuzzyResults) {
+        for (const s of res.data || []) {
+          if (!matchedIds.has(s.id)) { matchedIds.add(s.id); matchedNames.add(s.symptom_name); }
+        }
+      }
+    }
+
+    const matchedSymptomIds = Array.from(matchedIds);
+    const matchedSymptomNames = Array.from(matchedNames);
+    const unmatchedSymptoms = allSymptomsWithRaw.filter(
       s => !matchedSymptomNames.some((m: string) => m.toLowerCase().includes(s.toLowerCase()))
     );
 
-    // 1b: Symptom → Diagnosis traversal
+    // 1b: Symptom → Diagnosis traversal via symptom_likelihoods (5000+ edges)
     let symbolicDiagnoses: any[] = [];
     if (matchedSymptomIds.length > 0) {
       const { data: maps } = await sb
-        .from("symptom_diagnosis_map")
-        .select("diagnosis_id, confidence, diagnoses(id, diagnosis_name, category, icd10_code)")
-        .in("symptom_id", matchedSymptomIds);
+        .from("symptom_likelihoods")
+        .select("symptom_id, diagnosis_id, likelihood_value, diagnoses(id, diagnosis_name, category, icd10_code)")
+        .in("symptom_id", matchedSymptomIds)
+        .order("likelihood_value", { ascending: false });
 
       // Aggregate by diagnosis
       const diagMap = new Map<string, any>();
@@ -199,10 +221,9 @@ serve(async (req) => {
         }
         const entry = diagMap.get(d.id);
         entry.symptom_hits++;
-        entry.total_confidence += (m.confidence || 0.5);
-        entry.supporting_symptoms.push(matchedSymptomNames.find((_: any, i: number) =>
-          matchedSymptomIds[i] === (maps || [])[0]?.diagnosis_id // approximate
-        ) || "symptom");
+        entry.total_confidence += (m.likelihood_value || 0.5);
+        const symName = matchedSymptomNames.find((_: any, i: number) => matchedSymptomIds[i] === m.symptom_id) || "symptom";
+        if (!entry.supporting_symptoms.includes(symName)) entry.supporting_symptoms.push(symName);
       }
 
       symbolicDiagnoses = Array.from(diagMap.values()).map(d => ({
