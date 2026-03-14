@@ -3615,6 +3615,41 @@ export type Database = {
         }
         Relationships: []
       }
+      medical_history_modifiers: {
+        Row: {
+          confidence: number
+          created_at: string
+          diagnosis_id: string
+          history_condition: string
+          id: string
+          prior_multiplier: number
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          diagnosis_id: string
+          history_condition: string
+          id?: string
+          prior_multiplier?: number
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          diagnosis_id?: string
+          history_condition?: string
+          id?: string
+          prior_multiplier?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medical_history_modifiers_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       medication_alerts: {
         Row: {
           acknowledged_at: string | null
