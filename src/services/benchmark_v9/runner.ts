@@ -1,7 +1,7 @@
 /**
  * Benchmark v9 — Optimized Multi-Scenario Runner
  *
- * Runs 10 controlled scenarios through the core diagnostic pipeline:
+ * Runs 30 controlled scenarios through the core diagnostic pipeline:
  *   Normalization → Physiology‖DDX → Bayesian → Cognitive → Safety → Ranking
  *
  * 3 edge function calls per scenario (Physiology + DDX parallel, then Bayesian).
@@ -41,6 +41,37 @@ const SYNONYM_MAP: Record<string, string[]> = {
   asthmaexacerbation: ["asthma"],
   sepsis: ["septicemia", "systemicinfection", "bacteremia"],
   migraine: ["migraineheadache", "migrainewithauraaura"],
+  copdexacerbation: ["copd", "chronicobstructivepulmonarydisease"],
+  copd: ["copdexacerbation"],
+  pancreatitis: ["acutepancreatitis"],
+  acutepancreatitis: ["pancreatitis"],
+  pepticulcerdisease: ["pepticulcer", "gastricculcer", "duodenalulcer"],
+  pepticulcer: ["pepticulcerdisease"],
+  pericarditis: ["acutepericarditis"],
+  heartfailure: ["congestiveheartfailure", "chf"],
+  congestiveheartfailure: ["heartfailure", "chf"],
+  tensionheadache: ["tensionheadache", "tensiontype"],
+  meningitis: ["bacterialmeningitis", "viralmeningitis"],
+  stroke: ["cerebrovascularaccident", "cva", "ischemicstroke"],
+  cerebrovascularaccident: ["stroke", "cva"],
+  influenza: ["flu"],
+  flu: ["influenza"],
+  covid19: ["covid", "sarscov2", "covidlikesyndrome"],
+  covid: ["covid19"],
+  hypoglycemia: ["lowbloodsugar"],
+  thyroidstorm: ["thyrotoxiccrisis", "thyrotoxicosis"],
+  pyelonephritis: ["kidneysinfection"],
+  renalcolic: ["kidneystone", "ureterolithiasis", "nephrolithiasis"],
+  kidneystone: ["renalcolic", "nephrolithiasis"],
+  cholecystitis: ["acutecholecystitis", "gallbladderinflammation"],
+  acutecholecystitis: ["cholecystitis"],
+  pneumothorax: ["collapsedlung"],
+  deepveinthrombosis: ["dvt"],
+  dvt: ["deepveinthrombosis"],
+  anaphylaxis: ["anaphylacticshock"],
+  cellulitis: ["skinsofttissueinfection"],
+  gerd: ["gastroesophagealrefluxdisease", "acidreflux"],
+  gastroesophagealrefluxdisease: ["gerd"],
 };
 
 function norm(s: string): string {
@@ -408,7 +439,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   };
 }
 
-// ── Run full 10-scenario suite ──
+// ── Run full suite ──
 
 export async function runBenchmarkSuite(
   onProgress?: (scenarioName: string, index: number, total: number) => void,
