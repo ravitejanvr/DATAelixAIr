@@ -36,6 +36,7 @@ export interface BayesianInput {
   symptoms: string[];
   physiological_state_ids?: string[];
   risk_factors?: string[];
+  medical_history?: string[];
   patient_age?: number | null;
   patient_sex?: string | null;
   region?: string;
