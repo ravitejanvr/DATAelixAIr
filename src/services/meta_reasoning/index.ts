@@ -138,6 +138,8 @@ export function clearMetaReasoningCache(): void {
   _cachedActivationRules = null;
   _cachedSpecificityMap = null;
   _cachedOrganWeightMap = null;
+  _cachedPhysiologyMap = null;
+  _cachedPhysiologyDiagMap = null;
 }
 
 // ── Core Meta-Reasoning ──
