@@ -604,16 +604,36 @@ export async function runBenchmarkV7(
 // ── Load Persisted Results ──
 
 export async function loadPersistedV7Results(): Promise<BenchmarkSuiteResultV7 | null> {
-  const { data: latest } = await supabase
-    .from("benchmark_runs").select("run_group_id")
+  // Prefer true v7 runs first
+  const { data: latestV7 } = await supabase
+    .from("benchmark_runs")
+    .select("run_group_id, benchmark_version")
     .eq("benchmark_version", "benchmark_v7")
-    .order("created_at", { ascending: false }).limit(1);
+    .not("run_group_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
 
-  if (!latest?.length) return null;
-  const runGroupId = latest[0].run_group_id;
+  let runGroupId: string | null = (latestV7?.[0]?.run_group_id as string | null) ?? null;
+  let sourceVersion: string = latestV7?.[0]?.benchmark_version ?? "benchmark_v7";
+
+  // Fallback: load latest legacy benchmark group so old results are still visible
+  if (!runGroupId) {
+    const { data: latestAny } = await supabase
+      .from("benchmark_runs")
+      .select("run_group_id, benchmark_version")
+      .not("run_group_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    runGroupId = (latestAny?.[0]?.run_group_id as string | null) ?? null;
+    sourceVersion = latestAny?.[0]?.benchmark_version ?? sourceVersion;
+  }
+
+  if (!runGroupId) return null;
 
   const { data: runs } = await supabase
-    .from("benchmark_runs").select("*")
+    .from("benchmark_runs")
+    .select("*")
     .eq("run_group_id", runGroupId)
     .order("test_case_index", { ascending: true });
 
@@ -623,28 +643,39 @@ export async function loadPersistedV7Results(): Promise<BenchmarkSuiteResultV7 |
     const po = r.pipeline_output || {};
     const emptyLatency: LatencyBreakdownV7 = { pcie_ms: 0, world_model_ms: 0, episodic_memory_ms: 0, ddx_ms: 0, hypothesis_testing_ms: 0, bayesian_ms: 0, evidence_planning_ms: 0, causal_reasoning_ms: 0, conflict_resolution_ms: 0, safety_ms: 0, soap_ms: 0, diagnostic_loop_ms: 0, iteration_1_ms: 0, iteration_2_ms: 0, total_ms: r.latency_ms || 0 };
     return {
-      case_id: `persisted-${r.id}`, case_name: r.test_case,
+      case_id: `persisted-${r.id}`,
+      case_name: r.test_case,
       specialty: po.specialty || "emergency_medicine",
       difficulty: po.difficulty || "common",
       reasoning_category: po.reasoning_category || "straightforward",
       tags: [],
-      top1_match: po.top1_match || false, top3_match: po.top3_match || false, top5_match: po.top5_match || false,
+      top1_match: po.top1_match || false,
+      top3_match: po.top3_match || false,
+      top5_match: po.top5_match || false,
       diagnosis_match_rate: (r.diagnosis_agreement || 0) / 100,
       lab_match_rate: (r.lab_agreement || 0) / 100,
       medication_match_rate: (r.medication_agreement || 0) / 100,
       gold_standard_rank: po.gold_standard_rank || null,
       matched_diagnoses: r.comparison_details?.matched_diagnoses || [],
       actual_diagnoses: po.diagnoses || [],
-      actual_labs: [], actual_medications: [],
+      actual_labs: [],
+      actual_medications: [],
       iterative_reasoning: po.iterative_reasoning || {
         iterations_executed: r.comparison_details?.iteration_count || 1,
         loop_activated: r.comparison_details?.loop_activated || false,
-        loop_reason: "", initial_candidate_count: 0, final_candidate_count: 0,
+        loop_reason: "",
+        initial_candidate_count: 0,
+        final_candidate_count: 0,
         hypothesis_pruning_rate: r.comparison_details?.pruning_rate || 0,
-        initial_top_probability: 0, final_top_probability: 0,
+        initial_top_probability: 0,
+        final_top_probability: 0,
         confidence_convergence: r.comparison_details?.confidence_convergence || 0,
-        diagnosis_stable: true, top_diagnosis_changed: false, ranking_shifts: 0,
-        gold_rank_iteration_1: null, gold_rank_iteration_2: null, gold_rank_improved: false,
+        diagnosis_stable: true,
+        top_diagnosis_changed: false,
+        ranking_shifts: 0,
+        gold_rank_iteration_1: null,
+        gold_rank_iteration_2: null,
+        gold_rank_improved: false,
         snapshots: [],
       },
       evidence_planning: po.evidence_planning || { tests_recommended: [], test_match_rate: 0, clinical_usefulness_score: 0, information_gain_score: 0, discriminative_tests: [] },
@@ -653,13 +684,19 @@ export async function loadPersistedV7Results(): Promise<BenchmarkSuiteResultV7 |
       reasoning_completeness: po.reasoning_completeness || 0,
       confidence_score: r.confidence_score || 0,
       confidence_label: r.confidence_label || "Unknown",
-      guideline_sources: [], failure_reasons: r.failure_reasons || [],
+      guideline_sources: [],
+      failure_reasons: r.failure_reasons || [],
       failure_root_cause: po.failure_root_cause || null,
-      pipeline_output: null, o1_result: null, passed: r.passed || false,
+      pipeline_output: null,
+      o1_result: null,
+      passed: r.passed || false,
     };
   });
 
-  return buildSuiteResult(runGroupId || `v7-persisted`, results);
+  const suite = buildSuiteResult(runGroupId, results);
+  return sourceVersion === "benchmark_v7"
+    ? suite
+    : { ...suite, suite_name: `Benchmark history (${sourceVersion})` };
 }
 
 export async function getCompletedV7Count(): Promise<{ runGroupId: string | null; count: number }> {
