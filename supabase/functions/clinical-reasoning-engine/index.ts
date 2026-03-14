@@ -1,6 +1,97 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ══════════════════════════════════════════════════════════════
+// INLINE TERMINOLOGY NORMALIZER
+// Must be kept in-sync with ddx-engine normalizer.
+// ══════════════════════════════════════════════════════════════
+const SYNONYM_MAP: Record<string, string> = {
+  "cough with sputum": "productive cough", "cough with phlegm": "productive cough",
+  "phlegmy cough": "productive cough", "wet cough": "productive cough",
+  "nonproductive cough": "dry cough",
+  "shortness of breath": "dyspnea", "breathlessness": "dyspnea",
+  "difficulty breathing": "dyspnea", "breathing difficulty": "dyspnea",
+  "can't breathe": "dyspnea", "labored breathing": "dyspnea", "sob": "dyspnea",
+  "rhinorrhea": "runny nose", "nasal discharge": "runny nose",
+  "stuffy nose": "nasal congestion", "blocked nose": "nasal congestion",
+  "sinus pressure": "facial pain", "sinus pain": "facial pain",
+  "coughing up blood": "hemoptysis", "blood in sputum": "hemoptysis",
+  "stomach pain": "abdominal pain", "belly pain": "abdominal pain",
+  "tummy pain": "abdominal pain", "stomach ache": "abdominal pain",
+  "abdominal discomfort": "abdominal pain",
+  "stomach cramps": "abdominal cramps", "belly cramps": "abdominal cramps",
+  "throwing up": "vomiting", "puking": "vomiting", "emesis": "vomiting",
+  "feeling sick": "nausea", "queasy": "nausea",
+  "loose stools": "diarrhea", "loose motions": "diarrhea",
+  "watery stools": "diarrhea", "frequent stools": "diarrhea",
+  "acid reflux": "heartburn", "acidity": "heartburn",
+  "burning in stomach": "epigastric pain", "upper stomach pain": "epigastric pain",
+  "gas": "bloating", "flatulence": "bloating", "indigestion": "bloating",
+  "no appetite": "loss of appetite", "not hungry": "loss of appetite",
+  "poor appetite": "loss of appetite", "decreased appetite": "loss of appetite",
+  "blood in stool": "bloody stool", "rectal bleeding": "bloody stool",
+  "heart racing": "palpitations", "heart pounding": "palpitations",
+  "irregular heartbeat": "palpitations",
+  "fast heart": "tachycardia", "rapid pulse": "tachycardia",
+  "chest tightness": "chest pain", "chest pressure": "chest pain",
+  "chest discomfort": "chest pain",
+  "heavy sweating": "diaphoresis", "profuse sweating": "diaphoresis",
+  "cold sweats": "diaphoresis",
+  "swollen legs": "edema", "swollen feet": "edema", "ankle swelling": "edema",
+  "leg swelling": "edema", "fluid retention": "edema",
+  "cannot lie flat": "orthopnea", "wakes up breathless": "orthopnea",
+  "head pain": "headache", "migraine": "headache",
+  "giddiness": "dizziness", "lightheadedness": "dizziness",
+  "vertigo": "dizziness", "room spinning": "dizziness",
+  "passed out": "syncope", "fainted": "syncope", "fainting": "syncope",
+  "loss of consciousness": "syncope",
+  "stiff neck": "neck stiffness", "neck rigidity": "neck stiffness",
+  "sensitivity to light": "photophobia", "light sensitivity": "photophobia",
+  "can't see clearly": "blurred vision", "vision blurry": "blurred vision",
+  "double vision": "blurred vision",
+  "pins and needles": "tingling", "prickling": "tingling",
+  "weakness in arm": "weakness", "weakness in leg": "weakness",
+  "general weakness": "weakness", "body weakness": "weakness",
+  "slurred speech": "speech difficulty", "difficulty speaking": "speech difficulty",
+  "body pain": "body aches", "generalized pain": "body aches",
+  "muscle ache": "muscle pain", "myalgia": "muscle pain",
+  "joint ache": "joint pain", "arthralgia": "joint pain",
+  "low back pain": "back pain", "lower back pain": "back pain",
+  "lumbar pain": "back pain",
+  "painful urination": "dysuria", "burning urination": "dysuria",
+  "urinary burning": "dysuria", "burning when peeing": "dysuria",
+  "peeing a lot": "polyuria", "frequent urination": "polyuria",
+  "blood in urine": "hematuria",
+  "side pain": "flank pain", "kidney area pain": "flank pain",
+  "excessive thirst": "polydipsia", "always thirsty": "polydipsia",
+  "skin rash": "rash", "eruption": "rash", "hives": "rash",
+  "pruritus": "itching", "itchy skin": "itching",
+  "tiredness": "fatigue", "exhaustion": "fatigue", "no energy": "fatigue",
+  "lethargic": "fatigue", "lethargy": "fatigue", "feeling tired": "fatigue",
+  "low grade fever": "mild fever", "slight fever": "mild fever",
+  "high fever": "fever", "temperature": "fever", "febrile": "fever", "pyrexia": "fever",
+  "rigor": "chills", "shivering": "chills",
+  "unable to sleep": "insomnia", "sweating at night": "night sweats",
+  "lost weight": "weight loss", "losing weight": "weight loss",
+  "feeling unwell": "malaise", "generally unwell": "malaise",
+  "dehydrated": "dehydration", "dry mouth": "dehydration",
+};
+
+function normalizeSymptom(s: string): string {
+  const lower = s.toLowerCase().trim();
+  return SYNONYM_MAP[lower] || lower;
+}
+
+function normalizeSymptomList(symptoms: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const s of symptoms) {
+    const n = normalizeSymptom(s);
+    if (!seen.has(n)) { seen.add(n); result.push(n); }
+  }
+  return result;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -61,34 +152,56 @@ serve(async (req) => {
       });
     }
 
-    const allSymptoms = [...new Set([...symptoms, ...(chief_complaint ? [chief_complaint] : [])])];
+    // Normalize symptoms before any graph queries
+    const rawSymptoms = [...new Set([...symptoms, ...(chief_complaint ? [chief_complaint] : [])])];
+    const allSymptoms = normalizeSymptomList(rawSymptoms.map(s => s.toLowerCase().trim()));
+    // Keep originals for unmatched reporting
+    const allSymptomsWithRaw = [...new Set([...allSymptoms, ...rawSymptoms.map(s => s.toLowerCase().trim())])];
     const stageLatencies: Record<string, number> = {};
 
     // ══════════════════════════════════════════════════════
     // PARADIGM 1: SYMBOLIC REASONING (Knowledge Graph)
-    // Rule-based deterministic traversal
+    // Rule-based deterministic traversal via symptom_likelihoods
     // ══════════════════════════════════════════════════════
     const symbolicStart = Date.now();
 
-    // 1a: Resolve symptoms
-    const { data: symptomRows } = await sb
+    // 1a: Resolve symptoms — exact match on normalized terms + fuzzy on raw
+    const { data: exactRows } = await sb
       .from("symptoms")
       .select("id, symptom_name")
-      .or(allSymptoms.map(s => `symptom_name.ilike.%${s.replace(/'/g, "''")}%`).join(","));
+      .in("symptom_name", allSymptoms);
 
-    const matchedSymptomIds = (symptomRows || []).map((s: any) => s.id);
-    const matchedSymptomNames = (symptomRows || []).map((s: any) => s.symptom_name);
-    const unmatchedSymptoms = allSymptoms.filter(
+    const matchedIds = new Set((exactRows || []).map((s: any) => s.id));
+    const matchedNames = new Set((exactRows || []).map((s: any) => s.symptom_name));
+
+    // Fuzzy for unmatched (raw terms that didn't normalize to a match)
+    const unmatchedForFuzzy = allSymptomsWithRaw.filter(s => !matchedNames.has(s));
+    if (unmatchedForFuzzy.length > 0) {
+      const fuzzyPromises = unmatchedForFuzzy.map(s =>
+        sb.from("symptoms").select("id, symptom_name").ilike("symptom_name", `%${s}%`).limit(3)
+      );
+      const fuzzyResults = await Promise.all(fuzzyPromises);
+      for (const res of fuzzyResults) {
+        for (const s of res.data || []) {
+          if (!matchedIds.has(s.id)) { matchedIds.add(s.id); matchedNames.add(s.symptom_name); }
+        }
+      }
+    }
+
+    const matchedSymptomIds = Array.from(matchedIds);
+    const matchedSymptomNames = Array.from(matchedNames);
+    const unmatchedSymptoms = allSymptomsWithRaw.filter(
       s => !matchedSymptomNames.some((m: string) => m.toLowerCase().includes(s.toLowerCase()))
     );
 
-    // 1b: Symptom → Diagnosis traversal
+    // 1b: Symptom → Diagnosis traversal via symptom_likelihoods (5000+ edges)
     let symbolicDiagnoses: any[] = [];
     if (matchedSymptomIds.length > 0) {
       const { data: maps } = await sb
-        .from("symptom_diagnosis_map")
-        .select("diagnosis_id, confidence, diagnoses(id, diagnosis_name, category, icd10_code)")
-        .in("symptom_id", matchedSymptomIds);
+        .from("symptom_likelihoods")
+        .select("symptom_id, diagnosis_id, likelihood_value, diagnoses(id, diagnosis_name, category, icd10_code)")
+        .in("symptom_id", matchedSymptomIds)
+        .order("likelihood_value", { ascending: false });
 
       // Aggregate by diagnosis
       const diagMap = new Map<string, any>();
@@ -108,10 +221,9 @@ serve(async (req) => {
         }
         const entry = diagMap.get(d.id);
         entry.symptom_hits++;
-        entry.total_confidence += (m.confidence || 0.5);
-        entry.supporting_symptoms.push(matchedSymptomNames.find((_: any, i: number) =>
-          matchedSymptomIds[i] === (maps || [])[0]?.diagnosis_id // approximate
-        ) || "symptom");
+        entry.total_confidence += (m.likelihood_value || 0.5);
+        const symName = matchedSymptomNames.find((_: any, i: number) => matchedSymptomIds[i] === m.symptom_id) || "symptom";
+        if (!entry.supporting_symptoms.includes(symName)) entry.supporting_symptoms.push(symName);
       }
 
       symbolicDiagnoses = Array.from(diagMap.values()).map(d => ({
