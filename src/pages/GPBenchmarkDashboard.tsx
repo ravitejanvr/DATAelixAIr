@@ -551,6 +551,7 @@ export default function GPBenchmarkDashboard() {
                       Controlled Scenario: {CONTROLLED_SCENARIO.name}
                     </h2>
                     <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xl">{CONTROLLED_SCENARIO.description}</p>
+                    <p className="text-[10px] text-emerald-600 mt-1 font-medium">⚡ Optimized: 3 edge functions (Physiology‖DDX → Bayesian), no LLM calls</p>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {CONTROLLED_SCENARIO.context.symptoms.map((s, i) => (
                         <Badge key={i} variant="outline" className="text-[9px]">{s}</Badge>
