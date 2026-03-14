@@ -385,6 +385,26 @@ async function runCase(bc: BenchmarkCaseV8): Promise<CaseResultV8> {
 
     const passed = (goldRank !== null && goldRank <= 5) || (!bc.ground_truth.danger_flag || dangerDetected);
 
+    // Build physiology trace
+    const physioCtx = (o1 as any)?.physiological_context;
+    const reasoningTrace = {
+      symptoms: bc.context.symptoms || [],
+      physiology: {
+        symptoms_detected: bc.context.symptoms || [],
+        physiology_states_activated: physioCtx?.physiological_states || [],
+        candidate_diagnosis_ids: physioCtx?.candidate_diagnosis_ids || [],
+        affected_organ_systems: physioCtx?.affected_systems || [],
+        physiology_used: !!(physioCtx?.physiological_states?.length),
+      },
+      candidate_diagnoses: actualDx,
+      bayesian_probabilities: ((o1?.bayesian as any)?.diagnoses || []).map((d: any) => ({
+        diagnosis: d.diagnosis_name || d.diagnosis || "", probability: d.posterior_probability || d.probability || 0,
+      })),
+      hypotheses_pruned: cognitiveOutput.hypothesis_evaluation.filter(h => h.action === "prune").map(h => h.hypothesis),
+      final_ranking: actualDx.slice(0, 5).map((d, i) => ({ diagnosis: d, probability: 0, rank: i + 1 })),
+      dangerous_diagnoses_detected: dangerDetected ? [bc.ground_truth.gold_standard_diagnosis] : [],
+    };
+
     return {
       case_id: bc.id, case_name: bc.name, specialty: bc.specialty,
       difficulty: bc.difficulty, reasoning_category: bc.reasoning_category, tags: bc.tags,
@@ -396,6 +416,7 @@ async function runCase(bc: BenchmarkCaseV8): Promise<CaseResultV8> {
         bc.ground_truth.alternative_plausible_diagnoses.some(alt => synonymMatch(d, alt))),
       cognitive: cognitiveMetrics,
       iterative_reasoning: iterativeMetrics,
+      reasoning_trace: reasoningTrace,
       safety, latency,
       reasoning_completeness: stagesExecuted / 10,
       confidence_score: result.confidence_scores?.confidence_score || 0,
