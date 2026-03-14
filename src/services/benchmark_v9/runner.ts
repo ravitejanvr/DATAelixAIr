@@ -386,11 +386,6 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   };
 
   // ── STAGE 7: Final Ranked Diagnoses (Bayesian-authoritative) ──
-  // Build a Bayesian posterior lookup from Stage 4 output
-  const bayesianLookup = new Map<string, number>();
-  for (const bd of bayDiagnoses) {
-    bayesianLookup.set(norm(bd.diagnosis), bd.probability);
-  }
 
   // Assign each DDX candidate its Bayesian posterior (or fallback 0.001)
   const rankedCandidates = candidates.slice(0, 15).map((c: any) => {
