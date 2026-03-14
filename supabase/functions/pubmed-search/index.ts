@@ -22,8 +22,18 @@ interface PubMedArticle {
 async function searchPubMed(query: string, maxResults = 10): Promise<string[]> {
   const url = `${PUBMED_BASE}/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=${maxResults}&retmode=json&sort=relevance`;
   const resp = await fetch(url);
-  const data = await resp.json();
-  return data?.esearchresult?.idlist || [];
+  const text = await resp.text();
+  if (!resp.ok || text.trimStart().startsWith("<")) {
+    console.warn("[PubMed] esearch returned non-JSON:", text.substring(0, 200));
+    return [];
+  }
+  try {
+    const data = JSON.parse(text);
+    return data?.esearchresult?.idlist || [];
+  } catch {
+    console.warn("[PubMed] esearch JSON parse failed");
+    return [];
+  }
 }
 
 async function fetchPubMedDetails(ids: string[]): Promise<PubMedArticle[]> {
@@ -66,7 +76,18 @@ async function fetchPubMedDetails(ids: string[]): Promise<PubMedArticle[]> {
 async function searchEuropePMC(query: string, maxResults = 5): Promise<PubMedArticle[]> {
   const url = `${EUROPE_PMC_BASE}/search?query=${encodeURIComponent(query)}&resultType=core&pageSize=${maxResults}&format=json`;
   const resp = await fetch(url);
-  const data = await resp.json();
+  const text = await resp.text();
+  if (!resp.ok || text.trimStart().startsWith("<")) {
+    console.warn("[EuropePMC] returned non-JSON:", text.substring(0, 200));
+    return [];
+  }
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    console.warn("[EuropePMC] JSON parse failed");
+    return [];
+  }
   const results = data?.resultList?.result || [];
 
   return results.map((r: any) => ({
