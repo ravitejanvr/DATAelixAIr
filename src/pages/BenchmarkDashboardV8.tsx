@@ -94,8 +94,6 @@ export default function BenchmarkDashboardV8() {
     try {
       const result = await runBenchmarkV8(
         (p) => setProgress(p),
-        undefined,
-        undefined,
         { batchSize: 5, delayBetweenBatchesMs: 3000, delayBetweenCasesMs: 500 },
         ac.signal,
       );
