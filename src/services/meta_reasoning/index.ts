@@ -64,24 +64,32 @@ export interface MetaReasoningOutput {
 let _cachedActivationRules: Array<{ symptom: string; organ_system: string; activation_weight: number }> | null = null;
 let _cachedSpecificityMap: Record<string, number> | null = null;
 let _cachedOrganWeightMap: Record<string, Record<string, number>> | null = null;
+let _cachedPhysiologyMap: Array<{ symptom: string; physiology_process: string; organ_system: string }> | null = null;
+let _cachedPhysiologyDiagMap: Array<{ physiology_process: string; disease_name: string; confidence_score: number }> | null = null;
 
 async function loadLookupTables(): Promise<{
   activationRules: Array<{ symptom: string; organ_system: string; activation_weight: number }>;
   specificityMap: Record<string, number>;
   organWeightMap: Record<string, Record<string, number>>;
+  physiologyMap: Array<{ symptom: string; physiology_process: string; organ_system: string }>;
+  physiologyDiagMap: Array<{ physiology_process: string; disease_name: string; confidence_score: number }>;
 }> {
-  if (_cachedActivationRules && _cachedSpecificityMap && _cachedOrganWeightMap) {
+  if (_cachedActivationRules && _cachedSpecificityMap && _cachedOrganWeightMap && _cachedPhysiologyMap && _cachedPhysiologyDiagMap) {
     return {
       activationRules: _cachedActivationRules,
       specificityMap: _cachedSpecificityMap,
       organWeightMap: _cachedOrganWeightMap,
+      physiologyMap: _cachedPhysiologyMap,
+      physiologyDiagMap: _cachedPhysiologyDiagMap,
     };
   }
 
-  const [activationRes, specRes, organRes] = await Promise.all([
+  const [activationRes, specRes, organRes, physMapRes, physDiagRes] = await Promise.all([
     supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
     supabase.from("symptom_specificity").select("symptom_name, specificity_score"),
     supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
+    supabase.from("symptom_physiology_map").select("symptom_id, physiological_state_id, symptoms(symptom_name), physiological_states(state_name, anatomical_systems(system_name))").limit(1000),
+    supabase.from("physiology_diagnosis_map").select("physiological_state_id, diagnosis_id, confidence_score, physiological_states(state_name), diagnoses(diagnosis_name)").limit(1000),
   ]);
 
   _cachedActivationRules = (activationRes.data || []).map((r: any) => ({
@@ -101,10 +109,27 @@ async function loadLookupTables(): Promise<{
     _cachedOrganWeightMap[(o as any).symptom.toLowerCase()][(o as any).organ_system] = parseFloat(String((o as any).weight));
   }
 
+  // Build physiology map from joined query
+  _cachedPhysiologyMap = (physMapRes.data || []).map((r: any) => ({
+    symptom: r.symptoms?.symptom_name?.toLowerCase() || "",
+    physiology_process: r.physiological_states?.state_name || "",
+    organ_system: r.physiological_states?.anatomical_systems?.system_name || "",
+  })).filter((r: any) => r.symptom && r.physiology_process);
+
+  _cachedPhysiologyDiagMap = (physDiagRes.data || []).map((r: any) => ({
+    physiology_process: r.physiological_states?.state_name || "",
+    disease_name: r.diagnoses?.diagnosis_name || "",
+    confidence_score: parseFloat(String(r.confidence_score || 0.5)),
+  })).filter((r: any) => r.physiology_process && r.disease_name);
+
+  console.log(`[MetaReasoning] Loaded lookup tables: ${_cachedPhysiologyMap.length} physiology maps, ${_cachedPhysiologyDiagMap.length} physiology-diagnosis maps`);
+
   return {
     activationRules: _cachedActivationRules,
     specificityMap: _cachedSpecificityMap,
     organWeightMap: _cachedOrganWeightMap,
+    physiologyMap: _cachedPhysiologyMap,
+    physiologyDiagMap: _cachedPhysiologyDiagMap,
   };
 }
 
@@ -113,6 +138,8 @@ export function clearMetaReasoningCache(): void {
   _cachedActivationRules = null;
   _cachedSpecificityMap = null;
   _cachedOrganWeightMap = null;
+  _cachedPhysiologyMap = null;
+  _cachedPhysiologyDiagMap = null;
 }
 
 // ── Core Meta-Reasoning ──
@@ -127,20 +154,16 @@ export async function runMetaReasoning(
   const start = performance.now();
 
   // Load lookup tables (cached after first call)
-  const { activationRules, specificityMap, organWeightMap } = await loadLookupTables();
+  const { activationRules, specificityMap, organWeightMap, physiologyMap, physiologyDiagMap } = await loadLookupTables();
 
   // Build world state using the world model engine
-  // Note: physiologyMap and physiologyDiagMap are empty here since we don't
-  // have direct DB access to joined tables from client side.
-  // The world model will use activation rules and specificity data for organ
-  // system detection and dangerous diagnosis injection. The full physiology
-  // chain runs server-side in the validation pipeline.
+  // Now passes real physiology maps for symptom → physiology → disease reasoning
   const worldState = buildWorldState(
     input,
     organWeightMap,
     specificityMap,
-    [], // physiologyMap — server-side only
-    [], // physiologyDiagMap — server-side only
+    physiologyMap,
+    physiologyDiagMap,
   );
 
   // Determine dominant organ system

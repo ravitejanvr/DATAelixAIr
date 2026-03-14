@@ -718,38 +718,55 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("episodic_memory", { episodic_memory: episodicMemoryResult });
 
   // ═══════════════════════════════════════════════════════
-  // WAVE 2 — Parallel Context Analysis
-  //   • Physiological State Engine
-  //   • DDX Engine (Knowledge Graph traversal)
-  //   • Pre-indexed Knowledge Lookup
-  //   (Evidence retrieval moved to Wave 2b — after DDX for enriched query)
+  // WAVE 2 — Sequential: Physiology → DDX (physiology feeds DDX)
+  //   + Parallel: Pre-indexed Knowledge Lookup
   // ═══════════════════════════════════════════════════════
   const w2Start = performance.now();
 
-  const [physiologicalContext, ddxResultRaw, preindexedMatches] = await Promise.all([
-    // 2a: Physiological State Engine
-    (async (): Promise<PhysiologicalContextResult | null> => {
-      const t0 = performance.now();
-      try {
-        const result = await withRetry(
-          () => generatePhysiologicalContext({
-            symptoms,
-            vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp_systolic: vitals.bp_systolic },
-            visit_id: input.visit_id,
-            clinic_id: input.clinic_id,
-          }),
-          TIMEOUT.PHYSIOLOGY,
-          "physiological_engine",
-        );
-        lat.physiological_engine = Math.round(performance.now() - t0);
-        return result;
-      } catch {
-        lat.physiological_engine = Math.round(performance.now() - t0);
-        return null;
-      }
-    })(),
+  // 2a: Physiological State Engine (runs FIRST to feed DDX)
+  let physiologicalContext: PhysiologicalContextResult | null = null;
+  {
+    const t0 = performance.now();
+    try {
+      physiologicalContext = await withRetry(
+        () => generatePhysiologicalContext({
+          symptoms,
+          vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp_systolic: vitals.bp_systolic },
+          visit_id: input.visit_id,
+          clinic_id: input.clinic_id,
+        }),
+        TIMEOUT.PHYSIOLOGY,
+        "physiological_engine",
+      );
+      lat.physiological_engine = Math.round(performance.now() - t0);
+    } catch {
+      lat.physiological_engine = Math.round(performance.now() - t0);
+    }
+  }
 
-    // 2b: DDX Engine
+  // Build physiological context payload for DDX engine
+  const physioPayload = physiologicalContext ? {
+    candidate_diagnosis_ids: physiologicalContext.candidate_diagnosis_ids || [],
+    affected_systems: physiologicalContext.affected_systems?.map((s: any) => s.system_name || s) || [],
+    physiological_states: physiologicalContext.physiological_states?.map((s: any) => ({
+      state: s.state,
+      confidence: s.confidence,
+      system: s.system,
+    })) || [],
+  } : undefined;
+
+  if (physiologicalContext) {
+    console.log(
+      `[Pipeline] Wave 2a: Physiology complete — ` +
+      `${physiologicalContext.physiological_states?.length || 0} states, ` +
+      `${physiologicalContext.candidate_diagnosis_ids?.length || 0} candidate dx IDs, ` +
+      `${physiologicalContext.affected_systems?.length || 0} systems`
+    );
+  }
+
+  // 2b: DDX Engine + Pre-indexed Knowledge (parallel — DDX now receives physiology)
+  const [ddxResultRaw, preindexedMatches] = await Promise.all([
+    // DDX Engine (with physiological context wired in)
     (async (): Promise<DDXResult | null> => {
       const t0 = performance.now();
       try {
@@ -765,6 +782,7 @@ export async function runUnifiedClinicalPipeline(
               allergies: ctx.allergies,
               visit_id: input.visit_id,
               clinic_id: input.clinic_id,
+              physiological_context: physioPayload,
             }),
           ),
           TIMEOUT.DDX,
@@ -787,7 +805,7 @@ export async function runUnifiedClinicalPipeline(
       }
     })(),
 
-    // 2c: Pre-indexed Knowledge (instant, <50ms)
+    // Pre-indexed Knowledge (instant, <50ms)
     (async () => {
       const t0 = performance.now();
       try {
@@ -1179,65 +1197,13 @@ export async function runUnifiedClinicalPipeline(
       }
     })(),
 
-    // 3d: Hypothesis Engine (via edge function)
+    // 3d: Hypothesis Engine — DISABLED in pipeline (LLM call, adds ~6s latency)
+    // The DDX engine + Bayesian scoring provide graph-based hypothesis generation.
+    // LLM hypothesis generation is available in research mode via direct edge function call.
     (async (): Promise<HypothesisResult | null> => {
-      const t0 = performance.now();
-      try {
-        const edgeResult = await withRetry(
-          () => withStageLogging("generate_hypotheses", async () => {
-            const hyp = await generateDiagnosticHypotheses(
-              input.visit_id || "trace",
-              {
-                patient_id: "",
-                age: ctx.patient_age,
-                sex: ctx.patient_sex,
-                chief_complaint: ctx.chief_complaint,
-                symptoms: symptoms.join(", "),
-                duration: ctx.symptom_duration || "",
-                vitals: {
-                  temperature: vitals.temperature ?? null,
-                  spo2: vitals.spo2 ?? null,
-                  pulse: vitals.pulse ?? null,
-                  bp_systolic: vitals.bp_systolic ?? null,
-                  bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) || null : null,
-                  respiratory_rate: ctx.respiratory_rate ?? null,
-                  weight_kg: ctx.weight ?? null,
-                  height_cm: ctx.height ?? null,
-                },
-                past_diagnoses: ctx.medical_history,
-                medications: ctx.current_medications,
-                allergies: ctx.allergies,
-                lab_results: [],
-                lifestyle_factors: {},
-              },
-            );
-            if (!hyp) return null;
-            return {
-              hypotheses: hyp.hypotheses.map(h => ({
-                condition: h.diagnosis,
-                icd_code: null,
-                confidence: h.confidence > 0.7 ? "high" as const : h.confidence > 0.4 ? "moderate" as const : "low" as const,
-                supporting_evidence: h.supporting_factors,
-                contradicting_evidence: h.contradicting_factors,
-                recommended_tests: h.recommended_tests,
-                urgency: "routine" as const,
-              })),
-              reasoning_chain: "",
-              data_gaps: [],
-              generated_at: hyp.generated_at,
-              source: "edge_function",
-            } satisfies HypothesisResult;
-          }),
-          TIMEOUT.HYPOTHESIS,
-          "generate_hypotheses",
-        );
-        lat.generate_hypotheses = Math.round(performance.now() - t0);
-        return edgeResult;
-      } catch {
-        lat.generate_hypotheses = Math.round(performance.now() - t0);
-        console.warn("[Pipeline] Hypothesis engine failed — skipping explanation generation.");
-        return null;
-      }
+      console.log("[Pipeline] Wave 3d: Hypothesis engine SKIPPED (LLM — use DDX+Bayesian instead)");
+      lat.generate_hypotheses = 0;
+      return null;
     })(),
 
     // 3e: Evidence Planning Engine (optimal next tests by information gain)
@@ -1302,14 +1268,64 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
   // ═══════════════════════════════════════════════════════
-  // WAVE 3.5 — Reasoning Conflict Resolution
+  // WAVE 3.5 — Cognitive Controller Pruning + Conflict Resolution
+  // The cognitive controller now runs INLINE to influence final diagnoses.
   // ═══════════════════════════════════════════════════════
   let conflictResult: ConflictResolution | null = null;
+
+  // Run cognitive controller on DDX candidates to prune and plan evidence
+  if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const cogStart = performance.now();
+    const { runCognitiveController } = await import("@/services/cognitive/clinical_cognitive_controller");
+    const cogOutput = runCognitiveController(
+      ddxResult.differential_diagnoses.map(d => ({
+        diagnosis_name: d.diagnosis_name,
+        probability: d.probability,
+        must_not_miss: d.must_not_miss,
+        supporting_symptoms: d.supporting_symptoms,
+        contradicting_factors: d.contradicting_factors,
+      })),
+      ddxResult.recommended_labs?.map(l => l.test_name) || [],
+    );
+
+    // Apply pruning: remove candidates the cognitive controller marked for pruning
+    const prunedByController = cogOutput.hypothesis_evaluation
+      .filter(h => h.action === "prune")
+      .map(h => h.hypothesis.toLowerCase());
+    
+    if (prunedByController.length > 0) {
+      const beforeCount = ddxResult.differential_diagnoses.length;
+      ddxResult = {
+        ...ddxResult,
+        differential_diagnoses: ddxResult.differential_diagnoses.filter(
+          d => !prunedByController.includes(d.diagnosis_name.toLowerCase())
+        ),
+      };
+      const afterCount = ddxResult.differential_diagnoses.length;
+      console.log(
+        `[Pipeline] Wave 3.5: Cognitive controller pruned ${beforeCount - afterCount} candidates ` +
+        `(${beforeCount} → ${afterCount}), prune rate: ${Math.round(((beforeCount - afterCount) / beforeCount) * 100)}%`
+      );
+      recordOversightEvent({
+        event_type: "cognitive_pruning",
+        severity: "info",
+        stage: "cognitive_controller",
+        message: `Pruned ${beforeCount - afterCount} low-value hypotheses (${prunedByController.join(", ")})`,
+        metadata: { pruned: prunedByController, before: beforeCount, after: afterCount },
+      });
+    }
+    lat.cognitive_controller = Math.round(performance.now() - cogStart);
+    pcieCore.addReasoningTrace(
+      "cognitive_controller" as any,
+      `Cognitive: pruned ${prunedByController.length}, strategy=${cogOutput.evidence_strategy.strategy_type}, quality=${cogOutput.reasoning_evaluation.quality_score}`,
+    );
+  }
+
+  // Conflict resolution between DDX and Bayesian
   if (metaReasoningResult && ddxResult && bayesianResult) {
     const ddxTop = ddxResult.differential_diagnoses[0];
     const bayesTop = bayesianResult.diagnoses[0];
     if (ddxTop && bayesTop) {
-      // Extract Bayesian diagnosis name — may come from different result shapes
       const bayesTopName = (bayesTop as any).diagnosis_name
         || (bayesTop as any).diagnosis_id
         || "";
