@@ -394,17 +394,20 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
 
   // Assign each DDX candidate its Bayesian posterior (or fallback 0.001)
   const rankedCandidates = candidates.slice(0, 15).map((c: any) => {
-    const nName = norm(c.name);
-    // Try direct match, then substring match against Bayesian output
-    let bayProb: number | null = bayesianLookup.get(nName) ?? null;
+    // Primary: match by diagnosis_id (reliable, UUID-based)
+    let bayProb: number | null = bayesianIdLookup.get(c.diagnosis_id) ?? null;
+
+    // Fallback: name-based match against resolved Bayesian names
     if (bayProb === null) {
-      for (const [bKey, bVal] of bayesianLookup.entries()) {
-        if (bKey.includes(nName) || nName.includes(bKey)) {
-          bayProb = bVal;
+      const nName = norm(c.name);
+      for (const bd of bayDiagnoses) {
+        if (norm(bd.diagnosis).includes(nName) || nName.includes(norm(bd.diagnosis))) {
+          bayProb = bd.probability;
           break;
         }
       }
     }
+
     const hasBayesian = bayProb !== null && bayProb > 0;
     return {
       diagnosis: c.name,
