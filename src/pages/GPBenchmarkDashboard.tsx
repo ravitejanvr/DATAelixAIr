@@ -187,6 +187,7 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
             </div>
           ))}
           <p className="text-[10px] text-muted-foreground mt-1">
+            Ranking source: <span className="font-semibold">{result.final_ranking.ranking_source}</span> ·
             Gold: {result.final_ranking.gold_rank ? `#${result.final_ranking.gold_rank}` : "Not in top 10"} ·
             Top-1: {result.final_ranking.top1_match ? "✓" : "✗"} ·
             Top-3: {result.final_ranking.top3_match ? "✓" : "✗"} ·
