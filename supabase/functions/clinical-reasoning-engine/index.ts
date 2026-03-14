@@ -1,6 +1,97 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ══════════════════════════════════════════════════════════════
+// INLINE TERMINOLOGY NORMALIZER
+// Must be kept in-sync with ddx-engine normalizer.
+// ══════════════════════════════════════════════════════════════
+const SYNONYM_MAP: Record<string, string> = {
+  "cough with sputum": "productive cough", "cough with phlegm": "productive cough",
+  "phlegmy cough": "productive cough", "wet cough": "productive cough",
+  "nonproductive cough": "dry cough",
+  "shortness of breath": "dyspnea", "breathlessness": "dyspnea",
+  "difficulty breathing": "dyspnea", "breathing difficulty": "dyspnea",
+  "can't breathe": "dyspnea", "labored breathing": "dyspnea", "sob": "dyspnea",
+  "rhinorrhea": "runny nose", "nasal discharge": "runny nose",
+  "stuffy nose": "nasal congestion", "blocked nose": "nasal congestion",
+  "sinus pressure": "facial pain", "sinus pain": "facial pain",
+  "coughing up blood": "hemoptysis", "blood in sputum": "hemoptysis",
+  "stomach pain": "abdominal pain", "belly pain": "abdominal pain",
+  "tummy pain": "abdominal pain", "stomach ache": "abdominal pain",
+  "abdominal discomfort": "abdominal pain",
+  "stomach cramps": "abdominal cramps", "belly cramps": "abdominal cramps",
+  "throwing up": "vomiting", "puking": "vomiting", "emesis": "vomiting",
+  "feeling sick": "nausea", "queasy": "nausea",
+  "loose stools": "diarrhea", "loose motions": "diarrhea",
+  "watery stools": "diarrhea", "frequent stools": "diarrhea",
+  "acid reflux": "heartburn", "acidity": "heartburn",
+  "burning in stomach": "epigastric pain", "upper stomach pain": "epigastric pain",
+  "gas": "bloating", "flatulence": "bloating", "indigestion": "bloating",
+  "no appetite": "loss of appetite", "not hungry": "loss of appetite",
+  "poor appetite": "loss of appetite", "decreased appetite": "loss of appetite",
+  "blood in stool": "bloody stool", "rectal bleeding": "bloody stool",
+  "heart racing": "palpitations", "heart pounding": "palpitations",
+  "irregular heartbeat": "palpitations",
+  "fast heart": "tachycardia", "rapid pulse": "tachycardia",
+  "chest tightness": "chest pain", "chest pressure": "chest pain",
+  "chest discomfort": "chest pain",
+  "heavy sweating": "diaphoresis", "profuse sweating": "diaphoresis",
+  "cold sweats": "diaphoresis",
+  "swollen legs": "edema", "swollen feet": "edema", "ankle swelling": "edema",
+  "leg swelling": "edema", "fluid retention": "edema",
+  "cannot lie flat": "orthopnea", "wakes up breathless": "orthopnea",
+  "head pain": "headache", "migraine": "headache",
+  "giddiness": "dizziness", "lightheadedness": "dizziness",
+  "vertigo": "dizziness", "room spinning": "dizziness",
+  "passed out": "syncope", "fainted": "syncope", "fainting": "syncope",
+  "loss of consciousness": "syncope",
+  "stiff neck": "neck stiffness", "neck rigidity": "neck stiffness",
+  "sensitivity to light": "photophobia", "light sensitivity": "photophobia",
+  "can't see clearly": "blurred vision", "vision blurry": "blurred vision",
+  "double vision": "blurred vision",
+  "pins and needles": "tingling", "prickling": "tingling",
+  "weakness in arm": "weakness", "weakness in leg": "weakness",
+  "general weakness": "weakness", "body weakness": "weakness",
+  "slurred speech": "speech difficulty", "difficulty speaking": "speech difficulty",
+  "body pain": "body aches", "generalized pain": "body aches",
+  "muscle ache": "muscle pain", "myalgia": "muscle pain",
+  "joint ache": "joint pain", "arthralgia": "joint pain",
+  "low back pain": "back pain", "lower back pain": "back pain",
+  "lumbar pain": "back pain",
+  "painful urination": "dysuria", "burning urination": "dysuria",
+  "urinary burning": "dysuria", "burning when peeing": "dysuria",
+  "peeing a lot": "polyuria", "frequent urination": "polyuria",
+  "blood in urine": "hematuria",
+  "side pain": "flank pain", "kidney area pain": "flank pain",
+  "excessive thirst": "polydipsia", "always thirsty": "polydipsia",
+  "skin rash": "rash", "eruption": "rash", "hives": "rash",
+  "pruritus": "itching", "itchy skin": "itching",
+  "tiredness": "fatigue", "exhaustion": "fatigue", "no energy": "fatigue",
+  "lethargic": "fatigue", "lethargy": "fatigue", "feeling tired": "fatigue",
+  "low grade fever": "mild fever", "slight fever": "mild fever",
+  "high fever": "fever", "temperature": "fever", "febrile": "fever", "pyrexia": "fever",
+  "rigor": "chills", "shivering": "chills",
+  "unable to sleep": "insomnia", "sweating at night": "night sweats",
+  "lost weight": "weight loss", "losing weight": "weight loss",
+  "feeling unwell": "malaise", "generally unwell": "malaise",
+  "dehydrated": "dehydration", "dry mouth": "dehydration",
+};
+
+function normalizeSymptom(s: string): string {
+  const lower = s.toLowerCase().trim();
+  return SYNONYM_MAP[lower] || lower;
+}
+
+function normalizeSymptomList(symptoms: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const s of symptoms) {
+    const n = normalizeSymptom(s);
+    if (!seen.has(n)) { seen.add(n); result.push(n); }
+  }
+  return result;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
