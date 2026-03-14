@@ -145,21 +145,21 @@ export type PipelineProgressCallback = (stage: string, data: Partial<PipelineRes
 
 const TIMEOUT = {
   PCIE:            2000,
-  DDX:             10000,
-  PHYSIOLOGY:      10000,
-  EVIDENCE:        9000,
+  DDX:             8000,
+  PHYSIOLOGY:      6000,
+  EVIDENCE:        6000,
   PREINDEXED:      2000,
-  BAYESIAN:        8000,
-  GUIDELINE:       10000,
-  GUIDELINE_COMPLIANCE: 12000,
-  HYPOTHESIS:      12000,
+  BAYESIAN:        6000,
+  GUIDELINE:       6000,
+  GUIDELINE_COMPLIANCE: 6000,
+  HYPOTHESIS:      8000,
   HYPOTHESIS_TESTING: 3000,
-  EVIDENCE_PLANNING: 4000,
-  UNCERTAINTY:     8000,
-  HYBRID:          10000,
+  EVIDENCE_PLANNING: 3000,
+  UNCERTAINTY:     5000,
+  HYBRID:          8000,
   SOAP:            4000,
-  CAUSAL_REASONING: 4000,
-  EPISODIC_MEMORY:  3000,
+  CAUSAL_REASONING: 3000,
+  EPISODIC_MEMORY:  2000,
 } as const;
 
 // ── Organ-System Weighting ──
@@ -1934,7 +1934,7 @@ export async function runUnifiedClinicalPipeline(
     diagnostic_loop: diagnosticLoopExecuted ? {
       executed: true,
       reason: diagnosticLoopReason,
-      candidates_pruned: ddxResult ? ddxResult.differential_diagnoses.length : 0,
+      candidates_pruned: lat.diagnostic_loop ? (ddxResult?.differential_diagnoses?.length || 0) : 0,
       candidates_remaining: ddxResult ? ddxResult.differential_diagnoses.length : 0,
       iteration_ms: lat.diagnostic_loop || 0,
     } : null,
