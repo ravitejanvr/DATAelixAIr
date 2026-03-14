@@ -284,25 +284,36 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     gold_rank_after_bayesian: bayGoldIdx >= 0 ? bayGoldIdx + 1 : null,
   };
 
-  // ── STAGE 5: Cognitive Pruning — BYPASSED for calibration audit ──
-  // The cognitive controller is temporarily disabled to isolate Bayesian ranking accuracy.
-  // NOTE: Architectural finding — the cognitive controller was already NOT filtering
-  // candidates from the final ranking (Stage 7 uses raw DDX candidates, not pruned output).
-  // This bypass makes the skip explicit and removes the computation entirely.
+  // ── STAGE 5: Cognitive Pruning (in-memory) ──
   const s5 = performance.now();
+  const cogInput = ddxDiagnoses.map((d: any) => ({
+    diagnosis_name: d.diagnosis_name || d.diagnosis || "",
+    probability: d.probability || 0,
+    must_not_miss: d.must_not_miss || false,
+    supporting_symptoms: d.supporting_symptoms || [],
+    contradicting_factors: d.contradicting_factors || [],
+  }));
+  const cogOutput = runCognitiveController(cogInput, []);
   const s5ms = Math.round(performance.now() - s5);
 
-  stages.push({ stage: "Cognitive Pruning", latency_ms: s5ms, status: "skipped" });
+  const pruned = cogOutput.hypothesis_evaluation.filter(h => h.action === "prune").map(h => h.hypothesis);
+  const goldPruned = pruned.some(p => diagMatch(p, sc.ground_truth.gold_standard_diagnosis));
+
+  stages.push({ stage: "Cognitive Pruning", latency_ms: s5ms, status: "success" });
 
   const cognitive_pruning: CognitivePruningTrace = {
-    total_evaluated: candidates.length,
-    kept: candidates.length,
-    pruned: 0,
-    escalated: 0,
-    pruned_names: [],
-    gold_pruned: false,
-    quality_score: 1.0,
+    total_evaluated: cogOutput.hypothesis_evaluation.length,
+    kept: cogOutput.hypothesis_evaluation.filter(h => h.action === "keep").length,
+    pruned: pruned.length,
+    escalated: cogOutput.hypothesis_evaluation.filter(h => h.action === "escalate").length,
+    pruned_names: pruned,
+    gold_pruned: goldPruned,
+    quality_score: cogOutput.reasoning_evaluation.quality_score,
   };
+
+  if (goldPruned) {
+    failures.push("Gold diagnosis was incorrectly pruned by cognitive controller");
+  }
 
   // ── STAGE 6: Safety Evaluation (from DDX output) ──
   const dangerousList: string[] = [];
