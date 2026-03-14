@@ -135,12 +135,14 @@ export interface PhysiologyTrace {
 }
 
 export interface ReasoningTrace {
+  raw_symptoms: string[];
+  normalized_symptoms: string[];
   symptoms: string[];
   physiology: PhysiologyTrace;
-  candidate_diagnoses: string[];
+  candidate_diagnoses: Array<{ name: string; diagnosis_id: string; probability: number }>;
   bayesian_probabilities: Array<{ diagnosis: string; probability: number }>;
   hypotheses_pruned: string[];
-  final_ranking: Array<{ diagnosis: string; probability: number; rank: number }>;
+  final_ranking: Array<{ diagnosis: string; diagnosis_id: string; probability: number; rank: number }>;
   dangerous_diagnoses_detected: string[];
   failure_type?: string;
 }
@@ -155,8 +157,10 @@ export interface CaseResultV8 {
   top1_match: boolean;
   top3_match: boolean;
   top5_match: boolean;
+  gold_in_candidates: boolean;
   gold_standard_rank: number | null;
   actual_diagnoses: string[];
+  actual_diagnosis_ids: string[];
   matched_diagnoses: string[];
   cognitive: CognitiveMetrics;
   iterative_reasoning: IterativeReasoningMetrics;
@@ -196,6 +200,7 @@ export interface SpecialtyBreakdownV8 {
   passed: number;
   top1_accuracy: number;
   top3_accuracy: number;
+  candidate_recall: number;
   danger_detection_rate: number;
   avg_latency_ms: number;
   avg_reasoning_quality: number;
@@ -222,6 +227,7 @@ export interface BenchmarkSuiteResultV8 {
   top1_accuracy: number;
   top3_accuracy: number;
   top5_accuracy: number;
+  candidate_recall: number;
   danger_detection_rate: number;
   danger_false_negative_count: number;
   cognitive: CognitiveSummary;
@@ -234,6 +240,7 @@ export interface BenchmarkSuiteResultV8 {
     passed: number;
     top1: number;
     top3: number;
+    candidate_recall: number;
   }>;
   physiology_activation_stats: {
     total_cases: number;
