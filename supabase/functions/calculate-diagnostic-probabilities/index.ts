@@ -7,18 +7,18 @@ const corsHeaders = {
 };
 
 /**
- * Bayesian Diagnostic Probability Engine v2 — Specificity-Weighted
+ * Bayesian Diagnostic Probability Engine v3 — With History & Risk Factor Integration
  *
- * Computes log P(D|E) ∝ log P(D) + Σ wᵢ·log P(Sᵢ|D) + coverage_bonus + Σ log P(Φⱼ|D) + Σ log R(k)
+ * Computes log P(D|E) ∝ log P(D) × H(D) + Σ wᵢ·log P(Sᵢ|D) + coverage_bonus + Σ log P(Φⱼ|D) + Σ log R(k)
  *
  * Where:
  *   P(D) = disease prior (base_prevalence × age/sex/region modifiers)
+ *   H(D) = medical history prior multiplier (from medical_history_modifiers)
  *   P(Sᵢ|D) = symptom likelihood from symptom_likelihoods table
- *   wᵢ = specificity weight = 1 / log₂(disease_count_i + 1)  — suppresses non-specific symptoms
- *   coverage_bonus = (matched/total)^1.5 — rewards diagnoses that explain the full presentation
- *   P(Φⱼ|D) = physiology likelihood from physiology_likelihoods table
+ *   wᵢ = specificity weight = 1 / log₂(disease_count_i + 1)
+ *   coverage_bonus = (matched/total)^1.5
+ *   P(Φⱼ|D) = physiology likelihood
  *   R(k) = risk factor modifier weights
- *   Final posteriors use softmax normalization for stable differentiation.
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -37,7 +37,6 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Auth
     const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
     const { data: { user }, error: authErr } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authErr || !user) {
@@ -52,6 +51,7 @@ Deno.serve(async (req) => {
       symptoms = [],
       physiological_state_ids = [],
       risk_factors = [],
+      medical_history = [],
       patient_age = null,
       patient_sex = null,
       region = "south_asia",
@@ -62,11 +62,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         diagnoses: [],
         execution_ms: Date.now() - start,
-        source: "bayesian_engine_v1",
+        source: "bayesian_engine_v3",
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Resolve symptom names to IDs if needed
+    // Resolve symptom names to IDs
     let symptomIds: string[] = [];
     if (symptoms.length > 0) {
       const normalized = symptoms.map((s: string) => s.toLowerCase().trim());
@@ -75,7 +75,6 @@ Deno.serve(async (req) => {
         .select("id, symptom_name")
         .in("symptom_name", normalized);
       
-      // Also fuzzy match
       const exactIds = new Set((symRows || []).map((s: any) => s.id));
       const exactNames = new Set((symRows || []).map((s: any) => s.symptom_name));
       const unmatched = normalized.filter((s: string) => !exactNames.has(s));
@@ -94,11 +93,17 @@ Deno.serve(async (req) => {
       symptomIds = Array.from(exactIds);
     }
 
+    // Normalize medical history for lookup
+    const normalizedHistory = medical_history.map((h: string) => h.toLowerCase().trim());
+    const normalizedRiskFactors = risk_factors.map((r: string) => r.toLowerCase().trim());
+    // Combine both for risk_factor_modifiers lookup (backwards compatible)
+    const allRiskSignals = [...new Set([...normalizedRiskFactors, ...normalizedHistory])];
+
     // ════════════════════════════════════════════
-    // PARALLEL: Fetch priors, symptom likelihoods, physiology likelihoods, risk modifiers, specificity counts
+    // PARALLEL FETCH
     // ════════════════════════════════════════════
 
-    const [priorsRes, symptomLikRes, physioLikRes, riskModRes, dangerousRes, symptomSpecificityRes] = await Promise.all([
+    const [priorsRes, symptomLikRes, physioLikRes, riskModRes, historyModRes, dangerousRes, symptomSpecificityRes] = await Promise.all([
       supabase.from("disease_priors")
         .select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier")
         .in("diagnosis_id", candidate_diagnosis_ids),
@@ -114,18 +119,22 @@ Deno.serve(async (req) => {
             .in("diagnosis_id", candidate_diagnosis_ids)
             .in("physiological_state_id", physiological_state_ids)
         : Promise.resolve({ data: [] }),
-      risk_factors.length > 0
+      allRiskSignals.length > 0
         ? supabase.from("risk_factor_modifiers")
             .select("diagnosis_id, risk_factor, modifier_weight")
             .in("diagnosis_id", candidate_diagnosis_ids)
-            .in("risk_factor", risk_factors.map((r: string) => r.toLowerCase()))
+            .in("risk_factor", allRiskSignals)
         : Promise.resolve({ data: [] }),
-      // Always fetch dangerous diagnoses
+      normalizedHistory.length > 0
+        ? supabase.from("medical_history_modifiers")
+            .select("diagnosis_id, history_condition, prior_multiplier, confidence")
+            .in("diagnosis_id", candidate_diagnosis_ids)
+            .in("history_condition", normalizedHistory)
+        : Promise.resolve({ data: [] }),
       supabase.from("dangerous_diagnoses")
         .select("diagnosis_id, diagnosis_name, severity_level, emergency_protocol, must_not_miss")
         .eq("must_not_miss", true)
         .in("diagnosis_id", candidate_diagnosis_ids),
-      // Fetch disease counts per symptom for specificity weighting
       symptomIds.length > 0
         ? supabase.from("symptom_likelihoods")
             .select("symptom_id")
@@ -137,13 +146,12 @@ Deno.serve(async (req) => {
     // BUILD LOOKUP MAPS
     // ════════════════════════════════════════════
 
-    // Priors map: diagnosis_id → { prevalence, age_mod, sex_mod, region_mod }
     const priorsMap = new Map<string, any>();
     for (const p of priorsRes.data || []) {
       priorsMap.set(p.diagnosis_id, p);
     }
 
-    // Symptom specificity weights: symptom_id → w_i = 1 / log2(disease_count + 1)
+    // Symptom specificity weights
     const symptomDiseaseCount = new Map<string, number>();
     for (const row of symptomSpecificityRes.data || []) {
       symptomDiseaseCount.set(row.symptom_id, (symptomDiseaseCount.get(row.symptom_id) || 0) + 1);
@@ -153,29 +161,33 @@ Deno.serve(async (req) => {
       return 1.0 / Math.log2(count + 1);
     };
 
-    // Symptom likelihoods: diagnosis_id → [{symptom_id, likelihood_value}]
+    // Symptom likelihoods map
     const symLikMap = new Map<string, Array<{ symptom_id: string; likelihood_value: number }>>();
-    const symEvidenceMap = new Map<string, string[]>();
     for (const sl of symptomLikRes.data || []) {
-      if (!symLikMap.has(sl.diagnosis_id)) {
-        symLikMap.set(sl.diagnosis_id, []);
-        symEvidenceMap.set(sl.diagnosis_id, []);
-      }
+      if (!symLikMap.has(sl.diagnosis_id)) symLikMap.set(sl.diagnosis_id, []);
       symLikMap.get(sl.diagnosis_id)!.push({ symptom_id: sl.symptom_id, likelihood_value: sl.likelihood_value });
     }
 
-    // Physiology likelihoods: diagnosis_id → [likelihood_values]
+    // Physiology likelihoods
     const physioLikMap = new Map<string, number[]>();
     for (const pl of physioLikRes.data || []) {
       if (!physioLikMap.has(pl.diagnosis_id)) physioLikMap.set(pl.diagnosis_id, []);
       physioLikMap.get(pl.diagnosis_id)!.push(pl.likelihood_value);
     }
 
-    // Risk modifiers: diagnosis_id → [modifier_weights]
+    // Risk modifiers
     const riskModMap = new Map<string, number[]>();
     for (const rm of riskModRes.data || []) {
       if (!riskModMap.has(rm.diagnosis_id)) riskModMap.set(rm.diagnosis_id, []);
       riskModMap.get(rm.diagnosis_id)!.push(rm.modifier_weight);
+    }
+
+    // Medical history prior multipliers: diagnosis_id → max multiplier
+    const historyMultiplierMap = new Map<string, number>();
+    for (const hm of historyModRes.data || []) {
+      const current = historyMultiplierMap.get(hm.diagnosis_id) || 1.0;
+      // Use the highest applicable multiplier (don't multiply multiple history conditions)
+      historyMultiplierMap.set(hm.diagnosis_id, Math.max(current, hm.prior_multiplier * hm.confidence));
     }
 
     // Dangerous diagnoses set
@@ -185,7 +197,6 @@ Deno.serve(async (req) => {
     // COMPUTE POSTERIORS
     // ════════════════════════════════════════════
 
-    // Determine age group
     const ageGroup = patient_age != null
       ? (patient_age < 18 ? "pediatric" : patient_age > 65 ? "elderly" : "adult")
       : "adult";
@@ -196,6 +207,7 @@ Deno.serve(async (req) => {
     interface BayesianDiagnosis {
       diagnosis_id: string;
       prior: number;
+      history_multiplier: number;
       symptom_likelihood: number;
       coverage_ratio: number;
       physiology_likelihood: number;
@@ -209,17 +221,15 @@ Deno.serve(async (req) => {
     const results: BayesianDiagnosis[] = [];
     const DEFAULT_PRIOR = 0.05;
 
-    // Count total diagnoses that have symptom_likelihoods data
     const diagsWithSymLik = candidate_diagnosis_ids.filter((id: string) => (symLikMap.get(id) || []).length > 0).length;
     const hasAnySymLikData = diagsWithSymLik > 0;
     const totalSymptoms = symptomIds.length;
 
     for (const diagId of candidate_diagnosis_ids) {
-      // 1. PRIOR: P(D)
+      // 1. PRIOR: P(D) with demographic modifiers
       const priorData = priorsMap.get(diagId);
       let prior = priorData?.base_prevalence ?? DEFAULT_PRIOR;
 
-      // Apply demographic modifiers
       if (priorData) {
         const ageMod = priorData.age_modifier?.[ageGroup] ?? 1.0;
         const sexMod = priorData.sex_modifier?.[sexKey] ?? 1.0;
@@ -227,10 +237,13 @@ Deno.serve(async (req) => {
         prior *= ageMod * sexMod * regMod;
       }
 
-      // Start with log-prior
-      let logScore = Math.log(Math.max(prior, 1e-8));
+      // 2. HISTORY MULTIPLIER: Apply medical history to prior
+      const historyMult = historyMultiplierMap.get(diagId) || 1.0;
+      const adjustedPrior = Math.min(prior * historyMult, 0.95); // Cap at 0.95
 
-      // 2. SPECIFICITY-WEIGHTED SYMPTOM LOG-LIKELIHOOD: Σ wᵢ · log P(Sᵢ|D)
+      let logScore = Math.log(Math.max(adjustedPrior, 1e-8));
+
+      // 3. SPECIFICITY-WEIGHTED SYMPTOM LOG-LIKELIHOOD
       const symLiks = symLikMap.get(diagId) || [];
       let weightedSymLogLik = 0;
       let coverageRatio = 0;
@@ -241,22 +254,18 @@ Deno.serve(async (req) => {
           const w = specificityWeight(sl.symptom_id);
           weightedSymLogLik += w * Math.log(lik);
         }
-        // Coverage bonus: reward diagnoses that explain more of the patient's symptoms
         coverageRatio = totalSymptoms > 0 ? symLiks.length / totalSymptoms : 0;
-        const coverageBonus = Math.pow(coverageRatio, 1.5); // 0..1 range
+        const coverageBonus = Math.pow(coverageRatio, 1.5);
         logScore += weightedSymLogLik + Math.log(Math.max(coverageBonus, 1e-4));
       } else if (totalSymptoms > 0) {
-        // No symptom evidence for this diagnosis
         if (hasAnySymLikData) {
-          // Penalize: other diagnoses have data but this one doesn't
           logScore += Math.min(totalSymptoms, 3) * Math.log(0.15);
         } else {
-          // No symptom data at all — neutral fallback
           logScore += Math.log(0.3);
         }
       }
 
-      // 3. PHYSIOLOGY LIKELIHOOD: Σ log P(Φⱼ|D)
+      // 4. PHYSIOLOGY LIKELIHOOD
       const physLiks = physioLikMap.get(diagId) || [];
       let physioLogLik = 0;
       if (physLiks.length > 0) {
@@ -266,7 +275,7 @@ Deno.serve(async (req) => {
         logScore += physioLogLik;
       }
 
-      // 4. RISK MODIFIER: Σ log R(k)
+      // 5. RISK MODIFIER
       const riskMods = riskModMap.get(diagId) || [];
       let riskModifier = 1.0;
       for (const w of riskMods) {
@@ -284,17 +293,19 @@ Deno.serve(async (req) => {
       if (symLiks.length > 0) evidence.push(`${symLiks.length}/${totalSymptoms} symptoms (coverage ${(coverageRatio * 100).toFixed(0)}%)`);
       if (physLiks.length > 0) evidence.push(`${physLiks.length} physiology match(es)`);
       if (riskMods.length > 0) evidence.push(`${riskMods.length} risk factor(s)`);
-      if (priorData) evidence.push(`prior: ${(prior * 100).toFixed(1)}%`);
+      if (historyMult > 1.0) evidence.push(`history boost ×${historyMult.toFixed(1)}`);
+      if (priorData) evidence.push(`prior: ${(adjustedPrior * 100).toFixed(1)}%`);
 
       results.push({
         diagnosis_id: diagId,
-        prior,
+        prior: adjustedPrior,
+        history_multiplier: historyMult,
         symptom_likelihood: symLiks.length > 0 ? Math.exp(weightedSymLogLik) : 0,
         coverage_ratio: coverageRatio,
         physiology_likelihood: physLiks.length > 0 ? Math.exp(physioLogLik) : 1,
         risk_modifier: riskModifier,
         log_score: logScore,
-        posterior_probability: 0, // softmax below
+        posterior_probability: 0,
         supporting_evidence: evidence,
         must_not_miss: dangerousSet.has(diagId),
       });
@@ -317,13 +328,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Re-normalize after must-not-miss floor
     const newTotal = results.reduce((s, d) => s + d.posterior_probability, 0) || 1;
     for (const d of results) {
       d.posterior_probability = parseFloat((d.posterior_probability / newTotal).toFixed(4));
     }
 
-    // Sort by posterior descending
     results.sort((a, b) => b.posterior_probability - a.posterior_probability);
 
     const executionMs = Date.now() - start;
@@ -333,6 +342,7 @@ Deno.serve(async (req) => {
         diagnosis_id: d.diagnosis_id,
         posterior_probability: d.posterior_probability,
         prior: parseFloat(d.prior.toFixed(4)),
+        history_multiplier: parseFloat(d.history_multiplier.toFixed(2)),
         symptom_likelihood: parseFloat(d.symptom_likelihood.toFixed(6)),
         coverage_ratio: parseFloat(d.coverage_ratio.toFixed(4)),
         physiology_likelihood: parseFloat(d.physiology_likelihood.toFixed(4)),
@@ -344,9 +354,10 @@ Deno.serve(async (req) => {
       total_candidates: candidate_diagnosis_ids.length,
       symptoms_resolved: symptomIds.length,
       physiology_states_used: physiological_state_ids.length,
-      risk_factors_applied: risk_factors.length,
+      risk_factors_applied: allRiskSignals.length,
+      history_modifiers_applied: historyModRes.data?.length || 0,
       execution_ms: executionMs,
-      source: "bayesian_engine_v2_specificity_weighted",
+      source: "bayesian_engine_v3_history_integrated",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
