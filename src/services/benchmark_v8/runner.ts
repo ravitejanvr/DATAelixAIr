@@ -739,9 +739,19 @@ function buildSuiteResult(runId: string, results: CaseResultV8[]): BenchmarkSuit
 
   const loopActivated = results.filter(r => r.iterative_reasoning.loop_activated);
 
+  // Physiology activation stats
+  const physioUsed = results.filter(r => r.reasoning_trace?.physiology?.physiology_used);
+  const physiology_activation_stats = {
+    total_cases: total,
+    physiology_used_count: physioUsed.length,
+    physiology_usage_rate: total > 0 ? physioUsed.length / total : 0,
+    avg_states_activated: avg(results.map(r => r.reasoning_trace?.physiology?.physiology_states_activated?.length || 0)),
+    avg_candidates_from_physiology: avg(results.map(r => r.reasoning_trace?.physiology?.candidate_diagnosis_ids?.length || 0)),
+  };
+
   return {
     run_id: runId, run_timestamp: new Date().toISOString(), version: "v8",
-    suite_name: "Cognitive Clinical Reasoning Benchmark v8",
+    suite_name: "Benchmark V8 — Phase 1 (General Physician)",
     total_cases: total, passed_cases: results.filter(r => r.passed).length,
     pass_rate: results.filter(r => r.passed).length / total,
     top1_accuracy: top1, top3_accuracy: top3, top5_accuracy: top5,
@@ -751,6 +761,7 @@ function buildSuiteResult(runId: string, results: CaseResultV8[]): BenchmarkSuit
     iteration_utilization_rate: loopActivated.length / total,
     avg_confidence_convergence: avg(results.map(r => r.iterative_reasoning.confidence_convergence)),
     latency, by_specialty: bySpecialty, by_category: byCat,
+    physiology_activation_stats,
     recommendations, cases: results,
   };
 }
