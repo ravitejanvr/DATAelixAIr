@@ -143,15 +143,25 @@ Deno.serve(async (req) => {
       priorsMap.set(p.diagnosis_id, p);
     }
 
-    // Symptom likelihoods: diagnosis_id → [likelihood_values]
-    const symLikMap = new Map<string, number[]>();
+    // Symptom specificity weights: symptom_id → w_i = 1 / log2(disease_count + 1)
+    const symptomDiseaseCount = new Map<string, number>();
+    for (const row of symptomSpecificityRes.data || []) {
+      symptomDiseaseCount.set(row.symptom_id, (symptomDiseaseCount.get(row.symptom_id) || 0) + 1);
+    }
+    const specificityWeight = (symptomId: string): number => {
+      const count = symptomDiseaseCount.get(symptomId) || 1;
+      return 1.0 / Math.log2(count + 1);
+    };
+
+    // Symptom likelihoods: diagnosis_id → [{symptom_id, likelihood_value}]
+    const symLikMap = new Map<string, Array<{ symptom_id: string; likelihood_value: number }>>();
     const symEvidenceMap = new Map<string, string[]>();
     for (const sl of symptomLikRes.data || []) {
       if (!symLikMap.has(sl.diagnosis_id)) {
         symLikMap.set(sl.diagnosis_id, []);
         symEvidenceMap.set(sl.diagnosis_id, []);
       }
-      symLikMap.get(sl.diagnosis_id)!.push(sl.likelihood_value);
+      symLikMap.get(sl.diagnosis_id)!.push({ symptom_id: sl.symptom_id, likelihood_value: sl.likelihood_value });
     }
 
     // Physiology likelihoods: diagnosis_id → [likelihood_values]
