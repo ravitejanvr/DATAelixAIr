@@ -411,7 +411,7 @@ export async function runPipelineTrace(
   return {
     case_id: bc.id,
     case_name: bc.name,
-    category: bc.category,
+    category: bc.reasoning_category,
     total_ms: totalMs,
     unified_context_snapshot: unified,
     clinical_context_snapshot: clinicalContext as unknown as Record<string, unknown>,

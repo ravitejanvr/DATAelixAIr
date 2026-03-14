@@ -769,7 +769,7 @@ function buildSuiteResult(runId: string, results: CaseResultV8[]): BenchmarkSuit
 function emptyResult(runId: string): BenchmarkSuiteResultV8 {
   return {
     run_id: runId, run_timestamp: new Date().toISOString(), version: "v8",
-    suite_name: "Cognitive Clinical Reasoning Benchmark v8",
+    suite_name: "Benchmark V8 — Phase 1 (General Physician)",
     total_cases: 0, passed_cases: 0, pass_rate: 0,
     top1_accuracy: 0, top3_accuracy: 0, top5_accuracy: 0,
     danger_detection_rate: 1, danger_false_negative_count: 0,
@@ -790,6 +790,7 @@ function emptyResult(runId: string): BenchmarkSuiteResultV8 {
       ambiguous: { cases: 0, passed: 0, top1: 0, top3: 0 },
       deceptive: { cases: 0, passed: 0, top1: 0, top3: 0 },
     },
+    physiology_activation_stats: { total_cases: 0, physiology_used_count: 0, physiology_usage_rate: 0, avg_states_activated: 0, avg_candidates_from_physiology: 0 },
     recommendations: [], cases: [],
   };
 }
