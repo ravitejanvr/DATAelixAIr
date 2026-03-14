@@ -6,17 +6,137 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ══════════════════════════════════════════════════════════════
+// INLINE TERMINOLOGY NORMALIZER
+// ══════════════════════════════════════════════════════════════
+const SYNONYM_MAP: Record<string, string> = {
+  "cough with sputum": "productive cough",
+  "cough with phlegm": "productive cough",
+  "phlegmy cough": "productive cough",
+  "wet cough": "productive cough",
+  "nonproductive cough": "dry cough",
+  "shortness of breath": "dyspnea",
+  "breathlessness": "dyspnea",
+  "difficulty breathing": "dyspnea",
+  "breathing difficulty": "dyspnea",
+  "can't breathe": "dyspnea",
+  "labored breathing": "dyspnea",
+  "sob": "dyspnea",
+  "stomach pain": "abdominal pain",
+  "belly pain": "abdominal pain",
+  "tummy pain": "abdominal pain",
+  "stomach ache": "abdominal pain",
+  "abdominal discomfort": "abdominal pain",
+  "stomach cramps": "abdominal cramps",
+  "belly cramps": "abdominal cramps",
+  "throwing up": "vomiting",
+  "puking": "vomiting",
+  "emesis": "vomiting",
+  "feeling sick": "nausea",
+  "queasy": "nausea",
+  "loose stools": "diarrhea",
+  "loose motions": "diarrhea",
+  "watery stools": "diarrhea",
+  "frequent stools": "diarrhea",
+  "acid reflux": "heartburn",
+  "acidity": "heartburn",
+  "burning in stomach": "epigastric pain",
+  "upper stomach pain": "epigastric pain",
+  "no appetite": "loss of appetite",
+  "not hungry": "loss of appetite",
+  "poor appetite": "loss of appetite",
+  "decreased appetite": "loss of appetite",
+  "blood in stool": "bloody stool",
+  "rectal bleeding": "bloody stool",
+  "heart racing": "palpitations",
+  "heart pounding": "palpitations",
+  "irregular heartbeat": "palpitations",
+  "chest tightness": "chest pain",
+  "chest pressure": "chest pain",
+  "chest discomfort": "chest pain",
+  "heavy sweating": "diaphoresis",
+  "profuse sweating": "diaphoresis",
+  "cold sweats": "diaphoresis",
+  "swollen legs": "edema",
+  "swollen feet": "edema",
+  "head pain": "headache",
+  "migraine": "headache",
+  "giddiness": "dizziness",
+  "lightheadedness": "dizziness",
+  "vertigo": "dizziness",
+  "room spinning": "dizziness",
+  "passed out": "syncope",
+  "fainted": "syncope",
+  "stiff neck": "neck stiffness",
+  "neck rigidity": "neck stiffness",
+  "sensitivity to light": "photophobia",
+  "light sensitivity": "photophobia",
+  "body pain": "body aches",
+  "generalized pain": "body aches",
+  "muscle ache": "muscle pain",
+  "myalgia": "muscle pain",
+  "joint ache": "joint pain",
+  "arthralgia": "joint pain",
+  "low back pain": "back pain",
+  "lower back pain": "back pain",
+  "lumbar pain": "back pain",
+  "painful urination": "dysuria",
+  "burning urination": "dysuria",
+  "burning when peeing": "dysuria",
+  "peeing a lot": "polyuria",
+  "frequent urination": "polyuria",
+  "blood in urine": "hematuria",
+  "side pain": "flank pain",
+  "kidney area pain": "flank pain",
+  "skin rash": "rash",
+  "hives": "rash",
+  "pruritus": "itching",
+  "itchy skin": "itching",
+  "tiredness": "fatigue",
+  "exhaustion": "fatigue",
+  "no energy": "fatigue",
+  "lethargic": "fatigue",
+  "lethargy": "fatigue",
+  "feeling tired": "fatigue",
+  "low grade fever": "mild fever",
+  "slight fever": "mild fever",
+  "high fever": "fever",
+  "temperature": "fever",
+  "febrile": "fever",
+  "pyrexia": "fever",
+  "rigor": "chills",
+  "shivering": "chills",
+  "feeling unwell": "malaise",
+  "generally unwell": "malaise",
+  "not feeling well": "malaise",
+  "dehydrated": "dehydration",
+  "dry mouth": "dehydration",
+};
+
+function normalizeSymptom(s: string): string {
+  const lower = s.toLowerCase().trim();
+  return SYNONYM_MAP[lower] || lower;
+}
+
+function normalizeSymptomList(symptoms: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const s of symptoms) {
+    const n = normalizeSymptom(s);
+    if (!seen.has(n)) { seen.add(n); result.push(n); }
+  }
+  return result;
+}
+
 /**
- * Hypothesis Testing Engine
+ * Hypothesis Testing Engine v2
+ *
+ * v2 fixes:
+ *   - Uses correct column name `likelihood_value` (was `likelihood`)
+ *   - Adds terminology normalization for patient symptoms before matching
  *
  * Validates DDX candidates against symptom_likelihoods from the knowledge graph.
- * For each candidate diagnosis, computes:
- *   - supporting evidence (symptoms with high P(symptom|disease))
- *   - contradicting evidence (expected symptoms that are absent)
- *   - evidence score (weighted ratio of supporting vs expected)
- *
- * This is a deterministic, graph-only engine — no LLM calls.
- * Designed to run in <200ms.
+ * Deterministic, graph-only engine — no LLM calls. Target <200ms.
  */
 
 interface TestedHypothesis {
@@ -71,14 +191,16 @@ Deno.serve(async (req) => {
     }
 
     const diagnosisIds = candidate_diagnoses.map((d: any) => d.diagnosis_id).filter(Boolean);
-    const symptomLower = patient_symptoms.map((s: string) => s.toLowerCase().trim());
+    // Normalize patient symptoms before matching
+    const symptomLower = normalizeSymptomList(patient_symptoms);
 
     // ══════════════════════════════════════════════
     // STEP 1: Fetch symptom_likelihoods for all candidate diagnoses
+    // FIX: Use correct column name `likelihood_value` (was `likelihood`)
     // ══════════════════════════════════════════════
     const { data: likelihoods, error: likErr } = await supabase
       .from("symptom_likelihoods")
-      .select("diagnosis_id, symptom_id, likelihood, symptoms(symptom_name)")
+      .select("diagnosis_id, symptom_id, likelihood_value, symptoms(symptom_name)")
       .in("diagnosis_id", diagnosisIds);
 
     if (likErr) {
@@ -96,7 +218,7 @@ Deno.serve(async (req) => {
         }
         likelihoodMap.get(row.diagnosis_id)!.push({
           symptom_name: symptomName,
-          likelihood: row.likelihood,
+          likelihood: row.likelihood_value,
         });
       }
     }
@@ -145,7 +267,6 @@ Deno.serve(async (req) => {
         : 0;
 
       // Compute adjusted probability
-      // Evidence score modulates original probability: strong evidence boosts, weak reduces
       const evidenceMultiplier = 0.5 + evidenceScore; // range: 0.5 to 1.5
       let adjustedProb = Math.round(originalProb * evidenceMultiplier);
       
@@ -160,7 +281,7 @@ Deno.serve(async (req) => {
       // Determine verdict
       let verdict: TestedHypothesis["verdict"] = "indeterminate";
       if (expectedSymptoms.length === 0) {
-        verdict = "indeterminate"; // no data to test against
+        verdict = "indeterminate";
       } else if (evidenceScore >= 0.6) {
         verdict = "supported";
       } else if (evidenceScore >= 0.4) {
@@ -176,7 +297,6 @@ Deno.serve(async (req) => {
           `Missing expected symptoms: ${missingExpected.map((m) => m.symptom_name).join(", ")}`,
         );
       }
-      // Check age-based contradictions
       if (patient_age !== undefined && patient_age !== null) {
         if (dxName.toLowerCase().includes("pediatric") && patient_age > 18) {
           contradicting.push("Patient age does not match pediatric diagnosis");

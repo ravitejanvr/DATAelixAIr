@@ -6,19 +6,137 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ══════════════════════════════════════════════════════════════
+// INLINE TERMINOLOGY NORMALIZER
+// Resolves synonyms → canonical symptoms before physiology lookup.
+// ══════════════════════════════════════════════════════════════
+const SYNONYM_MAP: Record<string, string> = {
+  "cough with sputum": "productive cough",
+  "cough with phlegm": "productive cough",
+  "phlegmy cough": "productive cough",
+  "wet cough": "productive cough",
+  "nonproductive cough": "dry cough",
+  "shortness of breath": "dyspnea",
+  "breathlessness": "dyspnea",
+  "difficulty breathing": "dyspnea",
+  "breathing difficulty": "dyspnea",
+  "can't breathe": "dyspnea",
+  "labored breathing": "dyspnea",
+  "sob": "dyspnea",
+  "stomach pain": "abdominal pain",
+  "belly pain": "abdominal pain",
+  "tummy pain": "abdominal pain",
+  "stomach ache": "abdominal pain",
+  "abdominal discomfort": "abdominal pain",
+  "stomach cramps": "abdominal cramps",
+  "belly cramps": "abdominal cramps",
+  "throwing up": "vomiting",
+  "puking": "vomiting",
+  "emesis": "vomiting",
+  "feeling sick": "nausea",
+  "queasy": "nausea",
+  "loose stools": "diarrhea",
+  "loose motions": "diarrhea",
+  "watery stools": "diarrhea",
+  "frequent stools": "diarrhea",
+  "acid reflux": "heartburn",
+  "acidity": "heartburn",
+  "burning in stomach": "epigastric pain",
+  "upper stomach pain": "epigastric pain",
+  "no appetite": "loss of appetite",
+  "not hungry": "loss of appetite",
+  "poor appetite": "loss of appetite",
+  "decreased appetite": "loss of appetite",
+  "blood in stool": "bloody stool",
+  "rectal bleeding": "bloody stool",
+  "heart racing": "palpitations",
+  "heart pounding": "palpitations",
+  "irregular heartbeat": "palpitations",
+  "chest tightness": "chest pain",
+  "chest pressure": "chest pain",
+  "chest discomfort": "chest pain",
+  "heavy sweating": "diaphoresis",
+  "profuse sweating": "diaphoresis",
+  "cold sweats": "diaphoresis",
+  "swollen legs": "edema",
+  "swollen feet": "edema",
+  "head pain": "headache",
+  "migraine": "headache",
+  "giddiness": "dizziness",
+  "lightheadedness": "dizziness",
+  "vertigo": "dizziness",
+  "room spinning": "dizziness",
+  "passed out": "syncope",
+  "fainted": "syncope",
+  "stiff neck": "neck stiffness",
+  "neck rigidity": "neck stiffness",
+  "sensitivity to light": "photophobia",
+  "light sensitivity": "photophobia",
+  "body pain": "body aches",
+  "generalized pain": "body aches",
+  "muscle ache": "muscle pain",
+  "myalgia": "muscle pain",
+  "joint ache": "joint pain",
+  "arthralgia": "joint pain",
+  "low back pain": "back pain",
+  "lower back pain": "back pain",
+  "lumbar pain": "back pain",
+  "painful urination": "dysuria",
+  "burning urination": "dysuria",
+  "burning when peeing": "dysuria",
+  "peeing a lot": "polyuria",
+  "frequent urination": "polyuria",
+  "blood in urine": "hematuria",
+  "side pain": "flank pain",
+  "kidney area pain": "flank pain",
+  "skin rash": "rash",
+  "hives": "rash",
+  "pruritus": "itching",
+  "itchy skin": "itching",
+  "tiredness": "fatigue",
+  "exhaustion": "fatigue",
+  "no energy": "fatigue",
+  "lethargic": "fatigue",
+  "lethargy": "fatigue",
+  "feeling tired": "fatigue",
+  "low grade fever": "mild fever",
+  "slight fever": "mild fever",
+  "high fever": "fever",
+  "temperature": "fever",
+  "febrile": "fever",
+  "pyrexia": "fever",
+  "rigor": "chills",
+  "shivering": "chills",
+  "feeling unwell": "malaise",
+  "generally unwell": "malaise",
+  "not feeling well": "malaise",
+  "dehydrated": "dehydration",
+  "dry mouth": "dehydration",
+};
+
+function normalizeSymptom(s: string): string {
+  const lower = s.toLowerCase().trim();
+  return SYNONYM_MAP[lower] || lower;
+}
+
+function normalizeSymptomList(symptoms: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const s of symptoms) {
+    const n = normalizeSymptom(s);
+    if (!seen.has(n)) { seen.add(n); result.push(n); }
+  }
+  return result;
+}
+
 /**
- * Physiological State Engine (v2 — Filtered)
+ * Physiological State Engine (v3 — with Terminology Normalization)
  *
- * Translates symptom patterns into physiological disturbances and organ-system involvement.
- * Does NOT generate diagnoses — outputs physiological context for downstream DDX.
+ * v3: Adds inline terminology normalization before symptom lookup.
+ * Ensures "stomach pain" → "abdominal pain" before graph queries.
  *
- * v2 improvements:
- *   - Max 6 active physiology states (top by confidence)
- *   - Organ-system relevance filtering: states from unrelated systems are demoted
- *   - Dominant organ system detection from symptom cluster
- *
- * Pipeline: symptoms → symptom_physiology_map → physiological_states → anatomical_systems
- *           + vitals modifiers → filtered & ranked physiological summary
+ * Pipeline: symptoms → NORMALIZE → symptom_physiology_map → physiological_states
+ *           → anatomical_systems + vitals modifiers → filtered & ranked summary
  */
 
 // ── Organ System Detection ──
@@ -35,28 +153,44 @@ const SYMPTOM_SYSTEM_MAP: Record<string, string> = {
   "dehydration": "gastrointestinal",
   "cough": "respiratory",
   "productive cough": "respiratory",
-  "shortness of breath": "respiratory",
+  "dry cough": "respiratory",
   "dyspnea": "respiratory",
   "wheezing": "respiratory",
+  "tachypnea": "respiratory",
+  "hemoptysis": "respiratory",
   "chest pain": "cardiovascular",
   "palpitations": "cardiovascular",
   "diaphoresis": "cardiovascular",
+  "edema": "cardiovascular",
+  "orthopnea": "cardiovascular",
   "headache": "neurological",
   "dizziness": "neurological",
   "confusion": "neurological",
   "seizure": "neurological",
+  "neck stiffness": "neurological",
+  "photophobia": "neurological",
+  "syncope": "neurological",
   "fever": "infectious",
   "mild fever": "infectious",
   "chills": "infectious",
+  "night sweats": "infectious",
   "rash": "dermatological",
+  "itching": "dermatological",
   "joint pain": "musculoskeletal",
   "back pain": "musculoskeletal",
+  "muscle pain": "musculoskeletal",
+  "body aches": "musculoskeletal",
+  "dysuria": "genitourinary",
+  "polyuria": "genitourinary",
+  "hematuria": "genitourinary",
+  "flank pain": "genitourinary",
   "fatigue": "general",
+  "malaise": "general",
+  "weight loss": "general",
   "rebound tenderness": "gastrointestinal",
   "right lower quadrant pain": "gastrointestinal",
   "right lower quadrant abdominal pain": "gastrointestinal",
 };
-
 function detectDominantSystems(symptoms: string[]): string[] {
   const counts: Record<string, number> = {};
   for (const s of symptoms) {
