@@ -6,7 +6,8 @@
  */
 
 import { setFeatureFlag } from "@/services/feature_flags";
-import { BENCHMARK_CASES_V5, type BenchmarkCase } from "@/services/benchmark_v5";
+import { BENCHMARK_CASES_V8 } from "@/services/benchmark_v8/cases";
+import type { BenchmarkCaseV8 } from "@/services/benchmark_v8/types";
 import { runUnifiedClinicalPipeline, type PipelineResult, type PipelineInput } from "@/services/clinical_pipeline/orchestrator";
 import { fromMergedContext, toClinicalContext, type UnifiedClinicalContext } from "@/types/clinical-context";
 import type { LineageReport } from "@/services/clinical_pipeline/lineage_tracker";
