@@ -384,10 +384,22 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
             expanded={expandedStage === "safety"}
             onToggle={() => toggle("safety")}
           >
-            <div className="flex gap-4 text-xs">
-              <span>Expected danger: {result.safety.expected_danger ? "Yes" : "No"}</span>
-              <span>Detected: {result.safety.danger_detected ? "Yes" : "No"}</span>
-              <span>Score: {result.safety.safety_score}</span>
+            <div className="space-y-2 text-xs">
+              <div className="flex gap-4">
+                <span>Expected danger: {result.safety.expected_danger ? "Yes" : "No"}</span>
+                <span>Detected: {result.safety.danger_detected ? "Yes" : "No"}</span>
+                <span>Score: {result.safety.safety_score}</span>
+              </div>
+              <div className="text-muted-foreground">{result.safety.detection_details}</div>
+              {result.safety.dangerous_diagnoses.length > 0 && (
+                <div>Dangerous Dx detected: {result.safety.dangerous_diagnoses.join(", ")}</div>
+              )}
+              {result.safety.expected_dangerous_diagnoses.length > 0 && (
+                <div>Expected dangerous Dx: {result.safety.expected_dangerous_diagnoses.join(", ")}</div>
+              )}
+              {result.safety.dangerous_diagnoses_in_candidates.length > 0 && (
+                <div className="text-emerald-600">In candidates: {result.safety.dangerous_diagnoses_in_candidates.join(", ")}</div>
+              )}
             </div>
           </StageRow>
 
