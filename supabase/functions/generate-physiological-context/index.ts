@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const normalizedSymptoms = symptoms.map((s: string) => s.toLowerCase().trim());
+    const normalizedSymptoms = normalizeSymptomList(symptoms);
 
     // Detect dominant organ systems from symptom cluster
     const dominantSystems = detectDominantSystems(normalizedSymptoms);
