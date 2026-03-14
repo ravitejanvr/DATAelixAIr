@@ -1268,14 +1268,64 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
   // ═══════════════════════════════════════════════════════
-  // WAVE 3.5 — Reasoning Conflict Resolution
+  // WAVE 3.5 — Cognitive Controller Pruning + Conflict Resolution
+  // The cognitive controller now runs INLINE to influence final diagnoses.
   // ═══════════════════════════════════════════════════════
   let conflictResult: ConflictResolution | null = null;
+
+  // Run cognitive controller on DDX candidates to prune and plan evidence
+  if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const cogStart = performance.now();
+    const { runCognitiveController } = await import("@/services/cognitive/clinical_cognitive_controller");
+    const cogOutput = runCognitiveController(
+      ddxResult.differential_diagnoses.map(d => ({
+        diagnosis_name: d.diagnosis_name,
+        probability: d.probability,
+        must_not_miss: d.must_not_miss,
+        supporting_symptoms: d.supporting_symptoms,
+        contradicting_factors: d.contradicting_factors,
+      })),
+      ddxResult.recommended_labs?.map(l => l.test_name) || [],
+    );
+
+    // Apply pruning: remove candidates the cognitive controller marked for pruning
+    const prunedByController = cogOutput.hypothesis_evaluation
+      .filter(h => h.action === "prune")
+      .map(h => h.hypothesis.toLowerCase());
+    
+    if (prunedByController.length > 0) {
+      const beforeCount = ddxResult.differential_diagnoses.length;
+      ddxResult = {
+        ...ddxResult,
+        differential_diagnoses: ddxResult.differential_diagnoses.filter(
+          d => !prunedByController.includes(d.diagnosis_name.toLowerCase())
+        ),
+      };
+      const afterCount = ddxResult.differential_diagnoses.length;
+      console.log(
+        `[Pipeline] Wave 3.5: Cognitive controller pruned ${beforeCount - afterCount} candidates ` +
+        `(${beforeCount} → ${afterCount}), prune rate: ${Math.round(((beforeCount - afterCount) / beforeCount) * 100)}%`
+      );
+      recordOversightEvent({
+        event_type: "cognitive_pruning",
+        severity: "info",
+        stage: "cognitive_controller",
+        message: `Pruned ${beforeCount - afterCount} low-value hypotheses (${prunedByController.join(", ")})`,
+        metadata: { pruned: prunedByController, before: beforeCount, after: afterCount },
+      });
+    }
+    lat.cognitive_controller = Math.round(performance.now() - cogStart);
+    pcieCore.addReasoningTrace(
+      "cognitive_controller" as any,
+      `Cognitive: pruned ${prunedByController.length}, strategy=${cogOutput.evidence_strategy.strategy_type}, quality=${cogOutput.reasoning_evaluation.quality_score}`,
+    );
+  }
+
+  // Conflict resolution between DDX and Bayesian
   if (metaReasoningResult && ddxResult && bayesianResult) {
     const ddxTop = ddxResult.differential_diagnoses[0];
     const bayesTop = bayesianResult.diagnoses[0];
     if (ddxTop && bayesTop) {
-      // Extract Bayesian diagnosis name — may come from different result shapes
       const bayesTopName = (bayesTop as any).diagnosis_name
         || (bayesTop as any).diagnosis_id
         || "";

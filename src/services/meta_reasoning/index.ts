@@ -154,20 +154,16 @@ export async function runMetaReasoning(
   const start = performance.now();
 
   // Load lookup tables (cached after first call)
-  const { activationRules, specificityMap, organWeightMap } = await loadLookupTables();
+  const { activationRules, specificityMap, organWeightMap, physiologyMap, physiologyDiagMap } = await loadLookupTables();
 
   // Build world state using the world model engine
-  // Note: physiologyMap and physiologyDiagMap are empty here since we don't
-  // have direct DB access to joined tables from client side.
-  // The world model will use activation rules and specificity data for organ
-  // system detection and dangerous diagnosis injection. The full physiology
-  // chain runs server-side in the validation pipeline.
+  // Now passes real physiology maps for symptom → physiology → disease reasoning
   const worldState = buildWorldState(
     input,
     organWeightMap,
     specificityMap,
-    [], // physiologyMap — server-side only
-    [], // physiologyDiagMap — server-side only
+    physiologyMap,
+    physiologyDiagMap,
   );
 
   // Determine dominant organ system
