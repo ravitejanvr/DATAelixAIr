@@ -265,8 +265,25 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   }
 
   const s4ms = Math.round(performance.now() - s4);
-  const bayDiagnoses = ((bayesianResult as any)?.diagnoses || []).map((d: any) => ({
-    diagnosis: d.diagnosis_name || d.diagnosis || d.diagnosis_id || "",
+  const bayRawDiagnoses = (bayesianResult as any)?.diagnoses || [];
+
+  // Build a diagnosis_id → posterior lookup from the Bayesian engine output
+  const bayesianIdLookup = new Map<string, number>();
+  for (const bd of bayRawDiagnoses) {
+    if (bd.diagnosis_id) {
+      bayesianIdLookup.set(bd.diagnosis_id, bd.posterior_probability || bd.probability || 0);
+    }
+  }
+
+  // Resolve Bayesian output to human-readable names using DDX candidates
+  const ddxNameLookup = new Map<string, string>();
+  for (const d of ddxDiagnoses) {
+    if (d.diagnosis_id) ddxNameLookup.set(d.diagnosis_id, (d.diagnosis_name || d.diagnosis || "").trim());
+  }
+
+  const bayDiagnoses = bayRawDiagnoses.map((d: any) => ({
+    diagnosis: ddxNameLookup.get(d.diagnosis_id) || d.diagnosis_name || d.diagnosis || d.diagnosis_id || "",
+    diagnosis_id: d.diagnosis_id || "",
     probability: d.posterior_probability || d.probability || 0,
   }));
   const bayGoldIdx = bayDiagnoses.findIndex((d: any) =>
