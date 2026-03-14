@@ -1,45 +1,116 @@
 /**
- * Pipeline Validation Runner — Single Scenario Test
+ * Pipeline Validation Runner — Multi-Scenario Test
  *
- * Runs one controlled "perfect scenario" through the full reasoning pipeline
+ * Runs controlled "perfect scenarios" through the full reasoning pipeline
  * to verify architecture correctness, NOT benchmark accuracy.
+ *
+ * Scenarios:
+ *   1. Acute Gastroenteritis (original)
+ *   2. Acute Appendicitis
+ *   3. Community Acquired Pneumonia
  */
 
 import type { MergedContextObject } from "@/services/context_service";
 import { runClinicalPipeline, type ClinicalPipelineResult } from "@/services/clinical_pipeline_orchestrator";
 import { runCognitiveController } from "@/services/cognitive/clinical_cognitive_controller";
 
-// ── Validation Scenario ──
+// ── Validation Scenarios ──
 
-export const VALIDATION_SCENARIO: MergedContextObject = {
-  visit_id: "validation-gastroenteritis-001",
-  patient_id: "validation-patient-001",
-  clinic_id: "validation-clinic-001",
-  chief_complaint: "Vomiting and diarrhea for 24 hours",
-  symptoms: ["vomiting", "diarrhea", "abdominal cramps", "nausea", "mild fever", "dehydration"],
-  symptom_duration: "24 hours",
-  associated_symptoms: ["loss of appetite", "fatigue"],
-  medical_history: [],
-  family_history: [],
-  risk_factors: ["recent food intake"],
-  medications: [],
-  allergies: [],
-  vitals: {
-    bp_systolic: 110,
-    bp_diastolic: 70,
-    pulse: 96,
-    temperature: 37.8,
-    spo2: 98,
-    respiratory_rate: 18,
-    weight_kg: 72,
-    height_cm: 175,
+export interface ValidationScenario {
+  id: string;
+  name: string;
+  expected_top1: string;
+  expected_physiology: string[];
+  expected_differentials: string[];
+  context: MergedContextObject;
+}
+
+export const VALIDATION_SCENARIOS: ValidationScenario[] = [
+  {
+    id: "validation-gastroenteritis-001",
+    name: "Acute Gastroenteritis",
+    expected_top1: "gastroenteritis",
+    expected_physiology: ["intestinal inflammation", "intestinal motility", "fluid loss", "electrolyte"],
+    expected_differentials: ["gastroenteritis", "food poison", "viral enteritis", "appendicitis"],
+    context: {
+      visit_id: "validation-gastroenteritis-001",
+      patient_id: "validation-patient-001",
+      clinic_id: "validation-clinic-001",
+      chief_complaint: "Vomiting and diarrhea for 24 hours",
+      symptoms: ["vomiting", "diarrhea", "abdominal cramps", "nausea", "mild fever", "dehydration"],
+      symptom_duration: "24 hours",
+      associated_symptoms: ["loss of appetite", "fatigue"],
+      medical_history: [],
+      family_history: [],
+      risk_factors: ["recent food intake"],
+      medications: [],
+      allergies: [],
+      vitals: {
+        bp_systolic: 110, bp_diastolic: 70, pulse: 96, temperature: 37.8,
+        spo2: 98, respiratory_rate: 18, weight_kg: 72, height_cm: 175,
+      },
+      lab_results: [], risk_flags: [], missing_information: [],
+      context_confidence: 0.9, source_priority: ["doctor"],
+    },
   },
-  lab_results: [],
-  risk_flags: [],
-  missing_information: [],
-  context_confidence: 0.9,
-  source_priority: ["doctor"],
-};
+  {
+    id: "validation-appendicitis-001",
+    name: "Acute Appendicitis",
+    expected_top1: "appendicitis",
+    expected_physiology: ["appendiceal inflammation", "peritonitis", "inflammatory response", "intestinal"],
+    expected_differentials: ["appendicitis", "gastroenteritis", "mesenteric adenitis", "ovarian torsion"],
+    context: {
+      visit_id: "validation-appendicitis-001",
+      patient_id: "validation-patient-002",
+      clinic_id: "validation-clinic-001",
+      chief_complaint: "Severe right lower abdominal pain for 12 hours",
+      symptoms: ["right lower quadrant abdominal pain", "fever", "nausea", "vomiting", "loss of appetite", "rebound tenderness"],
+      symptom_duration: "12 hours",
+      associated_symptoms: ["abdominal pain"],
+      medical_history: [],
+      family_history: [],
+      risk_factors: [],
+      medications: [],
+      allergies: [],
+      vitals: {
+        bp_systolic: 125, bp_diastolic: 80, pulse: 102, temperature: 38.3,
+        spo2: 98, respiratory_rate: 20, weight_kg: 70, height_cm: 172,
+      },
+      lab_results: [], risk_flags: [], missing_information: [],
+      context_confidence: 0.9, source_priority: ["doctor"],
+    },
+  },
+  {
+    id: "validation-pneumonia-001",
+    name: "Community Acquired Pneumonia",
+    expected_top1: "pneumonia",
+    expected_physiology: ["pulmonary inflammation", "alveolar", "impaired gas exchange", "respiratory"],
+    expected_differentials: ["pneumonia", "bronchitis", "copd", "pulmonary embolism"],
+    context: {
+      visit_id: "validation-pneumonia-001",
+      patient_id: "validation-patient-003",
+      clinic_id: "validation-clinic-001",
+      chief_complaint: "Fever and productive cough for 3 days",
+      symptoms: ["fever", "productive cough", "shortness of breath", "chest pain", "fatigue"],
+      symptom_duration: "3 days",
+      associated_symptoms: ["chills", "loss of appetite"],
+      medical_history: [],
+      family_history: [],
+      risk_factors: [],
+      medications: [],
+      allergies: [],
+      vitals: {
+        bp_systolic: 130, bp_diastolic: 85, pulse: 108, temperature: 38.9,
+        spo2: 93, respiratory_rate: 24, weight_kg: 80, height_cm: 178,
+      },
+      lab_results: [], risk_flags: [], missing_information: [],
+      context_confidence: 0.9, source_priority: ["doctor"],
+    },
+  },
+];
+
+// Keep backward compatibility
+export const VALIDATION_SCENARIO = VALIDATION_SCENARIOS[0].context;
 
 // ── Stage Result Types ──
 
@@ -59,14 +130,13 @@ export interface KnowledgeGap {
 
 export interface ValidationResult {
   scenario_name: string;
+  scenario_id: string;
   timestamp: string;
   overall_status: "pass" | "fail" | "partial";
   total_latency_ms: number;
 
-  // Stage-by-stage results
   stages: StageResult[];
 
-  // Reasoning trace
   trace: {
     input_symptoms: string[];
     normalized_symptoms: string[];
@@ -79,25 +149,37 @@ export interface ValidationResult {
     soap_generated: boolean;
   };
 
-  // Gap analysis
   knowledge_gaps: KnowledgeGap[];
 
-  // Success criteria
   criteria: {
     physiology_activated: boolean;
-    gastroenteritis_in_candidates: boolean;
-    top1_is_gastroenteritis: boolean;
+    target_in_candidates: boolean;
+    top1_correct: boolean;
     no_pipeline_errors: boolean;
     latency_under_3s: boolean;
   };
 
-  // Raw pipeline output (for inspection)
   raw_output: ClinicalPipelineResult | null;
 }
 
-// ── Runner ──
+export interface MultiValidationResult {
+  timestamp: string;
+  scenarios: ValidationResult[];
+  summary: {
+    total: number;
+    passed: number;
+    partial: number;
+    failed: number;
+    avg_latency_ms: number;
+    physiology_activation_rate: number;
+    top1_accuracy: number;
+  };
+}
 
-export async function runPipelineValidation(
+// ── Single Scenario Runner ──
+
+async function runSingleValidation(
+  scenario: ValidationScenario,
   onStage?: (stage: string) => void,
 ): Promise<ValidationResult> {
   const startTime = performance.now();
@@ -105,13 +187,14 @@ export async function runPipelineValidation(
   let pipelineResult: ClinicalPipelineResult | null = null;
 
   const result: ValidationResult = {
-    scenario_name: "Acute Gastroenteritis — Pipeline Validation",
+    scenario_name: scenario.name,
+    scenario_id: scenario.id,
     timestamp: new Date().toISOString(),
     overall_status: "fail",
     total_latency_ms: 0,
     stages: [],
     trace: {
-      input_symptoms: VALIDATION_SCENARIO.symptoms,
+      input_symptoms: scenario.context.symptoms,
       normalized_symptoms: [],
       physiology_states: [],
       candidate_diagnoses: [],
@@ -124,8 +207,8 @@ export async function runPipelineValidation(
     knowledge_gaps: [],
     criteria: {
       physiology_activated: false,
-      gastroenteritis_in_candidates: false,
-      top1_is_gastroenteritis: false,
+      target_in_candidates: false,
+      top1_correct: false,
       no_pipeline_errors: false,
       latency_under_3s: false,
     },
@@ -134,9 +217,9 @@ export async function runPipelineValidation(
 
   try {
     // ── Stage 1: Input Normalization ──
-    onStage?.("Input Normalization");
+    onStage?.(`${scenario.name}: Normalization`);
     const s1Start = performance.now();
-    result.trace.normalized_symptoms = VALIDATION_SCENARIO.symptoms.map(s => s.toLowerCase().trim());
+    result.trace.normalized_symptoms = scenario.context.symptoms.map(s => s.toLowerCase().trim());
     stages.push({
       stage: "Input Normalization",
       status: "success",
@@ -145,9 +228,9 @@ export async function runPipelineValidation(
     });
 
     // ── Stage 2-7: Run Full Pipeline ──
-    onStage?.("Full Pipeline Execution");
+    onStage?.(`${scenario.name}: Pipeline`);
     const pipeStart = performance.now();
-    pipelineResult = await runClinicalPipeline(VALIDATION_SCENARIO);
+    pipelineResult = await runClinicalPipeline(scenario.context);
     const pipeDuration = Math.round(performance.now() - pipeStart);
     result.raw_output = pipelineResult;
 
@@ -171,12 +254,13 @@ export async function runPipelineValidation(
     stages.push({
       stage: "Physiology Engine",
       status: physioStates.length > 0 ? "success" : "error",
-      latency_ms: o1?.stage_latencies?.physiology_engine || 0,
+      latency_ms: o1?.stage_latencies?.physiology_engine || o1?.stage_latencies?.physiological_engine || 0,
       data: {
         states_activated: physioStates.length,
-        states: physioStates,
-        candidate_diagnosis_ids: physioCtx?.candidate_diagnosis_ids || [],
-        affected_systems: physioCtx?.affected_systems || [],
+        states: physioStates.slice(0, 6),
+        candidate_diagnosis_ids: physioCtx?.candidate_diagnosis_ids?.length || 0,
+        dominant_systems: physioCtx?.dominant_organ_systems || [],
+        states_before_filter: physioCtx?.states_before_filter || physioStates.length,
       },
       error: physioStates.length === 0 ? "No physiology states activated" : undefined,
     });
@@ -186,10 +270,10 @@ export async function runPipelineValidation(
     const candidateNames = ddxDiagnoses.map((d: any) => d.diagnosis_name || d.diagnosis || "").filter(Boolean);
     result.trace.candidate_diagnoses = candidateNames;
 
-    const gastroMatch = candidateNames.some((n: string) =>
-      n.toLowerCase().includes("gastroenteritis") || n.toLowerCase().includes("food poison")
+    const targetMatch = candidateNames.some((n: string) =>
+      scenario.expected_top1.split("|").some(t => n.toLowerCase().includes(t))
     );
-    result.criteria.gastroenteritis_in_candidates = gastroMatch;
+    result.criteria.target_in_candidates = targetMatch;
 
     stages.push({
       stage: "Candidate Generation (DDX)",
@@ -225,7 +309,7 @@ export async function runPipelineValidation(
     });
 
     // Stage 5: Cognitive Pruning
-    onStage?.("Cognitive Pruning");
+    onStage?.(`${scenario.name}: Cognitive Pruning`);
     const cogStart = performance.now();
     const cogInput = ddxDiagnoses.map((d: any) => ({
       diagnosis_name: d.diagnosis_name || d.diagnosis || "",
@@ -251,7 +335,6 @@ export async function runPipelineValidation(
         escalated: cogOutput.hypothesis_evaluation.filter(h => h.action === "escalate").length,
         pruned_names: pruned,
         quality_score: cogOutput.reasoning_evaluation.quality_score,
-        entropy: cogOutput.reasoning_evaluation.distribution_entropy,
       },
     });
 
@@ -273,7 +356,7 @@ export async function runPipelineValidation(
       data: {
         critical_alerts: safetyAlerts?.critical_count || 0,
         safety_score: safetyAlerts?.safety_score || 100,
-        dangerous_detected: result.trace.dangerous_detected,
+        dangerous_detected: result.trace.dangerous_detected.length,
       },
     });
 
@@ -286,19 +369,15 @@ export async function runPipelineValidation(
       status: soapData ? "success" : "skipped",
       latency_ms: o1?.stage_latencies?.soap_generation || 0,
       data: {
-        has_subjective: !!soapData?.subjective,
-        has_objective: !!soapData?.objective,
         has_assessment: !!soapData?.assessment,
         has_plan: !!soapData?.plan,
-        soap_preview: soapData?.assessment?.substring(0, 200) || null,
       },
     });
 
     // Build final ranking
-    // Prefer Bayesian ordering, fall back to DDX
     const finalSource = result.trace.bayesian_ranking.length > 0
       ? result.trace.bayesian_ranking
-      : candidateNames.map((n: string, i: number) => ({ diagnosis: n, probability: 0 }));
+      : candidateNames.map((n: string) => ({ diagnosis: n, probability: 0 }));
 
     result.trace.final_ranking = finalSource.slice(0, 10).map((d, i) => ({
       rank: i + 1,
@@ -308,8 +387,9 @@ export async function runPipelineValidation(
 
     // Check top-1
     const top1Name = result.trace.final_ranking[0]?.diagnosis || "";
-    result.criteria.top1_is_gastroenteritis = top1Name.toLowerCase().includes("gastroenteritis")
-      || top1Name.toLowerCase().includes("food poison");
+    result.criteria.top1_correct = scenario.expected_top1.split("|").some(
+      t => top1Name.toLowerCase().includes(t)
+    );
 
     // No errors?
     const hasErrors = stages.some(s => s.status === "error");
@@ -319,7 +399,6 @@ export async function runPipelineValidation(
     result.total_latency_ms = Math.round(performance.now() - startTime);
     result.criteria.latency_under_3s = result.total_latency_ms < 3000;
 
-    // Pipeline stage latency breakdown
     stages.push({
       stage: "Total Pipeline",
       status: "success",
@@ -331,29 +410,22 @@ export async function runPipelineValidation(
     if (physioStates.length === 0) {
       result.knowledge_gaps.push({
         type: "symptom_physiology",
-        description: "No physiology states were activated for the input symptoms",
-        missing_items: VALIDATION_SCENARIO.symptoms,
+        description: "No physiology states activated for input symptoms",
+        missing_items: scenario.context.symptoms,
       });
     }
     if (candidateNames.length === 0) {
       result.knowledge_gaps.push({
         type: "symptom_likelihood",
-        description: "No candidate diagnoses generated — possible missing symptom_likelihoods",
-        missing_items: VALIDATION_SCENARIO.symptoms,
+        description: "No candidate diagnoses generated",
+        missing_items: scenario.context.symptoms,
       });
     }
-    if (!gastroMatch && candidateNames.length > 0) {
+    if (!targetMatch && candidateNames.length > 0) {
       result.knowledge_gaps.push({
         type: "symptom_likelihood",
-        description: "Acute gastroenteritis not in candidates despite classic symptoms",
-        missing_items: ["gastroenteritis symptom_likelihoods"],
-      });
-    }
-    if (bayDiagnoses.length === 0 && candidateNames.length > 0) {
-      result.knowledge_gaps.push({
-        type: "diagnosis_prior",
-        description: "Bayesian engine returned no results — possible missing disease_priors",
-        missing_items: candidateNames.slice(0, 5),
+        description: `${scenario.name} not in candidates despite classic symptoms`,
+        missing_items: [`${scenario.expected_top1} symptom_likelihoods`],
       });
     }
 
@@ -376,4 +448,51 @@ export async function runPipelineValidation(
 
   result.stages = stages;
   return result;
+}
+
+// ── Multi-Scenario Runner ──
+
+export async function runPipelineValidation(
+  onStage?: (stage: string) => void,
+  scenarioIds?: string[],
+): Promise<MultiValidationResult> {
+  const scenarios = scenarioIds
+    ? VALIDATION_SCENARIOS.filter(s => scenarioIds.includes(s.id))
+    : VALIDATION_SCENARIOS;
+
+  const results: ValidationResult[] = [];
+
+  for (const scenario of scenarios) {
+    onStage?.(`Running: ${scenario.name}`);
+    const r = await runSingleValidation(scenario, onStage);
+    results.push(r);
+  }
+
+  const passed = results.filter(r => r.overall_status === "pass").length;
+  const partial = results.filter(r => r.overall_status === "partial").length;
+  const failed = results.filter(r => r.overall_status === "fail").length;
+  const avgLatency = results.reduce((s, r) => s + r.total_latency_ms, 0) / (results.length || 1);
+  const physioRate = results.filter(r => r.criteria.physiology_activated).length / (results.length || 1);
+  const top1Rate = results.filter(r => r.criteria.top1_correct).length / (results.length || 1);
+
+  return {
+    timestamp: new Date().toISOString(),
+    scenarios: results,
+    summary: {
+      total: results.length,
+      passed,
+      partial,
+      failed,
+      avg_latency_ms: Math.round(avgLatency),
+      physiology_activation_rate: Math.round(physioRate * 100) / 100,
+      top1_accuracy: Math.round(top1Rate * 100) / 100,
+    },
+  };
+}
+
+// ── Single scenario runner (backward compat) ──
+export async function runSingleScenarioValidation(
+  onStage?: (stage: string) => void,
+): Promise<ValidationResult> {
+  return runSingleValidation(VALIDATION_SCENARIOS[0], onStage);
 }
