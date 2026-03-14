@@ -236,7 +236,7 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
         <MetricCard label="Candidate Recall" value={m.candidate_recall ? "✓" : "✗"} icon={Target} variant={m.candidate_recall ? "success" : "danger"} detail="Gold in candidates?" />
         <MetricCard label="Top-1 Match" value={m.top1_accuracy ? "✓" : "✗"} icon={Target} variant={m.top1_accuracy ? "success" : m.top3_accuracy ? "warning" : "danger"} detail={result.final_ranking.gold_rank ? `Ranked #${result.final_ranking.gold_rank}` : "Not ranked"} />
         <MetricCard label="Safety" value={m.safety_correct ? "Correct" : "Wrong"} icon={Shield} variant={m.safety_correct ? "success" : "danger"} />
-        <MetricCard label="Latency" value={`${(m.total_latency_ms / 1000).toFixed(1)}s`} icon={Clock} variant={m.latency_under_5s ? "success" : "danger"} detail="Target: <5s" />
+        <MetricCard label="Latency" value={`${(m.total_latency_ms / 1000).toFixed(1)}s`} icon={Clock} variant={m.total_latency_ms <= 3000 ? "success" : m.latency_under_5s ? "warning" : "danger"} detail="Target: ≤3s (optimized)" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
