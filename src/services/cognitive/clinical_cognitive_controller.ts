@@ -101,11 +101,11 @@ export interface CognitiveConfig {
 const DEFAULT_CONFIG: CognitiveConfig = {
   min_top_probability: 45,
   min_probability_gap: 10,
-  prune_threshold: 5,  // lowered from 8 — prune anything below 5%
+  prune_threshold: 0,  // disabled — probability-based pruning is NOT allowed
   dangerous_escalation_threshold: 10,
-  max_candidates_to_evaluate: 10,
+  max_candidates_to_evaluate: 15,
   entropy_threshold: 2.5,
-  max_kept_hypotheses: 5,
+  max_kept_hypotheses: 10,
 };
 
 // ── Entropy Calculation ──
@@ -197,18 +197,18 @@ function evaluateHypotheses(
     if (c.must_not_miss) {
       action = "escalate";
       reason = "Must-not-miss diagnosis — always escalated";
-    } else if (c.probability < config.prune_threshold) {
-      // FIXED: prune based on probability alone, no contradiction requirement
+    } else if (contradictions >= 4 && evidenceSupport < 0.1) {
+      // SAFE PRUNING: Only prune when there are overwhelming contradictions
+      // AND virtually no supporting evidence — this indicates a logically impossible diagnosis
       action = "prune";
-      reason = `Low probability (${c.probability}%) below threshold (${config.prune_threshold}%)`;
-    } else if (index >= config.max_kept_hypotheses && !c.must_not_miss) {
-      // Prune candidates beyond top N
-      action = "prune";
-      reason = `Beyond top ${config.max_kept_hypotheses} hypotheses (rank #${index + 1})`;
-    } else if (contradictions > 2 && c.probability < 15) {
-      action = "prune";
-      reason = `Low probability (${c.probability}%) with ${contradictions} contradictions`;
+      reason = `Logically contradicted: ${contradictions} contradictions with <10% evidence support`;
     }
+    // NOTE: The following pruning rules are EXPLICITLY DISALLOWED:
+    // - Low probability alone (probability < threshold)
+    // - Rank beyond top N (index >= max_kept)
+    // - Partial symptom coverage
+    // - Incomplete physiology support
+    // The final ranking stage must always receive all viable candidates.
 
     return {
       hypothesis: c.diagnosis_name,
