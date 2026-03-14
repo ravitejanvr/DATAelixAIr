@@ -149,31 +149,26 @@ function TraceViewer({ result }: { result: CaseResultV8 }) {
 // ── Pipeline Validation Panel ──
 
 function ValidationPanel() {
-  const [result, setResult] = useState<ValidationResult | null>(null);
+  const [multiResult, setMultiResult] = useState<MultiValidationResult | null>(null);
   const [running, setRunning] = useState(false);
   const [currentStage, setCurrentStage] = useState<string | null>(null);
+  const [expandedScenario, setExpandedScenario] = useState<string | null>(null);
 
   const runValidation = useCallback(async () => {
     setRunning(true);
-    setResult(null);
+    setMultiResult(null);
     try {
       const r = await runPipelineValidation((stage) => setCurrentStage(stage));
-      setResult(r);
+      setMultiResult(r);
     } finally {
       setRunning(false);
       setCurrentStage(null);
     }
   }, []);
 
-  const statusColor = (s: string) => {
-    if (s === "success") return "text-emerald-600 dark:text-emerald-400";
-    if (s === "error") return "text-destructive";
-    return "text-amber-600 dark:text-amber-400";
-  };
-
   const statusIcon = (s: string) => {
-    if (s === "success") return <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />;
-    if (s === "error") return <XCircle className="h-3.5 w-3.5 text-destructive" />;
+    if (s === "success" || s === "pass") return <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />;
+    if (s === "error" || s === "fail") return <XCircle className="h-3.5 w-3.5 text-destructive" />;
     return <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />;
   };
 
@@ -186,224 +181,142 @@ function ValidationPanel() {
             <div>
               <h3 className="text-sm font-semibold flex items-center gap-1.5">
                 <FlaskConical className="h-4 w-4 text-primary" />
-                Pipeline Validation — Acute Gastroenteritis
+                Pipeline Validation — 3 Controlled Scenarios
               </h3>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Single controlled scenario · Verifies full reasoning flow · 28M / vomiting, diarrhea, cramps, nausea, fever, dehydration
+                Gastroenteritis · Appendicitis · Pneumonia — Verifies full reasoning flow
               </p>
             </div>
             <Button size="sm" onClick={runValidation} disabled={running}>
-              {running ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />{currentStage || "Running..."}</> : <><Play className="h-3.5 w-3.5 mr-1" /> Run Validation</>}
+              {running ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />{currentStage || "Running..."}</> : <><Play className="h-3.5 w-3.5 mr-1" /> Run All Scenarios</>}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {result && (
+      {multiResult && (
         <>
-          {/* Success Criteria */}
-          <Card className={result.overall_status === "pass" ? "border-emerald-300 dark:border-emerald-700" : result.overall_status === "partial" ? "border-amber-300 dark:border-amber-700" : "border-destructive/50"}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                {result.overall_status === "pass" ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : result.overall_status === "partial" ? <AlertTriangle className="h-4 w-4 text-amber-600" /> : <XCircle className="h-4 w-4 text-destructive" />}
-                Validation {result.overall_status === "pass" ? "PASSED" : result.overall_status === "partial" ? "PARTIAL" : "FAILED"}
-                <Badge variant="outline" className="text-[9px] ml-auto">{(result.total_latency_ms / 1000).toFixed(2)}s total</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                {Object.entries(result.criteria).map(([key, val]) => (
-                  <div key={key} className={`flex items-center gap-1.5 text-xs ${val ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-                    {val ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                    <span>{key.replace(/_/g, " ")}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <MetricCard label="Passed" value={`${multiResult.summary.passed}/${multiResult.summary.total}`} icon={CheckCircle} variant={multiResult.summary.passed === multiResult.summary.total ? "success" : "warning"} />
+            <MetricCard label="Top-1 Accuracy" value={`${Math.round(multiResult.summary.top1_accuracy * 100)}%`} icon={Target} variant={multiResult.summary.top1_accuracy >= 0.66 ? "success" : "warning"} />
+            <MetricCard label="Physiology Rate" value={`${Math.round(multiResult.summary.physiology_activation_rate * 100)}%`} icon={Activity} variant={multiResult.summary.physiology_activation_rate >= 0.66 ? "success" : "warning"} />
+            <MetricCard label="Avg Latency" value={`${(multiResult.summary.avg_latency_ms / 1000).toFixed(1)}s`} target="<3s" icon={Clock} variant={multiResult.summary.avg_latency_ms < 3000 ? "success" : multiResult.summary.avg_latency_ms < 10000 ? "warning" : "danger"} />
+            <MetricCard label="Failed" value={`${multiResult.summary.failed}`} icon={XCircle} variant={multiResult.summary.failed === 0 ? "success" : "danger"} />
+          </div>
 
-          {/* Reasoning Trace Flow */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-1.5"><Brain className="h-4 w-4 text-primary" /> Reasoning Trace</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Input Symptoms */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Input Symptoms</p>
-                <div className="flex flex-wrap gap-1">
-                  {result.trace.input_symptoms.map((s, i) => <Badge key={i} variant="outline" className="text-[9px]">{s}</Badge>)}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1 text-muted-foreground"><ArrowDown className="h-3 w-3" /><span className="text-[10px]">Physiology Inference</span></div>
-
-              {/* Physiology States */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">
-                  Physiology States
-                  {result.trace.physiology_states.length > 0
-                    ? <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 text-[9px] ml-1.5">{result.trace.physiology_states.length} activated</Badge>
-                    : <Badge variant="destructive" className="text-[9px] ml-1.5">None</Badge>
-                  }
-                </p>
-                {result.trace.physiology_states.length > 0 ? (
-                  <div className="space-y-1">
-                    {result.trace.physiology_states.map((ps, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <Badge className="bg-primary/10 text-primary text-[9px]">{ps.state}</Badge>
-                        <span className="text-muted-foreground">{ps.system}</span>
-                        <span className="font-mono text-muted-foreground">{(ps.confidence * 100).toFixed(0)}%</span>
+          {/* Per-Scenario Results */}
+          {multiResult.scenarios.map((result) => (
+            <Card key={result.scenario_id} className={result.overall_status === "pass" ? "border-emerald-300 dark:border-emerald-700" : result.overall_status === "partial" ? "border-amber-300 dark:border-amber-700" : "border-destructive/50"}>
+              <CardHeader className="pb-2 cursor-pointer" onClick={() => setExpandedScenario(expandedScenario === result.scenario_id ? null : result.scenario_id)}>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  {statusIcon(result.overall_status)}
+                  {result.scenario_name}
+                  <Badge variant="outline" className="text-[9px] ml-auto">{(result.total_latency_ms / 1000).toFixed(2)}s</Badge>
+                  <div className="flex gap-1">
+                    {Object.entries(result.criteria).map(([key, val]) => (
+                      <div key={key} title={key.replace(/_/g, " ")} className={val ? "text-emerald-600" : "text-destructive"}>
+                        {val ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
                       </div>
                     ))}
                   </div>
-                ) : <p className="text-xs text-muted-foreground italic">Physiology engine did not activate — check symptom→physiology mappings</p>}
-              </div>
-
-              <div className="flex items-center gap-1 text-muted-foreground"><ArrowDown className="h-3 w-3" /><span className="text-[10px]">Candidate Generation</span></div>
-
-              {/* Candidates */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Candidate Diagnoses ({result.trace.candidate_diagnoses.length})</p>
-                <div className="flex flex-wrap gap-1">
-                  {result.trace.candidate_diagnoses.slice(0, 10).map((d, i) => (
-                    <Badge key={i} variant={d.toLowerCase().includes("gastroenteritis") ? "default" : "outline"} className="text-[9px]">{d}</Badge>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1 text-muted-foreground"><ArrowDown className="h-3 w-3" /><span className="text-[10px]">Bayesian Ranking</span></div>
-
-              {/* Bayesian */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Bayesian Probabilities</p>
-                {result.trace.bayesian_ranking.length > 0 ? (
-                  <div className="space-y-1">
-                    {result.trace.bayesian_ranking.slice(0, 5).map((b, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <span className="w-6 text-right text-muted-foreground font-mono">#{i + 1}</span>
-                        <span className="w-48 truncate">{b.diagnosis}</span>
-                        <Progress value={b.probability * 100} className="flex-1 h-2" />
-                        <span className="w-14 text-right font-mono">{(b.probability * 100).toFixed(1)}%</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : <p className="text-xs text-muted-foreground italic">Bayesian engine did not return rankings</p>}
-              </div>
-
-              <div className="flex items-center gap-1 text-muted-foreground"><ArrowDown className="h-3 w-3" /><span className="text-[10px]">Cognitive Pruning</span></div>
-
-              {/* Pruned */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Pruned Diagnoses ({result.trace.pruned_diagnoses.length})</p>
-                {result.trace.pruned_diagnoses.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {result.trace.pruned_diagnoses.map((h, i) => <Badge key={i} variant="destructive" className="text-[9px]">{h}</Badge>)}
-                  </div>
-                ) : <p className="text-xs text-muted-foreground italic">No diagnoses pruned</p>}
-              </div>
-
-              <div className="flex items-center gap-1 text-muted-foreground"><ArrowDown className="h-3 w-3" /><span className="text-[10px]">Final Output</span></div>
-
-              {/* Final Ranking */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Final Diagnosis Ranking</p>
-                <div className="space-y-0.5">
-                  {result.trace.final_ranking.slice(0, 5).map((d, i) => (
-                    <div key={i} className={`flex items-center gap-2 text-xs font-mono ${d.diagnosis.toLowerCase().includes("gastroenteritis") ? "text-emerald-600 dark:text-emerald-400 font-semibold" : ""}`}>
-                      <span className="w-6 text-right text-muted-foreground">#{d.rank}</span>
-                      <span>{d.diagnosis}</span>
-                      {d.probability > 0 && <span className="text-muted-foreground">({(d.probability * 100).toFixed(1)}%)</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Danger */}
-              {result.trace.dangerous_detected.length > 0 && (
-                <div className="flex items-center gap-1.5 text-destructive text-xs font-medium mt-2">
-                  <Shield className="h-3.5 w-3.5" />
-                  Dangerous diagnoses detected: {result.trace.dangerous_detected.join(", ")}
-                </div>
-              )}
-
-              {/* SOAP */}
-              <div className="text-xs">
-                <span className="font-medium text-muted-foreground">SOAP Generated: </span>
-                {result.trace.soap_generated
-                  ? <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 text-[9px]">Yes</Badge>
-                  : <Badge variant="outline" className="text-[9px]">No</Badge>}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Stage-by-Stage Latency */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-1.5"><Clock className="h-4 w-4" /> Pipeline Stage Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">Stage</TableHead>
-                    <TableHead className="text-xs text-center">Status</TableHead>
-                    <TableHead className="text-xs text-right">Latency</TableHead>
-                    <TableHead className="text-xs">Details</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {result.stages.map((s, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="text-xs font-medium">{s.stage}</TableCell>
-                      <TableCell className="text-center">{statusIcon(s.status)}</TableCell>
-                      <TableCell className="text-xs text-right font-mono">{s.latency_ms}ms</TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[300px] truncate">
-                        {s.error || (s.data ? JSON.stringify(s.data).substring(0, 100) : "—")}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {/* Knowledge Gaps */}
-          {result.knowledge_gaps.length > 0 && (
-            <Card className="border-amber-200 dark:border-amber-800">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-1.5">
-                  <Search className="h-4 w-4 text-amber-600" /> Knowledge Graph Gaps ({result.knowledge_gaps.length})
+                  {expandedScenario === result.scenario_id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {result.knowledge_gaps.map((gap, i) => (
-                  <div key={i} className="text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant="outline" className="text-[9px]">{gap.type}</Badge>
-                      <span>{gap.description}</span>
+
+              {expandedScenario === result.scenario_id && (
+                <CardContent className="space-y-3">
+                  {/* Reasoning Trace */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Symptoms → Physiology</p>
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {result.trace.input_symptoms.map((s, i) => <Badge key={i} variant="outline" className="text-[9px]">{s}</Badge>)}
                     </div>
-                    <div className="flex flex-wrap gap-1 mt-1 ml-4">
-                      {gap.missing_items.map((item, j) => <Badge key={j} variant="destructive" className="text-[9px]">{item}</Badge>)}
-                    </div>
+                    {result.trace.physiology_states.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {result.trace.physiology_states.slice(0, 6).map((ps, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            <Badge className="bg-primary/10 text-primary text-[9px]">{ps.state}</Badge>
+                            <span className="text-muted-foreground">{ps.system}</span>
+                            <span className="font-mono text-muted-foreground">{(ps.confidence * 100).toFixed(0)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="text-xs text-muted-foreground italic">No physiology activated</p>}
                   </div>
-                ))}
-              </CardContent>
+
+                  <div className="flex items-center gap-1 text-muted-foreground"><ArrowDown className="h-3 w-3" /><span className="text-[10px]">Final Ranking</span></div>
+
+                  <div className="space-y-0.5">
+                    {result.trace.final_ranking.slice(0, 5).map((d, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs font-mono">
+                        <span className="w-6 text-right text-muted-foreground">#{d.rank}</span>
+                        <span>{d.diagnosis}</span>
+                        {d.probability > 0 && <span className="text-muted-foreground">({(d.probability * 100).toFixed(1)}%)</span>}
+                      </div>
+                    ))}
+                  </div>
+
+                  {result.trace.pruned_diagnoses.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Pruned ({result.trace.pruned_diagnoses.length})</p>
+                      <div className="flex flex-wrap gap-1">
+                        {result.trace.pruned_diagnoses.map((h, i) => <Badge key={i} variant="destructive" className="text-[9px]">{h}</Badge>)}
+                      </div>
+                    </div>
+                  )}
+
+                  {result.trace.dangerous_detected.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-destructive text-xs font-medium">
+                      <Shield className="h-3.5 w-3.5" /> Dangerous: {result.trace.dangerous_detected.join(", ")}
+                    </div>
+                  )}
+
+                  {/* Stage latencies */}
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead className="text-xs">Stage</TableHead>
+                      <TableHead className="text-xs text-center">Status</TableHead>
+                      <TableHead className="text-xs text-right">Latency</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {result.stages.map((s, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="text-xs">{s.stage}</TableCell>
+                          <TableCell className="text-center">{statusIcon(s.status)}</TableCell>
+                          <TableCell className="text-xs text-right font-mono">{s.latency_ms}ms</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  {result.knowledge_gaps.length > 0 && (
+                    <div className="text-xs space-y-1">
+                      <p className="font-medium text-amber-600">Knowledge Gaps:</p>
+                      {result.knowledge_gaps.map((gap, i) => (
+                        <div key={i} className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="text-[9px]">{gap.type}</Badge>
+                          <span>{gap.description}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              )}
             </Card>
-          )}
+          ))}
         </>
       )}
 
-      {/* Empty state */}
-      {!result && !running && (
+      {!multiResult && !running && (
         <Card>
           <CardContent className="py-10 text-center">
             <FlaskConical className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
             <h3 className="text-sm font-medium">Pipeline Validation</h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-              Run a single controlled Acute Gastroenteritis scenario through the full reasoning pipeline to verify architecture correctness.
+              Run 3 controlled scenarios (Gastroenteritis, Appendicitis, Pneumonia) through the full reasoning pipeline.
             </p>
-            <Button size="sm" className="mt-3" onClick={runValidation}><Play className="h-3.5 w-3.5 mr-1" /> Run Validation</Button>
+            <Button size="sm" className="mt-3" onClick={runValidation}><Play className="h-3.5 w-3.5 mr-1" /> Run All Scenarios</Button>
           </CardContent>
         </Card>
       )}
