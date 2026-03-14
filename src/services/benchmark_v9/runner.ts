@@ -491,10 +491,13 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     recommendations,
     raw_output: {
       ddx_diagnoses_count: ddxDiagnoses.length,
-      bayesian_diagnoses_count: bayDiagnoses.length,
+      bayesian_diagnoses_count: bayRawDiagnoses.length,
       physiology_states_count: physioStates.length,
       dangerous_count: uniqueDangerous.length,
       edge_function_calls: 3,
+      final_ranking_source: rankingSource,
+      ddx_candidates: candidates.slice(0, 10).map((c: any) => ({ name: c.name, id: c.diagnosis_id, ddx_prob: c.probability })),
+      bayesian_posteriors: bayRawDiagnoses.slice(0, 10).map((bd: any) => ({ name: bd.diagnosis_name || bd.diagnosis_id, id: bd.diagnosis_id, posterior: bd.posterior_probability })),
     },
   };
 }
