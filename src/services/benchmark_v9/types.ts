@@ -14,7 +14,7 @@
 export interface NormalizationTrace {
   raw_tokens: string[];
   normalized_tokens: string[];
-  mappings: Array<{ from: string; to: string; changed: boolean }>;
+  mappings: Array<{ original: string; canonical: string; changed: boolean }>;
   expected_match_rate: number;
 }
 
