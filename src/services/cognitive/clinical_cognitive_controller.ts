@@ -101,11 +101,11 @@ export interface CognitiveConfig {
 const DEFAULT_CONFIG: CognitiveConfig = {
   min_top_probability: 45,
   min_probability_gap: 10,
-  prune_threshold: 5,  // lowered from 8 — prune anything below 5%
+  prune_threshold: 0,  // disabled — probability-based pruning is NOT allowed
   dangerous_escalation_threshold: 10,
-  max_candidates_to_evaluate: 10,
+  max_candidates_to_evaluate: 15,
   entropy_threshold: 2.5,
-  max_kept_hypotheses: 5,
+  max_kept_hypotheses: 10,
 };
 
 // ── Entropy Calculation ──
