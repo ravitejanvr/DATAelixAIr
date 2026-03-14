@@ -718,38 +718,55 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("episodic_memory", { episodic_memory: episodicMemoryResult });
 
   // ═══════════════════════════════════════════════════════
-  // WAVE 2 — Parallel Context Analysis
-  //   • Physiological State Engine
-  //   • DDX Engine (Knowledge Graph traversal)
-  //   • Pre-indexed Knowledge Lookup
-  //   (Evidence retrieval moved to Wave 2b — after DDX for enriched query)
+  // WAVE 2 — Sequential: Physiology → DDX (physiology feeds DDX)
+  //   + Parallel: Pre-indexed Knowledge Lookup
   // ═══════════════════════════════════════════════════════
   const w2Start = performance.now();
 
-  const [physiologicalContext, ddxResultRaw, preindexedMatches] = await Promise.all([
-    // 2a: Physiological State Engine
-    (async (): Promise<PhysiologicalContextResult | null> => {
-      const t0 = performance.now();
-      try {
-        const result = await withRetry(
-          () => generatePhysiologicalContext({
-            symptoms,
-            vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp_systolic: vitals.bp_systolic },
-            visit_id: input.visit_id,
-            clinic_id: input.clinic_id,
-          }),
-          TIMEOUT.PHYSIOLOGY,
-          "physiological_engine",
-        );
-        lat.physiological_engine = Math.round(performance.now() - t0);
-        return result;
-      } catch {
-        lat.physiological_engine = Math.round(performance.now() - t0);
-        return null;
-      }
-    })(),
+  // 2a: Physiological State Engine (runs FIRST to feed DDX)
+  let physiologicalContext: PhysiologicalContextResult | null = null;
+  {
+    const t0 = performance.now();
+    try {
+      physiologicalContext = await withRetry(
+        () => generatePhysiologicalContext({
+          symptoms,
+          vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp_systolic: vitals.bp_systolic },
+          visit_id: input.visit_id,
+          clinic_id: input.clinic_id,
+        }),
+        TIMEOUT.PHYSIOLOGY,
+        "physiological_engine",
+      );
+      lat.physiological_engine = Math.round(performance.now() - t0);
+    } catch {
+      lat.physiological_engine = Math.round(performance.now() - t0);
+    }
+  }
 
-    // 2b: DDX Engine
+  // Build physiological context payload for DDX engine
+  const physioPayload = physiologicalContext ? {
+    candidate_diagnosis_ids: physiologicalContext.candidate_diagnosis_ids || [],
+    affected_systems: physiologicalContext.affected_systems?.map((s: any) => s.system_name || s) || [],
+    physiological_states: physiologicalContext.physiological_states?.map((s: any) => ({
+      state: s.state,
+      confidence: s.confidence,
+      system: s.system,
+    })) || [],
+  } : undefined;
+
+  if (physiologicalContext) {
+    console.log(
+      `[Pipeline] Wave 2a: Physiology complete — ` +
+      `${physiologicalContext.physiological_states?.length || 0} states, ` +
+      `${physiologicalContext.candidate_diagnosis_ids?.length || 0} candidate dx IDs, ` +
+      `${physiologicalContext.affected_systems?.length || 0} systems`
+    );
+  }
+
+  // 2b: DDX Engine + Pre-indexed Knowledge (parallel — DDX now receives physiology)
+  const [ddxResultRaw, preindexedMatches] = await Promise.all([
+    // DDX Engine (with physiological context wired in)
     (async (): Promise<DDXResult | null> => {
       const t0 = performance.now();
       try {
@@ -765,6 +782,7 @@ export async function runUnifiedClinicalPipeline(
               allergies: ctx.allergies,
               visit_id: input.visit_id,
               clinic_id: input.clinic_id,
+              physiological_context: physioPayload,
             }),
           ),
           TIMEOUT.DDX,
@@ -787,7 +805,7 @@ export async function runUnifiedClinicalPipeline(
       }
     })(),
 
-    // 2c: Pre-indexed Knowledge (instant, <50ms)
+    // Pre-indexed Knowledge (instant, <50ms)
     (async () => {
       const t0 = performance.now();
       try {
