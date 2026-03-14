@@ -13,7 +13,7 @@ import {
   FlaskConical, ArrowDown, Search,
 } from "lucide-react";
 import { runBenchmarkV8, loadPersistedV8Results } from "@/services/benchmark_v8";
-import { runPipelineValidation, type ValidationResult } from "@/services/pipeline_validation/runner";
+import { runPipelineValidation, type ValidationResult, type MultiValidationResult } from "@/services/pipeline_validation/runner";
 import type {
   BenchmarkSuiteResultV8, CaseResultV8, BatchProgressV8,
 } from "@/services/benchmark_v8/types";
