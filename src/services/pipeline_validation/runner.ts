@@ -5,14 +5,17 @@
  * to verify architecture correctness, NOT benchmark accuracy.
  *
  * Scenarios:
- *   1. Acute Gastroenteritis (original)
+ *   1. Acute Gastroenteritis
  *   2. Acute Appendicitis
  *   3. Community Acquired Pneumonia
+ *   4. Urinary Tract Infection
+ *   5. Migraine
  */
 
 import type { MergedContextObject } from "@/services/context_service";
 import { runClinicalPipeline, type ClinicalPipelineResult } from "@/services/clinical_pipeline_orchestrator";
 import { runCognitiveController } from "@/services/cognitive/clinical_cognitive_controller";
+import { normalizeWithTrace } from "@/services/context_engine/terminology_normalizer";
 
 // ── Validation Scenarios ──
 
@@ -102,6 +105,60 @@ export const VALIDATION_SCENARIOS: ValidationScenario[] = [
       vitals: {
         bp_systolic: 130, bp_diastolic: 85, pulse: 108, temperature: 38.9,
         spo2: 93, respiratory_rate: 24, weight_kg: 80, height_cm: 178,
+      },
+      lab_results: [], risk_flags: [], missing_information: [],
+      context_confidence: 0.9, source_priority: ["doctor"],
+    },
+  },
+  {
+    id: "validation-uti-001",
+    name: "Urinary Tract Infection",
+    expected_top1: "urinary tract infection",
+    expected_physiology: ["urinary inflammation", "bladder", "urethral", "infection"],
+    expected_differentials: ["urinary tract infection", "pyelonephritis", "cystitis", "kidney stone"],
+    context: {
+      visit_id: "validation-uti-001",
+      patient_id: "validation-patient-004",
+      clinic_id: "validation-clinic-001",
+      chief_complaint: "Burning urination and lower abdominal discomfort for 2 days",
+      symptoms: ["dysuria", "urinary frequency", "urinary urgency", "abdominal pain", "mild fever"],
+      symptom_duration: "2 days",
+      associated_symptoms: ["malaise"],
+      medical_history: [],
+      family_history: [],
+      risk_factors: [],
+      medications: [],
+      allergies: [],
+      vitals: {
+        bp_systolic: 118, bp_diastolic: 75, pulse: 82, temperature: 37.6,
+        spo2: 99, respiratory_rate: 16, weight_kg: 58, height_cm: 162,
+      },
+      lab_results: [], risk_flags: [], missing_information: [],
+      context_confidence: 0.9, source_priority: ["doctor"],
+    },
+  },
+  {
+    id: "validation-migraine-001",
+    name: "Migraine",
+    expected_top1: "migraine",
+    expected_physiology: ["cortical", "vasodilation", "neurogenic", "trigeminovascular"],
+    expected_differentials: ["migraine", "tension headache", "cluster headache", "meningitis"],
+    context: {
+      visit_id: "validation-migraine-001",
+      patient_id: "validation-patient-005",
+      clinic_id: "validation-clinic-001",
+      chief_complaint: "Severe unilateral headache with nausea for 6 hours",
+      symptoms: ["headache", "nausea", "photophobia", "vomiting", "aura"],
+      symptom_duration: "6 hours",
+      associated_symptoms: ["blurred vision", "fatigue"],
+      medical_history: [],
+      family_history: [],
+      risk_factors: [],
+      medications: [],
+      allergies: [],
+      vitals: {
+        bp_systolic: 120, bp_diastolic: 78, pulse: 76, temperature: 36.8,
+        spo2: 99, respiratory_rate: 16, weight_kg: 65, height_cm: 168,
       },
       lab_results: [], risk_flags: [], missing_information: [],
       context_confidence: 0.9, source_priority: ["doctor"],
@@ -216,15 +273,22 @@ async function runSingleValidation(
   };
 
   try {
-    // ── Stage 1: Input Normalization ──
+    // ── Stage 1: Input Normalization (using terminology normalizer) ──
     onStage?.(`${scenario.name}: Normalization`);
     const s1Start = performance.now();
-    result.trace.normalized_symptoms = scenario.context.symptoms.map(s => s.toLowerCase().trim());
+    const normResult = normalizeWithTrace(scenario.context.symptoms);
+    result.trace.normalized_symptoms = normResult.normalized;
+    // Feed normalized symptoms into the context for the pipeline
+    scenario.context.symptoms = normResult.normalized;
     stages.push({
       stage: "Input Normalization",
       status: "success",
       latency_ms: Math.round(performance.now() - s1Start),
-      data: { normalized: result.trace.normalized_symptoms },
+      data: {
+        normalized: normResult.normalized,
+        mappings: normResult.mappings.filter(m => m.changed),
+        synonyms_resolved: normResult.mappings.filter(m => m.changed).length,
+      },
     });
 
     // ── Stage 2-7: Run Full Pipeline ──
