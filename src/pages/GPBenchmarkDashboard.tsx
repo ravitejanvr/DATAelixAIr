@@ -255,7 +255,7 @@ export default function GPBenchmarkDashboard() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-1.5">
-              <Target className="h-4 w-4 text-primary" /> Benchmark Suite — 10 Scenarios
+              <Target className="h-4 w-4 text-primary" /> Benchmark Suite — 30 Scenarios
             </CardTitle>
           </CardHeader>
           <CardContent>
