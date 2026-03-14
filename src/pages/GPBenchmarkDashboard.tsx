@@ -292,7 +292,7 @@ export default function GPBenchmarkDashboard() {
           <CardContent className="py-10 text-center">
             <Loader2 className="h-8 w-8 text-primary mx-auto mb-3 animate-spin" />
             <p className="text-sm font-medium">{progress || "Initializing..."}</p>
-            <p className="text-xs text-muted-foreground mt-1">Running 10 scenarios through the diagnostic pipeline</p>
+            <p className="text-xs text-muted-foreground mt-1">Running 30 scenarios through the diagnostic pipeline</p>
           </CardContent>
         </Card>
       )}
