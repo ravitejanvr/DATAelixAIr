@@ -79,32 +79,31 @@ async function fetchPubMedDetails(ids: string[]): Promise<PubMedArticle[]> {
 }
 
 async function searchEuropePMC(query: string, maxResults = 5): Promise<PubMedArticle[]> {
-  const url = `${EUROPE_PMC_BASE}/search?query=${encodeURIComponent(query)}&resultType=core&pageSize=${maxResults}&format=json`;
-  const resp = await fetch(url);
-  const text = await resp.text();
-  if (!resp.ok || text.trimStart().startsWith("<")) {
-    console.warn("[EuropePMC] returned non-JSON:", text.substring(0, 200));
-    return [];
-  }
-  let data: any;
   try {
-    data = JSON.parse(text);
-  } catch {
-    console.warn("[EuropePMC] JSON parse failed");
+    const url = `${EUROPE_PMC_BASE}/search?query=${encodeURIComponent(query)}&resultType=core&pageSize=${maxResults}&format=json`;
+    const resp = await fetch(url);
+    const text = await resp.text();
+    if (!resp.ok || text.trimStart().startsWith("<")) {
+      console.warn("[EuropePMC] returned non-JSON:", text.substring(0, 200));
+      return [];
+    }
+    const data = JSON.parse(text);
+    const results = data?.resultList?.result || [];
+
+    return results.map((r: any) => ({
+      pmid: r.pmid || r.id || "",
+      title: r.title || "",
+      abstract: (r.abstractText || "").substring(0, 1500),
+      authors: (r.authorString || "").split(", ").slice(0, 3),
+      journal: r.journalTitle || "",
+      year: r.pubYear || "",
+      doi: r.doi || "",
+      url: r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : `https://europepmc.org/article/${r.source}/${r.id}`,
+    }));
+  } catch (e) {
+    console.warn("[EuropePMC] search failed:", e instanceof Error ? e.message : e);
     return [];
   }
-  const results = data?.resultList?.result || [];
-
-  return results.map((r: any) => ({
-    pmid: r.pmid || r.id || "",
-    title: r.title || "",
-    abstract: (r.abstractText || "").substring(0, 1500),
-    authors: (r.authorString || "").split(", ").slice(0, 3),
-    journal: r.journalTitle || "",
-    year: r.pubYear || "",
-    doi: r.doi || "",
-    url: r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : `https://europepmc.org/article/${r.source}/${r.id}`,
-  }));
 }
 
 serve(async (req) => {
