@@ -62,7 +62,7 @@ export interface SafetyTrace {
 }
 
 export interface FinalRankingTrace {
-  ranking: Array<{ rank: number; diagnosis: string; diagnosis_id: string; probability: number }>;
+  ranking: Array<{ rank: number; diagnosis: string; diagnosis_id: string; probability: number; ranking_source: "bayesian" | "fallback_ddx" }>;
   gold_rank: number | null;
   top1_match: boolean;
   top3_match: boolean;
