@@ -55,7 +55,10 @@ export interface SafetyTrace {
   safety_alerts: number;
   safety_score: number;
   dangerous_diagnoses: string[];
+  expected_dangerous_diagnoses: string[];
+  dangerous_diagnoses_in_candidates: string[];
   correct: boolean;
+  detection_details: string;
 }
 
 export interface FinalRankingTrace {
