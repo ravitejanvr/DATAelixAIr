@@ -273,15 +273,22 @@ async function runSingleValidation(
   };
 
   try {
-    // ── Stage 1: Input Normalization ──
+    // ── Stage 1: Input Normalization (using terminology normalizer) ──
     onStage?.(`${scenario.name}: Normalization`);
     const s1Start = performance.now();
-    result.trace.normalized_symptoms = scenario.context.symptoms.map(s => s.toLowerCase().trim());
+    const normResult = normalizeWithTrace(scenario.context.symptoms);
+    result.trace.normalized_symptoms = normResult.normalized;
+    // Feed normalized symptoms into the context for the pipeline
+    scenario.context.symptoms = normResult.normalized;
     stages.push({
       stage: "Input Normalization",
       status: "success",
       latency_ms: Math.round(performance.now() - s1Start),
-      data: { normalized: result.trace.normalized_symptoms },
+      data: {
+        normalized: normResult.normalized,
+        mappings: normResult.mappings.filter(m => m.changed),
+        synonyms_resolved: normResult.mappings.filter(m => m.changed).length,
+      },
     });
 
     // ── Stage 2-7: Run Full Pipeline ──
