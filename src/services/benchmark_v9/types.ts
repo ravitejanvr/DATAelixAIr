@@ -67,7 +67,6 @@ export interface FinalRankingTrace {
   top1_match: boolean;
   top3_match: boolean;
   top5_match: boolean;
-  ranking_source: "bayesian" | "ddx_fallback";
 }
 
 export interface StageLatency {

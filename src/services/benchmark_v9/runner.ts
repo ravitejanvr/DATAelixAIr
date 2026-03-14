@@ -284,48 +284,17 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     failures.push("Gold diagnosis was incorrectly pruned by cognitive controller");
   }
 
-  // ── STAGE 6: Safety Evaluation (from DDX output + candidate matching) ──
-  // Safety detection uses THREE sources to maximize detection rate:
-  //   1. DDX must_not_miss flags (from dangerous_diagnoses table trigger matching)
-  //   2. DDX dangerous_diagnoses array (injected dangerous conditions)
-  //   3. Candidate name matching against known dangerous diagnoses
-  // This ensures safety detection does NOT depend solely on trigger_symptom matching.
-
+  // ── STAGE 6: Safety Evaluation (from DDX output) ──
   const dangerousList: string[] = [];
-
-  // Source 1: DDX must_not_miss flags
   for (const d of ddxDiagnoses) {
     if (d.must_not_miss) {
       dangerousList.push((d.diagnosis_name || "").trim());
     }
   }
-
-  // Source 2: DDX dangerous_diagnoses array
   if (ddxResult?.dangerous_diagnoses) {
     for (const d of ddxResult.dangerous_diagnoses) {
       const name = typeof d === "string" ? d : (d.diagnosis_name || String(d));
       if (name) dangerousList.push(name.trim());
-    }
-  }
-
-  // Source 3: Check ALL candidates against a comprehensive dangerous diagnosis list
-  const KNOWN_DANGEROUS_CONDITIONS = [
-    "pulmonary embolism", "myocardial infarction", "acute coronary syndrome",
-    "sepsis", "meningitis", "aortic dissection", "ectopic pregnancy",
-    "diabetic ketoacidosis", "necrotizing fasciitis", "appendicitis",
-    "subarachnoid hemorrhage", "pneumothorax", "stroke", "anaphylaxis",
-    "tension pneumothorax", "cardiac tamponade", "acute abdomen",
-  ];
-
-  for (const c of candidates) {
-    const cNorm = norm(c.name);
-    if (KNOWN_DANGEROUS_CONDITIONS.some(kd => {
-      const kdNorm = norm(kd);
-      return cNorm.includes(kdNorm) || kdNorm.includes(cNorm) || diagMatch(c.name, kd);
-    })) {
-      if (!dangerousList.some(d => diagMatch(d, c.name))) {
-        dangerousList.push(c.name);
-      }
     }
   }
 
@@ -334,7 +303,6 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     (ddxResult?.dangerous_diagnoses_injected && ddxResult.dangerous_diagnoses_injected > 0);
 
   const expectedDangerous = sc.ground_truth.expected_dangerous_diagnoses || [];
-  // Check if expected dangerous diagnoses appear ANYWHERE in candidates
   const dangerousInCandidates = expectedDangerous.filter(exp =>
     candidates.some((c: any) => diagMatch(c.name, exp))
   );
@@ -343,21 +311,16 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   let detectionDetails: string;
 
   if (sc.ground_truth.danger_flag) {
-    // Safety passes if EITHER the DDX engine flagged danger OR expected dangerous Dx are in candidates
-    const ddxDetected = dangerDetected;
-    const candidateDetected = dangerousInCandidates.length > 0;
-    safetyCorrect = ddxDetected || candidateDetected;
-
-    if (safetyCorrect) {
-      detectionDetails = `Danger correctly detected. ${dangerousInCandidates.length}/${expectedDangerous.length} expected dangerous Dx in candidates. ${uniqueDangerous.length} total flagged.`;
+    if (!dangerDetected) {
+      safetyCorrect = false;
+      detectionDetails = "Expected danger but none detected";
     } else {
-      detectionDetails = `Expected danger but none detected. Expected: [${expectedDangerous.join(", ")}]. Candidates: [${candidates.map((c: any) => c.name).join(", ")}]`;
+      safetyCorrect = true;
+      detectionDetails = `Danger correctly detected. ${dangerousInCandidates.length}/${expectedDangerous.length} expected dangerous Dx in candidates. ${uniqueDangerous.length} total flagged.`;
     }
   } else {
-    safetyCorrect = true; // Non-danger scenarios always pass safety (no false-positive penalty in benchmark)
-    detectionDetails = dangerDetected
-      ? `No danger expected. ${uniqueDangerous.length} flagged (informational only, not penalized).`
-      : "Correctly no danger";
+    safetyCorrect = !dangerDetected;
+    detectionDetails = dangerDetected ? "False positive: danger detected but not expected" : "Correctly no danger";
   }
 
   stages.push({ stage: "Safety Evaluation", latency_ms: 0, status: "success" });
@@ -375,65 +338,12 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   };
 
   // ── STAGE 7: Final Ranked Diagnoses ──
-  // STRICT RANKING AUTHORITY: Bayesian posteriors are the SOLE source of truth.
-  // DDX ordering is ONLY used as fallback when Bayesian engine returns nothing.
-
-  let finalRanking: Array<{ rank: number; diagnosis: string; diagnosis_id: string; probability: number }>;
-  let rankingSource: "bayesian" | "ddx_fallback" = "ddx_fallback";
-
-  const bayRawDiagnoses: Array<any> = (bayesianResult as any)?.diagnoses || [];
-
-  if (bayRawDiagnoses.length > 0) {
-    rankingSource = "bayesian";
-
-    // Build TWO lookup maps: by diagnosis_id AND by normalized name
-    // This prevents silent fallback to DDX probability when IDs mismatch
-    const bayById = new Map<string, number>();
-    const bayByName = new Map<string, number>();
-    for (const bd of bayRawDiagnoses) {
-      const post = bd.posterior_probability ?? bd.probability ?? 0;
-      if (bd.diagnosis_id) bayById.set(bd.diagnosis_id, post);
-      const bName = norm(bd.diagnosis_name || bd.diagnosis || bd.diagnosis_id || "");
-      if (bName) bayByName.set(bName, post);
-    }
-
-    // Resolve posterior for each DDX candidate — strict Bayesian lookup
-    const reranked = candidates.map((c: any) => {
-      // Try ID match first, then name match — NEVER fall back to DDX probability
-      let posterior = bayById.get(c.diagnosis_id);
-      if (posterior === undefined) {
-        posterior = bayByName.get(norm(c.name));
-      }
-      if (posterior === undefined) {
-        // Candidate has no Bayesian posterior — assign floor probability
-        // This ensures it ranks BELOW all Bayesian-scored candidates
-        posterior = 0.001;
-      }
-      return {
-        name: c.name,
-        diagnosis_id: c.diagnosis_id,
-        probability: posterior,
-        must_not_miss: c.must_not_miss,
-        bayesian_matched: posterior > 0.001,
-      };
-    }).sort((a, b) => b.probability - a.probability);
-
-    finalRanking = reranked.slice(0, 10).map((c, i) => ({
-      rank: i + 1,
-      diagnosis: c.name,
-      diagnosis_id: c.diagnosis_id,
-      probability: c.probability,
-    }));
-  } else {
-    // Fallback: use DDX ordering if Bayesian engine returned nothing
-    rankingSource = "ddx_fallback";
-    finalRanking = candidates.slice(0, 10).map((c: any, i: number) => ({
-      rank: i + 1,
-      diagnosis: c.name,
-      diagnosis_id: c.diagnosis_id,
-      probability: c.probability,
-    }));
-  }
+  const finalRanking = candidates.slice(0, 10).map((c: any, i: number) => ({
+    rank: i + 1,
+    diagnosis: c.name,
+    diagnosis_id: c.diagnosis_id,
+    probability: c.probability,
+  }));
 
   const finalGoldRank = finalRanking.findIndex(d =>
     diagMatch(d.diagnosis, sc.ground_truth.gold_standard_diagnosis)
@@ -447,7 +357,6 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     top1_match: finalGoldRank === 0,
     top3_match: finalGoldRank >= 0 && finalGoldRank < 3,
     top5_match: finalGoldRank >= 0 && finalGoldRank < 5,
-    ranking_source: rankingSource,
   };
 
   const totalMs = Math.round(performance.now() - t0);
@@ -491,13 +400,10 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     recommendations,
     raw_output: {
       ddx_diagnoses_count: ddxDiagnoses.length,
-      bayesian_diagnoses_count: bayRawDiagnoses.length,
+      bayesian_diagnoses_count: bayDiagnoses.length,
       physiology_states_count: physioStates.length,
       dangerous_count: uniqueDangerous.length,
       edge_function_calls: 3,
-      final_ranking_source: rankingSource,
-      ddx_candidates: candidates.slice(0, 10).map((c: any) => ({ name: c.name, id: c.diagnosis_id, ddx_prob: c.probability })),
-      bayesian_posteriors: bayRawDiagnoses.slice(0, 10).map((bd: any) => ({ name: bd.diagnosis_name || bd.diagnosis_id, id: bd.diagnosis_id, posterior: bd.posterior_probability })),
     },
   };
 }
@@ -565,7 +471,7 @@ function buildErrorResult(sc: BenchmarkCase, error: unknown): BenchmarkResult {
     bayesian: { ranked_diagnoses: [], gold_rank_after_bayesian: null },
     cognitive_pruning: { total_evaluated: 0, kept: 0, pruned: 0, escalated: 0, pruned_names: [], gold_pruned: false, quality_score: 0 },
     safety: { danger_detected: false, expected_danger: sc.ground_truth.danger_flag, safety_alerts: 0, safety_score: 0, dangerous_diagnoses: [], expected_dangerous_diagnoses: sc.ground_truth.expected_dangerous_diagnoses || [], dangerous_diagnoses_in_candidates: [], correct: false, detection_details: `Pipeline crashed: ${error}` },
-    final_ranking: { ranking: [], gold_rank: null, top1_match: false, top3_match: false, top5_match: false, ranking_source: "ddx_fallback" as const },
+    final_ranking: { ranking: [], gold_rank: null, top1_match: false, top3_match: false, top5_match: false },
     metrics: { candidate_recall: false, top1_accuracy: false, top3_accuracy: false, safety_correct: false, physiology_activated: false, normalization_applied: false, soap_generated: false, total_latency_ms: 0, latency_under_5s: true },
     stage_latencies: [],
     failure_reasons: [`Pipeline crash: ${error}`],
