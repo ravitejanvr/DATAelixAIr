@@ -385,6 +385,26 @@ async function runCase(bc: BenchmarkCaseV8): Promise<CaseResultV8> {
 
     const passed = (goldRank !== null && goldRank <= 5) || (!bc.ground_truth.danger_flag || dangerDetected);
 
+    // Build physiology trace
+    const physioCtx = (o1 as any)?.physiological_context;
+    const reasoningTrace = {
+      symptoms: bc.context.symptoms || [],
+      physiology: {
+        symptoms_detected: bc.context.symptoms || [],
+        physiology_states_activated: physioCtx?.physiological_states || [],
+        candidate_diagnosis_ids: physioCtx?.candidate_diagnosis_ids || [],
+        affected_organ_systems: physioCtx?.affected_systems || [],
+        physiology_used: !!(physioCtx?.physiological_states?.length),
+      },
+      candidate_diagnoses: actualDx,
+      bayesian_probabilities: ((o1?.bayesian as any)?.diagnoses || []).map((d: any) => ({
+        diagnosis: d.diagnosis_name || d.diagnosis || "", probability: d.posterior_probability || d.probability || 0,
+      })),
+      hypotheses_pruned: cognitiveOutput.hypothesis_evaluation.filter(h => h.action === "prune").map(h => h.hypothesis),
+      final_ranking: actualDx.slice(0, 5).map((d, i) => ({ diagnosis: d, probability: 0, rank: i + 1 })),
+      dangerous_diagnoses_detected: dangerDetected ? [bc.ground_truth.gold_standard_diagnosis] : [],
+    };
+
     return {
       case_id: bc.id, case_name: bc.name, specialty: bc.specialty,
       difficulty: bc.difficulty, reasoning_category: bc.reasoning_category, tags: bc.tags,
@@ -396,6 +416,7 @@ async function runCase(bc: BenchmarkCaseV8): Promise<CaseResultV8> {
         bc.ground_truth.alternative_plausible_diagnoses.some(alt => synonymMatch(d, alt))),
       cognitive: cognitiveMetrics,
       iterative_reasoning: iterativeMetrics,
+      reasoning_trace: reasoningTrace,
       safety, latency,
       reasoning_completeness: stagesExecuted / 10,
       confidence_score: result.confidence_scores?.confidence_score || 0,
@@ -412,6 +433,11 @@ async function runCase(bc: BenchmarkCaseV8): Promise<CaseResultV8> {
       pcie_ms: 0, world_model_ms: 0, ddx_ms: 0, bayesian_ms: 0, hypothesis_testing_ms: 0,
       evidence_planning_ms: 0, causal_reasoning_ms: 0, safety_ms: 0, soap_ms: 0,
       diagnostic_loop_ms: 0, cognitive_controller_ms: 0, total_ms: 0,
+    };
+    const emptyTrace = {
+      symptoms: bc.context.symptoms || [], physiology: { symptoms_detected: [], physiology_states_activated: [], candidate_diagnosis_ids: [], affected_organ_systems: [], physiology_used: false },
+      candidate_diagnoses: [], bayesian_probabilities: [], hypotheses_pruned: [], final_ranking: [], dangerous_diagnoses_detected: [],
+      failure_type: `Pipeline error: ${error}`,
     };
     return {
       case_id: bc.id, case_name: bc.name, specialty: bc.specialty,
@@ -432,6 +458,7 @@ async function runCase(bc: BenchmarkCaseV8): Promise<CaseResultV8> {
         diagnosis_stable: true, gold_rank_iteration_1: null, gold_rank_iteration_2: null, gold_rank_improved: false,
         snapshots: [],
       },
+      reasoning_trace: emptyTrace,
       safety: { dangerous_detected: false, expected_dangerous: bc.ground_truth.danger_flag, false_negative: bc.ground_truth.danger_flag, safety_alerts: 0, safety_score: 0 },
       latency: emptyLatency,
       reasoning_completeness: 0, confidence_score: 0, confidence_label: "Error", guideline_sources: [],
@@ -589,7 +616,7 @@ export async function loadPersistedV8Results(): Promise<BenchmarkSuiteResultV8 |
     };
     return {
       case_id: `persisted-${r.id}`, case_name: r.test_case,
-      specialty: po.specialty || "emergency_medicine",
+      specialty: po.specialty || "general_practice",
       difficulty: po.difficulty || "common",
       reasoning_category: po.reasoning_category || "straightforward",
       tags: [],
@@ -610,6 +637,10 @@ export async function loadPersistedV8Results(): Promise<BenchmarkSuiteResultV8 |
         initial_top_probability: 0, final_top_probability: 0, confidence_convergence: 0,
         diagnosis_stable: true, gold_rank_iteration_1: null, gold_rank_iteration_2: null, gold_rank_improved: false,
         snapshots: [],
+      },
+      reasoning_trace: po.reasoning_trace || {
+        symptoms: [], physiology: { symptoms_detected: [], physiology_states_activated: [], candidate_diagnosis_ids: [], affected_organ_systems: [], physiology_used: false },
+        candidate_diagnoses: [], bayesian_probabilities: [], hypotheses_pruned: [], final_ranking: [], dangerous_diagnoses_detected: [],
       },
       safety: po.safety || { dangerous_detected: false, expected_dangerous: false, false_negative: false, safety_alerts: 0, safety_score: 0 },
       latency: po.latency || emptyLatency,
@@ -708,9 +739,19 @@ function buildSuiteResult(runId: string, results: CaseResultV8[]): BenchmarkSuit
 
   const loopActivated = results.filter(r => r.iterative_reasoning.loop_activated);
 
+  // Physiology activation stats
+  const physioUsed = results.filter(r => r.reasoning_trace?.physiology?.physiology_used);
+  const physiology_activation_stats = {
+    total_cases: total,
+    physiology_used_count: physioUsed.length,
+    physiology_usage_rate: total > 0 ? physioUsed.length / total : 0,
+    avg_states_activated: avg(results.map(r => r.reasoning_trace?.physiology?.physiology_states_activated?.length || 0)),
+    avg_candidates_from_physiology: avg(results.map(r => r.reasoning_trace?.physiology?.candidate_diagnosis_ids?.length || 0)),
+  };
+
   return {
     run_id: runId, run_timestamp: new Date().toISOString(), version: "v8",
-    suite_name: "Cognitive Clinical Reasoning Benchmark v8",
+    suite_name: "Benchmark V8 — Phase 1 (General Physician)",
     total_cases: total, passed_cases: results.filter(r => r.passed).length,
     pass_rate: results.filter(r => r.passed).length / total,
     top1_accuracy: top1, top3_accuracy: top3, top5_accuracy: top5,
@@ -720,6 +761,7 @@ function buildSuiteResult(runId: string, results: CaseResultV8[]): BenchmarkSuit
     iteration_utilization_rate: loopActivated.length / total,
     avg_confidence_convergence: avg(results.map(r => r.iterative_reasoning.confidence_convergence)),
     latency, by_specialty: bySpecialty, by_category: byCat,
+    physiology_activation_stats,
     recommendations, cases: results,
   };
 }
@@ -727,7 +769,7 @@ function buildSuiteResult(runId: string, results: CaseResultV8[]): BenchmarkSuit
 function emptyResult(runId: string): BenchmarkSuiteResultV8 {
   return {
     run_id: runId, run_timestamp: new Date().toISOString(), version: "v8",
-    suite_name: "Cognitive Clinical Reasoning Benchmark v8",
+    suite_name: "Benchmark V8 — Phase 1 (General Physician)",
     total_cases: 0, passed_cases: 0, pass_rate: 0,
     top1_accuracy: 0, top3_accuracy: 0, top5_accuracy: 0,
     danger_detection_rate: 1, danger_false_negative_count: 0,
@@ -748,6 +790,7 @@ function emptyResult(runId: string): BenchmarkSuiteResultV8 {
       ambiguous: { cases: 0, passed: 0, top1: 0, top3: 0 },
       deceptive: { cases: 0, passed: 0, top1: 0, top3: 0 },
     },
+    physiology_activation_stats: { total_cases: 0, physiology_used_count: 0, physiology_usage_rate: 0, avg_states_activated: 0, avg_candidates_from_physiology: 0 },
     recommendations: [], cases: [],
   };
 }

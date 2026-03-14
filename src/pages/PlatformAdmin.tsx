@@ -20,10 +20,7 @@ import InnovationDashboard from "@/components/admin/InnovationDashboard";
 import TerminologyAdmin from "@/pages/TerminologyAdmin";
 import PipelineDebug from "@/pages/PipelineDebug";
 import PipelineSimulation from "@/pages/PipelineSimulation";
-import BenchmarkDashboard from "@/pages/BenchmarkDashboard";
-import BenchmarkDashboardV6 from "@/pages/BenchmarkDashboardV6";
-import BenchmarkDashboardV7 from "@/pages/BenchmarkDashboardV7";
-import BenchmarkDashboardV8 from "@/pages/BenchmarkDashboardV8";
+import GPBenchmarkDashboard from "@/pages/GPBenchmarkDashboard";
 import type { MonitoringDashboardData } from "@/layers/monitoring/api";
 import { fetchMonitoringDashboard } from "@/layers/monitoring/api";
 import { MODEL_REGISTRY, DATA_ACCESS_MATRIX, ROLE_LABELS } from "@/layers/governance/api";
@@ -117,7 +114,7 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
-type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation" | "terminology" | "pipeline-debug" | "simulation" | "benchmarks" | "benchmarks-v6" | "benchmarks-v7" | "benchmarks-v8";
+type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation" | "terminology" | "pipeline-debug" | "simulation" | "benchmarks";
 
 const getTabFromPath = (pathname: string): AdminTab => {
   const tabSegment = pathname.split("/")[2];
@@ -133,9 +130,6 @@ const getTabFromPath = (pathname: string): AdminTab => {
   if (tabSegment === "pipeline-debug") return "pipeline-debug";
   if (tabSegment === "simulation") return "simulation";
   if (tabSegment === "benchmarks") return "benchmarks";
-  if (tabSegment === "benchmarks-v6") return "benchmarks-v6";
-  if (tabSegment === "benchmarks-v7") return "benchmarks-v7";
-  if (tabSegment === "benchmarks-v8") return "benchmarks-v8";
   return "pilots";
 };
 
@@ -354,10 +348,7 @@ export default function PlatformAdmin() {
             <TabsTrigger value="terminology"><Database className="h-3.5 w-3.5 mr-1" /> Terminology</TabsTrigger>
             <TabsTrigger value="pipeline-debug"><Cpu className="h-3.5 w-3.5 mr-1" /> Pipeline Debug</TabsTrigger>
             <TabsTrigger value="simulation"><Zap className="h-3.5 w-3.5 mr-1" /> Simulation</TabsTrigger>
-            <TabsTrigger value="benchmarks"><BarChart3 className="h-3.5 w-3.5 mr-1" /> Benchmarks</TabsTrigger>
-            <TabsTrigger value="benchmarks-v6"><Brain className="h-3.5 w-3.5 mr-1" /> Benchmark v6</TabsTrigger>
-            <TabsTrigger value="benchmarks-v7"><Brain className="h-3.5 w-3.5 mr-1" /> Benchmark v7</TabsTrigger>
-            <TabsTrigger value="benchmarks-v8"><Brain className="h-3.5 w-3.5 mr-1" /> Benchmark v8</TabsTrigger>
+            <TabsTrigger value="benchmarks"><Brain className="h-3.5 w-3.5 mr-1" /> Benchmark</TabsTrigger>
           </TabsList>
 
           {/* Pilots Tab */}
@@ -668,24 +659,9 @@ export default function PlatformAdmin() {
             <PipelineSimulation />
           </TabsContent>
 
-          {/* Benchmarks Tab */}
+          {/* Benchmark Tab */}
           <TabsContent value="benchmarks" className="mt-4">
-            <BenchmarkDashboard />
-          </TabsContent>
-
-          {/* Benchmark v6 Tab */}
-          <TabsContent value="benchmarks-v6" className="mt-4">
-            <BenchmarkDashboardV6 />
-          </TabsContent>
-
-          {/* Benchmark v7 Tab */}
-          <TabsContent value="benchmarks-v7" className="mt-4">
-            <BenchmarkDashboardV7 />
-          </TabsContent>
-
-          {/* Benchmark v8 Tab */}
-          <TabsContent value="benchmarks-v8" className="mt-4">
-            <BenchmarkDashboardV8 />
+            <GPBenchmarkDashboard />
           </TabsContent>
         </Tabs>
       </div>
