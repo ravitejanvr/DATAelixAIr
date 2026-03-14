@@ -1,13 +1,5 @@
 /**
- * Benchmark v8 — Cognitive Clinical Reasoning Evaluation Suite
- * Type Definitions
- *
- * Extends v7 with cognitive controller metrics:
- * - Hypothesis management quality
- * - Evidence strategy effectiveness
- * - Reasoning quality scoring
- * - Uncertainty calibration
- * - Diagnostic policy adherence
+ * Benchmark v8 — Phase 1 GP Benchmark Types
  */
 
 import type { MergedContextObject } from "@/services/context_service";
@@ -15,18 +7,14 @@ import type { ClinicalPipelineResult } from "@/services/clinical_pipeline_orches
 import type { PipelineResult } from "@/services/clinical_pipeline/orchestrator";
 import type { CognitiveControllerOutput } from "@/services/cognitive/clinical_cognitive_controller";
 
-// ── Reasoning Category ──
-
 export type ReasoningCategory = "straightforward" | "ambiguous" | "deceptive";
 
 export type Specialty =
-  | "emergency_medicine" | "cardiology" | "pulmonology" | "neurology"
+  | "general_practice" | "emergency_medicine" | "cardiology" | "pulmonology" | "neurology"
   | "gastroenterology" | "endocrinology" | "infectious_disease"
   | "pediatrics" | "nephrology";
 
 export type CaseDifficulty = "common" | "moderate" | "complex" | "rare";
-
-// ── Case Definition ──
 
 export interface BenchmarkCaseV8 {
   id: string;
@@ -49,15 +37,13 @@ export interface BenchmarkCaseV8 {
   };
 }
 
-// ── Cognitive Metrics (NEW in v8) ──
-
 export interface CognitiveMetrics {
   hypothesis_management: {
     total_evaluated: number;
     kept: number;
     pruned: number;
     escalated: number;
-    prune_accuracy: number; // did pruning help?
+    prune_accuracy: number;
   };
   evidence_strategy: {
     strategy_type: string;
@@ -89,8 +75,6 @@ export interface CognitiveMetrics {
   };
 }
 
-// ── Per-Iteration Snapshot (carried from v7) ──
-
 export interface IterationSnapshot {
   iteration: number;
   top_diagnoses: Array<{ name: string; probability: number; rank: number }>;
@@ -101,8 +85,6 @@ export interface IterationSnapshot {
   gold_standard_probability: number | null;
   latency_ms: number;
 }
-
-// ── Iterative Reasoning Metrics ──
 
 export interface IterativeReasoningMetrics {
   iterations_executed: number;
@@ -144,7 +126,24 @@ export interface LatencyBreakdownV8 {
   total_ms: number;
 }
 
-// ── Per-Case Result ──
+export interface PhysiologyTrace {
+  symptoms_detected: string[];
+  physiology_states_activated: string[];
+  candidate_diagnosis_ids: string[];
+  affected_organ_systems: string[];
+  physiology_used: boolean;
+}
+
+export interface ReasoningTrace {
+  symptoms: string[];
+  physiology: PhysiologyTrace;
+  candidate_diagnoses: string[];
+  bayesian_probabilities: Array<{ diagnosis: string; probability: number }>;
+  hypotheses_pruned: string[];
+  final_ranking: Array<{ diagnosis: string; probability: number; rank: number }>;
+  dangerous_diagnoses_detected: string[];
+  failure_type?: string;
+}
 
 export interface CaseResultV8 {
   case_id: string;
@@ -153,39 +152,26 @@ export interface CaseResultV8 {
   difficulty: CaseDifficulty;
   reasoning_category: ReasoningCategory;
   tags: string[];
-
-  // Diagnostic accuracy
   top1_match: boolean;
   top3_match: boolean;
   top5_match: boolean;
   gold_standard_rank: number | null;
   actual_diagnoses: string[];
   matched_diagnoses: string[];
-
-  // Cognitive controller (NEW)
   cognitive: CognitiveMetrics;
-
-  // Iterative reasoning
   iterative_reasoning: IterativeReasoningMetrics;
   safety: SafetyMetrics;
   latency: LatencyBreakdownV8;
-
-  // Quality
+  reasoning_trace: ReasoningTrace;
   reasoning_completeness: number;
   confidence_score: number;
   confidence_label: string;
   guideline_sources: string[];
-
-  // Failure
   failure_reasons: string[];
   passed: boolean;
-
-  // Raw
   pipeline_output: ClinicalPipelineResult | null;
   cognitive_output: CognitiveControllerOutput | null;
 }
-
-// ── Suite-Level Results ──
 
 export interface CognitiveSummary {
   avg_reasoning_quality: number;
@@ -233,25 +219,15 @@ export interface BenchmarkSuiteResultV8 {
   total_cases: number;
   passed_cases: number;
   pass_rate: number;
-
   top1_accuracy: number;
   top3_accuracy: number;
   top5_accuracy: number;
-
   danger_detection_rate: number;
   danger_false_negative_count: number;
-
-  // Cognitive (NEW)
   cognitive: CognitiveSummary;
-
-  // Iterative reasoning
   iteration_utilization_rate: number;
   avg_confidence_convergence: number;
-
-  // Latency
   latency: LatencyStatisticsV8;
-
-  // Breakdowns
   by_specialty: SpecialtyBreakdownV8[];
   by_category: Record<ReasoningCategory, {
     cases: number;
@@ -259,7 +235,13 @@ export interface BenchmarkSuiteResultV8 {
     top1: number;
     top3: number;
   }>;
-
+  physiology_activation_stats: {
+    total_cases: number;
+    physiology_used_count: number;
+    physiology_usage_rate: number;
+    avg_states_activated: number;
+    avg_candidates_from_physiology: number;
+  };
   recommendations: string[];
   cases: CaseResultV8[];
 }

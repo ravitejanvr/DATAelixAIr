@@ -6,7 +6,8 @@
  */
 
 import { setFeatureFlag } from "@/services/feature_flags";
-import { BENCHMARK_CASES_V5, type BenchmarkCase } from "@/services/benchmark_v5";
+import { BENCHMARK_CASES_V8 } from "@/services/benchmark_v8/cases";
+import type { BenchmarkCaseV8 } from "@/services/benchmark_v8/types";
 import { runUnifiedClinicalPipeline, type PipelineResult, type PipelineInput } from "@/services/clinical_pipeline/orchestrator";
 import { fromMergedContext, toClinicalContext, type UnifiedClinicalContext } from "@/types/clinical-context";
 import type { LineageReport } from "@/services/clinical_pipeline/lineage_tracker";
@@ -81,7 +82,7 @@ export async function runPipelineTrace(
   caseIndex: number = 3, // default to v5-04 Cardiac Emergency
   onWaveComplete?: (wave: WaveTrace) => void,
 ): Promise<PipelineTrace> {
-  const bc = BENCHMARK_CASES_V5[caseIndex];
+  const bc = BENCHMARK_CASES_V8[caseIndex];
   if (!bc) throw new Error(`No benchmark case at index ${caseIndex}`);
 
   // Enable O1 pipeline
@@ -410,7 +411,7 @@ export async function runPipelineTrace(
   return {
     case_id: bc.id,
     case_name: bc.name,
-    category: bc.category,
+    category: bc.reasoning_category,
     total_ms: totalMs,
     unified_context_snapshot: unified,
     clinical_context_snapshot: clinicalContext as unknown as Record<string, unknown>,
@@ -431,4 +432,4 @@ export async function runPipelineTrace(
   };
 }
 
-export { BENCHMARK_CASES_V5 };
+export { BENCHMARK_CASES_V8 as BENCHMARK_CASES_V5 };
