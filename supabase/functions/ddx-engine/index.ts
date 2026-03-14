@@ -616,18 +616,18 @@ Deno.serve(async (req) => {
       bayesianScores.sort((a, b) => b.probability - a.probability);
     }
 
-    // Final selection: top 5 by probability + up to 3 must-not-miss
+    // Final selection: top 6 by probability + up to 3 must-not-miss
     const aboveThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability >= MIN_SCORE_THRESHOLD);
     const belowThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability < MIN_SCORE_THRESHOLD);
-    const topByProb = aboveThreshold.slice(0, 5);
-    while (topByProb.length < 3 && belowThreshold.length > 0) {
+    const topByProb = aboveThreshold.slice(0, 6);
+    while (topByProb.length < 5 && belowThreshold.length > 0) {
       topByProb.push(belowThreshold.shift()!);
     }
     const mustNotMiss = bayesianScores.filter(d => d.must_not_miss).slice(0, 3);
     const finalDifferential = [...topByProb, ...mustNotMiss]
       .filter((d, i, arr) => arr.findIndex(x => x.diagnosis_id === d.diagnosis_id) === i) // dedup
       .sort((a, b) => b.probability - a.probability)
-      .slice(0, 8);
+      .slice(0, 10);
 
     const diagnosisIds = finalDifferential.map(d => d.diagnosis_id);
     const stage3Ms = Date.now() - stageStart3;
