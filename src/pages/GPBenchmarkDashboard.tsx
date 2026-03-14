@@ -184,6 +184,7 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
               <span className="w-6 text-right text-muted-foreground">#{d.rank}</span>
               <span className={d.rank === result.final_ranking.gold_rank ? "font-bold text-emerald-600" : ""}>{d.diagnosis}</span>
               <span className="text-muted-foreground">({probDisplay(d.probability)}%)</span>
+              <Badge variant="outline" className="text-[8px] px-1">{"ranking_source" in d ? (d as any).ranking_source : "ddx"}</Badge>
             </div>
           ))}
           <p className="text-[10px] text-muted-foreground mt-1">
