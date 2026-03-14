@@ -197,9 +197,10 @@ Deno.serve(async (req) => {
       diagnosis_id: string;
       prior: number;
       symptom_likelihood: number;
+      coverage_ratio: number;
       physiology_likelihood: number;
       risk_modifier: number;
-      raw_posterior: number;
+      log_score: number;
       posterior_probability: number;
       supporting_evidence: string[];
       must_not_miss: boolean;
@@ -207,11 +208,11 @@ Deno.serve(async (req) => {
 
     const results: BayesianDiagnosis[] = [];
     const DEFAULT_PRIOR = 0.05;
-    const DEFAULT_SYMPTOM_LIK = 0.3; // assume moderate if no data
 
     // Count total diagnoses that have symptom_likelihoods data
     const diagsWithSymLik = candidate_diagnosis_ids.filter((id: string) => (symLikMap.get(id) || []).length > 0).length;
     const hasAnySymLikData = diagsWithSymLik > 0;
+    const totalSymptoms = symptomIds.length;
 
     for (const diagId of candidate_diagnosis_ids) {
       // 1. PRIOR: P(D)
@@ -226,55 +227,61 @@ Deno.serve(async (req) => {
         prior *= ageMod * sexMod * regMod;
       }
 
-      // 2. SYMPTOM LIKELIHOOD: ∏ P(Sᵢ|D)
+      // Start with log-prior
+      let logScore = Math.log(Math.max(prior, 1e-8));
+
+      // 2. SPECIFICITY-WEIGHTED SYMPTOM LOG-LIKELIHOOD: Σ wᵢ · log P(Sᵢ|D)
       const symLiks = symLikMap.get(diagId) || [];
-      let symptomLikelihood = 1.0;
+      let weightedSymLogLik = 0;
+      let coverageRatio = 0;
+
       if (symLiks.length > 0) {
-        for (const l of symLiks) {
-          symptomLikelihood *= Math.max(0.01, Math.min(0.99, l));
+        for (const sl of symLiks) {
+          const lik = Math.max(0.01, Math.min(0.99, sl.likelihood_value));
+          const w = specificityWeight(sl.symptom_id);
+          weightedSymLogLik += w * Math.log(lik);
         }
-      } else if (symptomIds.length > 0) {
-        // Differentiate: if OTHER diagnoses have likelihood data but this one doesn't,
-        // penalize it (lower likelihood). If NO diagnosis has data, use a neutral default
-        // that still differentiates based on symptom count resolved by DDX.
+        // Coverage bonus: reward diagnoses that explain more of the patient's symptoms
+        coverageRatio = totalSymptoms > 0 ? symLiks.length / totalSymptoms : 0;
+        const coverageBonus = Math.pow(coverageRatio, 1.5); // 0..1 range
+        logScore += weightedSymLogLik + Math.log(Math.max(coverageBonus, 1e-4));
+      } else if (totalSymptoms > 0) {
+        // No symptom evidence for this diagnosis
         if (hasAnySymLikData) {
-          // This diagnosis has no symptom evidence while others do — penalize
-          symptomLikelihood = Math.pow(0.15, Math.min(symptomIds.length, 3));
+          // Penalize: other diagnoses have data but this one doesn't
+          logScore += Math.min(totalSymptoms, 3) * Math.log(0.15);
         } else {
-          // No symptom_likelihoods data at all — use symptom count from DDX as a proxy
-          // to differentiate (more matched symptoms = higher likelihood)
-          const matchedCount = symptomIds.length;
-          symptomLikelihood = Math.pow(DEFAULT_SYMPTOM_LIK, Math.max(1, 4 - matchedCount));
+          // No symptom data at all — neutral fallback
+          logScore += Math.log(0.3);
         }
       }
 
-      // 3. PHYSIOLOGY LIKELIHOOD: ∏ P(Φⱼ|D)
+      // 3. PHYSIOLOGY LIKELIHOOD: Σ log P(Φⱼ|D)
       const physLiks = physioLikMap.get(diagId) || [];
-      let physioLikelihood = 1.0;
+      let physioLogLik = 0;
       if (physLiks.length > 0) {
         for (const l of physLiks) {
-          physioLikelihood *= Math.max(0.01, Math.min(0.99, l));
+          physioLogLik += Math.log(Math.max(0.01, Math.min(0.99, l)));
         }
+        logScore += physioLogLik;
       }
 
-      // 4. RISK MODIFIER: ∏ R(k)
+      // 4. RISK MODIFIER: Σ log R(k)
       const riskMods = riskModMap.get(diagId) || [];
       let riskModifier = 1.0;
       for (const w of riskMods) {
         riskModifier *= w;
+        logScore += Math.log(Math.max(w, 1e-4));
       }
 
-      // Vital sign adjustments (deterministic rules)
-      if (vitals.temperature && vitals.temperature > 38.5) riskModifier *= 1.2;
-      if (vitals.spo2 && vitals.spo2 < 94) riskModifier *= 1.3;
-      if (vitals.pulse && vitals.pulse > 100) riskModifier *= 1.1;
-
-      // 5. RAW POSTERIOR
-      const rawPosterior = prior * symptomLikelihood * physioLikelihood * riskModifier;
+      // Vital sign adjustments
+      if (vitals.temperature && vitals.temperature > 38.5) { riskModifier *= 1.2; logScore += Math.log(1.2); }
+      if (vitals.spo2 && vitals.spo2 < 94) { riskModifier *= 1.3; logScore += Math.log(1.3); }
+      if (vitals.pulse && vitals.pulse > 100) { riskModifier *= 1.1; logScore += Math.log(1.1); }
 
       // Collect supporting evidence
       const evidence: string[] = [];
-      if (symLiks.length > 0) evidence.push(`${symLiks.length} symptom match(es)`);
+      if (symLiks.length > 0) evidence.push(`${symLiks.length}/${totalSymptoms} symptoms (coverage ${(coverageRatio * 100).toFixed(0)}%)`);
       if (physLiks.length > 0) evidence.push(`${physLiks.length} physiology match(es)`);
       if (riskMods.length > 0) evidence.push(`${riskMods.length} risk factor(s)`);
       if (priorData) evidence.push(`prior: ${(prior * 100).toFixed(1)}%`);
@@ -282,22 +289,25 @@ Deno.serve(async (req) => {
       results.push({
         diagnosis_id: diagId,
         prior,
-        symptom_likelihood: symptomLikelihood,
-        physiology_likelihood: physioLikelihood,
+        symptom_likelihood: symLiks.length > 0 ? Math.exp(weightedSymLogLik) : 0,
+        coverage_ratio: coverageRatio,
+        physiology_likelihood: physLiks.length > 0 ? Math.exp(physioLogLik) : 1,
         risk_modifier: riskModifier,
-        raw_posterior: rawPosterior,
-        posterior_probability: 0, // normalized below
+        log_score: logScore,
+        posterior_probability: 0, // softmax below
         supporting_evidence: evidence,
         must_not_miss: dangerousSet.has(diagId),
       });
     }
 
     // ════════════════════════════════════════════
-    // NORMALIZE
+    // SOFTMAX NORMALIZATION
     // ════════════════════════════════════════════
-    const totalPosterior = results.reduce((s, d) => s + d.raw_posterior, 0) || 1;
-    for (const d of results) {
-      d.posterior_probability = parseFloat((d.raw_posterior / totalPosterior).toFixed(4));
+    const maxLog = Math.max(...results.map(d => d.log_score));
+    const expScores = results.map(d => Math.exp(d.log_score - maxLog));
+    const sumExp = expScores.reduce((s, e) => s + e, 0) || 1;
+    for (let i = 0; i < results.length; i++) {
+      results[i].posterior_probability = parseFloat((expScores[i] / sumExp).toFixed(4));
     }
 
     // Ensure must-not-miss have minimum 3% visibility
