@@ -278,7 +278,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   // Resolve Bayesian output to human-readable names using DDX candidates
   const ddxNameLookup = new Map<string, string>();
   for (const d of ddxDiagnoses) {
-    if (d.diagnosis_id) ddxNameLookup.set(d.diagnosis_id, (d.diagnosis_name || d.diagnosis || "").trim());
+    if (d.diagnosis_id) ddxNameLookup.set(d.diagnosis_id, (d.diagnosis_name || "").trim());
   }
 
   const bayDiagnoses = bayRawDiagnoses.map((d: any) => ({
