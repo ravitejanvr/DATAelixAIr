@@ -544,7 +544,9 @@ export async function runBenchmarkV7(
   abortSignal?: AbortSignal,
 ): Promise<BenchmarkSuiteResultV7> {
   const cfg = { ...DEFAULT_CONFIG, ...config };
-  const runId = `v7-${Date.now()}`;
+  const runId = crypto.randomUUID();
+  const { data: authData } = await supabase.auth.getUser();
+  const triggeredBy = authData.user?.id ?? null;
   const cases = caseFilter ? BENCHMARK_CASES_V7.filter(caseFilter) : BENCHMARK_CASES_V7;
   const startIdx = Math.min(cfg.startFromCase, cases.length);
   const remaining = cases.slice(startIdx);
