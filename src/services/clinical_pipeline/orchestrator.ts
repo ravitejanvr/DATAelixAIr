@@ -1197,65 +1197,13 @@ export async function runUnifiedClinicalPipeline(
       }
     })(),
 
-    // 3d: Hypothesis Engine (via edge function)
+    // 3d: Hypothesis Engine — DISABLED in pipeline (LLM call, adds ~6s latency)
+    // The DDX engine + Bayesian scoring provide graph-based hypothesis generation.
+    // LLM hypothesis generation is available in research mode via direct edge function call.
     (async (): Promise<HypothesisResult | null> => {
-      const t0 = performance.now();
-      try {
-        const edgeResult = await withRetry(
-          () => withStageLogging("generate_hypotheses", async () => {
-            const hyp = await generateDiagnosticHypotheses(
-              input.visit_id || "trace",
-              {
-                patient_id: "",
-                age: ctx.patient_age,
-                sex: ctx.patient_sex,
-                chief_complaint: ctx.chief_complaint,
-                symptoms: symptoms.join(", "),
-                duration: ctx.symptom_duration || "",
-                vitals: {
-                  temperature: vitals.temperature ?? null,
-                  spo2: vitals.spo2 ?? null,
-                  pulse: vitals.pulse ?? null,
-                  bp_systolic: vitals.bp_systolic ?? null,
-                  bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) || null : null,
-                  respiratory_rate: ctx.respiratory_rate ?? null,
-                  weight_kg: ctx.weight ?? null,
-                  height_cm: ctx.height ?? null,
-                },
-                past_diagnoses: ctx.medical_history,
-                medications: ctx.current_medications,
-                allergies: ctx.allergies,
-                lab_results: [],
-                lifestyle_factors: {},
-              },
-            );
-            if (!hyp) return null;
-            return {
-              hypotheses: hyp.hypotheses.map(h => ({
-                condition: h.diagnosis,
-                icd_code: null,
-                confidence: h.confidence > 0.7 ? "high" as const : h.confidence > 0.4 ? "moderate" as const : "low" as const,
-                supporting_evidence: h.supporting_factors,
-                contradicting_evidence: h.contradicting_factors,
-                recommended_tests: h.recommended_tests,
-                urgency: "routine" as const,
-              })),
-              reasoning_chain: "",
-              data_gaps: [],
-              generated_at: hyp.generated_at,
-              source: "edge_function",
-            } satisfies HypothesisResult;
-          }),
-          TIMEOUT.HYPOTHESIS,
-          "generate_hypotheses",
-        );
-        lat.generate_hypotheses = Math.round(performance.now() - t0);
-        return edgeResult;
-      } catch {
-        lat.generate_hypotheses = Math.round(performance.now() - t0);
-        console.warn("[Pipeline] Hypothesis engine failed — skipping explanation generation.");
-        return null;
-      }
+      console.log("[Pipeline] Wave 3d: Hypothesis engine SKIPPED (LLM — use DDX+Bayesian instead)");
+      lat.generate_hypotheses = 0;
+      return null;
     })(),
 
     // 3e: Evidence Planning Engine (optimal next tests by information gain)
