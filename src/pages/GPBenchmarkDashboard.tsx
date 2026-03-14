@@ -95,7 +95,7 @@ function TraceViewer({ result }: { result: CaseResultV8 }) {
           <div>
             <p className="font-medium text-muted-foreground mb-1">↓ Candidate Diagnoses</p>
             <div className="flex flex-wrap gap-1">
-              {t.candidate_diagnoses.slice(0, 8).map((d, i) => <Badge key={i} variant="outline" className="text-[9px]">{d}</Badge>)}
+              {t.candidate_diagnoses.slice(0, 8).map((d, i) => <Badge key={i} variant="outline" className="text-[9px]">{typeof d === "string" ? d : d.name}</Badge>)}
             </div>
           </div>
           {t.bayesian_probabilities.length > 0 && (
