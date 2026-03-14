@@ -20,6 +20,7 @@ export interface BenchmarkCase {
     expected_organ_systems: string[];
     recommended_tests: string[];
     danger_flag: boolean;
+    expected_dangerous_diagnoses?: string[];
   };
 }
 
