@@ -453,10 +453,10 @@ async function runCase(bc: BenchmarkCaseV7): Promise<CaseResultV7> {
 
 // ── Persistence ──
 
-async function persistCase(runId: string, r: CaseResultV7, idx: number, bc: BenchmarkCaseV7) {
+async function persistCase(runGroupId: string, triggeredBy: string | null, r: CaseResultV7, idx: number, bc: BenchmarkCaseV7) {
   try {
     const { error } = await supabase.from("benchmark_runs").insert({
-      run_group_id: runId,
+      run_group_id: runGroupId,
       benchmark_version: "benchmark_v7",
       pipeline_type: "cognitive_v4.3_iterative",
       test_case: r.case_name,
@@ -496,7 +496,7 @@ async function persistCase(runId: string, r: CaseResultV7, idx: number, bc: Benc
         confidence_convergence: r.iterative_reasoning.confidence_convergence,
         pruning_rate: r.iterative_reasoning.hypothesis_pruning_rate,
       } as any,
-      triggered_by: "benchmark_v7_suite",
+      triggered_by: triggeredBy,
     });
     if (error) {
       console.error(`[BenchmarkV7] Persist error for ${r.case_id}:`, error.message, error.details);
