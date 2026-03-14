@@ -265,8 +265,25 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   }
 
   const s4ms = Math.round(performance.now() - s4);
-  const bayDiagnoses = ((bayesianResult as any)?.diagnoses || []).map((d: any) => ({
-    diagnosis: d.diagnosis_name || d.diagnosis || d.diagnosis_id || "",
+  const bayRawDiagnoses = (bayesianResult as any)?.diagnoses || [];
+
+  // Build a diagnosis_id → posterior lookup from the Bayesian engine output
+  const bayesianIdLookup = new Map<string, number>();
+  for (const bd of bayRawDiagnoses) {
+    if (bd.diagnosis_id) {
+      bayesianIdLookup.set(bd.diagnosis_id, bd.posterior_probability || bd.probability || 0);
+    }
+  }
+
+  // Resolve Bayesian output to human-readable names using DDX candidates
+  const ddxNameLookup = new Map<string, string>();
+  for (const d of ddxDiagnoses) {
+    if (d.diagnosis_id) ddxNameLookup.set(d.diagnosis_id, (d.diagnosis_name || "").trim());
+  }
+
+  const bayDiagnoses = bayRawDiagnoses.map((d: any) => ({
+    diagnosis: ddxNameLookup.get(d.diagnosis_id) || d.diagnosis_name || d.diagnosis || d.diagnosis_id || "",
+    diagnosis_id: d.diagnosis_id || "",
     probability: d.posterior_probability || d.probability || 0,
   }));
   const bayGoldIdx = bayDiagnoses.findIndex((d: any) =>
@@ -369,25 +386,23 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   };
 
   // ── STAGE 7: Final Ranked Diagnoses (Bayesian-authoritative) ──
-  // Build a Bayesian posterior lookup from Stage 4 output
-  const bayesianLookup = new Map<string, number>();
-  for (const bd of bayDiagnoses) {
-    bayesianLookup.set(norm(bd.diagnosis), bd.probability);
-  }
 
   // Assign each DDX candidate its Bayesian posterior (or fallback 0.001)
   const rankedCandidates = candidates.slice(0, 15).map((c: any) => {
-    const nName = norm(c.name);
-    // Try direct match, then substring match against Bayesian output
-    let bayProb: number | null = bayesianLookup.get(nName) ?? null;
+    // Primary: match by diagnosis_id (reliable, UUID-based)
+    let bayProb: number | null = bayesianIdLookup.get(c.diagnosis_id) ?? null;
+
+    // Fallback: name-based match against resolved Bayesian names
     if (bayProb === null) {
-      for (const [bKey, bVal] of bayesianLookup.entries()) {
-        if (bKey.includes(nName) || nName.includes(bKey)) {
-          bayProb = bVal;
+      const nName = norm(c.name);
+      for (const bd of bayDiagnoses) {
+        if (norm(bd.diagnosis).includes(nName) || nName.includes(norm(bd.diagnosis))) {
+          bayProb = bd.probability;
           break;
         }
       }
     }
+
     const hasBayesian = bayProb !== null && bayProb > 0;
     return {
       diagnosis: c.name,
