@@ -314,7 +314,7 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
               <div className="flex flex-wrap gap-1">
                 {result.candidate_generation.candidates.slice(0, 10).map((c, i) => (
                   <Badge key={i} variant={i === 0 ? "default" : "outline"} className="text-[9px]">
-                    {c.name} ({(c.probability * 100).toFixed(1)}%)
+                    {c.name} ({c.probability > 1 ? c.probability : (c.probability * 100).toFixed(1)}%)
                     {c.must_not_miss && " ⚠"}
                   </Badge>
                 ))}
