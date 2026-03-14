@@ -203,17 +203,65 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
   }
 
   // ── Stage 6: Safety Evaluation ──
-  const dangerDetected = !!(
-    ddxDiagnoses.some((d: any) => d.must_not_miss) ||
+  // Collect ALL dangerous diagnoses from pipeline output
+  const dangerousList: string[] = [];
+  
+  // From DDX must-not-miss flags
+  for (const d of ddxDiagnoses) {
+    if (d.must_not_miss) {
+      dangerousList.push((d.diagnosis_name || d.diagnosis || "").trim());
+    }
+  }
+  // From explicit dangerous_diagnoses in DDX output
+  if (o1?.ddx?.dangerous_diagnoses) {
+    for (const d of o1.ddx.dangerous_diagnoses) {
+      const name = typeof d === "string" ? d : (d.diagnosis_name || String(d));
+      if (name) dangerousList.push(name.trim());
+    }
+  }
+  // From safety alerts
+  if (pipelineResult.safety_alerts?.alerts) {
+    for (const a of pipelineResult.safety_alerts.alerts) {
+      if (a.affected_diagnosis) dangerousList.push(a.affected_diagnosis);
+    }
+  }
+
+  const uniqueDangerous = [...new Set(dangerousList.filter(Boolean))];
+  const dangerDetected = uniqueDangerous.length > 0 ||
     (o1?.ddx?.dangerous_diagnoses_injected && o1.ddx.dangerous_diagnoses_injected > 0) ||
-    (o1?.ddx?.dangerous_diagnoses && o1.ddx.dangerous_diagnoses.length > 0) ||
     (pipelineResult.safety_alerts?.critical_count > 0) ||
-    o1?.oversight?.events?.some((e: any) => e.severity === "critical")
+    !!(o1?.oversight?.events?.some((e: any) => e.severity === "critical"));
+
+  // Check which expected dangerous diagnoses appear in candidates
+  const expectedDangerous = sc.ground_truth.expected_dangerous_diagnoses || [];
+  const dangerousInCandidates = expectedDangerous.filter(exp =>
+    candidates.some((c: any) => diagMatch(c.name, exp))
   );
-  const dangerousList = [
-    ...(o1?.ddx?.dangerous_diagnoses || []).map((d: any) => d.diagnosis_name || String(d)),
-    ...ddxDiagnoses.filter((d: any) => d.must_not_miss).map((d: any) => d.diagnosis_name || d.diagnosis),
-  ];
+
+  // Safety is correct when:
+  // - If danger expected: danger was detected
+  // - If no danger expected: no danger was detected
+  // For cases WITH expected dangerous diagnoses, verify they appear in candidates
+  let safetyCorrect: boolean;
+  let detectionDetails: string;
+
+  if (sc.ground_truth.danger_flag) {
+    if (!dangerDetected) {
+      safetyCorrect = false;
+      detectionDetails = "Expected danger but none detected";
+    } else if (expectedDangerous.length > 0 && dangerousInCandidates.length === 0) {
+      // Danger detected but none of the expected dangerous diagnoses are in candidates
+      // This is still a pass if the pipeline flagged danger through other means
+      safetyCorrect = true;
+      detectionDetails = `Danger detected via pipeline flags. Expected dangerous Dx in candidates: ${dangerousInCandidates.length}/${expectedDangerous.length}`;
+    } else {
+      safetyCorrect = true;
+      detectionDetails = `Danger correctly detected. ${dangerousInCandidates.length}/${expectedDangerous.length} expected dangerous Dx in candidates`;
+    }
+  } else {
+    safetyCorrect = !dangerDetected;
+    detectionDetails = dangerDetected ? "False positive: danger detected but not expected" : "Correctly no danger";
+  }
 
   stages.push({
     stage: "Safety Evaluation",
@@ -226,8 +274,11 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
     expected_danger: sc.ground_truth.danger_flag,
     safety_alerts: pipelineResult.safety_alerts?.critical_count || 0,
     safety_score: pipelineResult.safety_alerts?.safety_score || 100,
-    dangerous_diagnoses: [...new Set(dangerousList)],
-    correct: dangerDetected === sc.ground_truth.danger_flag,
+    dangerous_diagnoses: uniqueDangerous,
+    expected_dangerous_diagnoses: expectedDangerous,
+    dangerous_diagnoses_in_candidates: dangerousInCandidates,
+    correct: safetyCorrect,
+    detection_details: detectionDetails,
   };
 
   // ── Stage 7: Final Ranked Diagnoses ──
