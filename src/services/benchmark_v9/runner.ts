@@ -369,14 +369,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   };
 
   // ── STAGE 7: Final Ranked Diagnoses ──
-  // Use cognitive output: only exclude candidates that were explicitly pruned (logically impossible)
-  const prunedSet = new Set(pruned.map(p => norm(p)));
-  const survivingCandidates = candidates.filter((c: any) => !prunedSet.has(norm(c.name)));
-  // Ensure at least top 10 candidates pass through to final ranking
-  const finalCandidates = survivingCandidates.length >= 10
-    ? survivingCandidates.slice(0, 10)
-    : candidates.slice(0, 10); // fallback: if pruning was too aggressive, use all
-  const finalRanking = finalCandidates.map((c: any, i: number) => ({
+  const finalRanking = candidates.slice(0, 10).map((c: any, i: number) => ({
     rank: i + 1,
     diagnosis: c.name,
     diagnosis_id: c.diagnosis_id,
