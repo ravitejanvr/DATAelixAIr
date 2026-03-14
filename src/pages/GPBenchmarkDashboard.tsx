@@ -236,7 +236,7 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
         <MetricCard label="Candidate Recall" value={m.candidate_recall ? "✓" : "✗"} icon={Target} variant={m.candidate_recall ? "success" : "danger"} detail="Gold in candidates?" />
         <MetricCard label="Top-1 Match" value={m.top1_accuracy ? "✓" : "✗"} icon={Target} variant={m.top1_accuracy ? "success" : m.top3_accuracy ? "warning" : "danger"} detail={result.final_ranking.gold_rank ? `Ranked #${result.final_ranking.gold_rank}` : "Not ranked"} />
         <MetricCard label="Safety" value={m.safety_correct ? "Correct" : "Wrong"} icon={Shield} variant={m.safety_correct ? "success" : "danger"} />
-        <MetricCard label="Latency" value={`${(m.total_latency_ms / 1000).toFixed(1)}s`} icon={Clock} variant={m.latency_under_5s ? "success" : "danger"} detail="Target: <5s" />
+        <MetricCard label="Latency" value={`${(m.total_latency_ms / 1000).toFixed(1)}s`} icon={Clock} variant={m.total_latency_ms <= 3000 ? "success" : m.latency_under_5s ? "warning" : "danger"} detail="Target: ≤3s (optimized)" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -314,7 +314,7 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
               <div className="flex flex-wrap gap-1">
                 {result.candidate_generation.candidates.slice(0, 10).map((c, i) => (
                   <Badge key={i} variant={i === 0 ? "default" : "outline"} className="text-[9px]">
-                    {c.name} ({(c.probability * 100).toFixed(1)}%)
+                    {c.name} ({c.probability > 1 ? c.probability : (c.probability * 100).toFixed(1)}%)
                     {c.must_not_miss && " ⚠"}
                   </Badge>
                 ))}
@@ -322,7 +322,7 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
               <p className="text-[10px] text-muted-foreground">
                 {result.candidate_generation.candidate_count} candidates ·
                 Gold {result.candidate_generation.gold_in_candidates
-                  ? `found at rank #${result.candidate_generation.gold_candidate_rank} (${((result.candidate_generation.gold_candidate_probability || 0) * 100).toFixed(1)}%)`
+                  ? `found at rank #${result.candidate_generation.gold_candidate_rank} (${(result.candidate_generation.gold_candidate_probability || 0) > 1 ? (result.candidate_generation.gold_candidate_probability || 0) : ((result.candidate_generation.gold_candidate_probability || 0) * 100).toFixed(1)}%)`
                   : "NOT FOUND ✗"}
               </p>
             </div>
@@ -341,8 +341,8 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
                 <div key={i} className="flex items-center gap-2 text-xs">
                   <span className="w-6 text-right font-mono text-muted-foreground">#{i + 1}</span>
                   <span className="w-48 truncate">{d.diagnosis}</span>
-                  <Progress value={d.probability * 100} className="flex-1 h-2" />
-                  <span className="w-14 text-right font-mono text-muted-foreground">{(d.probability * 100).toFixed(1)}%</span>
+                  <Progress value={d.probability > 1 ? d.probability : d.probability * 100} className="flex-1 h-2" />
+                  <span className="w-14 text-right font-mono text-muted-foreground">{d.probability > 1 ? d.probability.toFixed(1) : (d.probability * 100).toFixed(1)}%</span>
                 </div>
               ))}
               {result.bayesian.gold_rank_after_bayesian && (
@@ -416,7 +416,7 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
                 <div key={i} className="flex items-center gap-2 text-xs font-mono">
                   <span className="w-6 text-right text-muted-foreground">#{d.rank}</span>
                   <span className={d.rank === result.final_ranking.gold_rank ? "font-bold text-emerald-600" : ""}>{d.diagnosis}</span>
-                  <span className="text-muted-foreground">({(d.probability * 100).toFixed(1)}%)</span>
+                  <span className="text-muted-foreground">({d.probability > 1 ? d.probability : (d.probability * 100).toFixed(1)}%)</span>
                 </div>
               ))}
               <p className="text-[10px] text-muted-foreground mt-1">
@@ -551,6 +551,7 @@ export default function GPBenchmarkDashboard() {
                       Controlled Scenario: {CONTROLLED_SCENARIO.name}
                     </h2>
                     <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xl">{CONTROLLED_SCENARIO.description}</p>
+                    <p className="text-[10px] text-emerald-600 mt-1 font-medium">⚡ Optimized: 3 edge functions (Physiology‖DDX → Bayesian), no LLM calls</p>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {CONTROLLED_SCENARIO.context.symptoms.map((s, i) => (
                         <Badge key={i} variant="outline" className="text-[9px]">{s}</Badge>
