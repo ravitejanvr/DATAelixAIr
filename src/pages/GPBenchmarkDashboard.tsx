@@ -233,19 +233,19 @@ export default function GPBenchmarkDashboard() {
 
   return (
     <div className="space-y-6">
-      <SEO title="Clinical Reasoning Benchmark" description="10-scenario diagnostic engine validation" />
+      <SEO title="Clinical Reasoning Benchmark" description="30-scenario diagnostic engine validation" />
 
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Clinical Reasoning Benchmark</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            10 controlled scenarios · Core diagnostic pipeline validation
+            30 controlled scenarios · Core diagnostic pipeline validation
           </p>
         </div>
         <Button size="sm" onClick={runBenchmark} disabled={running}>
           {running
             ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />{progress || "Running..."}</>
-            : <><Play className="h-3.5 w-3.5 mr-1" /> Run All 10 Scenarios</>
+            : <><Play className="h-3.5 w-3.5 mr-1" /> Run All 30 Scenarios</>
           }
         </Button>
       </div>
@@ -255,7 +255,7 @@ export default function GPBenchmarkDashboard() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-1.5">
-              <Target className="h-4 w-4 text-primary" /> Benchmark Suite — 10 Scenarios
+              <Target className="h-4 w-4 text-primary" /> Benchmark Suite — 30 Scenarios
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -292,7 +292,7 @@ export default function GPBenchmarkDashboard() {
           <CardContent className="py-10 text-center">
             <Loader2 className="h-8 w-8 text-primary mx-auto mb-3 animate-spin" />
             <p className="text-sm font-medium">{progress || "Initializing..."}</p>
-            <p className="text-xs text-muted-foreground mt-1">Running 10 scenarios through the diagnostic pipeline</p>
+            <p className="text-xs text-muted-foreground mt-1">Running 30 scenarios through the diagnostic pipeline</p>
           </CardContent>
         </Card>
       )}
