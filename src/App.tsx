@@ -191,7 +191,8 @@ const App = () => (
               <Route path="/platform-admin/*" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><PlatformAdmin /></PlatformAdminLayout></ProtectedRoute>} />
               <Route path="/admin/ai-pipeline-test" element={<ProtectedRoute allowedRoles={["platform_admin"]}><AiPipelineTest /></ProtectedRoute>} />
               <Route path="/admin/pipeline-trace" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PipelineTrace /></ProtectedRoute>} />
-              <Route path="/admin/system-validation" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><SystemValidation /></PlatformAdminLayout></ProtectedRoute>} />
+              <Route path="/admin/benchmark" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><GPBenchmarkDashboard /></PlatformAdminLayout></ProtectedRoute>} />
+              <Route path="/admin/system-validation" element={<Navigate to="/admin/benchmark" replace />} />
 
               {/* Layer 1: Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
