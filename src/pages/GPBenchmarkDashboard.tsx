@@ -341,8 +341,8 @@ function BenchmarkResultView({ result }: { result: BenchmarkResult }) {
                 <div key={i} className="flex items-center gap-2 text-xs">
                   <span className="w-6 text-right font-mono text-muted-foreground">#{i + 1}</span>
                   <span className="w-48 truncate">{d.diagnosis}</span>
-                  <Progress value={d.probability * 100} className="flex-1 h-2" />
-                  <span className="w-14 text-right font-mono text-muted-foreground">{(d.probability * 100).toFixed(1)}%</span>
+                  <Progress value={d.probability > 1 ? d.probability : d.probability * 100} className="flex-1 h-2" />
+                  <span className="w-14 text-right font-mono text-muted-foreground">{d.probability > 1 ? d.probability.toFixed(1) : (d.probability * 100).toFixed(1)}%</span>
                 </div>
               ))}
               {result.bayesian.gold_rank_after_bayesian && (
