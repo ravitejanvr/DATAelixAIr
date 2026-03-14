@@ -333,9 +333,11 @@ Deno.serve(async (req) => {
         diagnosis_id: d.diagnosis_id,
         posterior_probability: d.posterior_probability,
         prior: parseFloat(d.prior.toFixed(4)),
-        symptom_likelihood: parseFloat(d.symptom_likelihood.toFixed(4)),
+        symptom_likelihood: parseFloat(d.symptom_likelihood.toFixed(6)),
+        coverage_ratio: parseFloat(d.coverage_ratio.toFixed(4)),
         physiology_likelihood: parseFloat(d.physiology_likelihood.toFixed(4)),
         risk_modifier: parseFloat(d.risk_modifier.toFixed(4)),
+        log_score: parseFloat(d.log_score.toFixed(4)),
         supporting_evidence: d.supporting_evidence,
         must_not_miss: d.must_not_miss,
       })),
@@ -344,7 +346,7 @@ Deno.serve(async (req) => {
       physiology_states_used: physiological_state_ids.length,
       risk_factors_applied: risk_factors.length,
       execution_ms: executionMs,
-      source: "bayesian_engine_v1",
+      source: "bayesian_engine_v2_specificity_weighted",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
