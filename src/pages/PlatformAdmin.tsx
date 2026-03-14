@@ -114,7 +114,7 @@ function UserApprovalCard({ user: u, clinics, onAction }: {
   );
 }
 
-type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation" | "terminology" | "pipeline-debug" | "simulation" | "benchmarks" | "benchmarks-v6" | "benchmarks-v7" | "benchmarks-v8";
+type AdminTab = "pilots" | "clinics" | "users" | "governance" | "monitoring" | "audit" | "safety" | "articles" | "innovation" | "terminology" | "pipeline-debug" | "simulation" | "benchmarks";
 
 const getTabFromPath = (pathname: string): AdminTab => {
   const tabSegment = pathname.split("/")[2];
