@@ -113,3 +113,32 @@ export interface BenchmarkResult {
   // Raw pipeline output (for debugging)
   raw_output: any;
 }
+
+/** Aggregate metrics across all scenarios in a suite run */
+export interface BenchmarkSuiteResult {
+  timestamp: string;
+  total_scenarios: number;
+  passed: number;
+  failed: number;
+
+  // Accuracy metrics (percentage 0-100)
+  top1_accuracy: number;
+  top3_accuracy: number;
+  top5_accuracy: number;
+  candidate_recall: number;
+  safety_detection_rate: number;
+
+  // Latency
+  avg_latency_ms: number;
+  max_latency_ms: number;
+  min_latency_ms: number;
+
+  // Per-scenario results
+  results: BenchmarkResult[];
+
+  // Failure summary
+  failure_summary: Array<{
+    scenario: string;
+    reasons: string[];
+  }>;
+}
