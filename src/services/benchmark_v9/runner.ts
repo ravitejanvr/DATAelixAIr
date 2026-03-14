@@ -1,7 +1,7 @@
 /**
  * Benchmark v9 — Optimized Multi-Scenario Runner
  *
- * Runs 10 controlled scenarios through the core diagnostic pipeline:
+ * Runs 30 controlled scenarios through the core diagnostic pipeline:
  *   Normalization → Physiology‖DDX → Bayesian → Cognitive → Safety → Ranking
  *
  * 3 edge function calls per scenario (Physiology + DDX parallel, then Bayesian).
