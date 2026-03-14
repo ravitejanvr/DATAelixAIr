@@ -1934,7 +1934,7 @@ export async function runUnifiedClinicalPipeline(
     diagnostic_loop: diagnosticLoopExecuted ? {
       executed: true,
       reason: diagnosticLoopReason,
-      candidates_pruned: ddxResult ? ddxResult.differential_diagnoses.length : 0,
+      candidates_pruned: lat.diagnostic_loop ? (ddxResult?.differential_diagnoses?.length || 0) : 0,
       candidates_remaining: ddxResult ? ddxResult.differential_diagnoses.length : 0,
       iteration_ms: lat.diagnostic_loop || 0,
     } : null,
