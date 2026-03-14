@@ -439,7 +439,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   };
 }
 
-// ── Run full 10-scenario suite ──
+// ── Run full suite ──
 
 export async function runBenchmarkSuite(
   onProgress?: (scenarioName: string, index: number, total: number) => void,
