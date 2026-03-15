@@ -555,61 +555,291 @@ async function runDDX(supabase: any, graphResult: any, scenario: any, worldModel
   }
 }
 
-// ── Wave 3: Bayesian Engine ──
-async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState) {
+// ── Duration & Onset classifiers ──
+function classifyDuration(text: string | null): string | null {
+  if (!text) return null;
+  const d = text.toLowerCase();
+  if (["acute", "subacute", "chronic"].includes(d)) return d;
+  const hourMatch = d.match(/(\d+)\s*h(our)?s?/);
+  const dayMatch = d.match(/(\d+)\s*d(ay)?s?/);
+  const weekMatch = d.match(/(\d+)\s*w(eek)?s?/);
+  const monthMatch = d.match(/(\d+)\s*m(onth)?s?/);
+  const yearMatch = d.match(/(\d+)\s*y(ear)?s?/);
+  let totalDays = 0;
+  if (hourMatch) totalDays = parseInt(hourMatch[1]) / 24;
+  else if (dayMatch) totalDays = parseInt(dayMatch[1]);
+  else if (weekMatch) totalDays = parseInt(weekMatch[1]) * 7;
+  else if (monthMatch) totalDays = parseInt(monthMatch[1]) * 30;
+  else if (yearMatch) totalDays = parseInt(yearMatch[1]) * 365;
+  if (d.includes("sudden") || d.includes("minutes") || d.includes("hour")) return "acute";
+  if (d.includes("today") || d.includes("yesterday") || d.includes("since morning")) return "acute";
+  if (d.includes("few days") || d.includes("couple of days")) return "acute";
+  if (d.includes("weeks") || d.includes("fortnight")) return "subacute";
+  if (d.includes("months") || d.includes("years") || d.includes("long time") || d.includes("chronic")) return "chronic";
+  if (totalDays > 0) { if (totalDays <= 7) return "acute"; if (totalDays <= 30) return "subacute"; return "chronic"; }
+  return null;
+}
+
+function classifyOnset(text: string | null): string | null {
+  if (!text) return null;
+  const o = text.toLowerCase();
+  if (["sudden", "gradual", "progressive", "intermittent", "episodic"].includes(o)) return o;
+  if (o.includes("sudden") || o.includes("abrupt") || o.includes("all at once") || o.includes("acute")) return "sudden";
+  if (o.includes("gradual") || o.includes("slowly") || o.includes("over time") || o.includes("insidious")) return "gradual";
+  if (o.includes("progressive") || o.includes("getting worse") || o.includes("worsening")) return "progressive";
+  if (o.includes("comes and goes") || o.includes("intermittent") || o.includes("on and off")) return "intermittent";
+  if (o.includes("episodic") || o.includes("attacks") || o.includes("episodes") || o.includes("cyclical")) return "episodic";
+  return null;
+}
+
+function getVitalValue(vitals: Record<string, any>, parameter: string): number | null {
+  const val = vitals[parameter];
+  if (val === null || val === undefined) return null;
+  const num = Number(val);
+  if (isNaN(num)) return null;
+  if (parameter === "temperature") return num > 50 ? (num - 32) * 5 / 9 : num;
+  return num;
+}
+
+// ── Pre-loaded signal data interface ──
+interface PreloadedSignals {
+  allPriors: any[];
+  allRiskMods: any[];
+  allHistoryMods: any[];
+  allDurationMods: any[];
+  allOnsetMods: any[];
+  allVitalMods: any[];
+  allClusterMods: any[];
+}
+
+// ── Wave 3: Bayesian Engine (Full Signal Integration) ──
+async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState, preloaded: PreloadedSignals) {
   const start = Date.now();
   try {
-    const candidates = (ddxResult.differential_diagnoses || []).slice(0, 8);
+    const candidates = (ddxResult.differential_diagnoses || []).slice(0, 10);
     if (candidates.length === 0) return { diagnoses: [], signal_strength: 0, latency_ms: Date.now() - start };
-    const dxIds = candidates.map((c: any) => c.diagnosis_id).filter(Boolean);
-    const symptomNames = scenario.symptoms;
-    const [priorRes, symptomRes] = await Promise.all([
-      supabase.from("disease_priors").select("diagnosis_id, base_prevalence, age_modifier, sex_modifier").in("diagnosis_id", dxIds),
-      supabase.from("symptoms").select("id, symptom_name").or(symptomNames.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")),
-    ]);
-    const priorMap: Record<string, number> = {};
-    for (const p of (priorRes.data || [])) { let prior = p.base_prevalence || 0.01; priorMap[p.diagnosis_id] = prior; }
+    const dxIds = new Set(candidates.map((c: any) => c.diagnosis_id).filter(Boolean));
+    const dxIdsArr = [...dxIds];
+    const symptomNames = (scenario.symptoms || []).map((s: string) => s.toLowerCase().trim());
+    const historyItems = (scenario.history || []).map((h: string) => h.toLowerCase().trim());
+    const vitals = scenario.vitals || {};
+
+    // Classify duration & onset from chief complaint
+    const durationCategory = classifyDuration(scenario.chief_complaint);
+    const onsetCategory = classifyOnset(scenario.chief_complaint);
+
+    // ── Only symptom resolution + likelihoods need per-scenario queries ──
+    const symptomRes = await supabase.from("symptoms").select("id, symptom_name").or(symptomNames.map((s: string) => `symptom_name.ilike.%${s}%`).join(","));
+
+    // ── Build lookup maps from pre-loaded data (in-memory filter) ──
+    const priorMap: Record<string, any> = {};
+    for (const p of preloaded.allPriors) { if (dxIds.has(p.diagnosis_id)) priorMap[p.diagnosis_id] = p; }
+
     const symptomIds = (symptomRes.data || []).map((s: any) => s.id);
     const symptomNameById: Record<string, string> = {};
     for (const s of (symptomRes.data || [])) symptomNameById[s.id] = s.symptom_name;
+    const matchedSymptomNames = (symptomRes.data || []).map((s: any) => s.symptom_name.toLowerCase());
 
-    let likelihoodMap: Record<string, Record<string, number>> = {};
-    if (symptomIds.length > 0 && dxIds.length > 0) {
-      const { data: lkRows } = await supabase.from("symptom_likelihoods").select("diagnosis_id, symptom_id, likelihood_value").in("diagnosis_id", dxIds).in("symptom_id", symptomIds);
-      for (const lk of (lkRows || [])) { if (!likelihoodMap[lk.diagnosis_id]) likelihoodMap[lk.diagnosis_id] = {}; likelihoodMap[lk.diagnosis_id][lk.symptom_id] = lk.likelihood_value; }
+    // Symptom likelihoods (only query that must be per-scenario due to symptom specificity)
+    let likelihoodMap: Record<string, Record<string, { lk: number; spec: number }>> = {};
+    if (symptomIds.length > 0 && dxIdsArr.length > 0) {
+      const { data: lkRows } = await supabase.from("symptom_likelihoods").select("diagnosis_id, symptom_id, likelihood_value, symptom_specificity").in("diagnosis_id", dxIdsArr).in("symptom_id", symptomIds);
+      for (const lk of (lkRows || [])) {
+        if (!likelihoodMap[lk.diagnosis_id]) likelihoodMap[lk.diagnosis_id] = {};
+        likelihoodMap[lk.diagnosis_id][lk.symptom_id] = { lk: lk.likelihood_value, spec: lk.symptom_specificity ?? 0.5 };
+      }
     }
 
-    const dominantSystem = worldModel.organ_systems[0] || "";
-    const systemWeight = Math.min(2.0, 1.0 + ((worldModel.organ_system_weights[dominantSystem] || 1.0) - 1.0) * 0.3);
+    // Risk factor modifiers (in-memory filter)
+    const riskModMap: Record<string, number[]> = {};
+    for (const rm of preloaded.allRiskMods) {
+      if (dxIds.has(rm.diagnosis_id) && historyItems.includes(rm.risk_factor)) {
+        if (!riskModMap[rm.diagnosis_id]) riskModMap[rm.diagnosis_id] = [];
+        riskModMap[rm.diagnosis_id].push(rm.modifier_weight);
+      }
+    }
+
+    // Medical history modifiers (in-memory filter)
+    const historyMultMap: Record<string, number> = {};
+    for (const hm of preloaded.allHistoryMods) {
+      if (dxIds.has(hm.diagnosis_id) && historyItems.includes(hm.history_condition)) {
+        const current = historyMultMap[hm.diagnosis_id] || 1.0;
+        historyMultMap[hm.diagnosis_id] = Math.max(current, hm.prior_multiplier * hm.confidence);
+      }
+    }
+
+    // Duration modifiers (in-memory filter)
+    const durationModMap: Record<string, number> = {};
+    if (durationCategory) {
+      for (const dm of preloaded.allDurationMods) {
+        if (dxIds.has(dm.diagnosis_id) && dm.duration_category === durationCategory) durationModMap[dm.diagnosis_id] = dm.modifier_weight;
+      }
+    }
+
+    // Onset modifiers (in-memory filter)
+    const onsetModMap: Record<string, number> = {};
+    if (onsetCategory) {
+      for (const om of preloaded.allOnsetMods) {
+        if (dxIds.has(om.diagnosis_id) && om.onset_pattern === onsetCategory) onsetModMap[om.diagnosis_id] = om.modifier_weight;
+      }
+    }
+
+    // Vital sign modifiers (in-memory filter)
+    const vitalModMap: Record<string, number[]> = {};
+    for (const vm of preloaded.allVitalMods) {
+      if (!dxIds.has(vm.diagnosis_id)) continue;
+      const vitalValue = getVitalValue(vitals, vm.vital_parameter);
+      if (vitalValue === null) continue;
+      const applies = vm.condition === "above" ? vitalValue > vm.threshold_value : vitalValue < vm.threshold_value;
+      if (applies) {
+        if (!vitalModMap[vm.diagnosis_id]) vitalModMap[vm.diagnosis_id] = [];
+        vitalModMap[vm.diagnosis_id].push(vm.modifier_weight);
+      }
+    }
+
+    // Symptom cluster modifiers (in-memory filter)
+    const clusterModMap: Record<string, number> = {};
+    for (const cm of preloaded.allClusterMods) {
+      if (!dxIds.has(cm.diagnosis_id)) continue;
+      const matchCount = (cm.required_symptoms as string[]).filter((rs: string) =>
+        matchedSymptomNames.some((ns: string) => ns === rs || ns.includes(rs) || rs.includes(ns))
+      ).length;
+      if (matchCount >= cm.min_match_count) {
+        const current = clusterModMap[cm.diagnosis_id] || 1.0;
+        clusterModMap[cm.diagnosis_id] = Math.max(current, cm.modifier_weight);
+      }
+    }
+
+    // ── Compute posteriors ──
+    const totalSymptoms = symptomIds.length;
     let totalSignalStrength = 0;
 
     const posteriors = candidates.map((c: any) => {
-      const prior = priorMap[c.diagnosis_id] || 0.01;
-      const likelihoods = likelihoodMap[c.diagnosis_id] || {};
-      let logPosterior = Math.log(prior);
-      let symptomSignal = 0;
-      for (const sId of symptomIds) {
-        const lk = likelihoods[sId] || 0.3;
-        const sName = symptomNameById[sId] || "";
-        const specificity = specificityMap[sName.toLowerCase()] || 0.35;
-        const weightedLk = lk * (0.5 + specificity * 0.5);
-        logPosterior += Math.log(weightedLk);
-        symptomSignal += specificity;
+      const pd = priorMap[c.diagnosis_id];
+      let prior = pd?.base_prevalence || 0.01;
+
+      // Demographic modifiers on prior
+      if (pd) {
+        const sexKey = "male"; // Default for benchmark
+        const sexMod = pd.sex_modifier?.[sexKey] ?? 1.0;
+        const regMod = pd.region_modifier?.["south_asia"] ?? 1.0;
+        prior *= sexMod * regMod;
       }
-      if (dominantSystem && (c.category || "").toLowerCase().includes(dominantSystem.toLowerCase())) logPosterior += Math.log(systemWeight);
-      const wmH = worldModel.hypotheses.find(h => normalize(h.disease) === normalize(c.diagnosis_name));
-      if (wmH && wmH.confidence > 0.1) logPosterior += Math.log(1.0 + wmH.confidence * 0.5);
+
+      // Medical history → prior multiplier
+      const histMult = historyMultMap[c.diagnosis_id] || 1.0;
+      const adjustedPrior = Math.min(prior * histMult, 0.95);
+
+      let logPosterior = Math.log(Math.max(adjustedPrior, 1e-8));
+
+      // Specificity-weighted symptom log-likelihoods
+      const symLiks = likelihoodMap[c.diagnosis_id] || {};
+      const symEntries = Object.entries(symLiks);
+      let symptomSignal = 0;
+      let coverageRatio = 0;
+
+      if (symEntries.length > 0) {
+        for (const [, sl] of symEntries) {
+          const lik = Math.max(0.01, Math.min(0.99, sl.lk));
+          const w = Math.max(0.1, sl.spec);
+          logPosterior += w * Math.log(lik);
+          symptomSignal += sl.spec;
+        }
+        coverageRatio = totalSymptoms > 0 ? symEntries.length / totalSymptoms : 0;
+        const coverageBonus = Math.pow(coverageRatio, 1.5);
+        logPosterior += Math.log(Math.max(coverageBonus, 1e-4));
+      } else if (totalSymptoms > 0) {
+        logPosterior += Math.min(totalSymptoms, 3) * Math.log(0.15);
+      }
+
+      // Duration modifier
+      const durMod = durationModMap[c.diagnosis_id] || 1.0;
+      if (durMod !== 1.0) logPosterior += Math.log(durMod);
+
+      // Onset modifier
+      const onMod = onsetModMap[c.diagnosis_id] || 1.0;
+      if (onMod !== 1.0) logPosterior += Math.log(onMod);
+
+      // Vital sign modifier (use strongest)
+      const vMods = vitalModMap[c.diagnosis_id] || [];
+      let vitalMod = 1.0;
+      if (vMods.length > 0) {
+        vitalMod = Math.max(...vMods);
+        logPosterior += Math.log(vitalMod);
+      }
+
+      // Symptom cluster modifier
+      const clusterMod = clusterModMap[c.diagnosis_id] || 1.0;
+      if (clusterMod > 1.0) logPosterior += Math.log(clusterMod);
+
+      // Risk factor modifiers
+      const rMods = riskModMap[c.diagnosis_id] || [];
+      let riskMod = 1.0;
+      for (const w of rMods) {
+        riskMod *= w;
+        logPosterior += Math.log(Math.max(w, 1e-4));
+      }
+
+      // World model organ system boost (mild)
+      const dominantSystem = worldModel.organ_systems[0] || "";
+      if (dominantSystem && (c.category || "").toLowerCase().includes(dominantSystem.toLowerCase())) {
+        const systemWeight = Math.min(1.5, 1.0 + ((worldModel.organ_system_weights[dominantSystem] || 1.0) - 1.0) * 0.2);
+        logPosterior += Math.log(systemWeight);
+      }
+
       totalSignalStrength += symptomSignal;
-      return { diagnosis_id: c.diagnosis_id, diagnosis_name: c.diagnosis_name, prior, posterior: Math.exp(logPosterior), is_dangerous: c.is_dangerous || false };
+
+      return {
+        diagnosis_id: c.diagnosis_id,
+        diagnosis_name: c.diagnosis_name,
+        prior: adjustedPrior,
+        history_multiplier: histMult,
+        risk_modifier: riskMod,
+        duration_modifier: durMod,
+        onset_modifier: onMod,
+        vital_modifier: vitalMod,
+        cluster_modifier: clusterMod,
+        coverage_ratio: coverageRatio,
+        log_score: logPosterior,
+        posterior: Math.exp(logPosterior),
+        posterior_probability: 0,
+        is_dangerous: c.is_dangerous || false,
+      };
     });
 
-    const totalPosterior = posteriors.reduce((a, p) => a + p.posterior, 0);
-    const normalized = posteriors.map(p => ({
-      ...p, posterior_probability: totalPosterior > 0 ? Math.round((p.posterior / totalPosterior) * 10000) / 100 : 0,
-    })).sort((a, b) => b.posterior_probability - a.posterior_probability);
-    for (const n of normalized) { if (n.is_dangerous && n.posterior_probability < 3) n.posterior_probability = 3; }
+    // Softmax normalization
+    const maxLog = Math.max(...posteriors.map(p => p.log_score));
+    const expScores = posteriors.map(p => Math.exp(p.log_score - maxLog));
+    const sumExp = expScores.reduce((s, e) => s + e, 0) || 1;
+    for (let i = 0; i < posteriors.length; i++) {
+      posteriors[i].posterior_probability = parseFloat((expScores[i] / sumExp * 100).toFixed(2));
+    }
+
+    // Must-not-miss floor
+    for (const p of posteriors) {
+      if (p.is_dangerous && p.posterior_probability < 3) p.posterior_probability = 3;
+    }
+    const newTotal = posteriors.reduce((s, p) => s + p.posterior_probability, 0) || 1;
+    for (const p of posteriors) {
+      p.posterior_probability = parseFloat((p.posterior_probability / newTotal * 100).toFixed(2));
+    }
+
+    posteriors.sort((a, b) => b.posterior_probability - a.posterior_probability);
+
     const avgSignal = symptomIds.length > 0 ? totalSignalStrength / (symptomIds.length * candidates.length) : 0;
-    return { diagnoses: normalized, signal_strength: Math.round(avgSignal * 100) / 100, latency_ms: Date.now() - start };
+    return {
+      diagnoses: posteriors,
+      signal_strength: Math.round(avgSignal * 100) / 100,
+      signals_applied: {
+        risk_factors: Object.keys(riskModMap).length,
+        history_modifiers: Object.keys(historyMultMap).length,
+        duration: durationCategory,
+        onset: onsetCategory,
+        vital_modifiers: Object.keys(vitalModMap).length,
+        cluster_modifiers: Object.keys(clusterModMap).length,
+      },
+      latency_ms: Date.now() - start,
+    };
   } catch (e) {
     console.error("[Bayesian] Error:", e);
     return { diagnoses: [], signal_strength: 0, latency_ms: Date.now() - start, error: String(e) };
@@ -707,14 +937,33 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const validationRunId = crypto.randomUUID();
 
-    // Load lookup tables in parallel
-    const [specRes, organRes, activationRes, physMapRes, physDiagRes] = await Promise.all([
+    // Load lookup tables + ALL signal modifier tables in parallel (once)
+    const [specRes, organRes, activationRes, physMapRes, physDiagRes,
+           priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes] = await Promise.all([
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
       supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
       supabase.from("symptom_physiology_map").select("symptoms!inner(symptom_name), physiological_states!inner(state_name, anatomical_systems:system_id(system_name)), confidence_score"),
       supabase.from("physiology_diagnosis_map").select("physiological_states!inner(state_name), diagnoses!inner(diagnosis_name), relevance_score"),
+      // Signal modifier tables (pre-loaded once, filtered in-memory per scenario)
+      supabase.from("disease_priors").select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier"),
+      supabase.from("risk_factor_modifiers").select("diagnosis_id, risk_factor, modifier_weight"),
+      supabase.from("medical_history_modifiers").select("diagnosis_id, history_condition, prior_multiplier, confidence"),
+      supabase.from("duration_modifiers").select("diagnosis_id, duration_category, modifier_weight"),
+      supabase.from("onset_modifiers").select("diagnosis_id, onset_pattern, modifier_weight"),
+      supabase.from("vital_sign_modifiers").select("diagnosis_id, vital_parameter, condition, threshold_value, modifier_weight"),
+      supabase.from("symptom_cluster_modifiers").select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight"),
     ]);
+
+    const preloadedSignals: PreloadedSignals = {
+      allPriors: priorsRes.data || [],
+      allRiskMods: riskModsRes.data || [],
+      allHistoryMods: histModsRes.data || [],
+      allDurationMods: durModsRes.data || [],
+      allOnsetMods: onsetModsRes.data || [],
+      allVitalMods: vitalModsRes.data || [],
+      allClusterMods: clusterModsRes.data || [],
+    };
 
     const specificityMap: Record<string, number> = {};
     for (const s of (specRes.data || [])) specificityMap[s.symptom_name.toLowerCase()] = parseFloat(s.specificity_score);
@@ -767,7 +1016,7 @@ Deno.serve(async (req) => {
       waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
 
       // Wave 3: Bayesian
-      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel);
+      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals);
       waveLatency.wave3_bayesian_ms = bayesianResult.latency_ms;
 
       // Wave 4: Safety
@@ -780,16 +1029,19 @@ Deno.serve(async (req) => {
 
       const totalMs = Date.now() - scenarioStart;
 
-      // Evaluate
+      // Evaluate — Use Bayesian-ranked results as authoritative ranking source
+      const bayesianDiagnoses = (bayesianResult.diagnoses || []).map((d: any) => d.diagnosis_name);
       const ddxDiagnoses = (ddxResult.differential_diagnoses || []).map((d: any) => d.diagnosis_name);
-      const matchedDx = fuzzyMatch(ddxDiagnoses, scenario.expected_diagnoses);
+      // Primary ranking: Bayesian posteriors. Fallback: DDX if Bayesian is empty.
+      const rankedDiagnoses = bayesianDiagnoses.length > 0 ? bayesianDiagnoses : ddxDiagnoses;
+      const matchedDx = fuzzyMatch(rankedDiagnoses, scenario.expected_diagnoses);
       const dxMatchRate = scenario.expected_diagnoses.length > 0 ? matchedDx.length / scenario.expected_diagnoses.length : 0;
 
-      // Top-N accuracy
-      const top1Match = matchedDx.length > 0 && ddxDiagnoses.length > 0 && fuzzyMatch([ddxDiagnoses[0]], scenario.expected_diagnoses).length > 0;
-      const top3Dx = ddxDiagnoses.slice(0, 3);
+      // Top-N accuracy (Bayesian-authoritative)
+      const top1Match = rankedDiagnoses.length > 0 && fuzzyMatch([rankedDiagnoses[0]], scenario.expected_diagnoses).length > 0;
+      const top3Dx = rankedDiagnoses.slice(0, 3);
       const top3Match = fuzzyMatch(top3Dx, scenario.expected_diagnoses).length > 0;
-      const top5Dx = ddxDiagnoses.slice(0, 5);
+      const top5Dx = rankedDiagnoses.slice(0, 5);
       const top5Match = fuzzyMatch(top5Dx, scenario.expected_diagnoses).length > 0;
 
       // Danger detection
@@ -807,7 +1059,7 @@ Deno.serve(async (req) => {
       specialtyStats[spec].latency_sum += totalMs;
 
       engineLogs.push({ engine_name: "benchmark_50", validation_run_id: validationRunId, execution_time_ms: totalMs, status: passed ? "success" : "failed",
-        output_summary: { scenario: scenario.id, diagnoses: ddxDiagnoses.length, matched: matchedDx.length, danger: dangerDetected } });
+        output_summary: { scenario: scenario.id, diagnoses: rankedDiagnoses.length, matched: matchedDx.length, danger: dangerDetected, ranking_source: bayesianDiagnoses.length > 0 ? "bayesian" : "ddx" } });
 
       scenarioResults.push({
         id: scenario.id, name: scenario.name, specialty: scenario.specialty,
@@ -815,9 +1067,11 @@ Deno.serve(async (req) => {
         passed, top1_match: top1Match, top3_match: top3Match, top5_match: top5Match,
         diagnosis_match_rate: Math.round(dxMatchRate * 100),
         matched_diagnoses: matchedDx,
-        actual_top5: ddxDiagnoses.slice(0, 5),
+        actual_top5: rankedDiagnoses.slice(0, 5),
         bayesian_top: bayesianResult.diagnoses[0]?.diagnosis_name || null,
         bayesian_top_prob: bayesianResult.diagnoses[0]?.posterior_probability || 0,
+        bayesian_signals: bayesianResult.signals_applied || {},
+        ranking_source: bayesianDiagnoses.length > 0 ? "bayesian" : "ddx_fallback",
         danger_detected: dangerDetected,
         danger_conditions: worldModel.dangerous_conditions,
         safety_alerts: safetyResult.emergency_patterns.length + safetyResult.vitals_dangers.length,
