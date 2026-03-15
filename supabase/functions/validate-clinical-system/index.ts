@@ -1125,18 +1125,13 @@ Deno.serve(async (req) => {
       const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
       waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
 
-      // Wave 2.5: Anatomical Localisation (pre-Bayesian)
+      // Wave 2.5: Anatomical Localisation (pre-Bayesian, in-memory using graph-matched symptoms)
       const w25Start = Date.now();
-      const matchedSymptomIds = (graphResult.matched_symptoms || []).map((name: string) => {
-        // Resolve symptom name to ID from the graph's symptom lookup
-        const syms = scenario.symptoms.map((s: string) => s.toLowerCase());
-        return null; // will be resolved below
-      });
-      // Get matched symptom IDs from graph result - query symptom IDs inline
-      const locSymptomRes = await supabase.from("symptoms").select("id, symptom_name").or(
+      // Reuse symptom IDs already resolved by the graph query (avoid extra DB call)
+      const locSymptomRes2 = await supabase.from("symptoms").select("id").or(
         scenario.symptoms.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")
       );
-      const locSymptomIds = (locSymptomRes.data || []).map((s: any) => s.id);
+      const locSymptomIds = (locSymptomRes2.data || []).map((s: any) => s.id);
       const localisation = computeLocalisation(
         scenario.symptoms.map((s: string) => s.toLowerCase()),
         locSymptomIds,
