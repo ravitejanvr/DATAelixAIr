@@ -830,7 +830,7 @@ function diagnosisCategoryMatchesSystems(category: string, systems: string[]): b
 }
 
 // ── Wave 3: Bayesian Engine (Full Signal Integration) ──
-async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState, preloaded: PreloadedSignals, localisation: LocalisationResult) {
+async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState, preloaded: PreloadedSignals, localisation: LocalisationResult, syndromeResult?: SyndromeClusterResult) {
   const start = Date.now();
   try {
     const candidates = (ddxResult.differential_diagnoses || []).slice(0, 10);
