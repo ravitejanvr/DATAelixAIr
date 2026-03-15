@@ -345,12 +345,15 @@ function extractSymptoms(ctx: ClinicalContext): string[] {
 }
 
 function buildVitals(ctx: ClinicalContext) {
+  const bpParts = ctx.blood_pressure ? ctx.blood_pressure.split("/") : [];
   return {
     temperature: ctx.temperature,
     spo2: ctx.oxygen_saturation,
     pulse: ctx.pulse,
     bp: ctx.blood_pressure,
-    bp_systolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[0]) : undefined,
+    bp_systolic: bpParts.length >= 1 ? parseInt(bpParts[0]) : undefined,
+    bp_diastolic: bpParts.length >= 2 ? parseInt(bpParts[1]) : undefined,
+    respiratory_rate: ctx.respiratory_rate,
   };
 }
 
@@ -1103,11 +1106,21 @@ export async function runUnifiedClinicalPipeline(
             candidate_diagnosis_ids: candidateIds,
             symptoms,
             physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
-            risk_factors: ctx.medical_history || [],
+            risk_factors: ctx.risk_factors || [],
+            medical_history: ctx.medical_history || [],
             patient_age: ctx.patient_age,
             patient_sex: ctx.patient_sex,
             region: "south_asia",
-            vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse },
+            vitals: {
+              temperature: vitals.temperature,
+              spo2: vitals.spo2,
+              pulse: vitals.pulse,
+              bp_systolic: vitals.bp_systolic,
+              bp_diastolic: vitals.bp_diastolic,
+              respiratory_rate: vitals.respiratory_rate,
+            },
+            duration: ctx.symptom_duration || null,
+            onset_pattern: null,
           }),
           TIMEOUT.BAYESIAN,
           "bayesian_engine",
@@ -1421,7 +1434,10 @@ export async function runUnifiedClinicalPipeline(
                 patient_age: ctx.patient_age ?? undefined,
                 patient_sex: ctx.patient_sex ?? undefined,
                 risk_factors: ctx.risk_factors || [],
-                region: "IN",
+                medical_history: ctx.medical_history || [],
+                region: "south_asia",
+                vitals,
+                duration: ctx.symptom_duration || null,
               }),
               TIMEOUT.BAYESIAN,
               "bayesian_loop",

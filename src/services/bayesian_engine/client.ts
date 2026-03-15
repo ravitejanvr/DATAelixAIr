@@ -1,11 +1,15 @@
 /**
- * Bayesian Diagnostic Probability Engine — Client Service
+ * Bayesian Diagnostic Probability Engine v4 — Client Service
  *
  * Computes posterior probabilities for candidate diagnoses using:
  *   - Disease priors (prevalence × demographic modifiers)
- *   - Symptom likelihoods P(S|D)
+ *   - Symptom likelihoods P(S|D) with specificity weighting
  *   - Physiology likelihoods P(Φ|D)
  *   - Risk factor modifiers
+ *   - Medical history prior multipliers
+ *   - Duration & onset temporal modifiers
+ *   - Vital sign modifiers (disease-specific)
+ *   - Symptom cluster modifiers
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -14,9 +18,15 @@ export interface BayesianDiagnosis {
   diagnosis_id: string;
   posterior_probability: number;
   prior: number;
+  history_multiplier?: number;
   symptom_likelihood: number;
+  coverage_ratio?: number;
   physiology_likelihood: number;
   risk_modifier: number;
+  duration_modifier?: number;
+  onset_modifier?: number;
+  vital_modifier?: number;
+  cluster_modifier?: number;
   supporting_evidence: string[];
   must_not_miss: boolean;
 }
@@ -27,6 +37,11 @@ export interface BayesianResult {
   symptoms_resolved: number;
   physiology_states_used: number;
   risk_factors_applied: number;
+  history_modifiers_applied?: number;
+  duration_category?: string | null;
+  onset_pattern?: string | null;
+  vitals_signals_applied?: number;
+  cluster_matches?: number;
   execution_ms: number;
   source: string;
 }
@@ -41,6 +56,8 @@ export interface BayesianInput {
   patient_sex?: string | null;
   region?: string;
   vitals?: Record<string, any>;
+  duration?: string | null;
+  onset_pattern?: string | null;
 }
 
 /**
