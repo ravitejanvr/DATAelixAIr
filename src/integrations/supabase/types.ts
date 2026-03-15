@@ -1939,6 +1939,38 @@ export type Database = {
           },
         ]
       }
+      disease_system_tags: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          diagnosis_id: string
+          id: string
+          system_tag: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+          system_tag: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+          system_tag?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disease_system_tags_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       disease_tests: {
         Row: {
           created_at: string

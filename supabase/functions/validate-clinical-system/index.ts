@@ -464,8 +464,8 @@ function buildWorldModel(
   return { organ_systems: activeOrganSystems, organ_system_weights: systemScores, physiological_states: physiologicalStates, hypotheses, dangerous_conditions: dangerousConditions, risk_level: riskLevel, state_confidence: stateConfidence, reasoning_traces: traces, latency_ms: Date.now() - start };
 }
 
-// ── Wave 1: Graph Retrieval ──
-async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldModelState) {
+// ── Wave 1: Graph Retrieval (with localisation-aware candidate expansion) ──
+async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldModelState, localisation: LocalisationResult, systemTags: any[]) {
   const start = Date.now();
   try {
     const { data: symptomRows } = await supabase.from("symptoms").select("id, symptom_name").or(symptoms.map(s => `symptom_name.ilike.%${s}%`).join(","));
@@ -481,15 +481,52 @@ async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldMo
     const scoreMap: Record<string, number> = {};
     for (const lk of (lkRes.data || [])) { diagnosisIdSet.add(lk.diagnosis_id); scoreMap[lk.diagnosis_id] = (scoreMap[lk.diagnosis_id] || 0) + (lk.likelihood_value || 0.5); }
     for (const sdm of (sdmRes.data || [])) { diagnosisIdSet.add(sdm.diagnosis_id); if (!scoreMap[sdm.diagnosis_id]) scoreMap[sdm.diagnosis_id] = 0.3; }
+
+    // ── LOCALISATION-AWARE CANDIDATE EXPANSION ──
+    // If we have dominant systems with high confidence, inject diagnoses tagged with those systems
+    // that might not have been found via symptom-likelihood edges alone
+    if (localisation.dominant_systems.length > 0 && localisation.localisation_confidence > 0.4) {
+      for (const sys of localisation.dominant_systems) {
+        const sysProbability = localisation.system_distribution[sys] || 0;
+        // Only expand for systems with significant probability
+        if (sysProbability < 0.3) continue;
+        
+        const taggedDiagnoses = systemTags.filter((t: any) => t.system_tag === sys);
+        for (const tag of taggedDiagnoses) {
+          if (!diagnosisIdSet.has(tag.diagnosis_id)) {
+            diagnosisIdSet.add(tag.diagnosis_id);
+            // Score proportional to system probability × tag confidence, but lower than symptom-matched
+            scoreMap[tag.diagnosis_id] = sysProbability * (tag.confidence || 0.5) * 0.3;
+          }
+        }
+      }
+    }
+
     const diagnosisIds = [...diagnosisIdSet];
 
     let diagnoses: any[] = [];
     if (diagnosisIds.length > 0) {
-      const { data: dxRows } = await supabase.from("diagnoses").select("id, diagnosis_name, icd10_code, category").in("id", diagnosisIds.slice(0, 30));
+      const { data: dxRows } = await supabase.from("diagnoses").select("id, diagnosis_name, icd10_code, category").in("id", diagnosisIds.slice(0, 50)).eq("is_active", true);
       const dominantSystem = worldModel.organ_systems[0] || "";
+      
+      // Build a set of system-boosted diagnosis IDs for localisation boost
+      const locBoostSet = new Set<string>();
+      if (localisation.dominant_systems.length > 0) {
+        for (const tag of systemTags) {
+          if (localisation.dominant_systems.includes(tag.system_tag)) {
+            locBoostSet.add(tag.diagnosis_id);
+          }
+        }
+      }
+
       diagnoses = (dxRows || []).map((d: any) => {
         let score = scoreMap[d.id] || 0.1;
         if (dominantSystem && d.category?.toLowerCase().includes(dominantSystem.toLowerCase())) score *= 1.3;
+        // Localisation boost: diagnoses matching dominant anatomical systems
+        if (locBoostSet.has(d.id)) {
+          const boostFactor = 1.0 + (localisation.localisation_confidence * 0.5);
+          score *= boostFactor;
+        }
         const wmH = worldModel.hypotheses.find(h => normalize(h.disease) === normalize(d.diagnosis_name));
         if (wmH) score *= (1.0 + wmH.confidence);
         return { ...d, score };
@@ -611,6 +648,7 @@ interface PreloadedSignals {
   allVitalMods: any[];
   allClusterMods: any[];
   allLocalisationEdges: any[];
+  allSystemTags: any[];
 }
 
 // ── Category-to-system mapping for matching diagnosis categories to anatomical systems ──
@@ -1047,7 +1085,7 @@ Deno.serve(async (req) => {
 
     // Load lookup tables + ALL signal modifier tables in parallel (once)
     const [specRes, organRes, activationRes, physMapRes, physDiagRes,
-           priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes, locEdgesRes] = await Promise.all([
+           priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes, locEdgesRes, systemTagsRes] = await Promise.all([
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
       supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
@@ -1062,6 +1100,7 @@ Deno.serve(async (req) => {
       supabase.from("vital_sign_modifiers").select("diagnosis_id, vital_parameter, condition, threshold_value, modifier_weight"),
       supabase.from("symptom_cluster_modifiers").select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight"),
       supabase.from("symptom_localisation_edges").select("symptom_id, anatomical_system, localisation_weight"),
+      supabase.from("disease_system_tags").select("diagnosis_id, system_tag, confidence"),
     ]);
 
     const preloadedSignals: PreloadedSignals = {
@@ -1073,6 +1112,7 @@ Deno.serve(async (req) => {
       allVitalMods: vitalModsRes.data || [],
       allClusterMods: clusterModsRes.data || [],
       allLocalisationEdges: locEdgesRes.data || [],
+      allSystemTags: systemTagsRes.data || [],
     };
 
     const specificityMap: Record<string, number> = {};
@@ -1117,27 +1157,26 @@ Deno.serve(async (req) => {
       const worldModel = buildWorldModel(scenario.symptoms, scenario.vitals, activationRules, physiologyMap, physiologyDiagMap, specificityMap);
       waveLatency.wave05_world_model_ms = worldModel.latency_ms;
 
-      // Wave 1: Graph
-      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel);
-      waveLatency.wave1_graph_ms = graphResult.latency_ms;
-
-      // Wave 2: DDX
-      const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
-      waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
-
-      // Wave 2.5: Anatomical Localisation (pre-Bayesian, in-memory using graph-matched symptoms)
-      const w25Start = Date.now();
-      // Reuse symptom IDs already resolved by the graph query (avoid extra DB call)
-      const locSymptomRes2 = await supabase.from("symptoms").select("id").or(
+      // Wave 0.75: Anatomical Localisation (BEFORE candidate generation)
+      const w075Start = Date.now();
+      const locSymptomRes = await supabase.from("symptoms").select("id").or(
         scenario.symptoms.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")
       );
-      const locSymptomIds = (locSymptomRes2.data || []).map((s: any) => s.id);
+      const locSymptomIds = (locSymptomRes.data || []).map((s: any) => s.id);
       const localisation = computeLocalisation(
         scenario.symptoms.map((s: string) => s.toLowerCase()),
         locSymptomIds,
         preloadedSignals.allLocalisationEdges,
       );
-      waveLatency.wave25_localisation_ms = Date.now() - w25Start;
+      waveLatency.wave075_localisation_ms = Date.now() - w075Start;
+
+      // Wave 1: Graph (with localisation-aware candidate expansion)
+      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel, localisation, preloadedSignals.allSystemTags);
+      waveLatency.wave1_graph_ms = graphResult.latency_ms;
+
+      // Wave 2: DDX
+      const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
+      waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
 
       // Wave 3: Bayesian (with localisation)
       const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals, localisation);
@@ -1236,7 +1275,7 @@ Deno.serve(async (req) => {
     const p95 = latencies[Math.floor(latencies.length * 0.95)] || 0;
     const p99 = latencies[Math.floor(latencies.length * 0.99)] || 0;
 
-    const waveKeys = ["wave0_pcie_ms", "wave05_world_model_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave25_localisation_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
+    const waveKeys = ["wave0_pcie_ms", "wave05_world_model_ms", "wave075_localisation_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
     const avgWaveLatency: Record<string, number> = {};
     for (const key of waveKeys) avgWaveLatency[key] = Math.round(scenarioResults.reduce((a, s) => a + (s.wave_latency[key] || 0), 0) / total);
 
