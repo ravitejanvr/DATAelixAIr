@@ -337,8 +337,9 @@ Deno.serve(async (req) => {
     const [likelihoodRes, dangerousRes] = await Promise.all([
       supabase
         .from("symptom_likelihoods")
-        .select("symptom_id, diagnosis_id, likelihood_value, diagnoses(id, diagnosis_name, category, icd10_code)")
+        .select("symptom_id, diagnosis_id, likelihood_value, diagnoses!inner(id, diagnosis_name, category, icd10_code, is_active)")
         .in("symptom_id", symptomIds)
+        .eq("diagnoses.is_active", true)
         .order("likelihood_value", { ascending: false }),
       supabase
         .from("dangerous_diagnoses")
