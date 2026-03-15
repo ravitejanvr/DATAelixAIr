@@ -1568,6 +1568,38 @@ export type Database = {
           },
         ]
       }
+      diagnosis_synonyms: {
+        Row: {
+          canonical_diagnosis_id: string
+          created_at: string | null
+          id: string
+          source_reference: string | null
+          synonym_term: string
+        }
+        Insert: {
+          canonical_diagnosis_id: string
+          created_at?: string | null
+          id?: string
+          source_reference?: string | null
+          synonym_term: string
+        }
+        Update: {
+          canonical_diagnosis_id?: string
+          created_at?: string | null
+          id?: string
+          source_reference?: string | null
+          synonym_term?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnosis_synonyms_canonical_diagnosis_id_fkey"
+            columns: ["canonical_diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diagnostic_flags: {
         Row: {
           acknowledged_at: string | null
