@@ -1346,14 +1346,15 @@ Deno.serve(async (req) => {
       };
       waveLatency.wave0_pcie_ms = Date.now() - w0Start;
 
-      // Wave 0.5: World Model
-      const worldModel = buildWorldModel(scenario.symptoms, scenario.vitals, activationRules, physiologyMap, physiologyDiagMap, specificityMap);
+      // Wave 0.5: World Model (use expanded symptoms for better physiology matching)
+      const expandedSymptoms = expandSymptoms(scenario.symptoms);
+      const worldModel = buildWorldModel(expandedSymptoms, scenario.vitals, activationRules, physiologyMap, physiologyDiagMap, specificityMap);
       waveLatency.wave05_world_model_ms = worldModel.latency_ms;
 
       // Wave 0.75: Anatomical Localisation (BEFORE candidate generation)
       const w075Start = Date.now();
-      const locSymptomRes = await supabase.from("symptoms").select("id").or(
-        scenario.symptoms.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")
+      const locSymptomRes = await supabase.from("symptoms").select("id, symptom_name").or(
+        expandedSymptoms.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")
       );
       const locSymptomIds = (locSymptomRes.data || []).map((s: any) => s.id);
       const localisation = computeLocalisation(
