@@ -1001,16 +1001,19 @@ Deno.serve(async (req) => {
 
       const totalMs = Date.now() - scenarioStart;
 
-      // Evaluate
+      // Evaluate — Use Bayesian-ranked results as authoritative ranking source
+      const bayesianDiagnoses = (bayesianResult.diagnoses || []).map((d: any) => d.diagnosis_name);
       const ddxDiagnoses = (ddxResult.differential_diagnoses || []).map((d: any) => d.diagnosis_name);
-      const matchedDx = fuzzyMatch(ddxDiagnoses, scenario.expected_diagnoses);
+      // Primary ranking: Bayesian posteriors. Fallback: DDX if Bayesian is empty.
+      const rankedDiagnoses = bayesianDiagnoses.length > 0 ? bayesianDiagnoses : ddxDiagnoses;
+      const matchedDx = fuzzyMatch(rankedDiagnoses, scenario.expected_diagnoses);
       const dxMatchRate = scenario.expected_diagnoses.length > 0 ? matchedDx.length / scenario.expected_diagnoses.length : 0;
 
-      // Top-N accuracy
-      const top1Match = matchedDx.length > 0 && ddxDiagnoses.length > 0 && fuzzyMatch([ddxDiagnoses[0]], scenario.expected_diagnoses).length > 0;
-      const top3Dx = ddxDiagnoses.slice(0, 3);
+      // Top-N accuracy (Bayesian-authoritative)
+      const top1Match = rankedDiagnoses.length > 0 && fuzzyMatch([rankedDiagnoses[0]], scenario.expected_diagnoses).length > 0;
+      const top3Dx = rankedDiagnoses.slice(0, 3);
       const top3Match = fuzzyMatch(top3Dx, scenario.expected_diagnoses).length > 0;
-      const top5Dx = ddxDiagnoses.slice(0, 5);
+      const top5Dx = rankedDiagnoses.slice(0, 5);
       const top5Match = fuzzyMatch(top5Dx, scenario.expected_diagnoses).length > 0;
 
       // Danger detection
@@ -1028,7 +1031,7 @@ Deno.serve(async (req) => {
       specialtyStats[spec].latency_sum += totalMs;
 
       engineLogs.push({ engine_name: "benchmark_50", validation_run_id: validationRunId, execution_time_ms: totalMs, status: passed ? "success" : "failed",
-        output_summary: { scenario: scenario.id, diagnoses: ddxDiagnoses.length, matched: matchedDx.length, danger: dangerDetected } });
+        output_summary: { scenario: scenario.id, diagnoses: rankedDiagnoses.length, matched: matchedDx.length, danger: dangerDetected, ranking_source: bayesianDiagnoses.length > 0 ? "bayesian" : "ddx" } });
 
       scenarioResults.push({
         id: scenario.id, name: scenario.name, specialty: scenario.specialty,
@@ -1036,9 +1039,11 @@ Deno.serve(async (req) => {
         passed, top1_match: top1Match, top3_match: top3Match, top5_match: top5Match,
         diagnosis_match_rate: Math.round(dxMatchRate * 100),
         matched_diagnoses: matchedDx,
-        actual_top5: ddxDiagnoses.slice(0, 5),
+        actual_top5: rankedDiagnoses.slice(0, 5),
         bayesian_top: bayesianResult.diagnoses[0]?.diagnosis_name || null,
         bayesian_top_prob: bayesianResult.diagnoses[0]?.posterior_probability || 0,
+        bayesian_signals: bayesianResult.signals_applied || {},
+        ranking_source: bayesianDiagnoses.length > 0 ? "bayesian" : "ddx_fallback",
         danger_detected: dangerDetected,
         danger_conditions: worldModel.dangerous_conditions,
         safety_alerts: safetyResult.emergency_patterns.length + safetyResult.vitals_dangers.length,
