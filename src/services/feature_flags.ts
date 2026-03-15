@@ -48,3 +48,15 @@ export function isDdxEngineEnabled(): boolean {
 export function isUncertaintyEngineEnabled(): boolean {
   return currentFlags.enable_uncertainty_engine;
 }
+
+export function isCounterfactualEnabled(): boolean {
+  return currentFlags.enable_counterfactual_analysis;
+}
+
+export function isBiasMonitoringEnabled(): boolean {
+  return currentFlags.enable_bias_monitoring;
+}
+
+export function isMetaLearningEnabled(): boolean {
+  return currentFlags.enable_meta_learning;
+}
