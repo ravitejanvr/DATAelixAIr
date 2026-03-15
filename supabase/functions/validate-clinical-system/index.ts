@@ -864,10 +864,32 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
         logPosterior += Math.log(Math.max(w, 1e-4));
       }
 
-      // World model organ system boost (mild)
+      // Anatomical localisation modifier (replaces simple world model boost)
+      let localisationMod = 1.0;
+      const category = (c.category || "").toLowerCase();
+      if (localisation.dominant_systems.length > 0 && localisation.localisation_confidence > 0.3) {
+        const matchesDominant = diagnosisCategoryMatchesSystems(category, localisation.dominant_systems);
+        if (matchesDominant) {
+          // Boost: proportional to how concentrated the distribution is on this system
+          const systemProb = localisation.dominant_systems.reduce((max, sys) => {
+            if (diagnosisCategoryMatchesSystems(category, [sys])) {
+              return Math.max(max, localisation.system_distribution[sys] || 0);
+            }
+            return max;
+          }, 0);
+          localisationMod = 1.0 + (systemProb * localisation.localisation_confidence * 1.5);
+          logPosterior += Math.log(localisationMod);
+        } else if (localisation.localisation_confidence > 0.5) {
+          // Mild penalty for off-system diagnoses (not too aggressive)
+          localisationMod = 0.7;
+          logPosterior += Math.log(localisationMod);
+        }
+      }
+
+      // World model organ system boost (mild, complementary to localisation)
       const dominantSystem = worldModel.organ_systems[0] || "";
-      if (dominantSystem && (c.category || "").toLowerCase().includes(dominantSystem.toLowerCase())) {
-        const systemWeight = Math.min(1.5, 1.0 + ((worldModel.organ_system_weights[dominantSystem] || 1.0) - 1.0) * 0.2);
+      if (dominantSystem && category.includes(dominantSystem.toLowerCase()) && localisationMod === 1.0) {
+        const systemWeight = Math.min(1.3, 1.0 + ((worldModel.organ_system_weights[dominantSystem] || 1.0) - 1.0) * 0.15);
         logPosterior += Math.log(systemWeight);
       }
 
