@@ -465,7 +465,7 @@ function buildWorldModel(
 }
 
 // ── Wave 1: Graph Retrieval (with localisation-aware candidate expansion) ──
-async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldModelState, localisation: LocalisationResult, systemTags: any[]) {
+async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldModelState, localisation: LocalisationResult, systemTags: any[], syndromeResult: SyndromeClusterResult) {
   const start = Date.now();
   try {
     const { data: symptomRows } = await supabase.from("symptoms").select("id, symptom_name").or(symptoms.map(s => `symptom_name.ilike.%${s}%`).join(","));
@@ -497,6 +497,23 @@ async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldMo
             diagnosisIdSet.add(tag.diagnosis_id);
             // Score proportional to system probability × tag confidence, but lower than symptom-matched
             scoreMap[tag.diagnosis_id] = sysProbability * (tag.confidence || 0.5) * 0.3;
+          }
+        }
+      }
+    }
+
+    // ── SYNDROME CLUSTER CANDIDATE EXPANSION ──
+    // Inject diseases associated with activated syndrome clusters
+    if (syndromeResult.activated_clusters.length > 0) {
+      for (const cluster of syndromeResult.activated_clusters) {
+        for (const assoc of cluster.associated_diseases) {
+          if (!diagnosisIdSet.has(assoc.disease_id)) {
+            diagnosisIdSet.add(assoc.disease_id);
+            // Score based on cluster activation score × disease association strength
+            scoreMap[assoc.disease_id] = cluster.score * assoc.strength * 0.5;
+          } else {
+            // Boost existing candidates that match activated clusters
+            scoreMap[assoc.disease_id] = (scoreMap[assoc.disease_id] || 0) + (cluster.score * assoc.strength * 0.3);
           }
         }
       }
@@ -649,6 +666,84 @@ interface PreloadedSignals {
   allClusterMods: any[];
   allLocalisationEdges: any[];
   allSystemTags: any[];
+  allSyndromeSymptomEdges: any[];
+  allSyndromeDiseaseEdges: any[];
+  allSyndromeNodes: any[];
+}
+
+// ── Syndrome Cluster Detection Engine ──
+interface SyndromeClusterResult {
+  activated_clusters: Array<{
+    cluster_id: string;
+    cluster_name: string;
+    score: number;
+    matched_symptoms: number;
+    total_symptoms: number;
+    associated_diseases: Array<{ disease_id: string; strength: number }>;
+  }>;
+  boosted_disease_ids: Set<string>;
+  cluster_confidence: number;
+}
+
+function detectSyndromeClusters(
+  matchedSymptomIds: string[],
+  syndromeNodes: any[],
+  syndromeSymptomEdges: any[],
+  syndromeDiseaseEdges: any[],
+): SyndromeClusterResult {
+  const symIdSet = new Set(matchedSymptomIds);
+  const activatedClusters: SyndromeClusterResult["activated_clusters"] = [];
+  const boostedDiseaseIds = new Set<string>();
+
+  for (const node of syndromeNodes) {
+    const clusterEdges = syndromeSymptomEdges.filter((e: any) => e.cluster_id === node.cluster_id);
+    if (clusterEdges.length === 0) continue;
+
+    let weightedScore = 0;
+    let matchedCount = 0;
+    for (const edge of clusterEdges) {
+      if (symIdSet.has(edge.symptom_id)) {
+        weightedScore += parseFloat(edge.likelihood_weight) || 0.5;
+        matchedCount++;
+      }
+    }
+
+    // Normalize: score = weighted matches / total possible weight
+    const maxWeight = clusterEdges.reduce((s: number, e: any) => s + (parseFloat(e.likelihood_weight) || 0.5), 0);
+    const normalizedScore = maxWeight > 0 ? weightedScore / maxWeight : 0;
+    const minActivation = parseFloat(node.min_activation_score) || 0.5;
+
+    if (normalizedScore >= minActivation && matchedCount >= 2) {
+      const diseaseEdges = syndromeDiseaseEdges.filter((e: any) => e.cluster_id === node.cluster_id);
+      const associatedDiseases = diseaseEdges.map((e: any) => ({
+        disease_id: e.disease_id,
+        strength: parseFloat(e.association_strength) || 0.5,
+      }));
+
+      for (const d of associatedDiseases) {
+        boostedDiseaseIds.add(d.disease_id);
+      }
+
+      activatedClusters.push({
+        cluster_id: node.cluster_id,
+        cluster_name: node.cluster_name,
+        score: Math.round(normalizedScore * 100) / 100,
+        matched_symptoms: matchedCount,
+        total_symptoms: clusterEdges.length,
+        associated_diseases: associatedDiseases,
+      });
+    }
+  }
+
+  // Sort by score descending
+  activatedClusters.sort((a, b) => b.score - a.score);
+
+  // Confidence: how strongly the top cluster activates
+  const clusterConfidence = activatedClusters.length > 0
+    ? Math.round(Math.min(0.95, activatedClusters[0].score + (activatedClusters.length > 1 ? 0.05 : 0)) * 100) / 100
+    : 0;
+
+  return { activated_clusters: activatedClusters, boosted_disease_ids: boostedDiseaseIds, cluster_confidence: clusterConfidence };
 }
 
 // ── Category-to-system mapping for matching diagnosis categories to anatomical systems ──
@@ -735,7 +830,7 @@ function diagnosisCategoryMatchesSystems(category: string, systems: string[]): b
 }
 
 // ── Wave 3: Bayesian Engine (Full Signal Integration) ──
-async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState, preloaded: PreloadedSignals, localisation: LocalisationResult) {
+async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState, preloaded: PreloadedSignals, localisation: LocalisationResult, syndromeResult?: SyndromeClusterResult) {
   const start = Date.now();
   try {
     const candidates = (ddxResult.differential_diagnoses || []).slice(0, 10);
@@ -931,6 +1026,22 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
         logPosterior += Math.log(systemWeight);
       }
 
+      // Syndrome cluster boost
+      let syndromeMod = 1.0;
+      if (syndromeResult && syndromeResult.activated_clusters.length > 0) {
+        for (const cluster of syndromeResult.activated_clusters) {
+          const matchedDisease = cluster.associated_diseases.find(d => d.disease_id === c.diagnosis_id);
+          if (matchedDisease) {
+            // Boost proportional to cluster score × association strength
+            const boost = 1.0 + (cluster.score * matchedDisease.strength * 1.2);
+            syndromeMod = Math.max(syndromeMod, boost);
+          }
+        }
+        if (syndromeMod > 1.0) {
+          logPosterior += Math.log(syndromeMod);
+        }
+      }
+
       totalSignalStrength += symptomSignal;
 
       return {
@@ -944,6 +1055,7 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
         vital_modifier: vitalMod,
         cluster_modifier: clusterMod,
         localisation_modifier: localisationMod,
+        syndrome_modifier: syndromeMod,
         coverage_ratio: coverageRatio,
         log_score: logPosterior,
         posterior: Math.exp(logPosterior),
@@ -1085,13 +1197,13 @@ Deno.serve(async (req) => {
 
     // Load lookup tables + ALL signal modifier tables in parallel (once)
     const [specRes, organRes, activationRes, physMapRes, physDiagRes,
-           priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes, locEdgesRes, systemTagsRes] = await Promise.all([
+           priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes, locEdgesRes, systemTagsRes,
+           syndromeNodesRes, syndromeSymEdgesRes, syndromeDxEdgesRes] = await Promise.all([
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
       supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
       supabase.from("symptom_physiology_map").select("symptoms!inner(symptom_name), physiological_states!inner(state_name, anatomical_systems:system_id(system_name)), confidence_score"),
       supabase.from("physiology_diagnosis_map").select("physiological_states!inner(state_name), diagnoses!inner(diagnosis_name), relevance_score"),
-      // Signal modifier tables (pre-loaded once, filtered in-memory per scenario)
       supabase.from("disease_priors").select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier"),
       supabase.from("risk_factor_modifiers").select("diagnosis_id, risk_factor, modifier_weight"),
       supabase.from("medical_history_modifiers").select("diagnosis_id, history_condition, prior_multiplier, confidence"),
@@ -1101,6 +1213,10 @@ Deno.serve(async (req) => {
       supabase.from("symptom_cluster_modifiers").select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight"),
       supabase.from("symptom_localisation_edges").select("symptom_id, anatomical_system, localisation_weight"),
       supabase.from("disease_system_tags").select("diagnosis_id, system_tag, confidence"),
+      // Syndrome cluster tables
+      supabase.from("cluster_nodes").select("cluster_id, cluster_name, min_activation_score"),
+      supabase.from("symptom_cluster_edges").select("symptom_id, cluster_id, likelihood_weight"),
+      supabase.from("cluster_disease_edges").select("cluster_id, disease_id, association_strength"),
     ]);
 
     const preloadedSignals: PreloadedSignals = {
@@ -1113,6 +1229,9 @@ Deno.serve(async (req) => {
       allClusterMods: clusterModsRes.data || [],
       allLocalisationEdges: locEdgesRes.data || [],
       allSystemTags: systemTagsRes.data || [],
+      allSyndromeNodes: syndromeNodesRes.data || [],
+      allSyndromeSymptomEdges: syndromeSymEdgesRes.data || [],
+      allSyndromeDiseaseEdges: syndromeDxEdgesRes.data || [],
     };
 
     const specificityMap: Record<string, number> = {};
@@ -1170,16 +1289,26 @@ Deno.serve(async (req) => {
       );
       waveLatency.wave075_localisation_ms = Date.now() - w075Start;
 
-      // Wave 1: Graph (with localisation-aware candidate expansion)
-      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel, localisation, preloadedSignals.allSystemTags);
+      // Wave 0.85: Syndrome Cluster Detection (in-memory, uses same symptom IDs)
+      const w085Start = Date.now();
+      const syndromeResult = detectSyndromeClusters(
+        locSymptomIds,
+        preloadedSignals.allSyndromeNodes,
+        preloadedSignals.allSyndromeSymptomEdges,
+        preloadedSignals.allSyndromeDiseaseEdges,
+      );
+      waveLatency.wave085_syndrome_ms = Date.now() - w085Start;
+
+      // Wave 1: Graph (with localisation + syndrome-aware candidate expansion)
+      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel, localisation, preloadedSignals.allSystemTags, syndromeResult);
       waveLatency.wave1_graph_ms = graphResult.latency_ms;
 
       // Wave 2: DDX
       const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
       waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
 
-      // Wave 3: Bayesian (with localisation)
-      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals, localisation);
+      // Wave 3: Bayesian (with localisation + syndrome boost)
+      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals, localisation, syndromeResult);
       waveLatency.wave3_bayesian_ms = bayesianResult.latency_ms;
 
       // Wave 4: Safety
@@ -1275,7 +1404,7 @@ Deno.serve(async (req) => {
     const p95 = latencies[Math.floor(latencies.length * 0.95)] || 0;
     const p99 = latencies[Math.floor(latencies.length * 0.99)] || 0;
 
-    const waveKeys = ["wave0_pcie_ms", "wave05_world_model_ms", "wave075_localisation_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
+    const waveKeys = ["wave0_pcie_ms", "wave05_world_model_ms", "wave075_localisation_ms", "wave085_syndrome_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
     const avgWaveLatency: Record<string, number> = {};
     for (const key of waveKeys) avgWaveLatency[key] = Math.round(scenarioResults.reduce((a, s) => a + (s.wave_latency[key] || 0), 0) / total);
 

@@ -1116,6 +1116,72 @@ export type Database = {
         }
         Relationships: []
       }
+      cluster_disease_edges: {
+        Row: {
+          association_strength: number
+          cluster_id: string
+          created_at: string
+          disease_id: string
+          id: string
+        }
+        Insert: {
+          association_strength?: number
+          cluster_id: string
+          created_at?: string
+          disease_id: string
+          id?: string
+        }
+        Update: {
+          association_strength?: number
+          cluster_id?: string
+          created_at?: string
+          disease_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cluster_disease_edges_cluster_id_fkey"
+            columns: ["cluster_id"]
+            isOneToOne: false
+            referencedRelation: "cluster_nodes"
+            referencedColumns: ["cluster_id"]
+          },
+          {
+            foreignKeyName: "cluster_disease_edges_disease_id_fkey"
+            columns: ["disease_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cluster_nodes: {
+        Row: {
+          anatomical_system: string | null
+          cluster_id: string
+          cluster_name: string
+          created_at: string
+          description: string
+          min_activation_score: number | null
+        }
+        Insert: {
+          anatomical_system?: string | null
+          cluster_id?: string
+          cluster_name: string
+          created_at?: string
+          description?: string
+          min_activation_score?: number | null
+        }
+        Update: {
+          anatomical_system?: string | null
+          cluster_id?: string
+          cluster_name?: string
+          created_at?: string
+          description?: string
+          min_activation_score?: number | null
+        }
+        Relationships: []
+      }
       clustered_symptom_patterns: {
         Row: {
           alert_level: string | null
@@ -5343,6 +5409,45 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      symptom_cluster_edges: {
+        Row: {
+          cluster_id: string
+          created_at: string
+          id: string
+          likelihood_weight: number
+          symptom_id: string
+        }
+        Insert: {
+          cluster_id: string
+          created_at?: string
+          id?: string
+          likelihood_weight?: number
+          symptom_id: string
+        }
+        Update: {
+          cluster_id?: string
+          created_at?: string
+          id?: string
+          likelihood_weight?: number
+          symptom_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "symptom_cluster_edges_cluster_id_fkey"
+            columns: ["cluster_id"]
+            isOneToOne: false
+            referencedRelation: "cluster_nodes"
+            referencedColumns: ["cluster_id"]
+          },
+          {
+            foreignKeyName: "symptom_cluster_edges_symptom_id_fkey"
+            columns: ["symptom_id"]
+            isOneToOne: false
+            referencedRelation: "symptoms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       symptom_cluster_modifiers: {
         Row: {
