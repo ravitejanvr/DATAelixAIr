@@ -12,7 +12,7 @@ export interface FeatureFlags {
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
-  enable_new_clinical_pipeline: false,
+  enable_new_clinical_pipeline: true,
   use_ddx_engine: true,
   enable_uncertainty_engine: true,
 };
