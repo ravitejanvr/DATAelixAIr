@@ -937,14 +937,33 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const validationRunId = crypto.randomUUID();
 
-    // Load lookup tables in parallel
-    const [specRes, organRes, activationRes, physMapRes, physDiagRes] = await Promise.all([
+    // Load lookup tables + ALL signal modifier tables in parallel (once)
+    const [specRes, organRes, activationRes, physMapRes, physDiagRes,
+           priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes] = await Promise.all([
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
       supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
       supabase.from("symptom_physiology_map").select("symptoms!inner(symptom_name), physiological_states!inner(state_name, anatomical_systems:system_id(system_name)), confidence_score"),
       supabase.from("physiology_diagnosis_map").select("physiological_states!inner(state_name), diagnoses!inner(diagnosis_name), relevance_score"),
+      // Signal modifier tables (pre-loaded once, filtered in-memory per scenario)
+      supabase.from("disease_priors").select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier"),
+      supabase.from("risk_factor_modifiers").select("diagnosis_id, risk_factor, modifier_weight"),
+      supabase.from("medical_history_modifiers").select("diagnosis_id, history_condition, prior_multiplier, confidence"),
+      supabase.from("duration_modifiers").select("diagnosis_id, duration_category, modifier_weight"),
+      supabase.from("onset_modifiers").select("diagnosis_id, onset_pattern, modifier_weight"),
+      supabase.from("vital_sign_modifiers").select("diagnosis_id, vital_parameter, condition, threshold_value, modifier_weight"),
+      supabase.from("symptom_cluster_modifiers").select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight"),
     ]);
+
+    const preloadedSignals: PreloadedSignals = {
+      allPriors: priorsRes.data || [],
+      allRiskMods: riskModsRes.data || [],
+      allHistoryMods: histModsRes.data || [],
+      allDurationMods: durModsRes.data || [],
+      allOnsetMods: onsetModsRes.data || [],
+      allVitalMods: vitalModsRes.data || [],
+      allClusterMods: clusterModsRes.data || [],
+    };
 
     const specificityMap: Record<string, number> = {};
     for (const s of (specRes.data || [])) specificityMap[s.symptom_name.toLowerCase()] = parseFloat(s.specificity_score);
