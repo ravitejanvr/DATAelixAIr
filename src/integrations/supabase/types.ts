@@ -2477,6 +2477,38 @@ export type Database = {
         }
         Relationships: []
       }
+      duration_modifiers: {
+        Row: {
+          created_at: string
+          diagnosis_id: string
+          duration_category: string
+          id: string
+          modifier_weight: number
+        }
+        Insert: {
+          created_at?: string
+          diagnosis_id: string
+          duration_category: string
+          id?: string
+          modifier_weight?: number
+        }
+        Update: {
+          created_at?: string
+          diagnosis_id?: string
+          duration_category?: string
+          id?: string
+          modifier_weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duration_modifiers_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       episodic_case_memory: {
         Row: {
           ai_top_diagnosis: string | null
@@ -3970,6 +4002,38 @@ export type Database = {
           },
         ]
       }
+      onset_modifiers: {
+        Row: {
+          created_at: string
+          diagnosis_id: string
+          id: string
+          modifier_weight: number
+          onset_pattern: string
+        }
+        Insert: {
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+          modifier_weight?: number
+          onset_pattern: string
+        }
+        Update: {
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+          modifier_weight?: number
+          onset_pattern?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onset_modifiers_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organ_system_activation_rules: {
         Row: {
           activation_weight: number
@@ -5216,6 +5280,47 @@ export type Database = {
         }
         Relationships: []
       }
+      symptom_cluster_modifiers: {
+        Row: {
+          cluster_name: string
+          created_at: string
+          diagnosis_id: string
+          evidence_source: string | null
+          id: string
+          min_match_count: number
+          modifier_weight: number
+          required_symptoms: string[]
+        }
+        Insert: {
+          cluster_name: string
+          created_at?: string
+          diagnosis_id: string
+          evidence_source?: string | null
+          id?: string
+          min_match_count?: number
+          modifier_weight?: number
+          required_symptoms: string[]
+        }
+        Update: {
+          cluster_name?: string
+          created_at?: string
+          diagnosis_id?: string
+          evidence_source?: string | null
+          id?: string
+          min_match_count?: number
+          modifier_weight?: number
+          required_symptoms?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "symptom_cluster_modifiers_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       symptom_diagnosis_map: {
         Row: {
           confidence_score: number
@@ -5713,6 +5818,44 @@ export type Database = {
             columns: ["visit_id"]
             isOneToOne: false
             referencedRelation: "patient_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vital_sign_modifiers: {
+        Row: {
+          condition: string
+          created_at: string
+          diagnosis_id: string
+          id: string
+          modifier_weight: number
+          threshold_value: number | null
+          vital_parameter: string
+        }
+        Insert: {
+          condition: string
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+          modifier_weight?: number
+          threshold_value?: number | null
+          vital_parameter: string
+        }
+        Update: {
+          condition?: string
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+          modifier_weight?: number
+          threshold_value?: number | null
+          vital_parameter?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vital_sign_modifiers_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
             referencedColumns: ["id"]
           },
         ]
