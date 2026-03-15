@@ -240,7 +240,8 @@ Deno.serve(async (req) => {
       if (symLiks.length > 0) {
         for (const sl of symLiks) {
           const lik = Math.max(0.01, Math.min(0.99, sl.likelihood_value));
-          const w = specificityWeight(sl.symptom_id);
+          // Use DB-stored specificity as exponent weight (higher specificity = more discriminating)
+          const w = Math.max(0.1, sl.specificity);
           weightedSymLogLik += w * Math.log(lik);
         }
         coverageRatio = totalSymptoms > 0 ? symLiks.length / totalSymptoms : 0;
