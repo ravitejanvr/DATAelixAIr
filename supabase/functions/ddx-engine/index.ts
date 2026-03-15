@@ -334,7 +334,7 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════
     const stageStart2 = Date.now();
 
-    const [likelihoodRes, dangerousRes] = await Promise.all([
+    const [likelihoodRes, dangerousRes, suppressionRes] = await Promise.all([
       supabase
         .from("symptom_likelihoods")
         .select("symptom_id, diagnosis_id, likelihood_value, diagnoses!inner(id, diagnosis_name, category, icd10_code, is_active)")
@@ -346,6 +346,9 @@ Deno.serve(async (req) => {
         .select("*, diagnoses(id, diagnosis_name, icd10_code, category)")
         .eq("must_not_miss", true)
         .order("priority", { ascending: true }),
+      supabase
+        .from("diagnosis_suppression_rules")
+        .select("dominant_diagnosis_id, suppressed_diagnosis_id, suppression_factor, requires_absence_of"),
     ]);
 
     // Build symptom→diagnosis association matrix
@@ -537,6 +540,33 @@ Deno.serve(async (req) => {
         if (activeSystems.includes(cat)) {
           d.probability = Math.min(100, Math.round(d.probability * 1.25));
         }
+      }
+    }
+
+    // ── Hypothesis Competition: Apply suppression rules ──
+    const suppressionRules = suppressionRes.data || [];
+    if (suppressionRules.length > 0) {
+      const probById: Record<string, any> = {};
+      for (const d of bayesianScores) probById[d.diagnosis_id] = d;
+
+      for (const rule of suppressionRules) {
+        const dominant = probById[rule.dominant_diagnosis_id];
+        const suppressed = probById[rule.suppressed_diagnosis_id];
+        if (!dominant || !suppressed) continue;
+        if (dominant.probability < 15) continue;
+
+        // Check if cancellation symptoms are present
+        const cancelSymptoms = (rule.requires_absence_of || []) as string[];
+        if (cancelSymptoms.length > 0) {
+          const matchedNames = allMatchedSymptoms.map((s: any) => s.symptom_name.toLowerCase());
+          const hasCancelSymptom = cancelSymptoms.some((cs: string) =>
+            matchedNames.some((ns: string) => ns.includes(cs) || cs.includes(ns))
+          );
+          if (hasCancelSymptom) continue;
+        }
+
+        const factor = parseFloat(rule.suppression_factor) || 0.3;
+        suppressed.probability = Math.round(suppressed.probability * factor);
       }
     }
 

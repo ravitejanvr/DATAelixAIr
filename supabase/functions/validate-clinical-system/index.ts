@@ -332,18 +332,29 @@ const DANGEROUS_TRIGGERS: Record<string, string[]> = {
   "chest pain": ["myocardial infarction", "pulmonary embolism", "aortic dissection", "pneumothorax"],
   "headache": ["subarachnoid hemorrhage", "meningitis", "stroke"],
   "neck stiffness": ["meningitis", "subarachnoid hemorrhage"],
-  "abdominal pain": ["appendicitis", "ectopic pregnancy", "bowel perforation", "pancreatitis"],
+  "abdominal pain": ["appendicitis", "ectopic pregnancy", "bowel perforation", "pancreatitis", "aortic aneurysm rupture"],
   "shortness of breath": ["pulmonary embolism", "pneumothorax", "acute heart failure", "anaphylaxis"],
   "weakness": ["stroke", "transient ischemic attack", "Guillain-Barré syndrome"],
   "speech difficulty": ["stroke"],
   "facial drooping": ["stroke"],
   "hemoptysis": ["pulmonary embolism", "tuberculosis"],
-  "syncope": ["cardiac arrhythmia", "aortic dissection"],
+  "syncope": ["cardiac arrhythmia", "aortic dissection", "aortic aneurysm rupture"],
   "confusion": ["meningitis", "stroke", "sepsis", "DKA"],
   "seizure": ["status epilepticus", "meningitis"],
   "fever": ["sepsis", "meningitis"],
   "hypotension": ["sepsis", "anaphylaxis"],
   "leg swelling": ["deep vein thrombosis", "heart failure"],
+  "back pain": ["cauda equina syndrome", "aortic aneurysm rupture"],
+  "saddle anesthesia": ["cauda equina syndrome"],
+  "urinary retention": ["cauda equina syndrome"],
+  "bowel incontinence": ["cauda equina syndrome"],
+  "leg weakness": ["cauda equina syndrome", "stroke"],
+  "scrotal pain": ["testicular torsion"],
+  "testicular pain": ["testicular torsion"],
+  "pelvic pain": ["ovarian torsion", "ectopic pregnancy"],
+  "eye pain": ["acute angle-closure glaucoma"],
+  "visual loss": ["acute angle-closure glaucoma", "retinal detachment", "giant cell arteritis"],
+  "pulsatile abdominal mass": ["aortic aneurysm rupture"],
 };
 
 function normalize(s: string): string {
@@ -669,6 +680,7 @@ interface PreloadedSignals {
   allSyndromeSymptomEdges: any[];
   allSyndromeDiseaseEdges: any[];
   allSyndromeNodes: any[];
+  allSuppressionRules: any[];
 }
 
 // ── Syndrome Cluster Detection Engine ──
@@ -1072,6 +1084,36 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
       posteriors[i].posterior_probability = parseFloat((expScores[i] / sumExp * 100).toFixed(2));
     }
 
+    // ── Hypothesis Competition: Apply suppression rules ──
+    const suppressionRules = preloaded.allSuppressionRules || [];
+    if (suppressionRules.length > 0) {
+      const posteriorById: Record<string, any> = {};
+      for (const p of posteriors) posteriorById[p.diagnosis_id] = p;
+
+      for (const rule of suppressionRules) {
+        const dominant = posteriorById[rule.dominant_diagnosis_id];
+        const suppressed = posteriorById[rule.suppressed_diagnosis_id];
+        if (!dominant || !suppressed) continue;
+
+        // Only apply if dominant is in top 3 and has significant probability
+        if (dominant.posterior_probability < 15) continue;
+
+        // Check if cancellation symptoms are present (requires_absence_of)
+        const cancelSymptoms = (rule.requires_absence_of || []) as string[];
+        if (cancelSymptoms.length > 0) {
+          const scenarioSyms = matchedSymptomNames;
+          const hasCancelSymptom = cancelSymptoms.some((cs: string) =>
+            scenarioSyms.some((ss: string) => ss.includes(cs) || cs.includes(ss))
+          );
+          if (hasCancelSymptom) continue; // Cancel suppression — alarm symptoms present
+        }
+
+        // Apply suppression
+        const factor = parseFloat(rule.suppression_factor) || 0.3;
+        suppressed.posterior_probability *= factor;
+      }
+    }
+
     // Must-not-miss floor
     for (const p of posteriors) {
       if (p.is_dangerous && p.posterior_probability < 3) p.posterior_probability = 3;
@@ -1198,7 +1240,7 @@ Deno.serve(async (req) => {
     // Load lookup tables + ALL signal modifier tables in parallel (once)
     const [specRes, organRes, activationRes, physMapRes, physDiagRes,
            priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes, locEdgesRes, systemTagsRes,
-           syndromeNodesRes, syndromeSymEdgesRes, syndromeDxEdgesRes] = await Promise.all([
+           syndromeNodesRes, syndromeSymEdgesRes, syndromeDxEdgesRes, suppressionRes] = await Promise.all([
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
       supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
@@ -1217,6 +1259,8 @@ Deno.serve(async (req) => {
       supabase.from("cluster_nodes").select("cluster_id, cluster_name, min_activation_score"),
       supabase.from("symptom_cluster_edges").select("symptom_id, cluster_id, likelihood_weight"),
       supabase.from("cluster_disease_edges").select("cluster_id, disease_id, association_strength"),
+      // Hypothesis competition rules
+      supabase.from("diagnosis_suppression_rules").select("dominant_diagnosis_id, suppressed_diagnosis_id, suppression_factor, requires_absence_of"),
     ]);
 
     const preloadedSignals: PreloadedSignals = {
@@ -1232,6 +1276,7 @@ Deno.serve(async (req) => {
       allSyndromeNodes: syndromeNodesRes.data || [],
       allSyndromeSymptomEdges: syndromeSymEdgesRes.data || [],
       allSyndromeDiseaseEdges: syndromeDxEdgesRes.data || [],
+      allSuppressionRules: suppressionRes.data || [],
     };
 
     const specificityMap: Record<string, number> = {};
