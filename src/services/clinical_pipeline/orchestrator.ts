@@ -57,6 +57,7 @@ import type { UnifiedClinicalContextGraph } from "@/services/pcie/context_graph"
 import { runMetaReasoning, resolveReasoningConflict, type MetaReasoningOutput, type ConflictResolution } from "@/services/meta_reasoning";
 import { testHypotheses, type HypothesisTestResult } from "@/services/hypothesis_testing/client";
 import { planEvidence, type EvidencePlanResult } from "@/services/evidence_planning/client";
+import { planAndPersistEvidence } from "@/services/cognitive/evidence_planner";
 import { runCausalReasoning, type CausalReasoningResult } from "@/services/causal_reasoning/client";
 import { getCalibrationFactors, buildCalibrationMap, type CalibrationResult } from "@/services/learning_system/calibration_client";
 import { queryEpisodicMemory, buildEpisodicPriors, type EpisodicMemoryResult } from "@/services/episodic_memory/client";
@@ -1220,6 +1221,7 @@ export async function runUnifiedClinicalPipeline(
     })(),
 
     // 3e: Evidence Planning Engine (optimal next tests by information gain)
+    // Uses planAndPersistEvidence to persist information gain data for learning loop
     (async (): Promise<EvidencePlanResult | null> => {
       if (!ddxResult || ddxResult.differential_diagnoses.length < 2) {
         console.log("[Pipeline] Wave 3: Evidence planning skipped — fewer than 2 DDX candidates.");
@@ -1227,28 +1229,39 @@ export async function runUnifiedClinicalPipeline(
       }
       const t0 = performance.now();
       try {
-        const result = await withTimeout(
-          planEvidence({
-            candidate_diagnoses: ddxResult.differential_diagnoses.slice(0, 6).map(d => ({
-              diagnosis_id: d.diagnosis_id,
-              diagnosis_name: d.diagnosis_name,
-              probability: d.probability,
-              must_not_miss: d.must_not_miss,
-            })),
-            patient_symptoms: symptoms,
-            existing_tests: ddxResult.recommended_labs?.map(l => l.test_name) || [],
-            patient_age: ctx.patient_age,
-            patient_sex: ctx.patient_sex,
-          }),
-          TIMEOUT.EVIDENCE_PLANNING,
-          "evidence_planning",
-        );
+        const planInput = {
+          candidate_diagnoses: ddxResult.differential_diagnoses.slice(0, 6).map(d => ({
+            diagnosis_id: d.diagnosis_id,
+            diagnosis_name: d.diagnosis_name,
+            probability: d.probability,
+            must_not_miss: d.must_not_miss,
+          })),
+          patient_symptoms: symptoms,
+          existing_tests: ddxResult.recommended_labs?.map(l => l.test_name) || [],
+          patient_age: ctx.patient_age,
+          patient_sex: ctx.patient_sex,
+        };
+
+        // Use persistence variant when we have a clinic_id (persists information gain data)
+        const result = input.clinic_id
+          ? await withTimeout(
+              planAndPersistEvidence(planInput, input.clinic_id, input.visit_id || undefined)
+                .then(r => r ? { planned_tests: r.planned_tests, summary: r.summary, execution_ms: r.execution_ms } as EvidencePlanResult : null),
+              TIMEOUT.EVIDENCE_PLANNING,
+              "evidence_planning",
+            )
+          : await withTimeout(
+              planEvidence(planInput),
+              TIMEOUT.EVIDENCE_PLANNING,
+              "evidence_planning",
+            );
+
         lat.evidence_planning = Math.round(performance.now() - t0);
         if (result) {
           console.log(
             `[Pipeline] Wave 3: Evidence planning complete — ` +
             `${result.summary.high_value_tests} high-value tests from ${result.summary.total_candidate_tests} candidates ` +
-            `(${result.execution_ms}ms)`,
+            `(${result.execution_ms}ms) [persisted=${!!input.clinic_id}]`,
           );
         }
         return result;
