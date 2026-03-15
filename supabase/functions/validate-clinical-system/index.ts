@@ -1375,7 +1375,7 @@ Deno.serve(async (req) => {
       waveLatency.wave085_syndrome_ms = Date.now() - w085Start;
 
       // Wave 1: Graph (with localisation + syndrome-aware candidate expansion)
-      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel, localisation, preloadedSignals.allSystemTags, syndromeResult);
+      const graphResult = await queryGraph(supabase, expandedSymptoms, worldModel, localisation, preloadedSignals.allSystemTags, syndromeResult);
       waveLatency.wave1_graph_ms = graphResult.latency_ms;
 
       // Wave 2: DDX
