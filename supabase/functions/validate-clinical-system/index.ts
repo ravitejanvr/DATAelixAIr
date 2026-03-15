@@ -610,10 +610,94 @@ interface PreloadedSignals {
   allOnsetMods: any[];
   allVitalMods: any[];
   allClusterMods: any[];
+  allLocalisationEdges: any[];
+}
+
+// ── Category-to-system mapping for matching diagnosis categories to anatomical systems ──
+const CATEGORY_SYSTEM_MAP: Record<string, string[]> = {
+  cardiovascular: ["cardiovascular"],
+  respiratory: ["respiratory"],
+  neurological: ["neurological"],
+  gastrointestinal: ["gastrointestinal"],
+  renal: ["renal"],
+  endocrine: ["endocrine"],
+  dermatological: ["dermatologic"],
+  musculoskeletal: ["musculoskeletal"],
+  hematological: ["hematologic"],
+  infectious: ["infectious"],
+  immunological: ["immune"],
+  ophthalmological: ["ophthalmologic"],
+  pediatric: ["respiratory", "neurological", "infectious", "gastrointestinal"], // pediatric maps to multiple
+  psychiatric: ["neurological"],
+};
+
+// ── Anatomical Localisation Engine ──
+interface LocalisationResult {
+  system_distribution: Record<string, number>;
+  dominant_systems: string[];
+  localisation_confidence: number;
+}
+
+function computeLocalisation(
+  symptomNames: string[],
+  matchedSymptomIds: string[],
+  locEdges: any[],
+): LocalisationResult {
+  const systemScores: Record<string, number> = {};
+  let totalWeight = 0;
+
+  // Map symptom IDs to their localisation edges
+  const idSet = new Set(matchedSymptomIds);
+  for (const edge of locEdges) {
+    if (idSet.has(edge.symptom_id)) {
+      const w = parseFloat(edge.localisation_weight) || 0.5;
+      systemScores[edge.anatomical_system] = (systemScores[edge.anatomical_system] || 0) + w;
+      totalWeight += w;
+    }
+  }
+
+  // Normalize to probability distribution
+  const distribution: Record<string, number> = {};
+  if (totalWeight > 0) {
+    for (const [sys, score] of Object.entries(systemScores)) {
+      distribution[sys] = Math.round((score / totalWeight) * 1000) / 1000;
+    }
+  }
+
+  // Sort by weight descending
+  const sorted = Object.entries(distribution).sort(([, a], [, b]) => b - a);
+
+  // Dominant systems: top systems that together account for ≥70% of distribution
+  const dominantSystems: string[] = [];
+  let cumulative = 0;
+  for (const [sys, prob] of sorted) {
+    dominantSystems.push(sys);
+    cumulative += prob;
+    if (cumulative >= 0.70) break;
+  }
+
+  // Localisation confidence: how concentrated the distribution is (higher = more focused)
+  const maxProb = sorted.length > 0 ? sorted[0][1] : 0;
+  const confidence = Math.round(Math.min(0.95, maxProb + (dominantSystems.length <= 2 ? 0.1 : 0)) * 100) / 100;
+
+  return { system_distribution: distribution, dominant_systems: dominantSystems, localisation_confidence: confidence };
+}
+
+function diagnosisCategoryMatchesSystems(category: string, systems: string[]): boolean {
+  const cat = category?.toLowerCase() || "";
+  for (const sys of systems) {
+    // Direct match
+    if (cat.includes(sys)) return true;
+    // Check mapped systems
+    for (const [catKey, mappedSystems] of Object.entries(CATEGORY_SYSTEM_MAP)) {
+      if (cat.includes(catKey) && mappedSystems.includes(sys)) return true;
+    }
+  }
+  return false;
 }
 
 // ── Wave 3: Bayesian Engine (Full Signal Integration) ──
-async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState, preloaded: PreloadedSignals) {
+async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState, preloaded: PreloadedSignals, localisation: LocalisationResult) {
   const start = Date.now();
   try {
     const candidates = (ddxResult.differential_diagnoses || []).slice(0, 10);
@@ -780,10 +864,32 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
         logPosterior += Math.log(Math.max(w, 1e-4));
       }
 
-      // World model organ system boost (mild)
+      // Anatomical localisation modifier (replaces simple world model boost)
+      let localisationMod = 1.0;
+      const category = (c.category || "").toLowerCase();
+      if (localisation.dominant_systems.length > 0 && localisation.localisation_confidence > 0.3) {
+        const matchesDominant = diagnosisCategoryMatchesSystems(category, localisation.dominant_systems);
+        if (matchesDominant) {
+          // Boost: proportional to how concentrated the distribution is on this system
+          const systemProb = localisation.dominant_systems.reduce((max, sys) => {
+            if (diagnosisCategoryMatchesSystems(category, [sys])) {
+              return Math.max(max, localisation.system_distribution[sys] || 0);
+            }
+            return max;
+          }, 0);
+          localisationMod = 1.0 + (systemProb * localisation.localisation_confidence * 1.5);
+          logPosterior += Math.log(localisationMod);
+        } else if (localisation.localisation_confidence > 0.5) {
+          // Mild penalty for off-system diagnoses (not too aggressive)
+          localisationMod = 0.7;
+          logPosterior += Math.log(localisationMod);
+        }
+      }
+
+      // World model organ system boost (mild, complementary to localisation)
       const dominantSystem = worldModel.organ_systems[0] || "";
-      if (dominantSystem && (c.category || "").toLowerCase().includes(dominantSystem.toLowerCase())) {
-        const systemWeight = Math.min(1.5, 1.0 + ((worldModel.organ_system_weights[dominantSystem] || 1.0) - 1.0) * 0.2);
+      if (dominantSystem && category.includes(dominantSystem.toLowerCase()) && localisationMod === 1.0) {
+        const systemWeight = Math.min(1.3, 1.0 + ((worldModel.organ_system_weights[dominantSystem] || 1.0) - 1.0) * 0.15);
         logPosterior += Math.log(systemWeight);
       }
 
@@ -799,6 +905,7 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
         onset_modifier: onMod,
         vital_modifier: vitalMod,
         cluster_modifier: clusterMod,
+        localisation_modifier: localisationMod,
         coverage_ratio: coverageRatio,
         log_score: logPosterior,
         posterior: Math.exp(logPosterior),
@@ -837,6 +944,7 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
         onset: onsetCategory,
         vital_modifiers: Object.keys(vitalModMap).length,
         cluster_modifiers: Object.keys(clusterModMap).length,
+        localisation: { dominant_systems: localisation.dominant_systems, confidence: localisation.localisation_confidence },
       },
       latency_ms: Date.now() - start,
     };
@@ -939,7 +1047,7 @@ Deno.serve(async (req) => {
 
     // Load lookup tables + ALL signal modifier tables in parallel (once)
     const [specRes, organRes, activationRes, physMapRes, physDiagRes,
-           priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes] = await Promise.all([
+           priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes, locEdgesRes] = await Promise.all([
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
       supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
@@ -953,6 +1061,7 @@ Deno.serve(async (req) => {
       supabase.from("onset_modifiers").select("diagnosis_id, onset_pattern, modifier_weight"),
       supabase.from("vital_sign_modifiers").select("diagnosis_id, vital_parameter, condition, threshold_value, modifier_weight"),
       supabase.from("symptom_cluster_modifiers").select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight"),
+      supabase.from("symptom_localisation_edges").select("symptom_id, anatomical_system, localisation_weight"),
     ]);
 
     const preloadedSignals: PreloadedSignals = {
@@ -963,6 +1072,7 @@ Deno.serve(async (req) => {
       allOnsetMods: onsetModsRes.data || [],
       allVitalMods: vitalModsRes.data || [],
       allClusterMods: clusterModsRes.data || [],
+      allLocalisationEdges: locEdgesRes.data || [],
     };
 
     const specificityMap: Record<string, number> = {};
@@ -1015,8 +1125,22 @@ Deno.serve(async (req) => {
       const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
       waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
 
-      // Wave 3: Bayesian
-      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals);
+      // Wave 2.5: Anatomical Localisation (pre-Bayesian, in-memory using graph-matched symptoms)
+      const w25Start = Date.now();
+      // Reuse symptom IDs already resolved by the graph query (avoid extra DB call)
+      const locSymptomRes2 = await supabase.from("symptoms").select("id").or(
+        scenario.symptoms.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")
+      );
+      const locSymptomIds = (locSymptomRes2.data || []).map((s: any) => s.id);
+      const localisation = computeLocalisation(
+        scenario.symptoms.map((s: string) => s.toLowerCase()),
+        locSymptomIds,
+        preloadedSignals.allLocalisationEdges,
+      );
+      waveLatency.wave25_localisation_ms = Date.now() - w25Start;
+
+      // Wave 3: Bayesian (with localisation)
+      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals, localisation);
       waveLatency.wave3_bayesian_ms = bayesianResult.latency_ms;
 
       // Wave 4: Safety
@@ -1080,6 +1204,7 @@ Deno.serve(async (req) => {
         suggested_labs: (ddxResult.recommended_labs || []).map((l: any) => l.test_name).slice(0, 5),
         suggested_drugs: (ddxResult.suggested_medications || []).map((m: any) => m.generic_name).slice(0, 5),
         world_model: { organ_systems: worldModel.organ_systems, risk_level: worldModel.risk_level, hypotheses: worldModel.hypotheses.length, physiology: worldModel.physiological_states.length, traces: worldModel.reasoning_traces.length },
+        localisation: { dominant_systems: localisation.dominant_systems, confidence: localisation.localisation_confidence, distribution: localisation.system_distribution },
         wave_latency: waveLatency,
         total_latency_ms: totalMs,
         soap_valid: soapResult.soap_valid,
@@ -1111,7 +1236,7 @@ Deno.serve(async (req) => {
     const p95 = latencies[Math.floor(latencies.length * 0.95)] || 0;
     const p99 = latencies[Math.floor(latencies.length * 0.99)] || 0;
 
-    const waveKeys = ["wave0_pcie_ms", "wave05_world_model_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
+    const waveKeys = ["wave0_pcie_ms", "wave05_world_model_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave25_localisation_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
     const avgWaveLatency: Record<string, number> = {};
     for (const key of waveKeys) avgWaveLatency[key] = Math.round(scenarioResults.reduce((a, s) => a + (s.wave_latency[key] || 0), 0) / total);
 
