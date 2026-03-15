@@ -57,6 +57,7 @@ import type { UnifiedClinicalContextGraph } from "@/services/pcie/context_graph"
 import { runMetaReasoning, resolveReasoningConflict, type MetaReasoningOutput, type ConflictResolution } from "@/services/meta_reasoning";
 import { testHypotheses, type HypothesisTestResult } from "@/services/hypothesis_testing/client";
 import { planEvidence, type EvidencePlanResult } from "@/services/evidence_planning/client";
+import { planAndPersistEvidence } from "@/services/cognitive/evidence_planner";
 import { runCausalReasoning, type CausalReasoningResult } from "@/services/causal_reasoning/client";
 import { getCalibrationFactors, buildCalibrationMap, type CalibrationResult } from "@/services/learning_system/calibration_client";
 import { queryEpisodicMemory, buildEpisodicPriors, type EpisodicMemoryResult } from "@/services/episodic_memory/client";
