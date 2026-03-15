@@ -1404,7 +1404,7 @@ Deno.serve(async (req) => {
     const p95 = latencies[Math.floor(latencies.length * 0.95)] || 0;
     const p99 = latencies[Math.floor(latencies.length * 0.99)] || 0;
 
-    const waveKeys = ["wave0_pcie_ms", "wave05_world_model_ms", "wave075_localisation_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
+    const waveKeys = ["wave0_pcie_ms", "wave05_world_model_ms", "wave075_localisation_ms", "wave085_syndrome_ms", "wave1_graph_ms", "wave2_ddx_ms", "wave3_bayesian_ms", "wave4_safety_ms", "wave5_soap_ms"];
     const avgWaveLatency: Record<string, number> = {};
     for (const key of waveKeys) avgWaveLatency[key] = Math.round(scenarioResults.reduce((a, s) => a + (s.wave_latency[key] || 0), 0) / total);
 
