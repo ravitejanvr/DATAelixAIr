@@ -631,50 +631,63 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
     // ── Only symptom resolution + likelihoods need per-scenario queries ──
     const symptomRes = await supabase.from("symptoms").select("id, symptom_name").or(symptomNames.map((s: string) => `symptom_name.ilike.%${s}%`).join(","));
 
-    // ── Build lookup maps ──
+    // ── Build lookup maps from pre-loaded data (in-memory filter) ──
     const priorMap: Record<string, any> = {};
-    for (const p of (priorRes.data || [])) priorMap[p.diagnosis_id] = p;
+    for (const p of preloaded.allPriors) { if (dxIds.has(p.diagnosis_id)) priorMap[p.diagnosis_id] = p; }
 
     const symptomIds = (symptomRes.data || []).map((s: any) => s.id);
     const symptomNameById: Record<string, string> = {};
     for (const s of (symptomRes.data || [])) symptomNameById[s.id] = s.symptom_name;
     const matchedSymptomNames = (symptomRes.data || []).map((s: any) => s.symptom_name.toLowerCase());
 
-    // Symptom likelihoods
+    // Symptom likelihoods (only query that must be per-scenario due to symptom specificity)
     let likelihoodMap: Record<string, Record<string, { lk: number; spec: number }>> = {};
-    if (symptomIds.length > 0 && dxIds.length > 0) {
-      const { data: lkRows } = await supabase.from("symptom_likelihoods").select("diagnosis_id, symptom_id, likelihood_value, symptom_specificity").in("diagnosis_id", dxIds).in("symptom_id", symptomIds);
+    if (symptomIds.length > 0 && dxIdsArr.length > 0) {
+      const { data: lkRows } = await supabase.from("symptom_likelihoods").select("diagnosis_id, symptom_id, likelihood_value, symptom_specificity").in("diagnosis_id", dxIdsArr).in("symptom_id", symptomIds);
       for (const lk of (lkRows || [])) {
         if (!likelihoodMap[lk.diagnosis_id]) likelihoodMap[lk.diagnosis_id] = {};
         likelihoodMap[lk.diagnosis_id][lk.symptom_id] = { lk: lk.likelihood_value, spec: lk.symptom_specificity ?? 0.5 };
       }
     }
 
-    // Risk factor modifiers
+    // Risk factor modifiers (in-memory filter)
     const riskModMap: Record<string, number[]> = {};
-    for (const rm of (riskModRes.data || [])) {
-      if (!riskModMap[rm.diagnosis_id]) riskModMap[rm.diagnosis_id] = [];
-      riskModMap[rm.diagnosis_id].push(rm.modifier_weight);
+    for (const rm of preloaded.allRiskMods) {
+      if (dxIds.has(rm.diagnosis_id) && historyItems.includes(rm.risk_factor)) {
+        if (!riskModMap[rm.diagnosis_id]) riskModMap[rm.diagnosis_id] = [];
+        riskModMap[rm.diagnosis_id].push(rm.modifier_weight);
+      }
     }
 
-    // Medical history modifiers
+    // Medical history modifiers (in-memory filter)
     const historyMultMap: Record<string, number> = {};
-    for (const hm of (historyModRes.data || [])) {
-      const current = historyMultMap[hm.diagnosis_id] || 1.0;
-      historyMultMap[hm.diagnosis_id] = Math.max(current, hm.prior_multiplier * hm.confidence);
+    for (const hm of preloaded.allHistoryMods) {
+      if (dxIds.has(hm.diagnosis_id) && historyItems.includes(hm.history_condition)) {
+        const current = historyMultMap[hm.diagnosis_id] || 1.0;
+        historyMultMap[hm.diagnosis_id] = Math.max(current, hm.prior_multiplier * hm.confidence);
+      }
     }
 
-    // Duration modifiers
+    // Duration modifiers (in-memory filter)
     const durationModMap: Record<string, number> = {};
-    for (const dm of (durationModRes.data || [])) durationModMap[dm.diagnosis_id] = dm.modifier_weight;
+    if (durationCategory) {
+      for (const dm of preloaded.allDurationMods) {
+        if (dxIds.has(dm.diagnosis_id) && dm.duration_category === durationCategory) durationModMap[dm.diagnosis_id] = dm.modifier_weight;
+      }
+    }
 
-    // Onset modifiers
+    // Onset modifiers (in-memory filter)
     const onsetModMap: Record<string, number> = {};
-    for (const om of (onsetModRes.data || [])) onsetModMap[om.diagnosis_id] = om.modifier_weight;
+    if (onsetCategory) {
+      for (const om of preloaded.allOnsetMods) {
+        if (dxIds.has(om.diagnosis_id) && om.onset_pattern === onsetCategory) onsetModMap[om.diagnosis_id] = om.modifier_weight;
+      }
+    }
 
-    // Vital sign modifiers
+    // Vital sign modifiers (in-memory filter)
     const vitalModMap: Record<string, number[]> = {};
-    for (const vm of (vitalModRes.data || [])) {
+    for (const vm of preloaded.allVitalMods) {
+      if (!dxIds.has(vm.diagnosis_id)) continue;
       const vitalValue = getVitalValue(vitals, vm.vital_parameter);
       if (vitalValue === null) continue;
       const applies = vm.condition === "above" ? vitalValue > vm.threshold_value : vitalValue < vm.threshold_value;
@@ -684,9 +697,10 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
       }
     }
 
-    // Symptom cluster modifiers
+    // Symptom cluster modifiers (in-memory filter)
     const clusterModMap: Record<string, number> = {};
-    for (const cm of (clusterModRes.data || [])) {
+    for (const cm of preloaded.allClusterMods) {
+      if (!dxIds.has(cm.diagnosis_id)) continue;
       const matchCount = (cm.required_symptoms as string[]).filter((rs: string) =>
         matchedSymptomNames.some((ns: string) => ns === rs || ns.includes(rs) || rs.includes(ns))
       ).length;
