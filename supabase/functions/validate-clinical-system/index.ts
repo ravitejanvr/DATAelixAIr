@@ -1210,7 +1210,7 @@ Deno.serve(async (req) => {
     // Load lookup tables + ALL signal modifier tables in parallel (once)
     const [specRes, organRes, activationRes, physMapRes, physDiagRes,
            priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes, locEdgesRes, systemTagsRes,
-           syndromeNodesRes, syndromeSymEdgesRes, syndromeDxEdgesRes] = await Promise.all([
+           syndromeNodesRes, syndromeSymEdgesRes, syndromeDxEdgesRes, suppressionRes] = await Promise.all([
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
       supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
@@ -1229,6 +1229,8 @@ Deno.serve(async (req) => {
       supabase.from("cluster_nodes").select("cluster_id, cluster_name, min_activation_score"),
       supabase.from("symptom_cluster_edges").select("symptom_id, cluster_id, likelihood_weight"),
       supabase.from("cluster_disease_edges").select("cluster_id, disease_id, association_strength"),
+      // Hypothesis competition rules
+      supabase.from("diagnosis_suppression_rules").select("dominant_diagnosis_id, suppressed_diagnosis_id, suppression_factor, requires_absence_of"),
     ]);
 
     const preloadedSignals: PreloadedSignals = {
