@@ -1,0 +1,1 @@
+ALTER TABLE public.symptom_likelihoods ADD COLUMN IF NOT EXISTS symptom_specificity NUMERIC DEFAULT 0.5;
