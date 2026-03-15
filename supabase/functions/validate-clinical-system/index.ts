@@ -905,6 +905,7 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
         onset_modifier: onMod,
         vital_modifier: vitalMod,
         cluster_modifier: clusterMod,
+        localisation_modifier: localisationMod,
         coverage_ratio: coverageRatio,
         log_score: logPosterior,
         posterior: Math.exp(logPosterior),
