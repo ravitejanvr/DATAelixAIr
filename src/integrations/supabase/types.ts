@@ -1428,6 +1428,7 @@ export type Database = {
           diagnosis_name: string
           icd10_code: string | null
           id: string
+          is_active: boolean | null
         }
         Insert: {
           category?: string
@@ -1435,6 +1436,7 @@ export type Database = {
           diagnosis_name: string
           icd10_code?: string | null
           id?: string
+          is_active?: boolean | null
         }
         Update: {
           category?: string
@@ -1442,6 +1444,7 @@ export type Database = {
           diagnosis_name?: string
           icd10_code?: string | null
           id?: string
+          is_active?: boolean | null
         }
         Relationships: []
       }
