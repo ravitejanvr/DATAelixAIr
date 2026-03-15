@@ -601,13 +601,25 @@ function getVitalValue(vitals: Record<string, any>, parameter: string): number |
   return num;
 }
 
+// ── Pre-loaded signal data interface ──
+interface PreloadedSignals {
+  allPriors: any[];
+  allRiskMods: any[];
+  allHistoryMods: any[];
+  allDurationMods: any[];
+  allOnsetMods: any[];
+  allVitalMods: any[];
+  allClusterMods: any[];
+}
+
 // ── Wave 3: Bayesian Engine (Full Signal Integration) ──
-async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState) {
+async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState, preloaded: PreloadedSignals) {
   const start = Date.now();
   try {
     const candidates = (ddxResult.differential_diagnoses || []).slice(0, 10);
     if (candidates.length === 0) return { diagnoses: [], signal_strength: 0, latency_ms: Date.now() - start };
-    const dxIds = candidates.map((c: any) => c.diagnosis_id).filter(Boolean);
+    const dxIds = new Set(candidates.map((c: any) => c.diagnosis_id).filter(Boolean));
+    const dxIdsArr = [...dxIds];
     const symptomNames = (scenario.symptoms || []).map((s: string) => s.toLowerCase().trim());
     const historyItems = (scenario.history || []).map((h: string) => h.toLowerCase().trim());
     const vitals = scenario.vitals || {};
@@ -616,25 +628,8 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
     const durationCategory = classifyDuration(scenario.chief_complaint);
     const onsetCategory = classifyOnset(scenario.chief_complaint);
 
-    // ── Parallel fetch: ALL signal tables ──
-    const [priorRes, symptomRes, riskModRes, historyModRes, durationModRes, onsetModRes, vitalModRes, clusterModRes] = await Promise.all([
-      supabase.from("disease_priors").select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier").in("diagnosis_id", dxIds),
-      supabase.from("symptoms").select("id, symptom_name").or(symptomNames.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")),
-      historyItems.length > 0
-        ? supabase.from("risk_factor_modifiers").select("diagnosis_id, risk_factor, modifier_weight").in("diagnosis_id", dxIds).in("risk_factor", historyItems)
-        : Promise.resolve({ data: [] }),
-      historyItems.length > 0
-        ? supabase.from("medical_history_modifiers").select("diagnosis_id, history_condition, prior_multiplier, confidence").in("diagnosis_id", dxIds).in("history_condition", historyItems)
-        : Promise.resolve({ data: [] }),
-      durationCategory
-        ? supabase.from("duration_modifiers").select("diagnosis_id, duration_category, modifier_weight").in("diagnosis_id", dxIds).eq("duration_category", durationCategory)
-        : Promise.resolve({ data: [] }),
-      onsetCategory
-        ? supabase.from("onset_modifiers").select("diagnosis_id, onset_pattern, modifier_weight").in("diagnosis_id", dxIds).eq("onset_pattern", onsetCategory)
-        : Promise.resolve({ data: [] }),
-      supabase.from("vital_sign_modifiers").select("diagnosis_id, vital_parameter, condition, threshold_value, modifier_weight").in("diagnosis_id", dxIds),
-      supabase.from("symptom_cluster_modifiers").select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight").in("diagnosis_id", dxIds),
-    ]);
+    // ── Only symptom resolution + likelihoods need per-scenario queries ──
+    const symptomRes = await supabase.from("symptoms").select("id, symptom_name").or(symptomNames.map((s: string) => `symptom_name.ilike.%${s}%`).join(","));
 
     // ── Build lookup maps ──
     const priorMap: Record<string, any> = {};
