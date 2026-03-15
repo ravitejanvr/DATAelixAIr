@@ -523,7 +523,10 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
 
   const finalRanking = rankedCandidates.slice(0, 10).map((c, i) => ({
     rank: i + 1,
-    ...c,
+    diagnosis: c.diagnosis,
+    diagnosis_id: c.diagnosis_id,
+    probability: c.probability,
+    ranking_source: c.ranking_source,
   }));
 
   const finalGoldRank = finalRanking.findIndex(d =>
