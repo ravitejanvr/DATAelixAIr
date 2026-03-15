@@ -302,15 +302,21 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     gold_rank_after_bayesian: bayGoldIdx >= 0 ? bayGoldIdx + 1 : null,
   };
 
-  // ── STAGE 5: Cognitive Pruning (in-memory) ──
+  // ── STAGE 5: Cognitive Pruning (in-memory, using BAYESIAN posteriors) ──
   const s5 = performance.now();
-  const cogInput = ddxDiagnoses.map((d: any) => ({
-    diagnosis_name: d.diagnosis_name || d.diagnosis || "",
-    probability: d.probability || 0,
-    must_not_miss: d.must_not_miss || false,
-    supporting_symptoms: d.supporting_symptoms || [],
-    contradicting_factors: d.contradicting_factors || [],
-  }));
+
+  // Use Bayesian posteriors for pruning decisions (not stale DDX probabilities)
+  const cogInput = ddxDiagnoses.map((d: any) => {
+    const bayPost = bayesianIdLookup.get(d.diagnosis_id);
+    const probability = bayPost != null ? bayPost * 100 : (d.probability || 0);
+    return {
+      diagnosis_name: d.diagnosis_name || d.diagnosis || "",
+      probability,
+      must_not_miss: d.must_not_miss || false,
+      supporting_symptoms: d.supporting_symptoms || [],
+      contradicting_factors: d.contradicting_factors || [],
+    };
+  });
   const cogOutput = runCognitiveController(cogInput, []);
   const s5ms = Math.round(performance.now() - s5);
 
@@ -333,7 +339,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     failures.push("Gold diagnosis was incorrectly pruned by cognitive controller");
   }
 
-  // ── STAGE 6: Safety Evaluation (from DDX output) ──
+  // ── STAGE 6: Safety Evaluation (DDX flags + independent symptom cluster detection) ──
   const dangerousList: string[] = [];
   for (const d of ddxDiagnoses) {
     if (d.must_not_miss) {
@@ -344,6 +350,66 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     for (const d of ddxResult.dangerous_diagnoses) {
       const name = typeof d === "string" ? d : (d.diagnosis_name || String(d));
       if (name) dangerousList.push(name.trim());
+    }
+  }
+
+  // ── Independent symptom cluster detection ──
+  const symptomsLower = symptoms.map(s => s.toLowerCase());
+  const allInputLower = [...symptomsLower, ...(sc.context.chief_complaint ? [sc.context.chief_complaint.toLowerCase()] : [])];
+
+  const SAFETY_CLUSTERS: Array<{ condition: string; required: number; symptoms: string[] }> = [
+    {
+      condition: "Sepsis",
+      required: 3,
+      symptoms: ["fever", "tachycardia", "hypotension", "confusion", "rapid breathing", "tachypnea", "chills", "altered mental status"],
+    },
+    {
+      condition: "Stroke",
+      required: 2,
+      symptoms: ["sudden weakness", "facial droop", "speech difficulty", "slurred speech", "numbness", "hemiparesis", "vision loss"],
+    },
+    {
+      condition: "Pulmonary Embolism",
+      required: 2,
+      symptoms: ["sudden dyspnea", "chest pain", "tachycardia", "hemoptysis", "pleuritic chest pain", "shortness of breath", "leg swelling"],
+    },
+    {
+      condition: "Acute Coronary Syndrome",
+      required: 2,
+      symptoms: ["chest pain", "radiating arm pain", "jaw pain", "diaphoresis", "nausea", "crushing chest pressure", "shortness of breath"],
+    },
+    {
+      condition: "Meningitis",
+      required: 2,
+      symptoms: ["neck stiffness", "fever", "headache", "photophobia", "confusion", "altered mental status", "rash"],
+    },
+    {
+      condition: "Pneumothorax",
+      required: 2,
+      symptoms: ["sudden chest pain", "chest pain", "dyspnea", "shortness of breath", "decreased breath sounds", "pleuritic pain"],
+    },
+    {
+      condition: "Diabetic Ketoacidosis",
+      required: 2,
+      symptoms: ["nausea", "vomiting", "abdominal pain", "fruity breath", "polyuria", "polydipsia", "confusion", "rapid breathing"],
+    },
+    {
+      condition: "Anaphylaxis",
+      required: 2,
+      symptoms: ["urticaria", "angioedema", "dyspnea", "hypotension", "wheezing", "throat swelling", "rash"],
+    },
+  ];
+
+  for (const cluster of SAFETY_CLUSTERS) {
+    const matched = cluster.symptoms.filter(cs =>
+      allInputLower.some(s => s.includes(cs) || cs.includes(s))
+    );
+    if (matched.length >= cluster.required) {
+      // Check if already in candidates
+      const inCandidates = candidates.some((c: any) => diagMatch(c.name, cluster.condition));
+      if (inCandidates && !dangerousList.some(d => diagMatch(d, cluster.condition))) {
+        dangerousList.push(cluster.condition);
+      }
     }
   }
 
@@ -386,7 +452,23 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     detection_details: detectionDetails,
   };
 
-  // ── STAGE 7: Final Ranked Diagnoses (Bayesian-authoritative) ──
+  // ── STAGE 7: Final Ranked Diagnoses (Bayesian-authoritative + safety override) ──
+
+  // Known dangerous condition names for safety override
+  const KNOWN_DANGEROUS_FOR_RANKING = new Set([
+    "sepsis", "stroke", "meningitis", "pulmonary embolism",
+    "acute coronary syndrome", "myocardial infarction",
+    "aortic dissection", "pneumothorax", "diabetic ketoacidosis",
+    "anaphylaxis", "subarachnoid hemorrhage",
+  ]);
+
+  function isDangerousForRanking(name: string): boolean {
+    const lower = name.toLowerCase().trim();
+    for (const dc of KNOWN_DANGEROUS_FOR_RANKING) {
+      if (lower.includes(dc) || dc.includes(lower)) return true;
+    }
+    return false;
+  }
 
   // Assign each DDX candidate its Bayesian posterior (or fallback 0.001)
   const rankedCandidates = candidates.slice(0, 15).map((c: any) => {
@@ -410,11 +492,34 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
       diagnosis_id: c.diagnosis_id,
       probability: hasBayesian ? bayProb! : 0.001,
       ranking_source: (hasBayesian ? "bayesian" : "fallback_ddx") as "bayesian" | "fallback_ddx",
+      must_not_miss: c.must_not_miss || isDangerousForRanking(c.name),
     };
   });
 
   // Sort by Bayesian posterior descending
   rankedCandidates.sort((a, b) => b.probability - a.probability);
+
+  // Safety override: dangerous diagnoses with meaningful probability must rank in top 3
+  const MAX_SAFE_RANK = 3;
+  const MIN_DANGER_PROBABILITY = 0.02; // 2% threshold for safety override
+  for (let i = MAX_SAFE_RANK; i < rankedCandidates.length; i++) {
+    const c = rankedCandidates[i];
+    if (c.must_not_miss && c.probability >= MIN_DANGER_PROBABILITY) {
+      // Find last non-dangerous candidate in top 3 to swap with
+      let swapIdx = -1;
+      for (let j = MAX_SAFE_RANK - 1; j >= 0; j--) {
+        if (!rankedCandidates[j].must_not_miss) {
+          swapIdx = j;
+          break;
+        }
+      }
+      if (swapIdx >= 0) {
+        const temp = rankedCandidates[swapIdx];
+        rankedCandidates[swapIdx] = c;
+        rankedCandidates[i] = temp;
+      }
+    }
+  }
 
   const finalRanking = rankedCandidates.slice(0, 10).map((c, i) => ({
     rank: i + 1,
