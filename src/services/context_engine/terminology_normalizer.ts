@@ -76,13 +76,13 @@ const SYNONYM_MAP: Record<string, string> = {
   "heavy sweating": "diaphoresis",
   "profuse sweating": "diaphoresis",
   "cold sweats": "diaphoresis",
-  "swollen legs": "edema",
-  "swollen feet": "edema",
-  "ankle swelling": "edema",
-  "leg swelling": "edema",
+  "swollen legs": "peripheral edema",
+  "swollen feet": "peripheral edema",
+  "ankle swelling": "peripheral edema",
+  "leg swelling": "peripheral edema",
   "fluid retention": "edema",
   "cannot lie flat": "orthopnea",
-  "wakes up breathless": "orthopnea",
+  "wakes up breathless": "paroxysmal nocturnal dyspnea",
 
   // Neurological
   "head pain": "headache",
