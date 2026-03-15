@@ -680,6 +680,7 @@ interface PreloadedSignals {
   allSyndromeSymptomEdges: any[];
   allSyndromeDiseaseEdges: any[];
   allSyndromeNodes: any[];
+  allSuppressionRules: any[];
 }
 
 // ── Syndrome Cluster Detection Engine ──
