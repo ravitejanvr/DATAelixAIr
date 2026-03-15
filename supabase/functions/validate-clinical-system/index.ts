@@ -1157,27 +1157,26 @@ Deno.serve(async (req) => {
       const worldModel = buildWorldModel(scenario.symptoms, scenario.vitals, activationRules, physiologyMap, physiologyDiagMap, specificityMap);
       waveLatency.wave05_world_model_ms = worldModel.latency_ms;
 
-      // Wave 1: Graph
-      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel);
-      waveLatency.wave1_graph_ms = graphResult.latency_ms;
-
-      // Wave 2: DDX
-      const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
-      waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
-
-      // Wave 2.5: Anatomical Localisation (pre-Bayesian, in-memory using graph-matched symptoms)
-      const w25Start = Date.now();
-      // Reuse symptom IDs already resolved by the graph query (avoid extra DB call)
-      const locSymptomRes2 = await supabase.from("symptoms").select("id").or(
+      // Wave 0.75: Anatomical Localisation (BEFORE candidate generation)
+      const w075Start = Date.now();
+      const locSymptomRes = await supabase.from("symptoms").select("id").or(
         scenario.symptoms.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")
       );
-      const locSymptomIds = (locSymptomRes2.data || []).map((s: any) => s.id);
+      const locSymptomIds = (locSymptomRes.data || []).map((s: any) => s.id);
       const localisation = computeLocalisation(
         scenario.symptoms.map((s: string) => s.toLowerCase()),
         locSymptomIds,
         preloadedSignals.allLocalisationEdges,
       );
-      waveLatency.wave25_localisation_ms = Date.now() - w25Start;
+      waveLatency.wave075_localisation_ms = Date.now() - w075Start;
+
+      // Wave 1: Graph (with localisation-aware candidate expansion)
+      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel, localisation, preloadedSignals.allSystemTags);
+      waveLatency.wave1_graph_ms = graphResult.latency_ms;
+
+      // Wave 2: DDX
+      const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
+      waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
 
       // Wave 3: Bayesian (with localisation)
       const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals, localisation);
