@@ -1125,8 +1125,27 @@ Deno.serve(async (req) => {
       const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
       waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
 
-      // Wave 3: Bayesian
-      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals);
+      // Wave 2.5: Anatomical Localisation (pre-Bayesian)
+      const w25Start = Date.now();
+      const matchedSymptomIds = (graphResult.matched_symptoms || []).map((name: string) => {
+        // Resolve symptom name to ID from the graph's symptom lookup
+        const syms = scenario.symptoms.map((s: string) => s.toLowerCase());
+        return null; // will be resolved below
+      });
+      // Get matched symptom IDs from graph result - query symptom IDs inline
+      const locSymptomRes = await supabase.from("symptoms").select("id, symptom_name").or(
+        scenario.symptoms.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")
+      );
+      const locSymptomIds = (locSymptomRes.data || []).map((s: any) => s.id);
+      const localisation = computeLocalisation(
+        scenario.symptoms.map((s: string) => s.toLowerCase()),
+        locSymptomIds,
+        preloadedSignals.allLocalisationEdges,
+      );
+      waveLatency.wave25_localisation_ms = Date.now() - w25Start;
+
+      // Wave 3: Bayesian (with localisation)
+      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals, localisation);
       waveLatency.wave3_bayesian_ms = bayesianResult.latency_ms;
 
       // Wave 4: Safety
