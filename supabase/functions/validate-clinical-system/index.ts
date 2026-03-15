@@ -1180,13 +1180,13 @@ Deno.serve(async (req) => {
 
     // Load lookup tables + ALL signal modifier tables in parallel (once)
     const [specRes, organRes, activationRes, physMapRes, physDiagRes,
-           priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes, locEdgesRes, systemTagsRes] = await Promise.all([
+           priorsRes, riskModsRes, histModsRes, durModsRes, onsetModsRes, vitalModsRes, clusterModsRes, locEdgesRes, systemTagsRes,
+           syndromeNodesRes, syndromeSymEdgesRes, syndromeDxEdgesRes] = await Promise.all([
       supabase.from("symptom_specificity").select("symptom_name, specificity_score, organ_system"),
       supabase.from("symptom_organ_system_map").select("symptom, organ_system, weight"),
       supabase.from("organ_system_activation_rules").select("symptom, organ_system, activation_weight"),
       supabase.from("symptom_physiology_map").select("symptoms!inner(symptom_name), physiological_states!inner(state_name, anatomical_systems:system_id(system_name)), confidence_score"),
       supabase.from("physiology_diagnosis_map").select("physiological_states!inner(state_name), diagnoses!inner(diagnosis_name), relevance_score"),
-      // Signal modifier tables (pre-loaded once, filtered in-memory per scenario)
       supabase.from("disease_priors").select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier"),
       supabase.from("risk_factor_modifiers").select("diagnosis_id, risk_factor, modifier_weight"),
       supabase.from("medical_history_modifiers").select("diagnosis_id, history_condition, prior_multiplier, confidence"),
@@ -1196,6 +1196,10 @@ Deno.serve(async (req) => {
       supabase.from("symptom_cluster_modifiers").select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight"),
       supabase.from("symptom_localisation_edges").select("symptom_id, anatomical_system, localisation_weight"),
       supabase.from("disease_system_tags").select("diagnosis_id, system_tag, confidence"),
+      // Syndrome cluster tables
+      supabase.from("cluster_nodes").select("cluster_id, cluster_name, min_activation_score"),
+      supabase.from("symptom_cluster_edges").select("symptom_id, cluster_id, likelihood_weight"),
+      supabase.from("cluster_disease_edges").select("cluster_id, disease_id, association_strength"),
     ]);
 
     const preloadedSignals: PreloadedSignals = {
@@ -1208,6 +1212,9 @@ Deno.serve(async (req) => {
       allClusterMods: clusterModsRes.data || [],
       allLocalisationEdges: locEdgesRes.data || [],
       allSystemTags: systemTagsRes.data || [],
+      allSyndromeNodes: syndromeNodesRes.data || [],
+      allSyndromeSymptomEdges: syndromeSymEdgesRes.data || [],
+      allSyndromeDiseaseEdges: syndromeDxEdgesRes.data || [],
     };
 
     const specificityMap: Record<string, number> = {};
