@@ -62,3 +62,7 @@ export function isBiasMonitoringEnabled(): boolean {
 export function isMetaLearningEnabled(): boolean {
   return currentFlags.enable_meta_learning;
 }
+
+export function isPopulationIntelligenceEnabled(): boolean {
+  return currentFlags.enable_population_intelligence;
+}
