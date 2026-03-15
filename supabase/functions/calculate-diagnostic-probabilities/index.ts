@@ -96,8 +96,8 @@ Deno.serve(async (req) => {
     // Normalize medical history for lookup
     const normalizedHistory = medical_history.map((h: string) => h.toLowerCase().trim());
     const normalizedRiskFactors = risk_factors.map((r: string) => r.toLowerCase().trim());
-    // Combine both for risk_factor_modifiers lookup (backwards compatible)
-    const allRiskSignals = [...new Set([...normalizedRiskFactors, ...normalizedHistory])];
+    // Risk factors and medical history are scored SEPARATELY to prevent double-counting
+    const allRiskSignals = normalizedRiskFactors;
 
     // ════════════════════════════════════════════
     // PARALLEL FETCH
