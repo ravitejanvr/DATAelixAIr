@@ -1016,7 +1016,7 @@ Deno.serve(async (req) => {
       waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
 
       // Wave 3: Bayesian
-      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel);
+      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals);
       waveLatency.wave3_bayesian_ms = bayesianResult.latency_ms;
 
       // Wave 4: Safety
