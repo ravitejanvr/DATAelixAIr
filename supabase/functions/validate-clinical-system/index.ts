@@ -1084,6 +1084,36 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
       posteriors[i].posterior_probability = parseFloat((expScores[i] / sumExp * 100).toFixed(2));
     }
 
+    // ── Hypothesis Competition: Apply suppression rules ──
+    const suppressionRules = preloaded.allSuppressionRules || [];
+    if (suppressionRules.length > 0) {
+      const posteriorById: Record<string, any> = {};
+      for (const p of posteriors) posteriorById[p.diagnosis_id] = p;
+
+      for (const rule of suppressionRules) {
+        const dominant = posteriorById[rule.dominant_diagnosis_id];
+        const suppressed = posteriorById[rule.suppressed_diagnosis_id];
+        if (!dominant || !suppressed) continue;
+
+        // Only apply if dominant is in top 3 and has significant probability
+        if (dominant.posterior_probability < 15) continue;
+
+        // Check if cancellation symptoms are present (requires_absence_of)
+        const cancelSymptoms = (rule.requires_absence_of || []) as string[];
+        if (cancelSymptoms.length > 0) {
+          const scenarioSyms = matchedSymptomNames;
+          const hasCancelSymptom = cancelSymptoms.some((cs: string) =>
+            scenarioSyms.some((ss: string) => ss.includes(cs) || cs.includes(ss))
+          );
+          if (hasCancelSymptom) continue; // Cancel suppression — alarm symptoms present
+        }
+
+        // Apply suppression
+        const factor = parseFloat(rule.suppression_factor) || 0.3;
+        suppressed.posterior_probability *= factor;
+      }
+    }
+
     // Must-not-miss floor
     for (const p of posteriors) {
       if (p.is_dangerous && p.posterior_probability < 3) p.posterior_probability = 3;
