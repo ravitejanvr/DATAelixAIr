@@ -1634,6 +1634,51 @@ export type Database = {
           },
         ]
       }
+      diagnosis_suppression_rules: {
+        Row: {
+          condition_description: string
+          created_at: string
+          dominant_diagnosis_id: string
+          id: string
+          requires_absence_of: string[] | null
+          suppressed_diagnosis_id: string
+          suppression_factor: number
+        }
+        Insert: {
+          condition_description?: string
+          created_at?: string
+          dominant_diagnosis_id: string
+          id?: string
+          requires_absence_of?: string[] | null
+          suppressed_diagnosis_id: string
+          suppression_factor?: number
+        }
+        Update: {
+          condition_description?: string
+          created_at?: string
+          dominant_diagnosis_id?: string
+          id?: string
+          requires_absence_of?: string[] | null
+          suppressed_diagnosis_id?: string
+          suppression_factor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnosis_suppression_rules_dominant_diagnosis_id_fkey"
+            columns: ["dominant_diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnosis_suppression_rules_suppressed_diagnosis_id_fkey"
+            columns: ["suppressed_diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diagnosis_synonyms: {
         Row: {
           canonical_diagnosis_id: string
