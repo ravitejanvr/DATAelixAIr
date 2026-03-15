@@ -103,13 +103,13 @@ Deno.serve(async (req) => {
     // PARALLEL FETCH
     // ════════════════════════════════════════════
 
-    const [priorsRes, symptomLikRes, physioLikRes, riskModRes, historyModRes, dangerousRes, symptomSpecificityRes] = await Promise.all([
+    const [priorsRes, symptomLikRes, physioLikRes, riskModRes, historyModRes, dangerousRes] = await Promise.all([
       supabase.from("disease_priors")
         .select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier")
         .in("diagnosis_id", candidate_diagnosis_ids),
       symptomIds.length > 0
         ? supabase.from("symptom_likelihoods")
-            .select("diagnosis_id, symptom_id, likelihood_value")
+            .select("diagnosis_id, symptom_id, likelihood_value, symptom_specificity")
             .in("diagnosis_id", candidate_diagnosis_ids)
             .in("symptom_id", symptomIds)
         : Promise.resolve({ data: [] }),
@@ -135,11 +135,6 @@ Deno.serve(async (req) => {
         .select("diagnosis_id, diagnosis_name, severity_level, emergency_protocol, must_not_miss")
         .eq("must_not_miss", true)
         .in("diagnosis_id", candidate_diagnosis_ids),
-      symptomIds.length > 0
-        ? supabase.from("symptom_likelihoods")
-            .select("symptom_id")
-            .in("symptom_id", symptomIds)
-        : Promise.resolve({ data: [] }),
     ]);
 
     // ════════════════════════════════════════════
@@ -151,21 +146,15 @@ Deno.serve(async (req) => {
       priorsMap.set(p.diagnosis_id, p);
     }
 
-    // Symptom specificity weights
-    const symptomDiseaseCount = new Map<string, number>();
-    for (const row of symptomSpecificityRes.data || []) {
-      symptomDiseaseCount.set(row.symptom_id, (symptomDiseaseCount.get(row.symptom_id) || 0) + 1);
-    }
-    const specificityWeight = (symptomId: string): number => {
-      const count = symptomDiseaseCount.get(symptomId) || 1;
-      return 1.0 / Math.log2(count + 1);
-    };
-
-    // Symptom likelihoods map
-    const symLikMap = new Map<string, Array<{ symptom_id: string; likelihood_value: number }>>();
+    // Symptom likelihoods map with DB-stored specificity
+    const symLikMap = new Map<string, Array<{ symptom_id: string; likelihood_value: number; specificity: number }>>();
     for (const sl of symptomLikRes.data || []) {
       if (!symLikMap.has(sl.diagnosis_id)) symLikMap.set(sl.diagnosis_id, []);
-      symLikMap.get(sl.diagnosis_id)!.push({ symptom_id: sl.symptom_id, likelihood_value: sl.likelihood_value });
+      symLikMap.get(sl.diagnosis_id)!.push({
+        symptom_id: sl.symptom_id,
+        likelihood_value: sl.likelihood_value,
+        specificity: sl.symptom_specificity ?? 0.5,
+      });
     }
 
     // Physiology likelihoods
@@ -251,7 +240,8 @@ Deno.serve(async (req) => {
       if (symLiks.length > 0) {
         for (const sl of symLiks) {
           const lik = Math.max(0.01, Math.min(0.99, sl.likelihood_value));
-          const w = specificityWeight(sl.symptom_id);
+          // Use DB-stored specificity as exponent weight (higher specificity = more discriminating)
+          const w = Math.max(0.1, sl.specificity);
           weightedSymLogLik += w * Math.log(lik);
         }
         coverageRatio = totalSymptoms > 0 ? symLiks.length / totalSymptoms : 0;
