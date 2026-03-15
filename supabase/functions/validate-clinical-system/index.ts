@@ -465,7 +465,7 @@ function buildWorldModel(
 }
 
 // ── Wave 1: Graph Retrieval (with localisation-aware candidate expansion) ──
-async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldModelState, localisation: LocalisationResult, systemTags: any[]) {
+async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldModelState, localisation: LocalisationResult, systemTags: any[], syndromeResult: SyndromeClusterResult) {
   const start = Date.now();
   try {
     const { data: symptomRows } = await supabase.from("symptoms").select("id, symptom_name").or(symptoms.map(s => `symptom_name.ilike.%${s}%`).join(","));
