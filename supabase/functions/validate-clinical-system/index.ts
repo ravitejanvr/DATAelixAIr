@@ -464,8 +464,8 @@ function buildWorldModel(
   return { organ_systems: activeOrganSystems, organ_system_weights: systemScores, physiological_states: physiologicalStates, hypotheses, dangerous_conditions: dangerousConditions, risk_level: riskLevel, state_confidence: stateConfidence, reasoning_traces: traces, latency_ms: Date.now() - start };
 }
 
-// ── Wave 1: Graph Retrieval ──
-async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldModelState) {
+// ── Wave 1: Graph Retrieval (with localisation-aware candidate expansion) ──
+async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldModelState, localisation: LocalisationResult, systemTags: any[]) {
   const start = Date.now();
   try {
     const { data: symptomRows } = await supabase.from("symptoms").select("id, symptom_name").or(symptoms.map(s => `symptom_name.ilike.%${s}%`).join(","));
@@ -481,15 +481,52 @@ async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldMo
     const scoreMap: Record<string, number> = {};
     for (const lk of (lkRes.data || [])) { diagnosisIdSet.add(lk.diagnosis_id); scoreMap[lk.diagnosis_id] = (scoreMap[lk.diagnosis_id] || 0) + (lk.likelihood_value || 0.5); }
     for (const sdm of (sdmRes.data || [])) { diagnosisIdSet.add(sdm.diagnosis_id); if (!scoreMap[sdm.diagnosis_id]) scoreMap[sdm.diagnosis_id] = 0.3; }
+
+    // ── LOCALISATION-AWARE CANDIDATE EXPANSION ──
+    // If we have dominant systems with high confidence, inject diagnoses tagged with those systems
+    // that might not have been found via symptom-likelihood edges alone
+    if (localisation.dominant_systems.length > 0 && localisation.localisation_confidence > 0.4) {
+      for (const sys of localisation.dominant_systems) {
+        const sysProbability = localisation.system_distribution[sys] || 0;
+        // Only expand for systems with significant probability
+        if (sysProbability < 0.3) continue;
+        
+        const taggedDiagnoses = systemTags.filter((t: any) => t.system_tag === sys);
+        for (const tag of taggedDiagnoses) {
+          if (!diagnosisIdSet.has(tag.diagnosis_id)) {
+            diagnosisIdSet.add(tag.diagnosis_id);
+            // Score proportional to system probability × tag confidence, but lower than symptom-matched
+            scoreMap[tag.diagnosis_id] = sysProbability * (tag.confidence || 0.5) * 0.3;
+          }
+        }
+      }
+    }
+
     const diagnosisIds = [...diagnosisIdSet];
 
     let diagnoses: any[] = [];
     if (diagnosisIds.length > 0) {
-      const { data: dxRows } = await supabase.from("diagnoses").select("id, diagnosis_name, icd10_code, category").in("id", diagnosisIds.slice(0, 30));
+      const { data: dxRows } = await supabase.from("diagnoses").select("id, diagnosis_name, icd10_code, category").in("id", diagnosisIds.slice(0, 50)).eq("is_active", true);
       const dominantSystem = worldModel.organ_systems[0] || "";
+      
+      // Build a set of system-boosted diagnosis IDs for localisation boost
+      const locBoostSet = new Set<string>();
+      if (localisation.dominant_systems.length > 0) {
+        for (const tag of systemTags) {
+          if (localisation.dominant_systems.includes(tag.system_tag)) {
+            locBoostSet.add(tag.diagnosis_id);
+          }
+        }
+      }
+
       diagnoses = (dxRows || []).map((d: any) => {
         let score = scoreMap[d.id] || 0.1;
         if (dominantSystem && d.category?.toLowerCase().includes(dominantSystem.toLowerCase())) score *= 1.3;
+        // Localisation boost: diagnoses matching dominant anatomical systems
+        if (locBoostSet.has(d.id)) {
+          const boostFactor = 1.0 + (localisation.localisation_confidence * 0.5);
+          score *= boostFactor;
+        }
         const wmH = worldModel.hypotheses.find(h => normalize(h.disease) === normalize(d.diagnosis_name));
         if (wmH) score *= (1.0 + wmH.confidence);
         return { ...d, score };
