@@ -199,16 +199,10 @@ const SYNONYM_MAP: Record<string, string> = {
   "jvd": "jugular venous distension",
   "neck vein distension": "jugular venous distension",
 
-  // Cardiac-specific
-  "cannot lie flat": "orthopnea",
-  "wakes up breathless": "paroxysmal nocturnal dyspnea",
+  // Cardiac-specific (additional)
   "pnd": "paroxysmal nocturnal dyspnea",
   "waking up short of breath": "paroxysmal nocturnal dyspnea",
-  "leg swelling": "peripheral edema",
-  "ankle swelling": "peripheral edema",
   "foot swelling": "peripheral edema",
-  "swollen legs": "peripheral edema",
-  "swollen feet": "peripheral edema",
   "positional chest pain": "pleuritic chest pain",
   "sharp chest pain with breathing": "pleuritic chest pain",
   "pain worse with breathing": "pleuritic chest pain",
