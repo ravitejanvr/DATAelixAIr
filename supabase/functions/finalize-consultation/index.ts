@@ -582,6 +582,163 @@ Deno.serve(async (req) => {
       results.stages.push({ stage: "adaptive_intelligence", status: "skipped" });
     }
 
+    // ── Stage 5.7: Phase 4 — Population Intelligence (fire-and-forget) ──
+    // Unsupervised symptom cluster discovery + supervised prior recalibration.
+    // Triggered at case volume thresholds. All non-blocking.
+    try {
+      if (clinic_id) {
+        const { count: totalEpisodicCases } = await admin.from("episodic_case_memory")
+          .select("id", { count: "exact", head: true })
+          .eq("clinic_id", clinic_id);
+
+        // 5.7a: Unsupervised Symptom Cluster Discovery
+        // Runs every 25 cases — detects novel symptom co-occurrence patterns
+        if (totalEpisodicCases && totalEpisodicCases > 0 && totalEpisodicCases % 25 === 0 && totalEpisodicCases >= 25) {
+          console.log(`[finalize] Triggering cluster discovery (n=${totalEpisodicCases})`);
+
+          const since = new Date(Date.now() - 30 * 86400000).toISOString();
+          const { data: recentCases } = await admin.from("episodic_case_memory")
+            .select("symptom_vector, final_diagnosis, created_at")
+            .eq("clinic_id", clinic_id)
+            .gte("created_at", since)
+            .order("created_at", { ascending: false })
+            .limit(500);
+
+          if (recentCases && recentCases.length >= 10) {
+            // Build symptom pair co-occurrence map
+            const pairCounts = new Map<string, { count: number; diagnoses: Map<string, number>; firstSeen: string; lastSeen: string }>();
+
+            for (const c of recentCases as any[]) {
+              const symptoms: string[] = (c.symptom_vector || []).map((s: string) => s.toLowerCase().trim());
+              if (symptoms.length < 2) continue;
+
+              for (let i = 0; i < symptoms.length; i++) {
+                for (let j = i + 1; j < symptoms.length; j++) {
+                  const key = [symptoms[i], symptoms[j]].sort().join("|");
+                  const entry = pairCounts.get(key) || { count: 0, diagnoses: new Map(), firstSeen: c.created_at, lastSeen: c.created_at };
+                  entry.count++;
+                  if (c.final_diagnosis) {
+                    entry.diagnoses.set(c.final_diagnosis, (entry.diagnoses.get(c.final_diagnosis) || 0) + 1);
+                  }
+                  if (c.created_at < entry.firstSeen) entry.firstSeen = c.created_at;
+                  if (c.created_at > entry.lastSeen) entry.lastSeen = c.created_at;
+                  pairCounts.set(key, entry);
+                }
+              }
+            }
+
+            // Persist significant clusters (≥3 co-occurrences)
+            let clustersFound = 0;
+            for (const [key, entry] of pairCounts) {
+              if (entry.count < 3) continue;
+              const symptomSet = key.split("|");
+              const diagArray = Array.from(entry.diagnoses.entries())
+                .map(([d, c]) => ({ diagnosis: d, count: c }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 5);
+
+              const isNovel = diagArray.length === 0 || (diagArray.length >= 3 && diagArray[0].count < entry.count * 0.4);
+              const daySpan = Math.max(1, (new Date(entry.lastSeen).getTime() - new Date(entry.firstSeen).getTime()) / 86400000);
+              const rate = daySpan > 0 ? entry.count / daySpan : entry.count;
+              const alertLevel = rate >= 3 ? "outbreak" : rate >= 1.5 ? "elevated" : entry.count >= 5 ? "watch" : "none";
+
+              admin.from("clustered_symptom_patterns").upsert({
+                clinic_id,
+                cluster_id: key,
+                symptom_set: symptomSet,
+                patient_count: entry.count,
+                associated_diagnoses: diagArray,
+                cluster_confidence: entry.count / recentCases.length,
+                discovery_method: "cooccurrence",
+                first_detected: entry.firstSeen,
+                last_updated: entry.lastSeen,
+                alert_level: alertLevel,
+                is_novel: isNovel,
+              }, { onConflict: "clinic_id,cluster_id" })
+                .then(() => {})
+                .catch((e: any) => console.warn("[finalize] Cluster upsert failed:", e));
+
+              clustersFound++;
+              if (clustersFound >= 20) break;
+            }
+            console.log(`[finalize] Cluster discovery: ${clustersFound} clusters persisted`);
+          }
+        }
+
+        // 5.7b: Supervised Prior Recalibration
+        // Every 75 cases — compute correction-based calibration factors
+        if (totalEpisodicCases && totalEpisodicCases > 0 && totalEpisodicCases % 75 === 0 && totalEpisodicCases >= 75) {
+          console.log(`[finalize] Triggering prior recalibration (n=${totalEpisodicCases})`);
+
+          const lookbackSince = new Date(Date.now() - 90 * 86400000).toISOString();
+          const { data: outcomes } = await admin.from("diagnostic_outcomes")
+            .select("ai_diagnosis, doctor_final_diagnosis, correction_type, similarity_score")
+            .eq("clinic_id", clinic_id)
+            .gte("created_at", lookbackSince);
+
+          if (outcomes && outcomes.length >= 10) {
+            // Group by AI diagnosis to compute per-diagnosis correction rates
+            const diagStats = new Map<string, { total: number; corrected: number }>();
+            for (const o of outcomes as any[]) {
+              const aiDiag = (o.ai_diagnosis || "").toLowerCase().trim();
+              if (!aiDiag) continue;
+              const stats = diagStats.get(aiDiag) || { total: 0, corrected: 0 };
+              stats.total++;
+              if (o.correction_type !== "match") stats.corrected++;
+              diagStats.set(aiDiag, stats);
+            }
+
+            // Generate learning_updates for diagnoses with sufficient data
+            const batchId = `recal_${Date.now().toString(36)}`;
+            let updatesApplied = 0;
+
+            for (const [diag, stats] of diagStats) {
+              if (stats.total < 5) continue; // need min samples
+              const correctionRate = stats.corrected / stats.total;
+              let factor = 1.0;
+              let direction = "neutral";
+
+              if (correctionRate > 0.4) {
+                // AI over-predicts this diagnosis — penalize
+                factor = 1 - (correctionRate - 0.2) * 0.5; // e.g. 60% correction → 0.8x
+                direction = "penalize";
+              } else if (correctionRate < 0.1 && stats.total >= 10) {
+                // AI is very accurate for this — slight boost
+                factor = 1 + (0.1 - correctionRate) * 0.5; // e.g. 5% correction → 1.025x
+                direction = "boost";
+              }
+
+              if (direction !== "neutral") {
+                admin.from("learning_updates").insert({
+                  clinic_id,
+                  update_type: "prior_calibration",
+                  target_entity: "diagnosis",
+                  target_id: diag,
+                  old_value: 1.0,
+                  new_value: Math.round(factor * 1000) / 1000,
+                  delta: Math.round((factor - 1.0) * 1000) / 1000,
+                  direction,
+                  sample_size: stats.total,
+                  confidence: stats.total >= 20 ? "high" : stats.total >= 10 ? "moderate" : "low",
+                  source: "supervised_recalibration",
+                  batch_id: batchId,
+                }).then(() => {})
+                  .catch((e: any) => console.warn("[finalize] Learning update failed:", e));
+                updatesApplied++;
+              }
+            }
+
+            console.log(`[finalize] Prior recalibration: ${updatesApplied} updates from ${outcomes.length} outcomes`);
+          }
+        }
+      }
+
+      results.stages.push({ stage: "population_intelligence", status: "triggered" });
+    } catch (_e) {
+      // Phase 4 population intelligence is entirely non-blocking
+      results.stages.push({ stage: "population_intelligence", status: "skipped" });
+    }
+
     // ── Performance Monitoring ──
     const finalizeDuration = Date.now() - (performance.now ? 0 : 0); // approximate
     admin.from("monitoring_events").insert({
