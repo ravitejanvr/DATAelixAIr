@@ -146,21 +146,15 @@ Deno.serve(async (req) => {
       priorsMap.set(p.diagnosis_id, p);
     }
 
-    // Symptom specificity weights
-    const symptomDiseaseCount = new Map<string, number>();
-    for (const row of symptomSpecificityRes.data || []) {
-      symptomDiseaseCount.set(row.symptom_id, (symptomDiseaseCount.get(row.symptom_id) || 0) + 1);
-    }
-    const specificityWeight = (symptomId: string): number => {
-      const count = symptomDiseaseCount.get(symptomId) || 1;
-      return 1.0 / Math.log2(count + 1);
-    };
-
-    // Symptom likelihoods map
-    const symLikMap = new Map<string, Array<{ symptom_id: string; likelihood_value: number }>>();
+    // Symptom likelihoods map with DB-stored specificity
+    const symLikMap = new Map<string, Array<{ symptom_id: string; likelihood_value: number; specificity: number }>>();
     for (const sl of symptomLikRes.data || []) {
       if (!symLikMap.has(sl.diagnosis_id)) symLikMap.set(sl.diagnosis_id, []);
-      symLikMap.get(sl.diagnosis_id)!.push({ symptom_id: sl.symptom_id, likelihood_value: sl.likelihood_value });
+      symLikMap.get(sl.diagnosis_id)!.push({
+        symptom_id: sl.symptom_id,
+        likelihood_value: sl.likelihood_value,
+        specificity: sl.symptom_specificity ?? 0.5,
+      });
     }
 
     // Physiology likelihoods
