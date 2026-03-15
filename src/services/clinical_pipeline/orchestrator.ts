@@ -345,12 +345,15 @@ function extractSymptoms(ctx: ClinicalContext): string[] {
 }
 
 function buildVitals(ctx: ClinicalContext) {
+  const bpParts = ctx.blood_pressure ? ctx.blood_pressure.split("/") : [];
   return {
     temperature: ctx.temperature,
     spo2: ctx.oxygen_saturation,
     pulse: ctx.pulse,
     bp: ctx.blood_pressure,
-    bp_systolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[0]) : undefined,
+    bp_systolic: bpParts.length >= 1 ? parseInt(bpParts[0]) : undefined,
+    bp_diastolic: bpParts.length >= 2 ? parseInt(bpParts[1]) : undefined,
+    respiratory_rate: ctx.respiratory_rate,
   };
 }
 
