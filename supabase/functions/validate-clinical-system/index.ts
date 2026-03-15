@@ -1272,16 +1272,26 @@ Deno.serve(async (req) => {
       );
       waveLatency.wave075_localisation_ms = Date.now() - w075Start;
 
-      // Wave 1: Graph (with localisation-aware candidate expansion)
-      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel, localisation, preloadedSignals.allSystemTags);
+      // Wave 0.85: Syndrome Cluster Detection (in-memory, uses same symptom IDs)
+      const w085Start = Date.now();
+      const syndromeResult = detectSyndromeClusters(
+        locSymptomIds,
+        preloadedSignals.allSyndromeNodes,
+        preloadedSignals.allSyndromeSymptomEdges,
+        preloadedSignals.allSyndromeDiseaseEdges,
+      );
+      waveLatency.wave085_syndrome_ms = Date.now() - w085Start;
+
+      // Wave 1: Graph (with localisation + syndrome-aware candidate expansion)
+      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel, localisation, preloadedSignals.allSystemTags, syndromeResult);
       waveLatency.wave1_graph_ms = graphResult.latency_ms;
 
       // Wave 2: DDX
       const ddxResult = await runDDX(supabase, graphResult, scenario, worldModel);
       waveLatency.wave2_ddx_ms = ddxResult.latency_ms;
 
-      // Wave 3: Bayesian (with localisation)
-      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals, localisation);
+      // Wave 3: Bayesian (with localisation + syndrome boost)
+      const bayesianResult = await runBayesian(supabase, ddxResult, scenario, specificityMap, worldModel, preloadedSignals, localisation, syndromeResult);
       waveLatency.wave3_bayesian_ms = bayesianResult.latency_ms;
 
       // Wave 4: Safety
