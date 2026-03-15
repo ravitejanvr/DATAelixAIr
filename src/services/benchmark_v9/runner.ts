@@ -499,27 +499,9 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   // Sort by Bayesian posterior descending
   rankedCandidates.sort((a, b) => b.probability - a.probability);
 
-  // Safety override: dangerous diagnoses with meaningful probability must rank in top 3
-  const MAX_SAFE_RANK = 3;
-  const MIN_DANGER_PROBABILITY = 0.02; // 2% threshold for safety override
-  for (let i = MAX_SAFE_RANK; i < rankedCandidates.length; i++) {
-    const c = rankedCandidates[i];
-    if (c.must_not_miss && c.probability >= MIN_DANGER_PROBABILITY) {
-      // Find last non-dangerous candidate in top 3 to swap with
-      let swapIdx = -1;
-      for (let j = MAX_SAFE_RANK - 1; j >= 0; j--) {
-        if (!rankedCandidates[j].must_not_miss) {
-          swapIdx = j;
-          break;
-        }
-      }
-      if (swapIdx >= 0) {
-        const temp = rankedCandidates[swapIdx];
-        rankedCandidates[swapIdx] = c;
-        rankedCandidates[i] = temp;
-      }
-    }
-  }
+  // Safety awareness: dangerous diagnoses are flagged in the safety trace (Stage 6)
+  // but do NOT override Bayesian ranking — ranking must remain probability-authoritative.
+  // Safety alerts are surfaced separately to the clinician.
 
   const finalRanking = rankedCandidates.slice(0, 10).map((c, i) => ({
     rank: i + 1,
