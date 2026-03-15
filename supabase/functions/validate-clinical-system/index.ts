@@ -944,6 +944,7 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
         onset: onsetCategory,
         vital_modifiers: Object.keys(vitalModMap).length,
         cluster_modifiers: Object.keys(clusterModMap).length,
+        localisation: { dominant_systems: localisation.dominant_systems, confidence: localisation.localisation_confidence },
       },
       latency_ms: Date.now() - start,
     };
