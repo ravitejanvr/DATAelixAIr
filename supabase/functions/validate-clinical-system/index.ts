@@ -1026,6 +1026,22 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
         logPosterior += Math.log(systemWeight);
       }
 
+      // Syndrome cluster boost
+      let syndromeMod = 1.0;
+      if (syndromeResult && syndromeResult.activated_clusters.length > 0) {
+        for (const cluster of syndromeResult.activated_clusters) {
+          const matchedDisease = cluster.associated_diseases.find(d => d.disease_id === c.diagnosis_id);
+          if (matchedDisease) {
+            // Boost proportional to cluster score × association strength
+            const boost = 1.0 + (cluster.score * matchedDisease.strength * 1.2);
+            syndromeMod = Math.max(syndromeMod, boost);
+          }
+        }
+        if (syndromeMod > 1.0) {
+          logPosterior += Math.log(syndromeMod);
+        }
+      }
+
       totalSignalStrength += symptomSignal;
 
       return {
@@ -1039,6 +1055,7 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
         vital_modifier: vitalMod,
         cluster_modifier: clusterMod,
         localisation_modifier: localisationMod,
+        syndrome_modifier: syndromeMod,
         coverage_ratio: coverageRatio,
         log_score: logPosterior,
         posterior: Math.exp(logPosterior),
