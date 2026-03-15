@@ -12,6 +12,7 @@ export interface FeatureFlags {
   enable_counterfactual_analysis: boolean;
   enable_bias_monitoring: boolean;
   enable_meta_learning: boolean;
+  enable_population_intelligence: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -21,6 +22,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_counterfactual_analysis: true,
   enable_bias_monitoring: true,
   enable_meta_learning: true,
+  enable_population_intelligence: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
