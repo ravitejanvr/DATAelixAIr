@@ -274,11 +274,11 @@ serve(async (req) => {
     try {
       // Build medications and allergies from context + extraction
       const contextMeds = clinical_context?.current_medications || [];
-      const extractedMeds = extracted_data.current_medications?.split(",").map((s: string) => s.trim()).filter(Boolean) || [];
+      const extractedMeds = typeof extracted_data.current_medications === 'string' ? extracted_data.current_medications.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
       const allMedications = [...new Set([...contextMeds, ...extractedMeds])];
 
       const contextAllergies = clinical_context?.allergies || [];
-      const extractedAllergies = extracted_data.allergies?.split(",").map((s: string) => s.trim()).filter(Boolean) || [];
+      const extractedAllergies = typeof extracted_data.allergies === 'string' ? extracted_data.allergies.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
       const allAllergies = [...new Set([...contextAllergies, ...extractedAllergies])];
 
       // Parse vitals from context
@@ -296,7 +296,7 @@ serve(async (req) => {
       const symptoms = [
         clinical_context?.chief_complaint || extracted_data.chief_complaint,
         extracted_data.associated_symptoms,
-      ].filter(Boolean).join(", ").split(",").map((s: string) => s.trim()).filter(Boolean);
+      ].filter(Boolean).map(v => String(v)).join(", ").split(",").map((s: string) => s.trim()).filter(Boolean);
 
       // Call the existing clinical-safety function internally
       const safetyUrl = `${supabaseUrl}/functions/v1/clinical-safety`;
