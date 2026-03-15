@@ -611,6 +611,7 @@ interface PreloadedSignals {
   allVitalMods: any[];
   allClusterMods: any[];
   allLocalisationEdges: any[];
+  allSystemTags: any[];
 }
 
 // ── Category-to-system mapping for matching diagnosis categories to anatomical systems ──
