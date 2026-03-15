@@ -5369,6 +5369,7 @@ export type Database = {
           id: string
           likelihood_value: number
           symptom_id: string
+          symptom_specificity: number | null
         }
         Insert: {
           created_at?: string
@@ -5376,6 +5377,7 @@ export type Database = {
           id?: string
           likelihood_value?: number
           symptom_id: string
+          symptom_specificity?: number | null
         }
         Update: {
           created_at?: string
@@ -5383,6 +5385,7 @@ export type Database = {
           id?: string
           likelihood_value?: number
           symptom_id?: string
+          symptom_specificity?: number | null
         }
         Relationships: [
           {
