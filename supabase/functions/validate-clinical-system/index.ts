@@ -1246,6 +1246,7 @@ Deno.serve(async (req) => {
       allSyndromeNodes: syndromeNodesRes.data || [],
       allSyndromeSymptomEdges: syndromeSymEdgesRes.data || [],
       allSyndromeDiseaseEdges: syndromeDxEdgesRes.data || [],
+      allSuppressionRules: suppressionRes.data || [],
     };
 
     const specificityMap: Record<string, number> = {};
