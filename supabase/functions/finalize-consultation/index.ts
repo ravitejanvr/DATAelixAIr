@@ -357,6 +357,71 @@ Deno.serve(async (req) => {
       }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ── Stage 5.5: Learning Feedback — Episodic Memory + Diagnostic Outcome (fire-and-forget) ──
+    // Records ground-truth data for the cognitive learning loop.
+    // Non-blocking: failures here never affect consultation finalization.
+    try {
+      const aiDiagnosis = soap_sections?.["Provisional Diagnosis"] || extracted_data?.chief_complaint || "";
+      const doctorDiagnosis = body.doctor_final_diagnosis || aiDiagnosis;
+      const symptomVector: string[] = [];
+      if (extracted_data?.chief_complaint) symptomVector.push(extracted_data.chief_complaint);
+      if (extracted_data?.associated_symptoms) {
+        const assoc = typeof extracted_data.associated_symptoms === "string"
+          ? extracted_data.associated_symptoms.split(",").map((s: string) => s.trim())
+          : Array.isArray(extracted_data.associated_symptoms) ? extracted_data.associated_symptoms : [];
+        symptomVector.push(...assoc);
+      }
+
+      // 5.5a: Episodic Case Memory — store completed case for similarity retrieval
+      if (symptomVector.length > 0) {
+        admin.from("episodic_case_memory").insert({
+          visit_id: visit_id || null,
+          patient_id,
+          clinic_id,
+          doctor_id: user.id,
+          symptom_vector: symptomVector,
+          chief_complaint: extracted_data?.chief_complaint || null,
+          final_diagnosis: doctorDiagnosis || null,
+          ai_top_diagnosis: aiDiagnosis || null,
+          was_ai_correct: doctorDiagnosis && aiDiagnosis
+            ? doctorDiagnosis.toLowerCase().trim() === aiDiagnosis.toLowerCase().trim()
+            : null,
+          organ_system: body.organ_system || null,
+          confidence_score: body.confidence_score ?? null,
+          differential_diagnoses: body.differential_diagnoses || [],
+          patient_age: body.patient_age ?? null,
+          patient_sex: body.patient_sex ?? null,
+          outcome_status: "pending",
+        }).then(() => console.log("[finalize] Episodic case memory stored"))
+          .catch((e: any) => console.warn("[finalize] Episodic memory failed:", e));
+      }
+
+      // 5.5b: Diagnostic Outcome — record AI vs doctor diagnosis for calibration
+      if (aiDiagnosis && doctorDiagnosis) {
+        const aiLower = aiDiagnosis.toLowerCase().trim();
+        const docLower = doctorDiagnosis.toLowerCase().trim();
+        const isMatch = aiLower === docLower;
+        admin.from("diagnostic_outcomes").insert({
+          visit_id: visit_id || null,
+          consultation_id: consultation_id || null,
+          patient_id,
+          clinic_id,
+          doctor_id: user.id,
+          ai_diagnosis: aiDiagnosis,
+          doctor_final_diagnosis: doctorDiagnosis,
+          outcome_status: "pending",
+          correction_type: isMatch ? "match" : "replacement",
+          similarity_score: isMatch ? 1.0 : null,
+        }).then(() => console.log("[finalize] Diagnostic outcome recorded"))
+          .catch((e: any) => console.warn("[finalize] Outcome record failed:", e));
+      }
+
+      results.stages.push({ stage: "learning_feedback", status: "triggered" });
+    } catch (_e) {
+      // Learning feedback is entirely non-blocking
+      results.stages.push({ stage: "learning_feedback", status: "skipped" });
+    }
+
     // ── Performance Monitoring ──
     const finalizeDuration = Date.now() - (performance.now ? 0 : 0); // approximate
     admin.from("monitoring_events").insert({
