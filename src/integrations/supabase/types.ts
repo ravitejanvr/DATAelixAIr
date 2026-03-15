@@ -5544,6 +5544,38 @@ export type Database = {
           },
         ]
       }
+      symptom_localisation_edges: {
+        Row: {
+          anatomical_system: string
+          created_at: string
+          id: string
+          localisation_weight: number
+          symptom_id: string
+        }
+        Insert: {
+          anatomical_system: string
+          created_at?: string
+          id?: string
+          localisation_weight?: number
+          symptom_id: string
+        }
+        Update: {
+          anatomical_system?: string
+          created_at?: string
+          id?: string
+          localisation_weight?: number
+          symptom_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "symptom_localisation_edges_symptom_id_fkey"
+            columns: ["symptom_id"]
+            isOneToOne: false
+            referencedRelation: "symptoms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       symptom_organ_system_map: {
         Row: {
           created_at: string
