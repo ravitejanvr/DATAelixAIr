@@ -258,7 +258,12 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
         physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
         risk_factors: sc.context.risk_factors || [],
         medical_history: sc.context.medical_history || [],
-        region: "IN",
+        patient_age: (sc.context as any).patient_age ?? null,
+        patient_sex: (sc.context as any).patient_sex ?? null,
+        region: "south_asia",
+        vitals: sc.context.vitals || {},
+        duration: sc.context.symptom_duration || null,
+        onset_pattern: (sc.context as any).onset_pattern ?? null,
       });
     } catch (e) {
       console.warn(`[Benchmark:${sc.id}] Bayesian failed:`, e);
