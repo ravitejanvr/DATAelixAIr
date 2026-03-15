@@ -274,11 +274,11 @@ serve(async (req) => {
     try {
       // Build medications and allergies from context + extraction
       const contextMeds = clinical_context?.current_medications || [];
-      const extractedMeds = extracted_data.current_medications?.split(",").map((s: string) => s.trim()).filter(Boolean) || [];
+      const extractedMeds = typeof extracted_data.current_medications === 'string' ? extracted_data.current_medications.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
       const allMedications = [...new Set([...contextMeds, ...extractedMeds])];
 
       const contextAllergies = clinical_context?.allergies || [];
-      const extractedAllergies = extracted_data.allergies?.split(",").map((s: string) => s.trim()).filter(Boolean) || [];
+      const extractedAllergies = typeof extracted_data.allergies === 'string' ? extracted_data.allergies.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
       const allAllergies = [...new Set([...contextAllergies, ...extractedAllergies])];
 
       // Parse vitals from context
