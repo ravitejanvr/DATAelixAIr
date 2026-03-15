@@ -357,6 +357,35 @@ const DANGEROUS_TRIGGERS: Record<string, string[]> = {
   "pulsatile abdominal mass": ["aortic aneurysm rupture"],
 };
 
+// ── Symptom synonym expansion (ensures queries hit all synonym nodes) ──
+const SYMPTOM_SYNONYMS: Record<string, string[]> = {
+  "shortness of breath": ["dyspnea", "breathlessness"],
+  "dyspnea": ["shortness of breath", "breathlessness"],
+  "breathlessness": ["shortness of breath", "dyspnea"],
+  "chest tightness": ["chest pain", "chest discomfort"],
+  "chest discomfort": ["chest pain", "chest tightness"],
+  "vertigo": ["dizziness"],
+  "dizziness": ["vertigo"],
+  "rhinorrhea": ["runny nose", "nasal congestion"],
+  "runny nose": ["rhinorrhea", "nasal congestion"],
+  "loose stools": ["diarrhea"],
+  "stomach pain": ["abdominal pain"],
+  "belly pain": ["abdominal pain"],
+};
+
+function expandSymptoms(symptoms: string[]): string[] {
+  const expanded = new Set<string>();
+  for (const s of symptoms) {
+    const lower = s.toLowerCase();
+    expanded.add(lower);
+    const synonyms = SYMPTOM_SYNONYMS[lower];
+    if (synonyms) {
+      for (const syn of synonyms) expanded.add(syn);
+    }
+  }
+  return [...expanded];
+}
+
 function normalize(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
