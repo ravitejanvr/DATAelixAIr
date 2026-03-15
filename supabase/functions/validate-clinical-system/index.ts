@@ -649,6 +649,84 @@ interface PreloadedSignals {
   allClusterMods: any[];
   allLocalisationEdges: any[];
   allSystemTags: any[];
+  allSyndromeSymptomEdges: any[];
+  allSyndromeDiseaseEdges: any[];
+  allSyndromeNodes: any[];
+}
+
+// ── Syndrome Cluster Detection Engine ──
+interface SyndromeClusterResult {
+  activated_clusters: Array<{
+    cluster_id: string;
+    cluster_name: string;
+    score: number;
+    matched_symptoms: number;
+    total_symptoms: number;
+    associated_diseases: Array<{ disease_id: string; strength: number }>;
+  }>;
+  boosted_disease_ids: Set<string>;
+  cluster_confidence: number;
+}
+
+function detectSyndromeClusters(
+  matchedSymptomIds: string[],
+  syndromeNodes: any[],
+  syndromeSymptomEdges: any[],
+  syndromeDiseaseEdges: any[],
+): SyndromeClusterResult {
+  const symIdSet = new Set(matchedSymptomIds);
+  const activatedClusters: SyndromeClusterResult["activated_clusters"] = [];
+  const boostedDiseaseIds = new Set<string>();
+
+  for (const node of syndromeNodes) {
+    const clusterEdges = syndromeSymptomEdges.filter((e: any) => e.cluster_id === node.cluster_id);
+    if (clusterEdges.length === 0) continue;
+
+    let weightedScore = 0;
+    let matchedCount = 0;
+    for (const edge of clusterEdges) {
+      if (symIdSet.has(edge.symptom_id)) {
+        weightedScore += parseFloat(edge.likelihood_weight) || 0.5;
+        matchedCount++;
+      }
+    }
+
+    // Normalize: score = weighted matches / total possible weight
+    const maxWeight = clusterEdges.reduce((s: number, e: any) => s + (parseFloat(e.likelihood_weight) || 0.5), 0);
+    const normalizedScore = maxWeight > 0 ? weightedScore / maxWeight : 0;
+    const minActivation = parseFloat(node.min_activation_score) || 0.5;
+
+    if (normalizedScore >= minActivation && matchedCount >= 2) {
+      const diseaseEdges = syndromeDiseaseEdges.filter((e: any) => e.cluster_id === node.cluster_id);
+      const associatedDiseases = diseaseEdges.map((e: any) => ({
+        disease_id: e.disease_id,
+        strength: parseFloat(e.association_strength) || 0.5,
+      }));
+
+      for (const d of associatedDiseases) {
+        boostedDiseaseIds.add(d.disease_id);
+      }
+
+      activatedClusters.push({
+        cluster_id: node.cluster_id,
+        cluster_name: node.cluster_name,
+        score: Math.round(normalizedScore * 100) / 100,
+        matched_symptoms: matchedCount,
+        total_symptoms: clusterEdges.length,
+        associated_diseases: associatedDiseases,
+      });
+    }
+  }
+
+  // Sort by score descending
+  activatedClusters.sort((a, b) => b.score - a.score);
+
+  // Confidence: how strongly the top cluster activates
+  const clusterConfidence = activatedClusters.length > 0
+    ? Math.round(Math.min(0.95, activatedClusters[0].score + (activatedClusters.length > 1 ? 0.05 : 0)) * 100) / 100
+    : 0;
+
+  return { activated_clusters: activatedClusters, boosted_disease_ids: boostedDiseaseIds, cluster_confidence: clusterConfidence };
 }
 
 // ── Category-to-system mapping for matching diagnosis categories to anatomical systems ──
