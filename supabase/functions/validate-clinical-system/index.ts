@@ -610,6 +610,90 @@ interface PreloadedSignals {
   allOnsetMods: any[];
   allVitalMods: any[];
   allClusterMods: any[];
+  allLocalisationEdges: any[];
+}
+
+// ── Category-to-system mapping for matching diagnosis categories to anatomical systems ──
+const CATEGORY_SYSTEM_MAP: Record<string, string[]> = {
+  cardiovascular: ["cardiovascular"],
+  respiratory: ["respiratory"],
+  neurological: ["neurological"],
+  gastrointestinal: ["gastrointestinal"],
+  renal: ["renal"],
+  endocrine: ["endocrine"],
+  dermatological: ["dermatologic"],
+  musculoskeletal: ["musculoskeletal"],
+  hematological: ["hematologic"],
+  infectious: ["infectious"],
+  immunological: ["immune"],
+  ophthalmological: ["ophthalmologic"],
+  pediatric: ["respiratory", "neurological", "infectious", "gastrointestinal"], // pediatric maps to multiple
+  psychiatric: ["neurological"],
+};
+
+// ── Anatomical Localisation Engine ──
+interface LocalisationResult {
+  system_distribution: Record<string, number>;
+  dominant_systems: string[];
+  localisation_confidence: number;
+}
+
+function computeLocalisation(
+  symptomNames: string[],
+  matchedSymptomIds: string[],
+  locEdges: any[],
+): LocalisationResult {
+  const systemScores: Record<string, number> = {};
+  let totalWeight = 0;
+
+  // Map symptom IDs to their localisation edges
+  const idSet = new Set(matchedSymptomIds);
+  for (const edge of locEdges) {
+    if (idSet.has(edge.symptom_id)) {
+      const w = parseFloat(edge.localisation_weight) || 0.5;
+      systemScores[edge.anatomical_system] = (systemScores[edge.anatomical_system] || 0) + w;
+      totalWeight += w;
+    }
+  }
+
+  // Normalize to probability distribution
+  const distribution: Record<string, number> = {};
+  if (totalWeight > 0) {
+    for (const [sys, score] of Object.entries(systemScores)) {
+      distribution[sys] = Math.round((score / totalWeight) * 1000) / 1000;
+    }
+  }
+
+  // Sort by weight descending
+  const sorted = Object.entries(distribution).sort(([, a], [, b]) => b - a);
+
+  // Dominant systems: top systems that together account for ≥70% of distribution
+  const dominantSystems: string[] = [];
+  let cumulative = 0;
+  for (const [sys, prob] of sorted) {
+    dominantSystems.push(sys);
+    cumulative += prob;
+    if (cumulative >= 0.70) break;
+  }
+
+  // Localisation confidence: how concentrated the distribution is (higher = more focused)
+  const maxProb = sorted.length > 0 ? sorted[0][1] : 0;
+  const confidence = Math.round(Math.min(0.95, maxProb + (dominantSystems.length <= 2 ? 0.1 : 0)) * 100) / 100;
+
+  return { system_distribution: distribution, dominant_systems: dominantSystems, localisation_confidence: confidence };
+}
+
+function diagnosisCategoryMatchesSystems(category: string, systems: string[]): boolean {
+  const cat = category?.toLowerCase() || "";
+  for (const sys of systems) {
+    // Direct match
+    if (cat.includes(sys)) return true;
+    // Check mapped systems
+    for (const [catKey, mappedSystems] of Object.entries(CATEGORY_SYSTEM_MAP)) {
+      if (cat.includes(catKey) && mappedSystems.includes(sys)) return true;
+    }
+  }
+  return false;
 }
 
 // ── Wave 3: Bayesian Engine (Full Signal Integration) ──
