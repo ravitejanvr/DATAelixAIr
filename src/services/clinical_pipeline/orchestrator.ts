@@ -1120,7 +1120,7 @@ export async function runUnifiedClinicalPipeline(
               respiratory_rate: vitals.respiratory_rate,
             },
             duration: ctx.symptom_duration || null,
-            onset_pattern: ctx.onset_pattern || null,
+            onset_pattern: null,
           }),
           TIMEOUT.BAYESIAN,
           "bayesian_engine",
