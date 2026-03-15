@@ -296,7 +296,7 @@ serve(async (req) => {
       const symptoms = [
         clinical_context?.chief_complaint || extracted_data.chief_complaint,
         extracted_data.associated_symptoms,
-      ].filter(Boolean).join(", ").split(",").map((s: string) => s.trim()).filter(Boolean);
+      ].filter(Boolean).map(v => String(v)).join(", ").split(",").map((s: string) => s.trim()).filter(Boolean);
 
       // Call the existing clinical-safety function internally
       const safetyUrl = `${supabaseUrl}/functions/v1/clinical-safety`;

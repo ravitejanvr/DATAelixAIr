@@ -849,8 +849,8 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
     if (candidates.length === 0) return { diagnoses: [], signal_strength: 0, latency_ms: Date.now() - start };
     const dxIds = new Set(candidates.map((c: any) => c.diagnosis_id).filter(Boolean));
     const dxIdsArr = [...dxIds];
-    const symptomNames = (scenario.symptoms || []).map((s: string) => s.toLowerCase().trim());
-    const historyItems = (scenario.history || []).map((h: string) => h.toLowerCase().trim());
+    const symptomNames = (scenario.symptoms || []).map((s: any) => String(s || "").toLowerCase().trim()).filter(Boolean);
+    const historyItems = (scenario.history || []).map((h: any) => String(h || "").toLowerCase().trim()).filter(Boolean);
     const vitals = scenario.vitals || {};
 
     // Classify duration & onset from chief complaint
