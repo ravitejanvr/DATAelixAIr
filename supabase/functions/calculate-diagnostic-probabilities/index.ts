@@ -103,13 +103,13 @@ Deno.serve(async (req) => {
     // PARALLEL FETCH
     // ════════════════════════════════════════════
 
-    const [priorsRes, symptomLikRes, physioLikRes, riskModRes, historyModRes, dangerousRes, symptomSpecificityRes] = await Promise.all([
+    const [priorsRes, symptomLikRes, physioLikRes, riskModRes, historyModRes, dangerousRes] = await Promise.all([
       supabase.from("disease_priors")
         .select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier")
         .in("diagnosis_id", candidate_diagnosis_ids),
       symptomIds.length > 0
         ? supabase.from("symptom_likelihoods")
-            .select("diagnosis_id, symptom_id, likelihood_value")
+            .select("diagnosis_id, symptom_id, likelihood_value, symptom_specificity")
             .in("diagnosis_id", candidate_diagnosis_ids)
             .in("symptom_id", symptomIds)
         : Promise.resolve({ data: [] }),
@@ -135,11 +135,6 @@ Deno.serve(async (req) => {
         .select("diagnosis_id, diagnosis_name, severity_level, emergency_protocol, must_not_miss")
         .eq("must_not_miss", true)
         .in("diagnosis_id", candidate_diagnosis_ids),
-      symptomIds.length > 0
-        ? supabase.from("symptom_likelihoods")
-            .select("symptom_id")
-            .in("symptom_id", symptomIds)
-        : Promise.resolve({ data: [] }),
     ]);
 
     // ════════════════════════════════════════════
