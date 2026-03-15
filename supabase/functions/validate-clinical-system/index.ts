@@ -1209,6 +1209,7 @@ Deno.serve(async (req) => {
         suggested_labs: (ddxResult.recommended_labs || []).map((l: any) => l.test_name).slice(0, 5),
         suggested_drugs: (ddxResult.suggested_medications || []).map((m: any) => m.generic_name).slice(0, 5),
         world_model: { organ_systems: worldModel.organ_systems, risk_level: worldModel.risk_level, hypotheses: worldModel.hypotheses.length, physiology: worldModel.physiological_states.length, traces: worldModel.reasoning_traces.length },
+        localisation: { dominant_systems: localisation.dominant_systems, confidence: localisation.localisation_confidence, distribution: localisation.system_distribution },
         wave_latency: waveLatency,
         total_latency_ms: totalMs,
         soap_valid: soapResult.soap_valid,
