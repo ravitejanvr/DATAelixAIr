@@ -9,12 +9,18 @@ export interface FeatureFlags {
   enable_new_clinical_pipeline: boolean;
   use_ddx_engine: boolean;
   enable_uncertainty_engine: boolean;
+  enable_counterfactual_analysis: boolean;
+  enable_bias_monitoring: boolean;
+  enable_meta_learning: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
   enable_new_clinical_pipeline: true,
   use_ddx_engine: true,
   enable_uncertainty_engine: true,
+  enable_counterfactual_analysis: true,
+  enable_bias_monitoring: true,
+  enable_meta_learning: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -41,4 +47,16 @@ export function isDdxEngineEnabled(): boolean {
 
 export function isUncertaintyEngineEnabled(): boolean {
   return currentFlags.enable_uncertainty_engine;
+}
+
+export function isCounterfactualEnabled(): boolean {
+  return currentFlags.enable_counterfactual_analysis;
+}
+
+export function isBiasMonitoringEnabled(): boolean {
+  return currentFlags.enable_bias_monitoring;
+}
+
+export function isMetaLearningEnabled(): boolean {
+  return currentFlags.enable_meta_learning;
 }
