@@ -555,61 +555,282 @@ async function runDDX(supabase: any, graphResult: any, scenario: any, worldModel
   }
 }
 
-// ── Wave 3: Bayesian Engine ──
+// ── Duration & Onset classifiers ──
+function classifyDuration(text: string | null): string | null {
+  if (!text) return null;
+  const d = text.toLowerCase();
+  if (["acute", "subacute", "chronic"].includes(d)) return d;
+  const hourMatch = d.match(/(\d+)\s*h(our)?s?/);
+  const dayMatch = d.match(/(\d+)\s*d(ay)?s?/);
+  const weekMatch = d.match(/(\d+)\s*w(eek)?s?/);
+  const monthMatch = d.match(/(\d+)\s*m(onth)?s?/);
+  const yearMatch = d.match(/(\d+)\s*y(ear)?s?/);
+  let totalDays = 0;
+  if (hourMatch) totalDays = parseInt(hourMatch[1]) / 24;
+  else if (dayMatch) totalDays = parseInt(dayMatch[1]);
+  else if (weekMatch) totalDays = parseInt(weekMatch[1]) * 7;
+  else if (monthMatch) totalDays = parseInt(monthMatch[1]) * 30;
+  else if (yearMatch) totalDays = parseInt(yearMatch[1]) * 365;
+  if (d.includes("sudden") || d.includes("minutes") || d.includes("hour")) return "acute";
+  if (d.includes("today") || d.includes("yesterday") || d.includes("since morning")) return "acute";
+  if (d.includes("few days") || d.includes("couple of days")) return "acute";
+  if (d.includes("weeks") || d.includes("fortnight")) return "subacute";
+  if (d.includes("months") || d.includes("years") || d.includes("long time") || d.includes("chronic")) return "chronic";
+  if (totalDays > 0) { if (totalDays <= 7) return "acute"; if (totalDays <= 30) return "subacute"; return "chronic"; }
+  return null;
+}
+
+function classifyOnset(text: string | null): string | null {
+  if (!text) return null;
+  const o = text.toLowerCase();
+  if (["sudden", "gradual", "progressive", "intermittent", "episodic"].includes(o)) return o;
+  if (o.includes("sudden") || o.includes("abrupt") || o.includes("all at once") || o.includes("acute")) return "sudden";
+  if (o.includes("gradual") || o.includes("slowly") || o.includes("over time") || o.includes("insidious")) return "gradual";
+  if (o.includes("progressive") || o.includes("getting worse") || o.includes("worsening")) return "progressive";
+  if (o.includes("comes and goes") || o.includes("intermittent") || o.includes("on and off")) return "intermittent";
+  if (o.includes("episodic") || o.includes("attacks") || o.includes("episodes") || o.includes("cyclical")) return "episodic";
+  return null;
+}
+
+function getVitalValue(vitals: Record<string, any>, parameter: string): number | null {
+  const val = vitals[parameter];
+  if (val === null || val === undefined) return null;
+  const num = Number(val);
+  if (isNaN(num)) return null;
+  if (parameter === "temperature") return num > 50 ? (num - 32) * 5 / 9 : num;
+  return num;
+}
+
+// ── Wave 3: Bayesian Engine (Full Signal Integration) ──
 async function runBayesian(supabase: any, ddxResult: any, scenario: any, specificityMap: Record<string, number>, worldModel: WorldModelState) {
   const start = Date.now();
   try {
-    const candidates = (ddxResult.differential_diagnoses || []).slice(0, 8);
+    const candidates = (ddxResult.differential_diagnoses || []).slice(0, 10);
     if (candidates.length === 0) return { diagnoses: [], signal_strength: 0, latency_ms: Date.now() - start };
     const dxIds = candidates.map((c: any) => c.diagnosis_id).filter(Boolean);
-    const symptomNames = scenario.symptoms;
-    const [priorRes, symptomRes] = await Promise.all([
-      supabase.from("disease_priors").select("diagnosis_id, base_prevalence, age_modifier, sex_modifier").in("diagnosis_id", dxIds),
+    const symptomNames = (scenario.symptoms || []).map((s: string) => s.toLowerCase().trim());
+    const historyItems = (scenario.history || []).map((h: string) => h.toLowerCase().trim());
+    const vitals = scenario.vitals || {};
+
+    // Classify duration & onset from chief complaint
+    const durationCategory = classifyDuration(scenario.chief_complaint);
+    const onsetCategory = classifyOnset(scenario.chief_complaint);
+
+    // ── Parallel fetch: ALL signal tables ──
+    const [priorRes, symptomRes, riskModRes, historyModRes, durationModRes, onsetModRes, vitalModRes, clusterModRes] = await Promise.all([
+      supabase.from("disease_priors").select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier").in("diagnosis_id", dxIds),
       supabase.from("symptoms").select("id, symptom_name").or(symptomNames.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")),
+      historyItems.length > 0
+        ? supabase.from("risk_factor_modifiers").select("diagnosis_id, risk_factor, modifier_weight").in("diagnosis_id", dxIds).in("risk_factor", historyItems)
+        : Promise.resolve({ data: [] }),
+      historyItems.length > 0
+        ? supabase.from("medical_history_modifiers").select("diagnosis_id, history_condition, prior_multiplier, confidence").in("diagnosis_id", dxIds).in("history_condition", historyItems)
+        : Promise.resolve({ data: [] }),
+      durationCategory
+        ? supabase.from("duration_modifiers").select("diagnosis_id, duration_category, modifier_weight").in("diagnosis_id", dxIds).eq("duration_category", durationCategory)
+        : Promise.resolve({ data: [] }),
+      onsetCategory
+        ? supabase.from("onset_modifiers").select("diagnosis_id, onset_pattern, modifier_weight").in("diagnosis_id", dxIds).eq("onset_pattern", onsetCategory)
+        : Promise.resolve({ data: [] }),
+      supabase.from("vital_sign_modifiers").select("diagnosis_id, vital_parameter, condition, threshold_value, modifier_weight").in("diagnosis_id", dxIds),
+      supabase.from("symptom_cluster_modifiers").select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight").in("diagnosis_id", dxIds),
     ]);
-    const priorMap: Record<string, number> = {};
-    for (const p of (priorRes.data || [])) { let prior = p.base_prevalence || 0.01; priorMap[p.diagnosis_id] = prior; }
+
+    // ── Build lookup maps ──
+    const priorMap: Record<string, any> = {};
+    for (const p of (priorRes.data || [])) priorMap[p.diagnosis_id] = p;
+
     const symptomIds = (symptomRes.data || []).map((s: any) => s.id);
     const symptomNameById: Record<string, string> = {};
     for (const s of (symptomRes.data || [])) symptomNameById[s.id] = s.symptom_name;
+    const matchedSymptomNames = (symptomRes.data || []).map((s: any) => s.symptom_name.toLowerCase());
 
-    let likelihoodMap: Record<string, Record<string, number>> = {};
+    // Symptom likelihoods
+    let likelihoodMap: Record<string, Record<string, { lk: number; spec: number }>> = {};
     if (symptomIds.length > 0 && dxIds.length > 0) {
-      const { data: lkRows } = await supabase.from("symptom_likelihoods").select("diagnosis_id, symptom_id, likelihood_value").in("diagnosis_id", dxIds).in("symptom_id", symptomIds);
-      for (const lk of (lkRows || [])) { if (!likelihoodMap[lk.diagnosis_id]) likelihoodMap[lk.diagnosis_id] = {}; likelihoodMap[lk.diagnosis_id][lk.symptom_id] = lk.likelihood_value; }
+      const { data: lkRows } = await supabase.from("symptom_likelihoods").select("diagnosis_id, symptom_id, likelihood_value, symptom_specificity").in("diagnosis_id", dxIds).in("symptom_id", symptomIds);
+      for (const lk of (lkRows || [])) {
+        if (!likelihoodMap[lk.diagnosis_id]) likelihoodMap[lk.diagnosis_id] = {};
+        likelihoodMap[lk.diagnosis_id][lk.symptom_id] = { lk: lk.likelihood_value, spec: lk.symptom_specificity ?? 0.5 };
+      }
     }
 
-    const dominantSystem = worldModel.organ_systems[0] || "";
-    const systemWeight = Math.min(2.0, 1.0 + ((worldModel.organ_system_weights[dominantSystem] || 1.0) - 1.0) * 0.3);
+    // Risk factor modifiers
+    const riskModMap: Record<string, number[]> = {};
+    for (const rm of (riskModRes.data || [])) {
+      if (!riskModMap[rm.diagnosis_id]) riskModMap[rm.diagnosis_id] = [];
+      riskModMap[rm.diagnosis_id].push(rm.modifier_weight);
+    }
+
+    // Medical history modifiers
+    const historyMultMap: Record<string, number> = {};
+    for (const hm of (historyModRes.data || [])) {
+      const current = historyMultMap[hm.diagnosis_id] || 1.0;
+      historyMultMap[hm.diagnosis_id] = Math.max(current, hm.prior_multiplier * hm.confidence);
+    }
+
+    // Duration modifiers
+    const durationModMap: Record<string, number> = {};
+    for (const dm of (durationModRes.data || [])) durationModMap[dm.diagnosis_id] = dm.modifier_weight;
+
+    // Onset modifiers
+    const onsetModMap: Record<string, number> = {};
+    for (const om of (onsetModRes.data || [])) onsetModMap[om.diagnosis_id] = om.modifier_weight;
+
+    // Vital sign modifiers
+    const vitalModMap: Record<string, number[]> = {};
+    for (const vm of (vitalModRes.data || [])) {
+      const vitalValue = getVitalValue(vitals, vm.vital_parameter);
+      if (vitalValue === null) continue;
+      const applies = vm.condition === "above" ? vitalValue > vm.threshold_value : vitalValue < vm.threshold_value;
+      if (applies) {
+        if (!vitalModMap[vm.diagnosis_id]) vitalModMap[vm.diagnosis_id] = [];
+        vitalModMap[vm.diagnosis_id].push(vm.modifier_weight);
+      }
+    }
+
+    // Symptom cluster modifiers
+    const clusterModMap: Record<string, number> = {};
+    for (const cm of (clusterModRes.data || [])) {
+      const matchCount = (cm.required_symptoms as string[]).filter((rs: string) =>
+        matchedSymptomNames.some((ns: string) => ns === rs || ns.includes(rs) || rs.includes(ns))
+      ).length;
+      if (matchCount >= cm.min_match_count) {
+        const current = clusterModMap[cm.diagnosis_id] || 1.0;
+        clusterModMap[cm.diagnosis_id] = Math.max(current, cm.modifier_weight);
+      }
+    }
+
+    // ── Compute posteriors ──
+    const totalSymptoms = symptomIds.length;
     let totalSignalStrength = 0;
 
     const posteriors = candidates.map((c: any) => {
-      const prior = priorMap[c.diagnosis_id] || 0.01;
-      const likelihoods = likelihoodMap[c.diagnosis_id] || {};
-      let logPosterior = Math.log(prior);
-      let symptomSignal = 0;
-      for (const sId of symptomIds) {
-        const lk = likelihoods[sId] || 0.3;
-        const sName = symptomNameById[sId] || "";
-        const specificity = specificityMap[sName.toLowerCase()] || 0.35;
-        const weightedLk = lk * (0.5 + specificity * 0.5);
-        logPosterior += Math.log(weightedLk);
-        symptomSignal += specificity;
+      const pd = priorMap[c.diagnosis_id];
+      let prior = pd?.base_prevalence || 0.01;
+
+      // Demographic modifiers on prior
+      if (pd) {
+        const sexKey = "male"; // Default for benchmark
+        const sexMod = pd.sex_modifier?.[sexKey] ?? 1.0;
+        const regMod = pd.region_modifier?.["south_asia"] ?? 1.0;
+        prior *= sexMod * regMod;
       }
-      if (dominantSystem && (c.category || "").toLowerCase().includes(dominantSystem.toLowerCase())) logPosterior += Math.log(systemWeight);
-      const wmH = worldModel.hypotheses.find(h => normalize(h.disease) === normalize(c.diagnosis_name));
-      if (wmH && wmH.confidence > 0.1) logPosterior += Math.log(1.0 + wmH.confidence * 0.5);
+
+      // Medical history → prior multiplier
+      const histMult = historyMultMap[c.diagnosis_id] || 1.0;
+      const adjustedPrior = Math.min(prior * histMult, 0.95);
+
+      let logPosterior = Math.log(Math.max(adjustedPrior, 1e-8));
+
+      // Specificity-weighted symptom log-likelihoods
+      const symLiks = likelihoodMap[c.diagnosis_id] || {};
+      const symEntries = Object.entries(symLiks);
+      let symptomSignal = 0;
+      let coverageRatio = 0;
+
+      if (symEntries.length > 0) {
+        for (const [, sl] of symEntries) {
+          const lik = Math.max(0.01, Math.min(0.99, sl.lk));
+          const w = Math.max(0.1, sl.spec);
+          logPosterior += w * Math.log(lik);
+          symptomSignal += sl.spec;
+        }
+        coverageRatio = totalSymptoms > 0 ? symEntries.length / totalSymptoms : 0;
+        const coverageBonus = Math.pow(coverageRatio, 1.5);
+        logPosterior += Math.log(Math.max(coverageBonus, 1e-4));
+      } else if (totalSymptoms > 0) {
+        logPosterior += Math.min(totalSymptoms, 3) * Math.log(0.15);
+      }
+
+      // Duration modifier
+      const durMod = durationModMap[c.diagnosis_id] || 1.0;
+      if (durMod !== 1.0) logPosterior += Math.log(durMod);
+
+      // Onset modifier
+      const onMod = onsetModMap[c.diagnosis_id] || 1.0;
+      if (onMod !== 1.0) logPosterior += Math.log(onMod);
+
+      // Vital sign modifier (use strongest)
+      const vMods = vitalModMap[c.diagnosis_id] || [];
+      let vitalMod = 1.0;
+      if (vMods.length > 0) {
+        vitalMod = Math.max(...vMods);
+        logPosterior += Math.log(vitalMod);
+      }
+
+      // Symptom cluster modifier
+      const clusterMod = clusterModMap[c.diagnosis_id] || 1.0;
+      if (clusterMod > 1.0) logPosterior += Math.log(clusterMod);
+
+      // Risk factor modifiers
+      const rMods = riskModMap[c.diagnosis_id] || [];
+      let riskMod = 1.0;
+      for (const w of rMods) {
+        riskMod *= w;
+        logPosterior += Math.log(Math.max(w, 1e-4));
+      }
+
+      // World model organ system boost (mild)
+      const dominantSystem = worldModel.organ_systems[0] || "";
+      if (dominantSystem && (c.category || "").toLowerCase().includes(dominantSystem.toLowerCase())) {
+        const systemWeight = Math.min(1.5, 1.0 + ((worldModel.organ_system_weights[dominantSystem] || 1.0) - 1.0) * 0.2);
+        logPosterior += Math.log(systemWeight);
+      }
+
       totalSignalStrength += symptomSignal;
-      return { diagnosis_id: c.diagnosis_id, diagnosis_name: c.diagnosis_name, prior, posterior: Math.exp(logPosterior), is_dangerous: c.is_dangerous || false };
+
+      return {
+        diagnosis_id: c.diagnosis_id,
+        diagnosis_name: c.diagnosis_name,
+        prior: adjustedPrior,
+        history_multiplier: histMult,
+        risk_modifier: riskMod,
+        duration_modifier: durMod,
+        onset_modifier: onMod,
+        vital_modifier: vitalMod,
+        cluster_modifier: clusterMod,
+        coverage_ratio: coverageRatio,
+        log_score: logPosterior,
+        posterior: Math.exp(logPosterior),
+        posterior_probability: 0,
+        is_dangerous: c.is_dangerous || false,
+      };
     });
 
-    const totalPosterior = posteriors.reduce((a, p) => a + p.posterior, 0);
-    const normalized = posteriors.map(p => ({
-      ...p, posterior_probability: totalPosterior > 0 ? Math.round((p.posterior / totalPosterior) * 10000) / 100 : 0,
-    })).sort((a, b) => b.posterior_probability - a.posterior_probability);
-    for (const n of normalized) { if (n.is_dangerous && n.posterior_probability < 3) n.posterior_probability = 3; }
+    // Softmax normalization
+    const maxLog = Math.max(...posteriors.map(p => p.log_score));
+    const expScores = posteriors.map(p => Math.exp(p.log_score - maxLog));
+    const sumExp = expScores.reduce((s, e) => s + e, 0) || 1;
+    for (let i = 0; i < posteriors.length; i++) {
+      posteriors[i].posterior_probability = parseFloat((expScores[i] / sumExp * 100).toFixed(2));
+    }
+
+    // Must-not-miss floor
+    for (const p of posteriors) {
+      if (p.is_dangerous && p.posterior_probability < 3) p.posterior_probability = 3;
+    }
+    const newTotal = posteriors.reduce((s, p) => s + p.posterior_probability, 0) || 1;
+    for (const p of posteriors) {
+      p.posterior_probability = parseFloat((p.posterior_probability / newTotal * 100).toFixed(2));
+    }
+
+    posteriors.sort((a, b) => b.posterior_probability - a.posterior_probability);
+
     const avgSignal = symptomIds.length > 0 ? totalSignalStrength / (symptomIds.length * candidates.length) : 0;
-    return { diagnoses: normalized, signal_strength: Math.round(avgSignal * 100) / 100, latency_ms: Date.now() - start };
+    return {
+      diagnoses: posteriors,
+      signal_strength: Math.round(avgSignal * 100) / 100,
+      signals_applied: {
+        risk_factors: Object.keys(riskModMap).length,
+        history_modifiers: Object.keys(historyMultMap).length,
+        duration: durationCategory,
+        onset: onsetCategory,
+        vital_modifiers: Object.keys(vitalModMap).length,
+        cluster_modifiers: Object.keys(clusterModMap).length,
+      },
+      latency_ms: Date.now() - start,
+    };
   } catch (e) {
     console.error("[Bayesian] Error:", e);
     return { diagnoses: [], signal_strength: 0, latency_ms: Date.now() - start, error: String(e) };
