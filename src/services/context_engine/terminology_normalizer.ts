@@ -76,13 +76,13 @@ const SYNONYM_MAP: Record<string, string> = {
   "heavy sweating": "diaphoresis",
   "profuse sweating": "diaphoresis",
   "cold sweats": "diaphoresis",
-  "swollen legs": "edema",
-  "swollen feet": "edema",
-  "ankle swelling": "edema",
-  "leg swelling": "edema",
+  "swollen legs": "peripheral edema",
+  "swollen feet": "peripheral edema",
+  "ankle swelling": "peripheral edema",
+  "leg swelling": "peripheral edema",
   "fluid retention": "edema",
   "cannot lie flat": "orthopnea",
-  "wakes up breathless": "orthopnea",
+  "wakes up breathless": "paroxysmal nocturnal dyspnea",
 
   // Neurological
   "head pain": "headache",
@@ -182,6 +182,63 @@ const SYNONYM_MAP: Record<string, string> = {
   "not feeling well": "malaise",
   "dehydrated": "dehydration",
   "dry mouth": "dehydration",
+
+  // Hallmark / high-specificity symptoms
+  "rebound tenderness": "rebound tenderness",
+  "murphy sign": "Murphy sign",
+  "murphy's sign": "Murphy sign",
+  "kernig sign": "Kernig sign",
+  "kernig's sign": "Kernig sign",
+  "brudzinski sign": "Brudzinski sign",
+  "brudzinski's sign": "Brudzinski sign",
+  "kussmaul breathing": "Kussmaul breathing",
+  "deep rapid breathing": "Kussmaul breathing",
+  "fruity breath": "fruity breath odor",
+  "tracheal deviation": "tracheal deviation",
+  "jugular vein distension": "jugular venous distension",
+  "jvd": "jugular venous distension",
+  "neck vein distension": "jugular venous distension",
+
+  // Cardiac-specific (additional)
+  "pnd": "paroxysmal nocturnal dyspnea",
+  "waking up short of breath": "paroxysmal nocturnal dyspnea",
+  "foot swelling": "peripheral edema",
+  "positional chest pain": "pleuritic chest pain",
+  "sharp chest pain with breathing": "pleuritic chest pain",
+  "pain worse with breathing": "pleuritic chest pain",
+  "friction rub": "pericardial friction rub",
+
+  // Neurological hallmarks
+  "face drooping": "facial droop",
+  "face droop": "facial droop",
+  "one sided weakness": "arm weakness",
+  "trouble speaking": "speech difficulty",
+
+  // Dermatological hallmarks
+  "dermatomal rash": "dermatomal rash",
+  "band-like rash": "dermatomal rash",
+  "blisters": "vesicular rash",
+  "vesicles": "vesicular rash",
+  "silvery scales": "silvery scales",
+  "scaly patches": "scaling plaques",
+  "burrow marks": "burrow tracks",
+
+  // GI hallmarks
+  "vomiting blood": "hematemesis",
+  "blood in vomit": "hematemesis",
+  "black stool": "melena",
+  "tarry stool": "melena",
+  "dark stool": "melena",
+
+  // Psychiatric
+  "feeling depressed": "depressed mood",
+  "feeling sad": "depressed mood",
+  "feeling low": "depressed mood",
+  "no interest in anything": "anhedonia",
+  "lost interest": "anhedonia",
+  "worrying too much": "excessive worry",
+  "constant worry": "excessive worry",
+  "muscle tightness": "muscle tension",
 };
 
 /**
