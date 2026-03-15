@@ -502,6 +502,23 @@ async function queryGraph(supabase: any, symptoms: string[], worldModel: WorldMo
       }
     }
 
+    // ── SYNDROME CLUSTER CANDIDATE EXPANSION ──
+    // Inject diseases associated with activated syndrome clusters
+    if (syndromeResult.activated_clusters.length > 0) {
+      for (const cluster of syndromeResult.activated_clusters) {
+        for (const assoc of cluster.associated_diseases) {
+          if (!diagnosisIdSet.has(assoc.disease_id)) {
+            diagnosisIdSet.add(assoc.disease_id);
+            // Score based on cluster activation score × disease association strength
+            scoreMap[assoc.disease_id] = cluster.score * assoc.strength * 0.5;
+          } else {
+            // Boost existing candidates that match activated clusters
+            scoreMap[assoc.disease_id] = (scoreMap[assoc.disease_id] || 0) + (cluster.score * assoc.strength * 0.3);
+          }
+        }
+      }
+    }
+
     const diagnosisIds = [...diagnosisIdSet];
 
     let diagnoses: any[] = [];
