@@ -357,6 +357,35 @@ const DANGEROUS_TRIGGERS: Record<string, string[]> = {
   "pulsatile abdominal mass": ["aortic aneurysm rupture"],
 };
 
+// ── Symptom synonym expansion (ensures queries hit all synonym nodes) ──
+const SYMPTOM_SYNONYMS: Record<string, string[]> = {
+  "shortness of breath": ["dyspnea", "breathlessness"],
+  "dyspnea": ["shortness of breath", "breathlessness"],
+  "breathlessness": ["shortness of breath", "dyspnea"],
+  "chest tightness": ["chest pain", "chest discomfort"],
+  "chest discomfort": ["chest pain", "chest tightness"],
+  "vertigo": ["dizziness"],
+  "dizziness": ["vertigo"],
+  "rhinorrhea": ["runny nose", "nasal congestion"],
+  "runny nose": ["rhinorrhea", "nasal congestion"],
+  "loose stools": ["diarrhea"],
+  "stomach pain": ["abdominal pain"],
+  "belly pain": ["abdominal pain"],
+};
+
+function expandSymptoms(symptoms: string[]): string[] {
+  const expanded = new Set<string>();
+  for (const s of symptoms) {
+    const lower = s.toLowerCase();
+    expanded.add(lower);
+    const synonyms = SYMPTOM_SYNONYMS[lower];
+    if (synonyms) {
+      for (const syn of synonyms) expanded.add(syn);
+    }
+  }
+  return [...expanded];
+}
+
 function normalize(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -849,8 +878,8 @@ async function runBayesian(supabase: any, ddxResult: any, scenario: any, specifi
     if (candidates.length === 0) return { diagnoses: [], signal_strength: 0, latency_ms: Date.now() - start };
     const dxIds = new Set(candidates.map((c: any) => c.diagnosis_id).filter(Boolean));
     const dxIdsArr = [...dxIds];
-    const symptomNames = (scenario.symptoms || []).map((s: string) => s.toLowerCase().trim());
-    const historyItems = (scenario.history || []).map((h: string) => h.toLowerCase().trim());
+    const symptomNames = (scenario.symptoms || []).map((s: any) => String(s || "").toLowerCase().trim()).filter(Boolean);
+    const historyItems = (scenario.history || []).map((h: any) => String(h || "").toLowerCase().trim()).filter(Boolean);
     const vitals = scenario.vitals || {};
 
     // Classify duration & onset from chief complaint
@@ -1317,14 +1346,15 @@ Deno.serve(async (req) => {
       };
       waveLatency.wave0_pcie_ms = Date.now() - w0Start;
 
-      // Wave 0.5: World Model
-      const worldModel = buildWorldModel(scenario.symptoms, scenario.vitals, activationRules, physiologyMap, physiologyDiagMap, specificityMap);
+      // Wave 0.5: World Model (use expanded symptoms for better physiology matching)
+      const expandedSymptoms = expandSymptoms(scenario.symptoms);
+      const worldModel = buildWorldModel(expandedSymptoms, scenario.vitals, activationRules, physiologyMap, physiologyDiagMap, specificityMap);
       waveLatency.wave05_world_model_ms = worldModel.latency_ms;
 
       // Wave 0.75: Anatomical Localisation (BEFORE candidate generation)
       const w075Start = Date.now();
-      const locSymptomRes = await supabase.from("symptoms").select("id").or(
-        scenario.symptoms.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")
+      const locSymptomRes = await supabase.from("symptoms").select("id, symptom_name").or(
+        expandedSymptoms.map((s: string) => `symptom_name.ilike.%${s}%`).join(",")
       );
       const locSymptomIds = (locSymptomRes.data || []).map((s: any) => s.id);
       const localisation = computeLocalisation(
@@ -1345,7 +1375,7 @@ Deno.serve(async (req) => {
       waveLatency.wave085_syndrome_ms = Date.now() - w085Start;
 
       // Wave 1: Graph (with localisation + syndrome-aware candidate expansion)
-      const graphResult = await queryGraph(supabase, scenario.symptoms, worldModel, localisation, preloadedSignals.allSystemTags, syndromeResult);
+      const graphResult = await queryGraph(supabase, expandedSymptoms, worldModel, localisation, preloadedSignals.allSystemTags, syndromeResult);
       waveLatency.wave1_graph_ms = graphResult.latency_ms;
 
       // Wave 2: DDX

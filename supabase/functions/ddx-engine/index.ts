@@ -265,10 +265,10 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════
     // STAGE 0: TERMINOLOGY NORMALIZATION
     // ═══════════════════════════════════════════════════
-    const rawSymptoms = symptoms.map((s: string) => s.toLowerCase().trim());
+    const rawSymptoms = (symptoms || []).map((s: any) => String(s || "").toLowerCase().trim()).filter(Boolean);
     const normalizedSymptoms = normalizeSymptoms(rawSymptoms);
-    const allergiesLower = allergies.map((a: string) => a.toLowerCase());
-    const historyLower = medical_history.map((h: string) => h.toLowerCase());
+    const allergiesLower = (allergies || []).map((a: any) => String(a || "").toLowerCase()).filter(Boolean);
+    const historyLower = (medical_history || []).map((h: any) => String(h || "").toLowerCase()).filter(Boolean);
 
     // ═══════════════════════════════════════════════════
     // STAGE 1: SYMPTOM RESOLUTION (exact + fuzzy)
