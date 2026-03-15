@@ -174,6 +174,35 @@ function getTestsForDiagnosis(diagnosisName: string): string[] {
   return [];
 }
 
+// ── Known dangerous conditions that must NEVER be pruned ──
+
+const KNOWN_DANGEROUS_CONDITIONS = new Set([
+  "sepsis", "septicemia", "bacteremia",
+  "stroke", "cerebrovascular accident", "cva", "ischemic stroke",
+  "meningitis", "bacterial meningitis",
+  "pulmonary embolism", "pe",
+  "acute coronary syndrome", "acs", "myocardial infarction", "heart attack",
+  "aortic dissection",
+  "pneumothorax", "tension pneumothorax",
+  "diabetic ketoacidosis", "dka",
+  "anaphylaxis", "anaphylactic shock",
+  "subarachnoid hemorrhage",
+  "status epilepticus",
+  "acute kidney injury",
+  "upper gi bleed",
+  "ectopic pregnancy",
+  "cardiac tamponade",
+  "necrotizing fasciitis",
+]);
+
+function isDangerousCondition(name: string): boolean {
+  const lower = name.toLowerCase().trim();
+  for (const dc of KNOWN_DANGEROUS_CONDITIONS) {
+    if (lower.includes(dc) || dc.includes(lower)) return true;
+  }
+  return false;
+}
+
 // ── 1. Hypothesis Manager ──
 
 function evaluateHypotheses(
@@ -191,23 +220,33 @@ function evaluateHypotheses(
       Math.max(1, (c.supporting_symptoms?.length || 0) + (c.contradicting_factors?.length || 0));
     const contradictions = c.contradicting_factors?.length || 0;
 
+    // Check if this is a dangerous condition (from flag OR name match)
+    const isDangerous = c.must_not_miss || isDangerousCondition(c.diagnosis_name);
+
     let action: HypothesisEvaluation["action"] = "keep";
     let reason = "Sufficient evidence support";
 
-    if (c.must_not_miss) {
+    if (isDangerous) {
+      // CRITICAL: Dangerous conditions ALWAYS escalate, never pruned
       action = "escalate";
-      reason = "Must-not-miss diagnosis — always escalated";
-    } else if (c.probability < config.prune_threshold) {
-      // FIXED: prune based on probability alone, no contradiction requirement
+      reason = c.must_not_miss
+        ? "Must-not-miss diagnosis — always escalated"
+        : "Known dangerous condition — bypasses pruning";
+    } else if (c.probability < config.prune_threshold && (c.supporting_symptoms?.length || 0) === 0) {
+      // Only prune if BOTH low probability AND zero supporting symptoms
       action = "prune";
-      reason = `Low probability (${c.probability}%) below threshold (${config.prune_threshold}%)`;
-    } else if (index >= config.max_kept_hypotheses && !c.must_not_miss) {
-      // Prune candidates beyond top N
+      reason = `Low probability (${c.probability}%) with no supporting symptoms`;
+    } else if (c.probability < config.prune_threshold * 0.5) {
+      // Very low probability — prune even with some support
       action = "prune";
-      reason = `Beyond top ${config.max_kept_hypotheses} hypotheses (rank #${index + 1})`;
-    } else if (contradictions > 2 && c.probability < 15) {
+      reason = `Very low probability (${c.probability}%) below hard floor (${config.prune_threshold * 0.5}%)`;
+    } else if (index >= config.max_kept_hypotheses + 2 && c.probability < config.prune_threshold) {
+      // Extended top-N: allow 2 extra slots beyond max_kept before pruning
       action = "prune";
-      reason = `Low probability (${c.probability}%) with ${contradictions} contradictions`;
+      reason = `Beyond extended hypothesis limit (rank #${index + 1}) with low probability`;
+    } else if (contradictions > 3 && c.probability < 10 && evidenceSupport < 0.2) {
+      action = "prune";
+      reason = `Low probability (${c.probability}%) with ${contradictions} contradictions and weak support`;
     }
 
     return {
@@ -215,7 +254,7 @@ function evaluateHypotheses(
       probability: c.probability,
       evidence_support: Math.round(evidenceSupport * 100) / 100,
       contradiction_count: contradictions,
-      is_dangerous: c.must_not_miss || false,
+      is_dangerous: isDangerous,
       action,
       reason,
     };
