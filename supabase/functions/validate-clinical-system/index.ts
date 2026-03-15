@@ -1072,6 +1072,7 @@ Deno.serve(async (req) => {
       allOnsetMods: onsetModsRes.data || [],
       allVitalMods: vitalModsRes.data || [],
       allClusterMods: clusterModsRes.data || [],
+      allLocalisationEdges: locEdgesRes.data || [],
     };
 
     const specificityMap: Record<string, number> = {};
