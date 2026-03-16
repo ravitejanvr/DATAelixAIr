@@ -196,6 +196,7 @@ const App = () => (
               <Route path="/admin/benchmark" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><GPBenchmarkDashboard /></PlatformAdminLayout></ProtectedRoute>} />
               <Route path="/admin/system-validation" element={<Navigate to="/admin/benchmark" replace />} />
               <Route path="/admin/modifier-sensitivity" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><ModifierSensitivityTest /></PlatformAdminLayout></ProtectedRoute>} />
+              <Route path="/admin/diagnostic-simulator" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><DiagnosticSimulator /></PlatformAdminLayout></ProtectedRoute>} />
 
               {/* Layer 1: Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
