@@ -1619,15 +1619,78 @@ export default function Clinical() {
                   {/* Duration */}
                   <AnimatePresence>
                     {selectedSymptoms.length > 0 && (
-                      <motion.div {...fadeIn} className="mt-1.5">
+                      <motion.div {...fadeIn} className="mt-1.5 space-y-1.5">
                         <ChipGroup label="Duration">
                           {DURATION_PRESETS.map(d => (
                             <Chip key={d} variant="neutral" selected={selectedDuration === d} onClick={() => setSelectedDuration(selectedDuration === d ? "" : d)}>{d}</Chip>
                           ))}
                         </ChipGroup>
+
+                        <ChipGroup label="Onset">
+                          {ONSET_PRESETS.map(o => (
+                            <Chip key={o} variant="neutral" selected={selectedOnset === o} onClick={() => setSelectedOnset(selectedOnset === o ? "" : o)}>{o}</Chip>
+                          ))}
+                        </ChipGroup>
+
+                        <ChipGroup label="Severity">
+                          {SEVERITY_PRESETS.map(s => (
+                            <Chip key={s} variant={s === "Severe" || s === "Worsening" ? "alert" : "neutral"} selected={selectedSeverity === s} onClick={() => setSelectedSeverity(selectedSeverity === s ? "" : s)}>{s}</Chip>
+                          ))}
+                        </ChipGroup>
+
+                        <ChipGroup label="Location">
+                          {BODY_LOCATION_PRESETS.map(l => (
+                            <Chip key={l} variant="neutral" selected={selectedBodyLocation === l} onClick={() => setSelectedBodyLocation(selectedBodyLocation === l ? "" : l)}>{l}</Chip>
+                          ))}
+                        </ChipGroup>
                       </motion.div>
                     )}
                   </AnimatePresence>
+
+                  {/* Risk Factors */}
+                  {selectedPatient && selectedSymptoms.length > 0 && (
+                    <div className="mt-2">
+                      <ChipGroup label="Risk Factors">
+                        {RISK_FACTOR_PRESETS.map(rf => (
+                          <Chip
+                            key={rf}
+                            variant="alert"
+                            size="sm"
+                            selected={selectedRiskFactors.includes(rf)}
+                            onClick={() => setSelectedRiskFactors(prev => prev.includes(rf) ? prev.filter(x => x !== rf) : [...prev, rf])}
+                          >
+                            {rf}
+                          </Chip>
+                        ))}
+                      </ChipGroup>
+                    </div>
+                  )}
+
+                  {/* Medical History quick-add */}
+                  {selectedPatient && selectedSymptoms.length > 0 && (
+                    <div className="mt-2">
+                      <ChipGroup label="Medical History">
+                        {MEDICAL_HISTORY_PRESETS.filter(mh => {
+                          const existing = selectedPatient.medical_history;
+                          if (!existing || !Array.isArray(existing)) return true;
+                          return !(existing as any[]).some((h: any) => {
+                            const cond = typeof h === "string" ? h : h?.condition || "";
+                            return cond.toLowerCase() === mh.toLowerCase();
+                          });
+                        }).map(mh => (
+                          <Chip
+                            key={mh}
+                            variant="diagnosis"
+                            size="sm"
+                            selected={selectedMedicalHistory.includes(mh)}
+                            onClick={() => setSelectedMedicalHistory(prev => prev.includes(mh) ? prev.filter(x => x !== mh) : [...prev, mh])}
+                          >
+                            {mh}
+                          </Chip>
+                        ))}
+                      </ChipGroup>
+                    </div>
+                  )}
                 </ClinicalCard>
               )}
 
