@@ -451,7 +451,7 @@ export default function ClinicalCopilot({
                             {displayName}
                           </Chip>
                           {d.must_not_miss && (
-                            <AlertTriangle className="h-2.5 w-2.5 text-destructive shrink-0" title="Must not miss" />
+                            <AlertTriangle className="h-2.5 w-2.5 text-destructive shrink-0" />
                           )}
                         </div>
                         <div className="h-1 bg-muted rounded-full mt-0.5 overflow-hidden">
