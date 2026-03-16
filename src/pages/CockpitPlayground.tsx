@@ -1668,13 +1668,18 @@ export default function CockpitPlayground() {
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <Activity className="h-3 w-3" /> Monitoring & Follow-up
                         </p>
-                        <Textarea
-                          value={soapSections["Treatment Plan"] || ""}
-                          onChange={e => setSoapSections(prev => ({ ...prev, "Treatment Plan": e.target.value }))}
-                          rows={2}
-                          placeholder="Monitoring parameters, disposition, follow-up schedule…"
-                          className="text-xs min-h-[32px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
-                        />
+                        {allMonitoring.length > 0 ? (
+                          <div className="space-y-1">
+                            {allMonitoring.map((m, i) => (
+                              <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
+                                <Activity className="h-3 w-3 text-primary shrink-0" />
+                                <span className="flex-1 text-foreground">{m}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">Monitoring parameters will appear after diagnosis.</p>
+                        )}
                       </div>
 
                       {/* Patient Instructions */}
