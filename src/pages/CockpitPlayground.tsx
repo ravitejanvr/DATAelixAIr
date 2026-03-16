@@ -81,6 +81,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Atorvastatin", dose: "80mg", route: "PO", freq: "OD", dur: "Ongoing", line: "first" },
       { drug: "Nitroglycerin", dose: "0.4mg SL", route: "SL", freq: "PRN", dur: "As needed", line: "emergency" },
     ],
+    monitoring: ["Serial Troponin at 0, 3, 6 hours", "Continuous ECG monitoring", "Repeat ECG if symptoms change", "Cardiology consult within 48 hours"],
     instructions: ["EMERGENCY: Call ambulance if chest pain returns", "Take aspirin immediately if chest pain recurs", "Do NOT exert yourself — complete rest", "Follow up with cardiologist within 48 hours"],
   },
   "myocardial infarction": {
