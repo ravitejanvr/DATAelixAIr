@@ -189,6 +189,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "IV Fluids (NS)", dose: "1L", route: "IV", freq: "Q1H initially", dur: "Until rehydrated", line: "emergency" },
       { drug: "Potassium chloride", dose: "20-40 mEq/L", route: "IV", freq: "Per IV fluid", dur: "Per protocol", line: "first" },
     ],
+    monitoring: ["Blood glucose Q1H", "Electrolytes Q2H", "ABG Q2-4H", "Potassium before and during insulin", "Urine output Q1H", "Anion gap until closed"],
     instructions: ["EMERGENCY: Continuous IV insulin and fluid resuscitation", "Monitor blood glucose hourly", "Check electrolytes every 2 hours"],
   },
   "hypertensive crisis": {
