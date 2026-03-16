@@ -1637,16 +1637,6 @@ export default function CockpitPlayground() {
                         ) : (
                           <p className="text-xs text-muted-foreground italic">Select investigations from AI Copilot →</p>
                         )}
-                        {allRecommendedTests.filter(t => !selectedTests.includes(t)).length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {allRecommendedTests.filter(t => !selectedTests.includes(t)).map(t => (
-                              <Chip key={t} variant="lab" size="sm"
-                                onClick={() => setSelectedTests(prev => [...prev, t])}>
-                                + {t}
-                              </Chip>
-                            ))}
-                          </div>
-                        )}
                       </div>
 
                       {/* Treatment — with Drug/Dose/Route/Freq format */}
