@@ -672,6 +672,16 @@ export default function Clinical() {
         // Override chief complaint from chip selection if available
         if (chiefComplaint) (pipelineContext as any).chief_complaint = chiefComplaint;
         if (selectedSymptoms.length > 0) (pipelineContext as any).symptoms = selectedSymptoms;
+        if (selectedOnset) (pipelineContext as any).onset_pattern = selectedOnset;
+        if (selectedSeverity) (pipelineContext as any).severity = selectedSeverity;
+        if (selectedBodyLocation) (pipelineContext as any).body_location = selectedBodyLocation;
+        if (selectedRiskFactors.length > 0) (pipelineContext as any).risk_factors = selectedRiskFactors;
+        if (selectedMedicalHistory.length > 0) {
+          (pipelineContext as any).medical_history = [
+            ...(pipelineContext.medical_history || []),
+            ...selectedMedicalHistory.filter(mh => !(pipelineContext.medical_history || []).includes(mh)),
+          ];
+        }
 
         const o1Result = await runUnifiedClinicalPipeline(
           {
