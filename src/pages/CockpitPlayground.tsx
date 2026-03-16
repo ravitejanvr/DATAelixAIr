@@ -185,6 +185,89 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
     ],
     instructions: ["EMERGENCY: Blood pressure must be reduced gradually", "Do NOT reduce BP by more than 25% in first hour", "Follow up with cardiologist within 1 week"],
   },
+  "costochondritis": {
+    tests: ["ECG (to rule out cardiac)", "Chest X-ray (if atypical)"],
+    medications: [
+      { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "5 days", line: "alternative" },
+    ],
+    instructions: ["Apply warm compress to affected area", "Avoid activities that worsen pain", "This is a benign condition — pain usually resolves in weeks", "Return if: breathlessness, radiating pain, fever"],
+  },
+  "musculoskeletal chest pain": {
+    tests: ["ECG", "Chest X-ray"],
+    medications: [
+      { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "5 days", line: "first" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "alternative" },
+    ],
+    instructions: ["Rest the affected area", "Apply ice or heat as needed", "Follow up if pain persists >2 weeks or worsens"],
+  },
+  "gastritis": {
+    tests: ["CBC", "H. pylori test", "Upper GI endoscopy (if persistent)"],
+    medications: [
+      { drug: "Pantoprazole", dose: "40mg", route: "PO", freq: "OD", dur: "4 weeks", line: "first" },
+      { drug: "Domperidone", dose: "10mg", route: "PO", freq: "TID", dur: "1 week", line: "first" },
+    ],
+    instructions: ["Avoid spicy, acidic, and fried foods", "Eat small frequent meals", "Avoid NSAIDs and alcohol", "Follow up in 4 weeks if symptoms persist"],
+  },
+  "peptic ulcer disease": {
+    tests: ["CBC", "H. pylori test", "Upper GI endoscopy"],
+    medications: [
+      { drug: "Pantoprazole", dose: "40mg", route: "PO", freq: "BD", dur: "8 weeks", line: "first" },
+      { drug: "Amoxicillin", dose: "1g", route: "PO", freq: "BD", dur: "14 days", line: "first" },
+      { drug: "Clarithromycin", dose: "500mg", route: "PO", freq: "BD", dur: "14 days", line: "first" },
+    ],
+    instructions: ["Complete full H. pylori eradication course", "Avoid NSAIDs", "Follow up endoscopy in 8 weeks"],
+  },
+  "acute bronchitis": {
+    tests: ["Chest X-ray (if pneumonia suspected)", "CBC"],
+    medications: [
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "5 days", line: "first" },
+      { drug: "Dextromethorphan", dose: "30mg", route: "PO", freq: "TID", dur: "5 days", line: "first" },
+    ],
+    instructions: ["Stay hydrated", "Use honey for cough relief", "Most cases are viral — antibiotics usually not needed", "Return if: breathing difficulty, high fever, coughing blood"],
+  },
+  "upper respiratory tract infection": {
+    tests: [],
+    medications: [
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
+      { drug: "Cetirizine", dose: "10mg", route: "PO", freq: "OD", dur: "5 days", line: "first" },
+    ],
+    instructions: ["Rest and stay hydrated", "Steam inhalation for congestion", "Usually self-limiting (5-7 days)", "Seek care if symptoms worsen or persist >10 days"],
+  },
+  "viral fever": {
+    tests: ["CBC", "Dengue NS1/IgM (if endemic area)"],
+    medications: [
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "3 days", line: "first" },
+    ],
+    instructions: ["Drink plenty of fluids", "Rest", "Monitor for warning signs: persistent vomiting, bleeding, severe abdominal pain", "Follow up if fever persists >5 days"],
+  },
+  "stable angina": {
+    tests: ["ECG", "Troponin", "Lipid profile", "Stress test", "Echocardiogram"],
+    medications: [
+      { drug: "Aspirin", dose: "75mg", route: "PO", freq: "OD", dur: "Ongoing", line: "first" },
+      { drug: "Atorvastatin", dose: "40mg", route: "PO", freq: "OD", dur: "Ongoing", line: "first" },
+      { drug: "Nitroglycerin", dose: "0.4mg SL", route: "SL", freq: "PRN", dur: "As needed", line: "first" },
+      { drug: "Metoprolol", dose: "25mg", route: "PO", freq: "BD", dur: "Ongoing", line: "first" },
+    ],
+    instructions: ["Take aspirin daily", "Use sublingual nitroglycerin for acute episodes", "Follow up with cardiologist", "Lifestyle: exercise, diet modification, smoking cessation"],
+  },
+  "gerd": {
+    tests: ["Upper GI endoscopy (if alarm features)"],
+    medications: [
+      { drug: "Pantoprazole", dose: "40mg", route: "PO", freq: "OD", dur: "8 weeks", line: "first" },
+      { drug: "Domperidone", dose: "10mg", route: "PO", freq: "TID", dur: "2 weeks", line: "first" },
+    ],
+    instructions: ["Elevate head of bed", "Avoid eating 3 hours before bedtime", "Avoid spicy, fatty, citrus foods and caffeine", "Lose weight if overweight"],
+  },
+  "asthma exacerbation": {
+    tests: ["Peak flow measurement", "Chest X-ray", "ABG (if severe)"],
+    medications: [
+      { drug: "Salbutamol nebulization", dose: "2.5mg", route: "NEB", freq: "Q20min x3", dur: "Acute", line: "emergency" },
+      { drug: "Prednisolone", dose: "40mg", route: "PO", freq: "OD", dur: "5 days", line: "first" },
+      { drug: "Ipratropium nebulization", dose: "0.5mg", route: "NEB", freq: "Q4H", dur: "As needed", line: "alternative" },
+    ],
+    instructions: ["Use rescue inhaler as prescribed", "Complete steroid course", "Identify and avoid triggers", "Seek emergency care if no improvement with nebulization"],
+  },
 };
 
 function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }>; instructions: string[] } {
