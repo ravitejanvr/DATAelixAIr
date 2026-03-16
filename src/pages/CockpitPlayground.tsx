@@ -179,6 +179,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Ceftriaxone", dose: "2g", route: "IV", freq: "BD", dur: "10-14 days", line: "emergency" },
       { drug: "Dexamethasone", dose: "0.15mg/kg", route: "IV", freq: "QID", dur: "4 days", line: "first" },
     ],
+    monitoring: ["GCS Q1H", "Neuro checks Q1H", "Temperature Q4H", "Repeat LP if no improvement in 48 hours"],
     instructions: ["EMERGENCY: Antibiotics must be given within 1 hour", "ICU monitoring may be required", "Close contacts may need prophylaxis"],
   },
   "diabetic ketoacidosis": {
