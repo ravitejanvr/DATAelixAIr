@@ -289,6 +289,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
     medications: [
       { drug: "Salbutamol nebulization", dose: "2.5mg", route: "NEB", freq: "Q20min x3", dur: "Acute", line: "emergency" },
       { drug: "Prednisolone", dose: "40mg", route: "PO", freq: "OD", dur: "5 days", line: "first" },
+    monitoring: ["Peak flow BD — target >80% predicted", "SpO₂ monitoring", "Reassess after 3 nebulizations", "Step-down plan after acute phase"],
       { drug: "Ipratropium nebulization", dose: "0.5mg", route: "NEB", freq: "Q4H", dur: "As needed", line: "alternative" },
     ],
     instructions: ["Use rescue inhaler as prescribed", "Complete steroid course", "Identify and avoid triggers", "Seek emergency care if no improvement with nebulization"],
