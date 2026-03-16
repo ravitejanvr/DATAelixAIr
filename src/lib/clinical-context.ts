@@ -30,6 +30,9 @@ export interface ClinicalContext {
   onset_pattern?: string;
   severity?: string;
   body_location?: string;
+  blood_sugar?: number | null;
+  family_history?: string[];
+  exam_findings?: string[];
 }
 
 export const EMPTY_CLINICAL_CONTEXT: ClinicalContext = {
@@ -51,6 +54,8 @@ export const EMPTY_CLINICAL_CONTEXT: ClinicalContext = {
   associated_symptoms: [],
   risk_flags: [],
   risk_factors: [],
+  family_history: [],
+  exam_findings: [],
 };
 
 interface PatientDemographics {

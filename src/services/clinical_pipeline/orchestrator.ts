@@ -355,6 +355,7 @@ function buildVitals(ctx: ClinicalContext) {
     bp_systolic: bpParts.length >= 1 ? parseInt(bpParts[0]) : undefined,
     bp_diastolic: bpParts.length >= 2 ? parseInt(bpParts[1]) : undefined,
     respiratory_rate: ctx.respiratory_rate,
+    blood_sugar: ctx.blood_sugar,
   };
 }
 
