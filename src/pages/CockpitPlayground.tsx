@@ -958,13 +958,16 @@ export default function CockpitPlayground() {
       const rxLines = pendingRx.map(rx => `${rx.drug_name} ${rx.dose} ${(rx as any).route || "PO"} ${rx.frequency}`).join("; ");
       parts.push(`Treatment: ${rxLines}.`);
     }
+    if (allMonitoring.length > 0) {
+      parts.push(`Monitoring: ${allMonitoring.join("; ")}.`);
+    }
     if (selectedInstructions.length > 0) {
       parts.push(`Patient instructions: ${selectedInstructions.join(". ")}.`);
     }
     if (parts.length > 0) {
       setSoapSections(prev => ({ ...prev, "Treatment Plan": parts.join("\n") }));
     }
-  }, [selectedTests, pendingRx, selectedInstructions, soapManualEdits]);
+  }, [selectedTests, pendingRx, selectedInstructions, allMonitoring, soapManualEdits]);
 
   // ── Copilot props — wired tests/medications, NO diagnoses ──
   const copilotProps = {
