@@ -58,6 +58,7 @@ import PilotRequest from "./pages/PilotRequest";
 import AiPipelineTest from "./pages/AiPipelineTest";
 import PipelineTrace from "./pages/PipelineTrace";
 import GPBenchmarkDashboard from "./pages/GPBenchmarkDashboard";
+import ModifierSensitivityTest from "./pages/ModifierSensitivityTest";
 
 const queryClient = new QueryClient();
 
@@ -193,6 +194,7 @@ const App = () => (
               <Route path="/admin/pipeline-trace" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PipelineTrace /></ProtectedRoute>} />
               <Route path="/admin/benchmark" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><GPBenchmarkDashboard /></PlatformAdminLayout></ProtectedRoute>} />
               <Route path="/admin/system-validation" element={<Navigate to="/admin/benchmark" replace />} />
+              <Route path="/admin/modifier-sensitivity" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><ModifierSensitivityTest /></PlatformAdminLayout></ProtectedRoute>} />
 
               {/* Layer 1: Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
