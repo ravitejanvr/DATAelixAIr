@@ -58,6 +58,8 @@ export interface BayesianInput {
   vitals?: Record<string, any>;
   duration?: string | null;
   onset_pattern?: string | null;
+  severity?: string | null;
+  body_location?: string | null;
 }
 
 /**
