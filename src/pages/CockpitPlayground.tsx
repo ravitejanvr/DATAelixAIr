@@ -869,6 +869,7 @@ export default function CockpitPlayground() {
         medications: management.medications,
         mustNotMiss: false,
         instructions: management.instructions,
+        monitoring: management.monitoring,
       };
     });
   }, [pipelineBayesian, pipelineHypotheses, pipelineDDX]);
