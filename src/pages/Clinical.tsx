@@ -360,6 +360,11 @@ export default function Clinical() {
       subjParts.push(`c/o ${selectedSymptoms.join(", ")}`);
     }
     if (selectedDuration) subjParts.push(`× ${selectedDuration}`);
+    if (selectedOnset) subjParts.push(`Onset: ${selectedOnset}`);
+    if (selectedSeverity) subjParts.push(`Severity: ${selectedSeverity}`);
+    if (selectedBodyLocation) subjParts.push(`Location: ${selectedBodyLocation}`);
+    if (selectedRiskFactors.length > 0) subjParts.push(`Risk factors: ${selectedRiskFactors.join(", ")}`);
+    if (selectedMedicalHistory.length > 0) subjParts.push(`PMH: ${selectedMedicalHistory.join(", ")}`);
 
     const expDetails = Object.entries(expansionSelections)
       .filter(([_, vals]) => vals.length > 0)
