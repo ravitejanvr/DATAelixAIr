@@ -71,8 +71,8 @@ interface ClinicalCopilotProps {
   tests: string[];
   selectedTests: string[];
   onToggleTest: (test: string) => void;
-  medications: Array<{ drug: string; dose: string; freq: string; dur: string }>;
-  selectedMedications: Array<{ drug_name: string; dose: string; frequency: string; duration: string }>;
+  medications: Array<{ drug: string; dose: string; route?: string; freq: string; dur: string; line?: "first" | "alternative" | "emergency" }>;
+  selectedMedications: Array<{ drug_name: string; dose: string; frequency: string; duration: string; route?: string }>;
   onToggleMedication: (med: { drug: string; dose: string; freq: string; dur: string }) => void;
   safetyResults: SafetyResults | null;
   patientAge?: number;
