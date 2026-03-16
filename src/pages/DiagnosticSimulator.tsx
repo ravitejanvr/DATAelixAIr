@@ -182,7 +182,7 @@ export default function DiagnosticSimulator() {
   });
 
   const extractSimResult = (pr: PipelineResult): SimResult => {
-    const bayesian = pr.bayesian_result;
+    const bayesian = pr.bayesian;
     const hypotheses = (pr.hypotheses as any)?.hypotheses || [];
     const bayesianDiagnoses = bayesian?.diagnoses?.slice(0, 8).map((d: any) => {
       const resolved = hypotheses.find((h: any) =>
