@@ -1772,6 +1772,66 @@ export default function Clinical() {
                       </div>
                     );
                   })()}
+
+                  {/* Family History */}
+                  {selectedPatient && selectedSymptoms.length > 0 && (
+                    <div className="mt-2">
+                      <ChipGroup label="Family History">
+                        {selectedFamilyHistory.map(fh => (
+                          <Chip
+                            key={fh}
+                            variant="neutral"
+                            size="sm"
+                            selected
+                            removable
+                            onRemove={() => setSelectedFamilyHistory(prev => prev.filter(x => x !== fh))}
+                          >
+                            {fh}
+                          </Chip>
+                        ))}
+                        {FAMILY_HISTORY_PRESETS.filter(fh => !selectedFamilyHistory.includes(fh)).map(fh => (
+                          <Chip
+                            key={fh}
+                            variant="neutral"
+                            size="sm"
+                            onClick={() => setSelectedFamilyHistory(prev => [...prev, fh])}
+                          >
+                            {fh}
+                          </Chip>
+                        ))}
+                      </ChipGroup>
+                    </div>
+                  )}
+
+                  {/* Physical Examination Findings */}
+                  {selectedPatient && selectedSymptoms.length > 0 && (
+                    <div className="mt-2">
+                      <ChipGroup label="Exam Findings">
+                        {selectedExamFindings.map(ef => (
+                          <Chip
+                            key={ef}
+                            variant="alert"
+                            size="sm"
+                            selected
+                            removable
+                            onRemove={() => setSelectedExamFindings(prev => prev.filter(x => x !== ef))}
+                          >
+                            {ef}
+                          </Chip>
+                        ))}
+                        {EXAM_FINDINGS_PRESETS.filter(ef => !selectedExamFindings.includes(ef)).map(ef => (
+                          <Chip
+                            key={ef}
+                            variant="alert"
+                            size="sm"
+                            onClick={() => setSelectedExamFindings(prev => [...prev, ef])}
+                          >
+                            {ef}
+                          </Chip>
+                        ))}
+                      </ChipGroup>
+                    </div>
+                  )}
                 </ClinicalCard>
               )}
 
