@@ -834,6 +834,7 @@ export default function CockpitPlayground() {
           mustNotMiss: ddxEntry?.mustNotMiss || d.must_not_miss || false,
           bayesian: d,
           instructions: management.instructions,
+          monitoring: management.monitoring,
         };
       });
     }
