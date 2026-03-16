@@ -541,7 +541,7 @@ export default function Clinical() {
       setTimeout(() => runFullPipeline(), 100);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors.length, selectedMedicalHistory.length, selectedFamilyHistory.length, selectedExamFindings.length, patientVitals?.blood_sugar, patientVitals?.temperature, patientVitals?.pulse, patientVitals?.spo2]);
+  }, [selectedOnset, selectedSeverity, selectedBodyLocation, selectedDuration, selectedRiskFactors.length, selectedMedicalHistory.length, selectedFamilyHistory.length, selectedExamFindings.length, patientVitals?.blood_sugar, patientVitals?.temperature, patientVitals?.pulse, patientVitals?.spo2]);
 
   useEffect(() => {
     if (!user) return;
