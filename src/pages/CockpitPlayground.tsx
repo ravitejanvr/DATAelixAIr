@@ -653,12 +653,10 @@ export default function CockpitPlayground() {
 
   // ── Merged diagnoses for Assessment & Plan ──
   const mergedDiagnoses = useMemo(() => {
-    // Build DDX lookup: diagnosis_id → { name, supporting_symptoms, must_not_miss }
     const ddxNameMap = new Map<string, { name: string; supporting: string[]; mustNotMiss: boolean }>();
     const ddxTraces: any[] = pipelineDDX?.reasoning_traces || [];
     const ddxDifferentials: any[] = pipelineDDX?.differential_diagnoses || [];
 
-    // Populate from reasoning_traces (most complete source)
     ddxTraces.forEach((t: any) => {
       if (t.diagnosis_id && t.diagnosis) {
         ddxNameMap.set(t.diagnosis_id, {
@@ -668,7 +666,6 @@ export default function CockpitPlayground() {
         });
       }
     });
-    // Supplement from differential_diagnoses
     ddxDifferentials.forEach((dd: any) => {
       if (dd.diagnosis_id && dd.diagnosis_name && !ddxNameMap.has(dd.diagnosis_id)) {
         ddxNameMap.set(dd.diagnosis_id, {
@@ -679,46 +676,40 @@ export default function CockpitPlayground() {
       }
     });
 
-    // DDX-sourced labs and medications
     const ddxLabs: string[] = (pipelineDDX?.recommended_labs || []).map((l: any) => l.test_name);
-    const ddxMeds: Array<{ drug: string; dose: string; freq: string; dur: string; forDiagnosis: string }> =
-      (pipelineDDX?.suggested_medications || []).map((m: any) => ({
+    const ddxMeds: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency"; forDiagnosis: string }> = [];
+    (pipelineDDX?.suggested_medications || []).forEach((m: any) => {
+      ddxMeds.push({
         drug: m.generic_name || m.drug_name || m.drug || "",
-        dose: m.dose || "",
-        freq: m.frequency || "",
-        dur: m.duration || "",
+        dose: m.dose || "", route: m.route || "PO", freq: m.frequency || "", dur: m.duration || "",
+        line: (m.line as any) || "first",
         forDiagnosis: m.for_diagnosis || "",
-      }));
+      });
+    });
 
     const hasBayesian = pipelineBayesian?.diagnoses?.length > 0;
-    const hasHyp = pipelineHypotheses.length > 0;
-    const hasDDX = ddxTraces.length > 0;
-    if (!hasBayesian && !hasHyp && !hasDDX) return [];
+    const hasDDX = ddxTraces.length > 0 || ddxDifferentials.length > 0;
 
     if (hasBayesian) {
       return pipelineBayesian.diagnoses.slice(0, 8).map((d: any, idx: number) => {
-        // Resolve name: DDX map (authoritative) → hypothesis match → fallback
         const ddxEntry = ddxNameMap.get(d.diagnosis_id);
-        const hyp = pipelineHypotheses.find(
-          (h: any) => h.diagnosis && (
-            ddxEntry?.name?.toLowerCase() === h.diagnosis.toLowerCase() ||
-            d.supporting_evidence?.some((e: string) => h.supporting_factors?.includes(e))
-          )
-        );
+        const hyp = pipelineHypotheses.find((h: any) => {
+          const hName = (h.diagnosis || "").toLowerCase();
+          return ddxEntry && hName === ddxEntry.name.toLowerCase();
+        }) || pipelineHypotheses[idx];
+
         const displayName = ddxEntry?.name
           || hyp?.diagnosis
           || (d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e)) || `Diagnosis ${idx + 1}`);
 
-        // Merge tests: DDX engine labs + hypothesis tests + management engine
         const management = resolveManagement(displayName);
         const pipelineTests = hyp?.recommended_tests || [];
         const allTests = [...new Set([...ddxLabs, ...pipelineTests, ...management.tests])];
 
-        // Merge medications: DDX engine meds for this diagnosis + management engine
         const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === displayName.toLowerCase());
         const allMeds = management.medications.length > 0
           ? management.medications
-          : ddxMedsForDx.map(m => ({ drug: m.drug, dose: m.dose, freq: m.freq, dur: m.dur }));
+          : ddxMedsForDx.map(m => ({ drug: m.drug, dose: m.dose, route: m.route, freq: m.freq, dur: m.dur, line: m.line }));
 
         return {
           name: displayName,
@@ -733,11 +724,11 @@ export default function CockpitPlayground() {
           medications: allMeds,
           mustNotMiss: ddxEntry?.mustNotMiss || d.must_not_miss || false,
           bayesian: d,
+          instructions: management.instructions,
         };
       });
     }
 
-    // Fallback to DDX traces if Bayesian not available
     if (hasDDX) {
       return ddxTraces.slice(0, 8).map((t: any) => {
         const management = resolveManagement(t.diagnosis || "");
@@ -748,8 +739,9 @@ export default function CockpitPlayground() {
           supporting: (t.symptom_evidence || []).map((e: any) => e.symptom || e),
           contradicting: t.contradicting_factors || [],
           tests: [...new Set([...ddxLabs, ...management.tests])],
-          medications: management.medications.length > 0 ? management.medications : ddxMedsForDx.map((m: any) => ({ drug: m.drug, dose: m.dose, freq: m.freq, dur: m.dur })),
+          medications: management.medications.length > 0 ? management.medications : ddxMedsForDx.map((m: any) => ({ drug: m.drug, dose: m.dose, route: m.route || "PO", freq: m.freq, dur: m.dur, line: m.line || "first" })),
           mustNotMiss: t.must_not_miss || false,
+          instructions: management.instructions,
         };
       });
     }
@@ -765,6 +757,7 @@ export default function CockpitPlayground() {
         tests: allTests,
         medications: management.medications,
         mustNotMiss: false,
+        instructions: management.instructions,
       };
     });
   }, [pipelineBayesian, pipelineHypotheses, pipelineDDX]);
