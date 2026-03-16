@@ -852,6 +852,7 @@ export default function CockpitPlayground() {
           medications: management.medications.length > 0 ? management.medications : ddxMedsForDx.map((m: any) => ({ drug: m.drug, dose: m.dose, route: m.route || "PO", freq: m.freq, dur: m.dur, line: m.line || "first" })),
           mustNotMiss: t.must_not_miss || false,
           instructions: management.instructions,
+          monitoring: management.monitoring,
         };
       });
     }
