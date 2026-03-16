@@ -1979,7 +1979,7 @@ export default function Clinical() {
                     />
                   </div>
 
-                  {/* Assessment */}
+                  {/* Assessment — Enhanced with Bayesian ranking */}
                   <div className="rounded-xl border p-3 bg-amber-500/5 border-amber-500/15">
                     <div className="flex items-center gap-1.5 mb-2">
                       <Brain className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
@@ -1988,6 +1988,29 @@ export default function Clinical() {
                     {selectedDiagnoses.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-2">
                         {selectedDiagnoses.map(d => <Chip key={d} variant="diagnosis" selected removable onRemove={() => toggleDiagnosis(d)}>{d}</Chip>)}
+                      </div>
+                    )}
+                    {/* Bayesian-ranked differential inline */}
+                    {pipelineBayesian && pipelineBayesian.diagnoses?.length > 0 && selectedDiagnoses.length === 0 && (
+                      <div className="mb-2 space-y-1">
+                        <p className="text-[9px] font-semibold text-muted-foreground uppercase">AI Differential (tap to select)</p>
+                        {pipelineBayesian.diagnoses.slice(0, 5).map((d: any, i: number) => {
+                          const pct = Math.round((d.posterior_probability || 0) * 100);
+                          const name = pipelineHypotheses?.find(
+                            (h: any) => h.diagnosis && d.supporting_evidence?.some((e: string) => h.supporting_factors?.includes(e))
+                          )?.diagnosis || d.diagnosis_id;
+                          const isUUID = /^[0-9a-f]{8}-/.test(name);
+                          const displayName = isUUID ? (d.supporting_evidence?.[0] || `Dx ${i + 1}`) : name;
+                          return (
+                            <div key={d.diagnosis_id} className="flex items-center gap-1.5">
+                              <Chip variant="diagnosis" size="sm" onClick={() => toggleDiagnosis(displayName)}>
+                                {displayName}
+                              </Chip>
+                              <Badge variant="outline" className="text-[9px]">{pct}%</Badge>
+                              {d.must_not_miss && <AlertTriangle className="h-2.5 w-2.5 text-destructive" />}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     <Textarea
