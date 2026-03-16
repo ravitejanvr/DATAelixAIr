@@ -198,6 +198,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Labetalol", dose: "20mg", route: "IV", freq: "Q10min PRN", dur: "Until controlled", line: "emergency" },
       { drug: "Amlodipine", dose: "5mg", route: "PO", freq: "OD", dur: "Ongoing", line: "first" },
     ],
+    monitoring: ["BP Q5min during IV therapy", "Reduce MAP by ≤25% in first hour", "Target BP <160/100 over 2-6 hours", "End-organ damage assessment"],
     instructions: ["EMERGENCY: Blood pressure must be reduced gradually", "Do NOT reduce BP by more than 25% in first hour", "Follow up with cardiologist within 1 week"],
   },
   "costochondritis": {
