@@ -296,13 +296,13 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
   },
 };
 
-function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }>; instructions: string[] } {
+function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }>; instructions: string[]; monitoring: string[] } {
   const key = diagnosisName.toLowerCase().trim();
-  if (MANAGEMENT_MAP[key]) return { ...MANAGEMENT_MAP[key], instructions: MANAGEMENT_MAP[key].instructions || [] };
+  if (MANAGEMENT_MAP[key]) return { ...MANAGEMENT_MAP[key], instructions: MANAGEMENT_MAP[key].instructions || [], monitoring: MANAGEMENT_MAP[key].monitoring || [] };
   for (const [mapKey, val] of Object.entries(MANAGEMENT_MAP)) {
-    if (key.includes(mapKey) || mapKey.includes(key)) return { ...val, instructions: val.instructions || [] };
+    if (key.includes(mapKey) || mapKey.includes(key)) return { ...val, instructions: val.instructions || [], monitoring: val.monitoring || [] };
   }
-  return { tests: [], medications: [], instructions: [] };
+  return { tests: [], medications: [], instructions: [], monitoring: [] };
 }
 
 // ── Scenarios ──
