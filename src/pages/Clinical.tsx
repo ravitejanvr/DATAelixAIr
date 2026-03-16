@@ -1124,7 +1124,7 @@ export default function Clinical() {
     setFollowUpDate(""); setFollowUpNotes("");
     setSelectedSymptoms([]); setSelectedDuration(""); setExpansionSelections({});
     setSelectedOnset(""); setSelectedSeverity(""); setSelectedBodyLocation("");
-    setSelectedRiskFactors([]); setSelectedMedicalHistory([]);
+    setSelectedRiskFactors([]); setSelectedMedicalHistory([]); setSelectedFamilyHistory([]); setSelectedExamFindings([]);
     setPriorMeds([]); setAutoGenerateTriggered(false); setSymptomSearch("");
     setFinalizationResults(null); setIsFinalizingConsultation(false);
     setConsultationSummary(""); setSummaryManuallyEdited(false);
