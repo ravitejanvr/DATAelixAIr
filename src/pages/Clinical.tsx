@@ -670,7 +670,9 @@ export default function Clinical() {
       const locationContext = selectedBodyLocation ? ` Location: ${selectedBodyLocation}.` : "";
       const riskContext = selectedRiskFactors.length > 0 ? ` Risk factors: ${selectedRiskFactors.join(", ")}.` : "";
       const historyContext = selectedMedicalHistory.length > 0 ? ` Medical history: ${selectedMedicalHistory.join(", ")}.` : "";
-      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${onsetContext}${severityContext}${locationContext}${expansionDetails ? ` ${expansionDetails}.` : ""}${medsContext}${riskContext}${historyContext}`;
+      const familyContext = selectedFamilyHistory.length > 0 ? ` Family history: ${selectedFamilyHistory.join(", ")}.` : "";
+      const examContext = selectedExamFindings.length > 0 ? ` Exam findings: ${selectedExamFindings.join(", ")}.` : "";
+      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${onsetContext}${severityContext}${locationContext}${expansionDetails ? ` ${expansionDetails}.` : ""}${medsContext}${riskContext}${historyContext}${familyContext}${examContext}`;
       setTranscript(effectiveTranscript);
     }
     if (!effectiveTranscript) return;
