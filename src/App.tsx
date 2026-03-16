@@ -58,6 +58,7 @@ import PilotRequest from "./pages/PilotRequest";
 import AiPipelineTest from "./pages/AiPipelineTest";
 import PipelineTrace from "./pages/PipelineTrace";
 import GPBenchmarkDashboard from "./pages/GPBenchmarkDashboard";
+import ModifierSensitivityTest from "./pages/ModifierSensitivityTest";
 
 const queryClient = new QueryClient();
 
