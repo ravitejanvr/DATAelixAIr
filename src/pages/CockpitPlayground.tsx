@@ -775,16 +775,14 @@ export default function CockpitPlayground() {
   // ── All recommended medications from DDX + management engine ──
   const allRecommendedMedications = useMemo(() => {
     const seen = new Set<string>();
-    const meds: Array<{ drug: string; dose: string; freq: string; dur: string }> = [];
-    // Direct from DDX engine suggested_medications
+    const meds: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }> = [];
     (pipelineDDX?.suggested_medications || []).forEach((m: any) => {
       const name = m.generic_name || m.drug_name || m.drug || "";
       if (name && !seen.has(name)) {
         seen.add(name);
-        meds.push({ drug: name, dose: m.dose || "", freq: m.frequency || "", dur: m.duration || "" });
+        meds.push({ drug: name, dose: m.dose || "", route: m.route || "PO", freq: m.frequency || "", dur: m.duration || "", line: m.line || "first" });
       }
     });
-    // From management engine via mergedDiagnoses
     mergedDiagnoses.forEach((d: any) => {
       d.medications?.forEach((rx: any) => {
         if (!seen.has(rx.drug)) { seen.add(rx.drug); meds.push(rx); }
@@ -792,6 +790,15 @@ export default function CockpitPlayground() {
     });
     return meds;
   }, [mergedDiagnoses, pipelineDDX]);
+
+  // ── All patient instructions from management engine ──
+  const allInstructions = useMemo(() => {
+    const insts = new Set<string>();
+    mergedDiagnoses.forEach((d: any) => {
+      (d.instructions || []).forEach((i: string) => insts.add(i));
+    });
+    return Array.from(insts);
+  }, [mergedDiagnoses]);
 
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
