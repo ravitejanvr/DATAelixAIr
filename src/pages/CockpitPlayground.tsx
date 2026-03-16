@@ -112,6 +112,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Ondansetron", dose: "4mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
       { drug: "Zinc", dose: "20mg", route: "PO", freq: "OD", dur: "10 days", line: "first" },
     ],
+    monitoring: ["Hydration status — skin turgor, mucous membranes", "Urine output — target >0.5 ml/kg/hr", "Electrolytes if severe dehydration", "Return if symptoms persist >48 hours"],
     instructions: ["Drink plenty of fluids — ORS, coconut water, clear soups", "Eat light diet — rice, bananas, toast, yogurt", "Avoid dairy, spicy, and fried foods", "Wash hands frequently to prevent spread", "Seek emergency care if: bloody stools, inability to keep fluids down, high fever >103°F, signs of dehydration"],
   },
   "food poisoning": {
