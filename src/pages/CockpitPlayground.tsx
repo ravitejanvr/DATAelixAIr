@@ -216,6 +216,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "5 days", line: "first" },
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "alternative" },
     ],
+    monitoring: ["Follow up if pain persists >2 weeks"],
     instructions: ["Rest the affected area", "Apply ice or heat as needed", "Follow up if pain persists >2 weeks or worsens"],
   },
   "gastritis": {
