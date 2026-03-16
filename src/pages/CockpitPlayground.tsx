@@ -644,41 +644,72 @@ export default function CockpitPlayground() {
     const hasHyp = pipelineHypotheses.length > 0;
     if (!hasBayesian && !hasHyp) return [];
     if (hasBayesian) {
-      return pipelineBayesian.diagnoses.slice(0, 5).map((d: any) => {
+      return pipelineBayesian.diagnoses.slice(0, 5).map((d: any, idx: number) => {
+        // Improved name resolution: try hypothesis match, then diagnosis_name field, then evidence
         const hyp = pipelineHypotheses.find(
-          (h: any) => h.diagnosis && d.supporting_evidence?.some((e: string) => h.supporting_factors?.includes(e))
+          (h: any) => h.diagnosis && (
+            d.diagnosis_name?.toLowerCase() === h.diagnosis.toLowerCase() ||
+            d.supporting_evidence?.some((e: string) => h.supporting_factors?.includes(e))
+          )
         );
-        const name = hyp?.diagnosis || d.diagnosis_id;
-        const isUUID = /^[0-9a-f]{8}-/.test(name);
-        const displayName = isUUID ? (d.supporting_evidence?.[0] || `Diagnosis ${pipelineBayesian.diagnoses.indexOf(d) + 1}`) : name;
+        const rawName = hyp?.diagnosis || d.diagnosis_name || d.diagnosis_id;
+        const isUUID = /^[0-9a-f]{8}-/.test(rawName);
+        // Fallback chain: hyp name → diagnosis_name → first supporting evidence → ranked label
+        const displayName = isUUID
+          ? (d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e)) || `Diagnosis ${idx + 1}`)
+          : rawName;
+
+        // Resolve management from management engine
+        const management = resolveManagement(displayName);
+        const pipelineTests = hyp?.recommended_tests || [];
+        const allTests = [...new Set([...pipelineTests, ...management.tests])];
+
         return {
           name: displayName,
           pct: Math.round((d.posterior_probability || 0) * 100),
           supporting: [...new Set([...(d.supporting_evidence || []), ...(hyp?.supporting_factors || [])])],
           contradicting: hyp?.contradicting_factors || [],
-          tests: hyp?.recommended_tests || [],
+          tests: allTests,
+          medications: management.medications,
           mustNotMiss: d.must_not_miss || false,
           bayesian: d,
         };
       });
     }
-    return pipelineHypotheses.slice(0, 5).map(h => ({
-      name: h.diagnosis,
-      pct: Math.round((h.confidence || 0) * 100),
-      supporting: h.supporting_factors || [],
-      contradicting: h.contradicting_factors || [],
-      tests: h.recommended_tests || [],
-      mustNotMiss: false,
-    }));
+    return pipelineHypotheses.slice(0, 5).map(h => {
+      const management = resolveManagement(h.diagnosis);
+      const allTests = [...new Set([...(h.recommended_tests || []), ...management.tests])];
+      return {
+        name: h.diagnosis,
+        pct: Math.round((h.confidence || 0) * 100),
+        supporting: h.supporting_factors || [],
+        contradicting: h.contradicting_factors || [],
+        tests: allTests,
+        medications: management.medications,
+        mustNotMiss: false,
+      };
+    });
   }, [pipelineBayesian, pipelineHypotheses]);
 
-  // ── All recommended tests from pipeline ──
+  // ── All recommended tests from pipeline + management engine ──
   const allRecommendedTests = useMemo(() => {
     const tests = new Set<string>();
     mergedDiagnoses.forEach((d: any) => d.tests?.forEach((t: string) => tests.add(t)));
     pipelineHypotheses.forEach(h => h.recommended_tests?.forEach(t => tests.add(t)));
     return Array.from(tests);
   }, [mergedDiagnoses, pipelineHypotheses]);
+
+  // ── All recommended medications from management engine ──
+  const allRecommendedMedications = useMemo(() => {
+    const seen = new Set<string>();
+    const meds: Array<{ drug: string; dose: string; freq: string; dur: string }> = [];
+    mergedDiagnoses.forEach((d: any) => {
+      d.medications?.forEach((rx: any) => {
+        if (!seen.has(rx.drug)) { seen.add(rx.drug); meds.push(rx); }
+      });
+    });
+    return meds;
+  }, [mergedDiagnoses]);
 
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
