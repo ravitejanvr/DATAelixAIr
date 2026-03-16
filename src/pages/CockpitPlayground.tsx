@@ -102,6 +102,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Metronidazole", dose: "500mg", route: "IV", freq: "TID", dur: "Perioperative", line: "first" },
       { drug: "Paracetamol", dose: "1g", route: "IV", freq: "QID", dur: "As needed", line: "first" },
     ],
+    monitoring: ["Pain score Q4H", "Temperature Q6H", "Surgical review within 4 hours", "Post-op wound inspection"],
     instructions: ["Nil by mouth (NBM) — no food or drink", "Surgical consultation required", "Return immediately if pain worsens, fever increases, or vomiting becomes severe"],
   },
   "gastroenteritis": {
