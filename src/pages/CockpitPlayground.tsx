@@ -207,6 +207,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "5 days", line: "alternative" },
     ],
+    monitoring: ["Pain response to NSAIDs at 1 week", "Follow up if not improving in 2 weeks"],
     instructions: ["Apply warm compress to affected area", "Avoid activities that worsen pain", "This is a benign condition — pain usually resolves in weeks", "Return if: breathlessness, radiating pain, fever"],
   },
   "musculoskeletal chest pain": {
