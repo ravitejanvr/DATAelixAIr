@@ -44,146 +44,156 @@ const SYMPTOM_EXPANSIONS: Record<string, { label: string; chips: string[] }> = {
 };
 
 // ═══ MANAGEMENT ENGINE — Maps diagnoses to recommended tests & treatments ═══
-// This fills the gap when the pipeline doesn't return management recommendations
-const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ drug: string; dose: string; freq: string; dur: string }>; monitoring?: string[] }> = {
+const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }>; monitoring?: string[]; instructions?: string[] }> = {
   "migraine": {
     tests: ["CT Brain (if red flags)", "MRI Brain (if atypical)"],
     medications: [
-      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "3 days" },
-      { drug: "Ibuprofen", dose: "400mg", freq: "TID", dur: "3 days" },
-      { drug: "Sumatriptan", dose: "50mg", freq: "PRN", dur: "As needed" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "3 days", line: "first" },
+      { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
+      { drug: "Sumatriptan", dose: "50mg", route: "PO", freq: "PRN", dur: "As needed", line: "alternative" },
     ],
+    instructions: ["Avoid bright lights and loud noises during episodes", "Stay hydrated — drink at least 2L water/day", "Maintain regular sleep schedule", "Seek emergency care if: worst headache of life, sudden onset, neck stiffness, confusion", "Follow up in 1 week if symptoms persist"],
   },
   "tension headache": {
     tests: [],
     medications: [
-      { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "5 days" },
-      { drug: "Ibuprofen", dose: "400mg", freq: "TID", dur: "3 days" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "5 days", line: "first" },
+      { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "3 days", line: "alternative" },
     ],
+    instructions: ["Apply warm compress to neck/shoulders", "Practice stress management techniques", "Ensure adequate sleep (7-8 hours)", "Follow up if symptoms worsen or persist >2 weeks"],
   },
   "subarachnoid hemorrhage": {
     tests: ["CT Brain (urgent)", "CT Angiography", "Lumbar puncture (if CT negative)", "CBC", "Coagulation profile"],
     medications: [
-      { drug: "Nimodipine", dose: "60mg", freq: "Q4H", dur: "21 days" },
-      { drug: "IV Fluids", dose: "NS 1L", freq: "Q8H", dur: "Ongoing" },
+      { drug: "Nimodipine", dose: "60mg", route: "PO", freq: "Q4H", dur: "21 days", line: "first" },
+      { drug: "IV Fluids", dose: "NS 1L", route: "IV", freq: "Q8H", dur: "Ongoing", line: "first" },
     ],
+    instructions: ["EMERGENCY: Immediate neurosurgical consultation required", "Strict bed rest", "Keep head of bed elevated 30°"],
   },
   "acute coronary syndrome": {
     tests: ["ECG (12-lead)", "Troponin I/T", "CBC", "BMP", "Lipid profile", "Chest X-ray", "Echocardiogram"],
     medications: [
-      { drug: "Aspirin", dose: "325mg", freq: "STAT", dur: "Single dose" },
-      { drug: "Clopidogrel", dose: "300mg", freq: "STAT", dur: "Loading dose" },
-      { drug: "Atorvastatin", dose: "80mg", freq: "OD", dur: "Ongoing" },
-      { drug: "Nitroglycerin", dose: "0.4mg SL", freq: "PRN", dur: "As needed" },
+      { drug: "Aspirin", dose: "325mg", route: "PO", freq: "STAT", dur: "Single dose", line: "emergency" },
+      { drug: "Clopidogrel", dose: "300mg", route: "PO", freq: "STAT", dur: "Loading dose", line: "emergency" },
+      { drug: "Atorvastatin", dose: "80mg", route: "PO", freq: "OD", dur: "Ongoing", line: "first" },
+      { drug: "Nitroglycerin", dose: "0.4mg SL", route: "SL", freq: "PRN", dur: "As needed", line: "emergency" },
     ],
+    instructions: ["EMERGENCY: Call ambulance if chest pain returns", "Take aspirin immediately if chest pain recurs", "Do NOT exert yourself — complete rest", "Follow up with cardiologist within 48 hours"],
   },
   "myocardial infarction": {
     tests: ["ECG (12-lead)", "Troponin I/T", "CBC", "BMP", "Chest X-ray"],
     medications: [
-      { drug: "Aspirin", dose: "325mg", freq: "STAT", dur: "Single dose" },
-      { drug: "Clopidogrel", dose: "300mg", freq: "STAT", dur: "Loading dose" },
-      { drug: "Morphine", dose: "2-4mg IV", freq: "PRN", dur: "As needed" },
+      { drug: "Aspirin", dose: "325mg", route: "PO", freq: "STAT", dur: "Single dose", line: "emergency" },
+      { drug: "Clopidogrel", dose: "300mg", route: "PO", freq: "STAT", dur: "Loading dose", line: "emergency" },
+      { drug: "Morphine", dose: "2-4mg", route: "IV", freq: "PRN", dur: "As needed", line: "emergency" },
     ],
+    instructions: ["EMERGENCY: Immediate cardiology consultation", "Strict bed rest", "Continuous cardiac monitoring"],
   },
   "appendicitis": {
     tests: ["CBC", "CRP", "Ultrasound abdomen", "CT abdomen (if diagnosis unclear)", "Urinalysis"],
     medications: [
-      { drug: "IV Fluids", dose: "NS 1L", freq: "Q8H", dur: "Pre-op" },
-      { drug: "Ceftriaxone", dose: "1g IV", freq: "BD", dur: "Perioperative" },
-      { drug: "Metronidazole", dose: "500mg IV", freq: "TID", dur: "Perioperative" },
-      { drug: "Paracetamol", dose: "1g IV", freq: "QID", dur: "As needed" },
+      { drug: "IV Fluids", dose: "NS 1L", route: "IV", freq: "Q8H", dur: "Pre-op", line: "first" },
+      { drug: "Ceftriaxone", dose: "1g", route: "IV", freq: "BD", dur: "Perioperative", line: "first" },
+      { drug: "Metronidazole", dose: "500mg", route: "IV", freq: "TID", dur: "Perioperative", line: "first" },
+      { drug: "Paracetamol", dose: "1g", route: "IV", freq: "QID", dur: "As needed", line: "first" },
     ],
+    instructions: ["Nil by mouth (NBM) — no food or drink", "Surgical consultation required", "Return immediately if pain worsens, fever increases, or vomiting becomes severe"],
   },
   "gastroenteritis": {
     tests: ["CBC", "CRP", "Stool culture", "Electrolytes", "Renal function"],
     medications: [
-      { drug: "ORS", dose: "200ml", freq: "After each stool", dur: "Until resolved" },
-      { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "3 days" },
-      { drug: "Zinc", dose: "20mg", freq: "OD", dur: "10 days" },
+      { drug: "ORS", dose: "200ml", route: "PO", freq: "After each stool", dur: "Until resolved", line: "first" },
+      { drug: "Ondansetron", dose: "4mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
+      { drug: "Zinc", dose: "20mg", route: "PO", freq: "OD", dur: "10 days", line: "first" },
     ],
+    instructions: ["Drink plenty of fluids — ORS, coconut water, clear soups", "Eat light diet — rice, bananas, toast, yogurt", "Avoid dairy, spicy, and fried foods", "Wash hands frequently to prevent spread", "Seek emergency care if: bloody stools, inability to keep fluids down, high fever >103°F, signs of dehydration"],
   },
   "food poisoning": {
     tests: ["Stool culture", "CBC", "Electrolytes"],
     medications: [
-      { drug: "ORS", dose: "200ml", freq: "After each stool", dur: "Until resolved" },
-      { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "2 days" },
+      { drug: "ORS", dose: "200ml", route: "PO", freq: "After each stool", dur: "Until resolved", line: "first" },
+      { drug: "Ondansetron", dose: "4mg", route: "PO", freq: "TID", dur: "2 days", line: "first" },
     ],
+    instructions: ["Stay hydrated — small frequent sips of ORS", "Bland diet for 24-48 hours", "Return if symptoms persist beyond 3 days"],
   },
   "pulmonary embolism": {
     tests: ["CT Pulmonary Angiography", "D-dimer", "ECG", "ABG", "Echocardiogram", "CBC", "Troponin"],
     medications: [
-      { drug: "Heparin", dose: "80 units/kg IV", freq: "STAT", dur: "Loading dose" },
-      { drug: "Enoxaparin", dose: "1mg/kg SC", freq: "BD", dur: "5 days" },
-      { drug: "Warfarin", dose: "5mg", freq: "OD", dur: "3-6 months" },
+      { drug: "Heparin", dose: "80 units/kg", route: "IV", freq: "STAT", dur: "Loading dose", line: "emergency" },
+      { drug: "Enoxaparin", dose: "1mg/kg", route: "SC", freq: "BD", dur: "5 days", line: "first" },
+      { drug: "Warfarin", dose: "5mg", route: "PO", freq: "OD", dur: "3-6 months", line: "first" },
     ],
+    instructions: ["EMERGENCY: Anticoagulation must not be delayed", "Avoid prolonged immobility", "Regular INR monitoring if on warfarin"],
   },
   "pneumonia": {
     tests: ["Chest X-ray", "CBC", "CRP", "Blood culture", "Sputum culture", "Procalcitonin"],
     medications: [
-      { drug: "Amoxicillin", dose: "500mg", freq: "TID", dur: "7 days" },
-      { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
-      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "As needed" },
+      { drug: "Amoxicillin", dose: "500mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
+      { drug: "Azithromycin", dose: "500mg", route: "PO", freq: "OD", dur: "3 days", line: "alternative" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "first" },
     ],
+    instructions: ["Complete the full course of antibiotics", "Rest and stay hydrated", "Use steam inhalation for congestion", "Return if: breathing difficulty worsens, fever >103°F, coughing blood", "Follow up chest X-ray in 6 weeks"],
   },
   "community-acquired pneumonia": {
     tests: ["Chest X-ray", "CBC", "CRP", "Blood culture", "Sputum culture"],
     medications: [
-      { drug: "Amoxicillin-Clavulanate", dose: "625mg", freq: "TID", dur: "7 days" },
-      { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
-      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "As needed" },
+      { drug: "Amoxicillin-Clavulanate", dose: "625mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
+      { drug: "Azithromycin", dose: "500mg", route: "PO", freq: "OD", dur: "3 days", line: "alternative" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "first" },
     ],
+    instructions: ["Complete full antibiotic course", "Increase fluid intake", "Follow up in 48-72 hours if no improvement"],
   },
   "copd exacerbation": {
     tests: ["Chest X-ray", "ABG", "CBC", "Sputum culture"],
     medications: [
-      { drug: "Salbutamol nebulization", dose: "2.5mg", freq: "QID", dur: "5 days" },
-      { drug: "Prednisolone", dose: "40mg", freq: "OD", dur: "5 days" },
-      { drug: "Amoxicillin-Clavulanate", dose: "625mg", freq: "TID", dur: "7 days" },
+      { drug: "Salbutamol nebulization", dose: "2.5mg", route: "NEB", freq: "QID", dur: "5 days", line: "first" },
+      { drug: "Prednisolone", dose: "40mg", route: "PO", freq: "OD", dur: "5 days", line: "first" },
+      { drug: "Amoxicillin-Clavulanate", dose: "625mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
     ],
+    instructions: ["Use inhalers as prescribed", "Avoid smoke and dust exposure", "Seek care if breathing worsens despite treatment"],
   },
   "urinary tract infection": {
     tests: ["Urinalysis", "Urine culture", "CBC"],
     medications: [
-      { drug: "Nitrofurantoin", dose: "100mg", freq: "BD", dur: "5 days" },
-      { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "As needed" },
+      { drug: "Nitrofurantoin", dose: "100mg", route: "PO", freq: "BD", dur: "5 days", line: "first" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "As needed", line: "first" },
     ],
+    instructions: ["Drink at least 2-3 litres of water daily", "Complete the full antibiotic course", "Urinate frequently — do not hold urine", "Return if: fever, back pain, blood in urine"],
   },
   "meningitis": {
     tests: ["CT Brain", "Lumbar puncture", "CSF analysis", "Blood culture", "CBC", "CRP", "Procalcitonin"],
     medications: [
-      { drug: "Ceftriaxone", dose: "2g IV", freq: "BD", dur: "10-14 days" },
-      { drug: "Dexamethasone", dose: "0.15mg/kg IV", freq: "QID", dur: "4 days" },
+      { drug: "Ceftriaxone", dose: "2g", route: "IV", freq: "BD", dur: "10-14 days", line: "emergency" },
+      { drug: "Dexamethasone", dose: "0.15mg/kg", route: "IV", freq: "QID", dur: "4 days", line: "first" },
     ],
+    instructions: ["EMERGENCY: Antibiotics must be given within 1 hour", "ICU monitoring may be required", "Close contacts may need prophylaxis"],
   },
   "diabetic ketoacidosis": {
     tests: ["Blood glucose", "ABG", "Electrolytes", "Serum ketones", "CBC", "Renal function"],
     medications: [
-      { drug: "Insulin (Regular)", dose: "0.1 units/kg/hr IV", freq: "Infusion", dur: "Until resolved" },
-      { drug: "IV Fluids (NS)", dose: "1L", freq: "Q1H initially", dur: "Until rehydrated" },
-      { drug: "Potassium chloride", dose: "20-40 mEq/L", freq: "Per IV fluid", dur: "Per protocol" },
+      { drug: "Insulin (Regular)", dose: "0.1 units/kg/hr", route: "IV", freq: "Infusion", dur: "Until resolved", line: "emergency" },
+      { drug: "IV Fluids (NS)", dose: "1L", route: "IV", freq: "Q1H initially", dur: "Until rehydrated", line: "emergency" },
+      { drug: "Potassium chloride", dose: "20-40 mEq/L", route: "IV", freq: "Per IV fluid", dur: "Per protocol", line: "first" },
     ],
+    instructions: ["EMERGENCY: Continuous IV insulin and fluid resuscitation", "Monitor blood glucose hourly", "Check electrolytes every 2 hours"],
   },
   "hypertensive crisis": {
     tests: ["ECG", "BMP", "Renal function", "Urinalysis", "Chest X-ray", "Fundoscopy"],
     medications: [
-      { drug: "Labetalol", dose: "20mg IV", freq: "Q10min PRN", dur: "Until controlled" },
-      { drug: "Amlodipine", dose: "5mg", freq: "OD", dur: "Ongoing" },
+      { drug: "Labetalol", dose: "20mg", route: "IV", freq: "Q10min PRN", dur: "Until controlled", line: "emergency" },
+      { drug: "Amlodipine", dose: "5mg", route: "PO", freq: "OD", dur: "Ongoing", line: "first" },
     ],
+    instructions: ["EMERGENCY: Blood pressure must be reduced gradually", "Do NOT reduce BP by more than 25% in first hour", "Follow up with cardiologist within 1 week"],
   },
 };
 
-/**
- * Management Engine: resolves recommended tests and medications from diagnosis names.
- * Falls back to partial keyword matching when exact match unavailable.
- */
-function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; freq: string; dur: string }> } {
+function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }>; instructions: string[] } {
   const key = diagnosisName.toLowerCase().trim();
-  if (MANAGEMENT_MAP[key]) return MANAGEMENT_MAP[key];
-  // Partial match
+  if (MANAGEMENT_MAP[key]) return { ...MANAGEMENT_MAP[key], instructions: MANAGEMENT_MAP[key].instructions || [] };
   for (const [mapKey, val] of Object.entries(MANAGEMENT_MAP)) {
-    if (key.includes(mapKey) || mapKey.includes(key)) return val;
+    if (key.includes(mapKey) || mapKey.includes(key)) return { ...val, instructions: val.instructions || [] };
   }
-  return { tests: [], medications: [] };
+  return { tests: [], medications: [], instructions: [] };
 }
 
 // ── Scenarios ──
@@ -643,12 +653,10 @@ export default function CockpitPlayground() {
 
   // ── Merged diagnoses for Assessment & Plan ──
   const mergedDiagnoses = useMemo(() => {
-    // Build DDX lookup: diagnosis_id → { name, supporting_symptoms, must_not_miss }
     const ddxNameMap = new Map<string, { name: string; supporting: string[]; mustNotMiss: boolean }>();
     const ddxTraces: any[] = pipelineDDX?.reasoning_traces || [];
     const ddxDifferentials: any[] = pipelineDDX?.differential_diagnoses || [];
 
-    // Populate from reasoning_traces (most complete source)
     ddxTraces.forEach((t: any) => {
       if (t.diagnosis_id && t.diagnosis) {
         ddxNameMap.set(t.diagnosis_id, {
@@ -658,7 +666,6 @@ export default function CockpitPlayground() {
         });
       }
     });
-    // Supplement from differential_diagnoses
     ddxDifferentials.forEach((dd: any) => {
       if (dd.diagnosis_id && dd.diagnosis_name && !ddxNameMap.has(dd.diagnosis_id)) {
         ddxNameMap.set(dd.diagnosis_id, {
@@ -669,46 +676,40 @@ export default function CockpitPlayground() {
       }
     });
 
-    // DDX-sourced labs and medications
     const ddxLabs: string[] = (pipelineDDX?.recommended_labs || []).map((l: any) => l.test_name);
-    const ddxMeds: Array<{ drug: string; dose: string; freq: string; dur: string; forDiagnosis: string }> =
-      (pipelineDDX?.suggested_medications || []).map((m: any) => ({
+    const ddxMeds: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency"; forDiagnosis: string }> = [];
+    (pipelineDDX?.suggested_medications || []).forEach((m: any) => {
+      ddxMeds.push({
         drug: m.generic_name || m.drug_name || m.drug || "",
-        dose: m.dose || "",
-        freq: m.frequency || "",
-        dur: m.duration || "",
+        dose: m.dose || "", route: m.route || "PO", freq: m.frequency || "", dur: m.duration || "",
+        line: (m.line as any) || "first",
         forDiagnosis: m.for_diagnosis || "",
-      }));
+      });
+    });
 
     const hasBayesian = pipelineBayesian?.diagnoses?.length > 0;
-    const hasHyp = pipelineHypotheses.length > 0;
-    const hasDDX = ddxTraces.length > 0;
-    if (!hasBayesian && !hasHyp && !hasDDX) return [];
+    const hasDDX = ddxTraces.length > 0 || ddxDifferentials.length > 0;
 
     if (hasBayesian) {
       return pipelineBayesian.diagnoses.slice(0, 8).map((d: any, idx: number) => {
-        // Resolve name: DDX map (authoritative) → hypothesis match → fallback
         const ddxEntry = ddxNameMap.get(d.diagnosis_id);
-        const hyp = pipelineHypotheses.find(
-          (h: any) => h.diagnosis && (
-            ddxEntry?.name?.toLowerCase() === h.diagnosis.toLowerCase() ||
-            d.supporting_evidence?.some((e: string) => h.supporting_factors?.includes(e))
-          )
-        );
+        const hyp = pipelineHypotheses.find((h: any) => {
+          const hName = (h.diagnosis || "").toLowerCase();
+          return ddxEntry && hName === ddxEntry.name.toLowerCase();
+        }) || pipelineHypotheses[idx];
+
         const displayName = ddxEntry?.name
           || hyp?.diagnosis
           || (d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e)) || `Diagnosis ${idx + 1}`);
 
-        // Merge tests: DDX engine labs + hypothesis tests + management engine
         const management = resolveManagement(displayName);
         const pipelineTests = hyp?.recommended_tests || [];
         const allTests = [...new Set([...ddxLabs, ...pipelineTests, ...management.tests])];
 
-        // Merge medications: DDX engine meds for this diagnosis + management engine
         const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === displayName.toLowerCase());
         const allMeds = management.medications.length > 0
           ? management.medications
-          : ddxMedsForDx.map(m => ({ drug: m.drug, dose: m.dose, freq: m.freq, dur: m.dur }));
+          : ddxMedsForDx.map(m => ({ drug: m.drug, dose: m.dose, route: m.route, freq: m.freq, dur: m.dur, line: m.line }));
 
         return {
           name: displayName,
@@ -723,11 +724,11 @@ export default function CockpitPlayground() {
           medications: allMeds,
           mustNotMiss: ddxEntry?.mustNotMiss || d.must_not_miss || false,
           bayesian: d,
+          instructions: management.instructions,
         };
       });
     }
 
-    // Fallback to DDX traces if Bayesian not available
     if (hasDDX) {
       return ddxTraces.slice(0, 8).map((t: any) => {
         const management = resolveManagement(t.diagnosis || "");
@@ -738,8 +739,9 @@ export default function CockpitPlayground() {
           supporting: (t.symptom_evidence || []).map((e: any) => e.symptom || e),
           contradicting: t.contradicting_factors || [],
           tests: [...new Set([...ddxLabs, ...management.tests])],
-          medications: management.medications.length > 0 ? management.medications : ddxMedsForDx.map((m: any) => ({ drug: m.drug, dose: m.dose, freq: m.freq, dur: m.dur })),
+          medications: management.medications.length > 0 ? management.medications : ddxMedsForDx.map((m: any) => ({ drug: m.drug, dose: m.dose, route: m.route || "PO", freq: m.freq, dur: m.dur, line: m.line || "first" })),
           mustNotMiss: t.must_not_miss || false,
+          instructions: management.instructions,
         };
       });
     }
@@ -755,6 +757,7 @@ export default function CockpitPlayground() {
         tests: allTests,
         medications: management.medications,
         mustNotMiss: false,
+        instructions: management.instructions,
       };
     });
   }, [pipelineBayesian, pipelineHypotheses, pipelineDDX]);
@@ -772,16 +775,14 @@ export default function CockpitPlayground() {
   // ── All recommended medications from DDX + management engine ──
   const allRecommendedMedications = useMemo(() => {
     const seen = new Set<string>();
-    const meds: Array<{ drug: string; dose: string; freq: string; dur: string }> = [];
-    // Direct from DDX engine suggested_medications
+    const meds: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }> = [];
     (pipelineDDX?.suggested_medications || []).forEach((m: any) => {
       const name = m.generic_name || m.drug_name || m.drug || "";
       if (name && !seen.has(name)) {
         seen.add(name);
-        meds.push({ drug: name, dose: m.dose || "", freq: m.frequency || "", dur: m.duration || "" });
+        meds.push({ drug: name, dose: m.dose || "", route: m.route || "PO", freq: m.frequency || "", dur: m.duration || "", line: m.line || "first" });
       }
     });
-    // From management engine via mergedDiagnoses
     mergedDiagnoses.forEach((d: any) => {
       d.medications?.forEach((rx: any) => {
         if (!seen.has(rx.drug)) { seen.add(rx.drug); meds.push(rx); }
@@ -789,6 +790,15 @@ export default function CockpitPlayground() {
     });
     return meds;
   }, [mergedDiagnoses, pipelineDDX]);
+
+  // ── All patient instructions from management engine ──
+  const allInstructions = useMemo(() => {
+    const insts = new Set<string>();
+    mergedDiagnoses.forEach((d: any) => {
+      (d.instructions || []).forEach((i: string) => insts.add(i));
+    });
+    return Array.from(insts);
+  }, [mergedDiagnoses]);
 
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
@@ -829,7 +839,7 @@ export default function CockpitPlayground() {
       if (pendingRx.some(p => p.drug_name === rx.drug)) {
         setPendingRx(prev => prev.filter(p => p.drug_name !== rx.drug));
       } else {
-        setPendingRx(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur }]);
+        setPendingRx(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur, route: rx.route || "PO" }]);
       }
     },
     safetyResults,
@@ -837,7 +847,7 @@ export default function CockpitPlayground() {
     allergies: mockPatient?.allergies || [],
     diagnosis: selectedDiagnoses[0],
     chiefComplaint,
-    instructions: [], selectedInstructions,
+    instructions: allInstructions, selectedInstructions,
     onToggleInstruction: (inst: string) => setSelectedInstructions(prev => prev.includes(inst) ? prev.filter(x => x !== inst) : [...prev, inst]),
     hypotheses: pipelineHypotheses.length > 0 ? pipelineHypotheses : undefined,
     pipelineEvidence, pipelineCompliance,
@@ -1338,88 +1348,123 @@ export default function CockpitPlayground() {
                     <div className="rounded-xl border p-3.5 bg-amber-500/5 border-amber-500/15">
                       <div className="flex items-center gap-1.5 mb-2.5">
                         <Brain className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                        <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Assessment (AI Differential)</span>
+                        <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Assessment</span>
                       </div>
 
                       {mergedDiagnoses.length > 0 ? (
-                        <div className="space-y-3">
-                          {mergedDiagnoses.map((d: any, i: number) => (
-                            <div key={i} className="rounded-lg border border-border p-3 bg-background/60">
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}.</span>
-                                <span className="text-sm font-semibold text-foreground flex-1">{d.name}</span>
-                                {likelihoodBadge(d.pct)}
-                                <Badge variant="outline" className="text-[10px] font-mono">{d.pct}%</Badge>
-                                {d.mustNotMiss && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
-                              </div>
-
-                              {/* Probability bar */}
-                              <div className="h-1.5 rounded-full bg-muted mb-2">
-                                <div
-                                  className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`}
-                                  style={{ width: `${Math.min(d.pct, 100)}%` }}
-                                />
-                              </div>
-
-                              {reasoningLevel !== "debug" && (
-                                <>
-                                  {d.supporting.length > 0 && (
-                                    <div className="mt-1.5">
-                                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-1">Supporting evidence</p>
-                                      <div className="flex flex-wrap gap-1">
-                                        {d.supporting.slice(0, 6).map((e: string, ei: number) => (
-                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {d.contradicting.length > 0 && (
-                                    <div className="mt-1.5">
-                                      <p className="text-[10px] text-destructive font-semibold mb-1">Missing / Against</p>
-                                      <div className="flex flex-wrap gap-1">
-                                        {d.contradicting.map((e: string, ei: number) => (
-                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✗ {e}</span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
-                              )}
-
-                              {/* Explanation mode */}
-                              {reasoningLevel === "explanation" && d.bayesian && (
-                                <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border">
-                                  <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Modifier Contributions</p>
-                                  <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] font-mono">
-                                    {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(2)}</span>}
-                                    {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(2)}</span>}
-                                    {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(2)}</span>}
-                                    {d.bayesian.cluster_modifier != null && d.bayesian.cluster_modifier !== 1 && <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(2)}</span>}
-                                    {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && <span>Vitals: ×{d.bayesian.vital_modifier?.toFixed(2)}</span>}
-                                    {d.bayesian.anatomical_modifier != null && d.bayesian.anatomical_modifier !== 1 && <span>Location: ×{d.bayesian.anatomical_modifier?.toFixed(2)}</span>}
-                                  </div>
+                        <div className="space-y-2">
+                          {/* Primary Diagnosis */}
+                          {mergedDiagnoses.slice(0, 1).map((d: any, i: number) => (
+                            <div key={i}>
+                              <p className="text-[9px] font-bold text-primary uppercase tracking-wider mb-1.5">Primary Diagnosis</p>
+                              <div className="rounded-lg border border-primary/20 p-3 bg-primary/[0.03]">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="text-sm font-bold text-foreground flex-1">{d.name}</span>
+                                  {likelihoodBadge(d.pct)}
+                                  <Badge variant="outline" className="text-[10px] font-mono">{d.pct}%</Badge>
+                                  {d.mustNotMiss && <Badge className="text-[8px] bg-destructive/10 text-destructive border-destructive/20">⚠ Must not miss</Badge>}
                                 </div>
-                              )}
-
-                              {/* Debug mode */}
-                              {reasoningLevel === "debug" && d.bayesian && (
-                                <div className="mt-2 p-2 rounded-lg bg-muted/40 border border-border font-mono text-[9px] space-y-0.5">
-                                  <p className="font-semibold text-muted-foreground uppercase text-[8px]">Bayesian Breakdown</p>
-                                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                                    <span>Prior: {d.bayesian.prior?.toFixed(4)}</span>
-                                    <span>Symptom LH: {d.bayesian.symptom_likelihood?.toFixed(4)}</span>
-                                    <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(3)}</span>
-                                    <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(3)}</span>
-                                    <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(3)}</span>
-                                    <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(3)}</span>
-                                    <span>Vital: ×{d.bayesian.vital_modifier?.toFixed(3)}</span>
-                                    <span>Anatomical: ×{d.bayesian.anatomical_modifier?.toFixed(3)}</span>
-                                    <span className="col-span-2 font-bold text-primary">Posterior: {d.bayesian.posterior_probability?.toFixed(4)}</span>
-                                  </div>
+                                <div className="h-1.5 rounded-full bg-muted mb-2">
+                                  <div className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
                                 </div>
-                              )}
+                                {reasoningLevel !== "debug" && d.supporting.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {d.supporting.slice(0, 6).map((e: string, ei: number) => (
+                                      <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {reasoningLevel !== "debug" && d.contradicting.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {d.contradicting.map((e: string, ei: number) => (
+                                      <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✗ {e}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {reasoningLevel === "explanation" && d.bayesian && (
+                                  <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border">
+                                    <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Modifier Contributions</p>
+                                    <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] font-mono">
+                                      {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(2)}</span>}
+                                      {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(2)}</span>}
+                                      {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(2)}</span>}
+                                      {d.bayesian.cluster_modifier != null && d.bayesian.cluster_modifier !== 1 && <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(2)}</span>}
+                                      {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && <span>Vitals: ×{d.bayesian.vital_modifier?.toFixed(2)}</span>}
+                                    </div>
+                                  </div>
+                                )}
+                                {reasoningLevel === "debug" && d.bayesian && (
+                                  <div className="mt-2 p-2 rounded-lg bg-muted/40 border border-border font-mono text-[9px] space-y-0.5">
+                                    <p className="font-semibold text-muted-foreground uppercase text-[8px]">Bayesian Breakdown</p>
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                      <span>Prior: {d.bayesian.prior?.toFixed(4)}</span>
+                                      <span>Symptom LH: {d.bayesian.symptom_likelihood?.toFixed(4)}</span>
+                                      <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(3)}</span>
+                                      <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(3)}</span>
+                                      <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(3)}</span>
+                                      <span>Vital: ×{d.bayesian.vital_modifier?.toFixed(3)}</span>
+                                      <span className="col-span-2 font-bold text-primary">Posterior: {d.bayesian.posterior_probability?.toFixed(4)}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           ))}
+
+                          {/* Working Differentials */}
+                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 5).length > 0 && (
+                            <div>
+                              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-2">Working Differentials</p>
+                              <div className="space-y-1.5">
+                                {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 5).map((d: any, i: number) => (
+                                  <div key={i} className="rounded-lg border border-border p-2.5 bg-background/60">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-semibold text-foreground flex-1">{d.name}</span>
+                                      {likelihoodBadge(d.pct)}
+                                      <span className="text-xs font-mono text-muted-foreground">{d.pct}%</span>
+                                    </div>
+                                    <div className="h-1 rounded-full bg-muted mt-1">
+                                      <div className={`h-full rounded-full ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
+                                    </div>
+                                    {reasoningLevel !== "debug" && d.supporting.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-1.5">
+                                        {d.supporting.slice(0, 4).map((e: string, ei: number) => (
+                                          <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Must-Not-Miss */}
+                          {mergedDiagnoses.filter((d: any) => d.mustNotMiss && mergedDiagnoses.indexOf(d) > 0).length > 0 && (
+                            <div>
+                              <p className="text-[9px] font-bold text-destructive uppercase tracking-wider mb-1.5 mt-2 flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" /> Must Not Miss
+                              </p>
+                              <div className="space-y-1.5">
+                                {mergedDiagnoses.filter((d: any) => d.mustNotMiss && mergedDiagnoses.indexOf(d) > 0).map((d: any, i: number) => (
+                                  <div key={i} className="rounded-lg border border-destructive/30 p-2.5 bg-destructive/5">
+                                    <div className="flex items-center gap-2">
+                                      <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                      <span className="text-xs font-semibold text-destructive flex-1">{d.name}</span>
+                                      <span className="text-xs font-mono text-destructive">{d.pct}%</span>
+                                    </div>
+                                    {d.supporting.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-1.5 ml-5">
+                                        {d.supporting.slice(0, 3).map((e: string, ei: number) => (
+                                          <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✓ {e}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground italic">
@@ -1435,7 +1480,7 @@ export default function CockpitPlayground() {
                         <span className="text-xs font-bold uppercase tracking-wide text-purple-700 dark:text-purple-400">Plan</span>
                       </div>
 
-                      {/* Investigations — synced with Copilot selectedTests */}
+                      {/* Investigations */}
                       <div className="mb-3">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <FlaskConical className="h-3 w-3" /> Investigations
@@ -1450,9 +1495,8 @@ export default function CockpitPlayground() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">Select tests from AI Copilot →</p>
+                          <p className="text-xs text-muted-foreground italic">Select investigations from AI Copilot →</p>
                         )}
-                        {/* Unselected recommended tests */}
                         {allRecommendedTests.filter(t => !selectedTests.includes(t)).length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-1">
                             {allRecommendedTests.filter(t => !selectedTests.includes(t)).map(t => (
@@ -1465,23 +1509,27 @@ export default function CockpitPlayground() {
                         )}
                       </div>
 
-                      {/* Treatment — synced with Copilot pendingRx */}
+                      {/* Treatment — with Drug/Dose/Route/Freq format */}
                       <div className="mb-3">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <Pill className="h-3 w-3" /> Treatment
                         </p>
                         {planTreatments.length > 0 ? (
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             {planTreatments.map((rx, i) => (
-                              <div key={i} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
-                                <span className="font-medium text-foreground">{rx.drug_name}</span>
-                                <span className="text-muted-foreground">{rx.dose} · {rx.frequency} · {rx.duration}</span>
-                                <button onClick={() => setPendingRx(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
+                              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-foreground">{rx.drug_name}</p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {rx.dose} {(rx as any).route ? `${(rx as any).route} ` : ""}{rx.frequency} × {rx.duration}
+                                  </p>
+                                </div>
+                                <button onClick={() => setPendingRx(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">Select medications from AI Copilot →</p>
+                          <p className="text-xs text-muted-foreground italic">Select prescriptions from AI Copilot →</p>
                         )}
                       </div>
 
@@ -1497,6 +1545,38 @@ export default function CockpitPlayground() {
                           placeholder="Monitoring parameters, disposition, follow-up schedule…"
                           className="text-xs min-h-[32px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
                         />
+                      </div>
+
+                      {/* Patient Instructions */}
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
+                          <MessageSquare className="h-3 w-3" /> Instructions to Patient
+                        </p>
+                        {selectedInstructions.length > 0 ? (
+                          <div className="space-y-1">
+                            {selectedInstructions.map((inst, i) => (
+                              <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
+                                <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span className="flex-1 text-foreground">{inst}</span>
+                                <button onClick={() => setSelectedInstructions(prev => prev.filter(x => x !== inst))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">
+                            {allInstructions.length > 0 ? "Select instructions from AI Copilot →" : "Instructions will appear after diagnosis."}
+                          </p>
+                        )}
+                        {allInstructions.filter(i => !selectedInstructions.includes(i)).length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {allInstructions.filter(i => !selectedInstructions.includes(i)).slice(0, 5).map((inst, i) => (
+                              <Chip key={i} variant="action" size="sm"
+                                onClick={() => setSelectedInstructions(prev => [...prev, inst])}>
+                                + {inst.length > 40 ? inst.slice(0, 40) + "…" : inst}
+                              </Chip>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1541,20 +1621,28 @@ export default function CockpitPlayground() {
 
         {/* ══════════ COMMAND BAR ══════════ */}
         {mockPatient && (
-          <div className="shrink-0 border-t border-border bg-card px-4 py-2">
-            <div className="flex items-center gap-2 max-w-4xl mx-auto">
-              <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="shrink-0 border-t border-border bg-card px-4 py-2.5">
+            <div className="flex items-center gap-2.5 max-w-4xl mx-auto">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <MessageSquare className="h-4 w-4 text-primary" />
+              </div>
               <input
                 type="text"
                 value={commandInput}
                 onChange={e => setCommandInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleCommand(); }}
-                placeholder="Type clinical context… e.g. 'Patient has severe headache with vomiting'"
+                placeholder="Input anything! Type notes, ask AI, or dictate…"
                 className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
               />
-              <Button variant="ghost" size="sm" className="h-7 px-2.5" onClick={handleCommand} disabled={!commandInput.trim()}>
-                <Send className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button variant="ghost" size="sm" className="h-7 px-2 gap-1 text-muted-foreground hover:text-primary" title="Voice input — Powered by ElevenLabs">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                  <span className="text-[8px] text-muted-foreground/60">ElevenLabs</span>
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 px-2.5" onClick={handleCommand} disabled={!commandInput.trim()}>
+                  <Send className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
         )}

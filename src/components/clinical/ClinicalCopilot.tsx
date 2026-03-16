@@ -71,8 +71,8 @@ interface ClinicalCopilotProps {
   tests: string[];
   selectedTests: string[];
   onToggleTest: (test: string) => void;
-  medications: Array<{ drug: string; dose: string; freq: string; dur: string }>;
-  selectedMedications: Array<{ drug_name: string; dose: string; frequency: string; duration: string }>;
+  medications: Array<{ drug: string; dose: string; route?: string; freq: string; dur: string; line?: "first" | "alternative" | "emergency" }>;
+  selectedMedications: Array<{ drug_name: string; dose: string; frequency: string; duration: string; route?: string }>;
   onToggleMedication: (med: { drug: string; dose: string; freq: string; dur: string }) => void;
   safetyResults: SafetyResults | null;
   patientAge?: number;
@@ -407,8 +407,8 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Physiological Context */}
-      {physiologicalContext && physiologicalContext.physiological_states.length > 0 && (
+      {/* Physiological Context — hidden in Doctor mode */}
+      {physiologicalContext && physiologicalContext.physiological_states.length > 0 && reasoningLevel !== "doctor" && (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
@@ -744,12 +744,12 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Recommended Tests */}
+      {/* Recommended Investigations */}
       {tests.length > 0 && (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <FlaskConical className="h-3 w-3 text-chip-lab-text" /> Recommended Tests
+              <FlaskConical className="h-3 w-3 text-chip-lab-text" /> Recommended Investigations
             </p>
             <div className="flex flex-wrap gap-1">
               {tests.map(t => (
@@ -767,7 +767,7 @@ export default function ClinicalCopilot({
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <Pill className="h-3 w-3 text-chip-medication-text" /> Medication Suggestions
+              <Pill className="h-3 w-3 text-chip-medication-text" /> Prescription Suggestions
             </p>
             <div className="flex flex-wrap gap-1">
               {medications.map((rx, i) => (
