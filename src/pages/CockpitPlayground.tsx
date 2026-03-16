@@ -3,8 +3,10 @@ import type { HypothesisEntry, PipelineEvidence, PipelineCompliance } from "@/co
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Chip, ChipGroup } from "@/components/ui/chip";
 import { ClinicalCard } from "@/components/ui/clinical-card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import ClinicalCopilot from "@/components/clinical/ClinicalCopilot";
@@ -14,9 +16,9 @@ import {
   Loader2, FileText, AlertTriangle, CheckCircle,
   HeartPulse, User, Sparkles, RotateCcw, ClipboardCheck, Brain,
   Zap, Activity, Stethoscope, Eye, Search,
-  Heart, Wind, Droplets, Shield, ChevronDown, ChevronUp,
-  Beaker, GitCompare, Layers, Thermometer, X,
-  TreePine, Edit3, FlaskConical, Pill, Scale, Send, MessageSquare
+  Heart, Wind, Droplets, Shield, ChevronDown, ChevronRight, ChevronUp,
+  Beaker, Play, GitCompare, Layers, Thermometer, X,
+  TreePine, Edit3, FlaskConical, Pill, Scale
 } from "lucide-react";
 import type { SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_SOAP } from "@/layers/ai-agents/api";
@@ -42,149 +44,6 @@ const SYMPTOM_EXPANSIONS: Record<string, { label: string; chips: string[] }> = {
   "Headache": { label: "Pattern", chips: ["Throbbing", "Constant", "One-sided", "Both sides", "With aura"] },
   "Abdominal pain": { label: "Location", chips: ["Upper", "Lower", "Right", "Left", "Diffuse", "Periumbilical"] },
 };
-
-// ═══ MANAGEMENT ENGINE — Maps diagnoses to recommended tests & treatments ═══
-// This fills the gap when the pipeline doesn't return management recommendations
-const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ drug: string; dose: string; freq: string; dur: string }>; monitoring?: string[] }> = {
-  "migraine": {
-    tests: ["CT Brain (if red flags)", "MRI Brain (if atypical)"],
-    medications: [
-      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "3 days" },
-      { drug: "Ibuprofen", dose: "400mg", freq: "TID", dur: "3 days" },
-      { drug: "Sumatriptan", dose: "50mg", freq: "PRN", dur: "As needed" },
-    ],
-  },
-  "tension headache": {
-    tests: [],
-    medications: [
-      { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "5 days" },
-      { drug: "Ibuprofen", dose: "400mg", freq: "TID", dur: "3 days" },
-    ],
-  },
-  "subarachnoid hemorrhage": {
-    tests: ["CT Brain (urgent)", "CT Angiography", "Lumbar puncture (if CT negative)", "CBC", "Coagulation profile"],
-    medications: [
-      { drug: "Nimodipine", dose: "60mg", freq: "Q4H", dur: "21 days" },
-      { drug: "IV Fluids", dose: "NS 1L", freq: "Q8H", dur: "Ongoing" },
-    ],
-  },
-  "acute coronary syndrome": {
-    tests: ["ECG (12-lead)", "Troponin I/T", "CBC", "BMP", "Lipid profile", "Chest X-ray", "Echocardiogram"],
-    medications: [
-      { drug: "Aspirin", dose: "325mg", freq: "STAT", dur: "Single dose" },
-      { drug: "Clopidogrel", dose: "300mg", freq: "STAT", dur: "Loading dose" },
-      { drug: "Atorvastatin", dose: "80mg", freq: "OD", dur: "Ongoing" },
-      { drug: "Nitroglycerin", dose: "0.4mg SL", freq: "PRN", dur: "As needed" },
-    ],
-  },
-  "myocardial infarction": {
-    tests: ["ECG (12-lead)", "Troponin I/T", "CBC", "BMP", "Chest X-ray"],
-    medications: [
-      { drug: "Aspirin", dose: "325mg", freq: "STAT", dur: "Single dose" },
-      { drug: "Clopidogrel", dose: "300mg", freq: "STAT", dur: "Loading dose" },
-      { drug: "Morphine", dose: "2-4mg IV", freq: "PRN", dur: "As needed" },
-    ],
-  },
-  "appendicitis": {
-    tests: ["CBC", "CRP", "Ultrasound abdomen", "CT abdomen (if diagnosis unclear)", "Urinalysis"],
-    medications: [
-      { drug: "IV Fluids", dose: "NS 1L", freq: "Q8H", dur: "Pre-op" },
-      { drug: "Ceftriaxone", dose: "1g IV", freq: "BD", dur: "Perioperative" },
-      { drug: "Metronidazole", dose: "500mg IV", freq: "TID", dur: "Perioperative" },
-      { drug: "Paracetamol", dose: "1g IV", freq: "QID", dur: "As needed" },
-    ],
-  },
-  "gastroenteritis": {
-    tests: ["CBC", "CRP", "Stool culture", "Electrolytes", "Renal function"],
-    medications: [
-      { drug: "ORS", dose: "200ml", freq: "After each stool", dur: "Until resolved" },
-      { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "3 days" },
-      { drug: "Zinc", dose: "20mg", freq: "OD", dur: "10 days" },
-    ],
-  },
-  "food poisoning": {
-    tests: ["Stool culture", "CBC", "Electrolytes"],
-    medications: [
-      { drug: "ORS", dose: "200ml", freq: "After each stool", dur: "Until resolved" },
-      { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "2 days" },
-    ],
-  },
-  "pulmonary embolism": {
-    tests: ["CT Pulmonary Angiography", "D-dimer", "ECG", "ABG", "Echocardiogram", "CBC", "Troponin"],
-    medications: [
-      { drug: "Heparin", dose: "80 units/kg IV", freq: "STAT", dur: "Loading dose" },
-      { drug: "Enoxaparin", dose: "1mg/kg SC", freq: "BD", dur: "5 days" },
-      { drug: "Warfarin", dose: "5mg", freq: "OD", dur: "3-6 months" },
-    ],
-  },
-  "pneumonia": {
-    tests: ["Chest X-ray", "CBC", "CRP", "Blood culture", "Sputum culture", "Procalcitonin"],
-    medications: [
-      { drug: "Amoxicillin", dose: "500mg", freq: "TID", dur: "7 days" },
-      { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
-      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "As needed" },
-    ],
-  },
-  "community-acquired pneumonia": {
-    tests: ["Chest X-ray", "CBC", "CRP", "Blood culture", "Sputum culture"],
-    medications: [
-      { drug: "Amoxicillin-Clavulanate", dose: "625mg", freq: "TID", dur: "7 days" },
-      { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
-      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "As needed" },
-    ],
-  },
-  "copd exacerbation": {
-    tests: ["Chest X-ray", "ABG", "CBC", "Sputum culture"],
-    medications: [
-      { drug: "Salbutamol nebulization", dose: "2.5mg", freq: "QID", dur: "5 days" },
-      { drug: "Prednisolone", dose: "40mg", freq: "OD", dur: "5 days" },
-      { drug: "Amoxicillin-Clavulanate", dose: "625mg", freq: "TID", dur: "7 days" },
-    ],
-  },
-  "urinary tract infection": {
-    tests: ["Urinalysis", "Urine culture", "CBC"],
-    medications: [
-      { drug: "Nitrofurantoin", dose: "100mg", freq: "BD", dur: "5 days" },
-      { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "As needed" },
-    ],
-  },
-  "meningitis": {
-    tests: ["CT Brain", "Lumbar puncture", "CSF analysis", "Blood culture", "CBC", "CRP", "Procalcitonin"],
-    medications: [
-      { drug: "Ceftriaxone", dose: "2g IV", freq: "BD", dur: "10-14 days" },
-      { drug: "Dexamethasone", dose: "0.15mg/kg IV", freq: "QID", dur: "4 days" },
-    ],
-  },
-  "diabetic ketoacidosis": {
-    tests: ["Blood glucose", "ABG", "Electrolytes", "Serum ketones", "CBC", "Renal function"],
-    medications: [
-      { drug: "Insulin (Regular)", dose: "0.1 units/kg/hr IV", freq: "Infusion", dur: "Until resolved" },
-      { drug: "IV Fluids (NS)", dose: "1L", freq: "Q1H initially", dur: "Until rehydrated" },
-      { drug: "Potassium chloride", dose: "20-40 mEq/L", freq: "Per IV fluid", dur: "Per protocol" },
-    ],
-  },
-  "hypertensive crisis": {
-    tests: ["ECG", "BMP", "Renal function", "Urinalysis", "Chest X-ray", "Fundoscopy"],
-    medications: [
-      { drug: "Labetalol", dose: "20mg IV", freq: "Q10min PRN", dur: "Until controlled" },
-      { drug: "Amlodipine", dose: "5mg", freq: "OD", dur: "Ongoing" },
-    ],
-  },
-};
-
-/**
- * Management Engine: resolves recommended tests and medications from diagnosis names.
- * Falls back to partial keyword matching when exact match unavailable.
- */
-function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; freq: string; dur: string }> } {
-  const key = diagnosisName.toLowerCase().trim();
-  if (MANAGEMENT_MAP[key]) return MANAGEMENT_MAP[key];
-  // Partial match
-  for (const [mapKey, val] of Object.entries(MANAGEMENT_MAP)) {
-    if (key.includes(mapKey) || mapKey.includes(key)) return val;
-  }
-  return { tests: [], medications: [] };
-}
 
 // ── Scenarios ──
 interface Scenario {
@@ -365,7 +224,7 @@ export default function CockpitPlayground() {
   const [pipelineBayesian, setPipelineBayesian] = useState<any>(null);
   const [safetyResults, setSafetyResults] = useState<SafetyResults | null>(null);
 
-  // Copilot selections — bidirectional with Plan
+  // Copilot selections
   const [selectedDiagnoses, setSelectedDiagnoses] = useState<string[]>([]);
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
   const [selectedInstructions, setSelectedInstructions] = useState<string[]>([]);
@@ -379,9 +238,6 @@ export default function CockpitPlayground() {
 
   // Context tree inline editing
   const [editingCategory, setEditingCategory] = useState<ContextCategory | null>(null);
-
-  // Command bar
-  const [commandInput, setCommandInput] = useState("");
 
   // Pipeline run ref for debouncing
   const pipelineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -432,7 +288,6 @@ export default function CockpitPlayground() {
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedInstructions([]);
     setPendingRx([]); setSelectedScenario(""); setSnapshots([]); setShowComparison(false);
     setPipelineStage(null); setStageLatencies({}); setEditingCategory(null);
-    setCommandInput("");
   };
 
   // ── Generate SOAP Subjective from all selections ──
@@ -443,13 +298,17 @@ export default function CockpitPlayground() {
     const gender = mockPatient.gender?.toLowerCase();
     const genderLabel = gender === "male" ? "male" : gender === "female" ? "female" : gender || "patient";
     parts.push(`${age}-year-old ${genderLabel}`);
-    if (chiefComplaint) parts.push(`presents with ${chiefComplaint.toLowerCase()}`);
+    if (chiefComplaint) {
+      parts.push(`presents with ${chiefComplaint.toLowerCase()}`);
+    }
     if (selectedDuration) parts.push(`since ${selectedDuration.toLowerCase()}`);
     if (selectedOnset) parts.push(`The onset is ${selectedOnset.toLowerCase()}`);
     if (selectedSeverity) parts.push(`${selectedSeverity.toLowerCase()} in intensity`);
     if (selectedBodyLocation) parts.push(`localized to ${selectedBodyLocation.toLowerCase()}`);
     const assocSymptoms = selectedSymptoms.filter(s => s.toLowerCase() !== chiefComplaint.toLowerCase());
-    if (assocSymptoms.length > 0) parts.push(`Associated symptoms include ${assocSymptoms.join(", ").toLowerCase()}`);
+    if (assocSymptoms.length > 0) {
+      parts.push(`Associated symptoms include ${assocSymptoms.join(", ").toLowerCase()}`);
+    }
     if (selectedRiskFactors.length > 0) parts.push(`Risk factors: ${selectedRiskFactors.join(", ").toLowerCase()}`);
     if (selectedMedicalHistory.length > 0) parts.push(`Past medical history: ${selectedMedicalHistory.join(", ")}`);
     if (selectedFamilyHistory.length > 0) parts.push(`Family history: ${selectedFamilyHistory.join(", ").toLowerCase()}`);
@@ -473,6 +332,7 @@ export default function CockpitPlayground() {
   // ── Run pipeline ──
   const runPipeline = useCallback(async () => {
     if (selectedSymptoms.length === 0) return;
+
     const runId = ++pipelineRunIdRef.current;
 
     // Snapshot previous
@@ -493,6 +353,7 @@ export default function CockpitPlayground() {
 
     try {
       const { runUnifiedClinicalPipeline } = await import("@/services/clinical_pipeline/orchestrator");
+      const { buildClinicalContext } = await import("@/lib/clinical-context");
 
       const pipelineContext = buildClinicalContext(
         { age: mockPatient?.age ?? 30, gender: mockPatient?.gender ?? "Unknown", medical_history: selectedMedicalHistory, allergies: mockPatient?.allergies || [], current_medications: [] },
@@ -522,7 +383,9 @@ export default function CockpitPlayground() {
       const result = await runUnifiedClinicalPipeline(
         {
           clinical_context: pipelineContext,
-          visit_id: null, consultation_id: null, clinic_id: null,
+          visit_id: null,
+          consultation_id: null,
+          clinic_id: null,
           intake_approved: false,
         },
         (stage, data) => {
@@ -615,12 +478,20 @@ export default function CockpitPlayground() {
   useEffect(() => {
     if (!mockPatient || selectedSymptoms.length === 0) return;
     if (pipelineTimerRef.current) clearTimeout(pipelineTimerRef.current);
-    pipelineTimerRef.current = setTimeout(() => { runPipeline(); }, 1200);
+    pipelineTimerRef.current = setTimeout(() => {
+      runPipeline();
+    }, 1200);
     return () => { if (pipelineTimerRef.current) clearTimeout(pipelineTimerRef.current); };
   }, [contextFingerprint, mockPatient]);
 
   // Toggles
   const toggleSymptom = (s: string) => setSelectedSymptoms(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  const toggleExpansionChip = (symptom: string, chip: string) => {
+    setExpansionSelections(prev => {
+      const current = prev[symptom] || [];
+      return { ...prev, [symptom]: current.includes(chip) ? current.filter(c => c !== chip) : [...current, chip] };
+    });
+  };
 
   const updateVital = (field: string, value: string) => {
     setPatientVitals((prev: any) => ({
@@ -636,62 +507,44 @@ export default function CockpitPlayground() {
     return [];
   }, [symptomSearch, selectedSymptoms]);
 
+  // ── Check if context has data ──
   const hasContext = selectedSymptoms.length > 0 || selectedDuration || selectedOnset || selectedSeverity || selectedBodyLocation || selectedRiskFactors.length > 0 || selectedMedicalHistory.length > 0 || selectedFamilyHistory.length > 0 || selectedExamFindings.length > 0;
 
-  // ── Merged diagnoses for Assessment & Plan ──
+  // ── Merged diagnoses for Assessment ──
   const mergedDiagnoses = useMemo(() => {
     const hasBayesian = pipelineBayesian?.diagnoses?.length > 0;
     const hasHyp = pipelineHypotheses.length > 0;
     if (!hasBayesian && !hasHyp) return [];
     if (hasBayesian) {
-      return pipelineBayesian.diagnoses.slice(0, 5).map((d: any, idx: number) => {
-        // Improved name resolution: try hypothesis match, then diagnosis_name field, then evidence
+      return pipelineBayesian.diagnoses.slice(0, 5).map((d: any) => {
         const hyp = pipelineHypotheses.find(
-          (h: any) => h.diagnosis && (
-            d.diagnosis_name?.toLowerCase() === h.diagnosis.toLowerCase() ||
-            d.supporting_evidence?.some((e: string) => h.supporting_factors?.includes(e))
-          )
+          (h: any) => h.diagnosis && d.supporting_evidence?.some((e: string) => h.supporting_factors?.includes(e))
         );
-        const rawName = hyp?.diagnosis || d.diagnosis_name || d.diagnosis_id;
-        const isUUID = /^[0-9a-f]{8}-/.test(rawName);
-        // Fallback chain: hyp name → diagnosis_name → first supporting evidence → ranked label
-        const displayName = isUUID
-          ? (d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e)) || `Diagnosis ${idx + 1}`)
-          : rawName;
-
-        // Resolve management from management engine
-        const management = resolveManagement(displayName);
-        const pipelineTests = hyp?.recommended_tests || [];
-        const allTests = [...new Set([...pipelineTests, ...management.tests])];
-
+        const name = hyp?.diagnosis || d.diagnosis_id;
+        const isUUID = /^[0-9a-f]{8}-/.test(name);
+        const displayName = isUUID ? (d.supporting_evidence?.[0] || `Diagnosis ${pipelineBayesian.diagnoses.indexOf(d) + 1}`) : name;
         return {
           name: displayName,
           pct: Math.round((d.posterior_probability || 0) * 100),
           supporting: [...new Set([...(d.supporting_evidence || []), ...(hyp?.supporting_factors || [])])],
           contradicting: hyp?.contradicting_factors || [],
-          tests: allTests,
-          medications: management.medications,
+          tests: hyp?.recommended_tests || [],
           mustNotMiss: d.must_not_miss || false,
           bayesian: d,
         };
       });
     }
-    return pipelineHypotheses.slice(0, 5).map(h => {
-      const management = resolveManagement(h.diagnosis);
-      const allTests = [...new Set([...(h.recommended_tests || []), ...management.tests])];
-      return {
-        name: h.diagnosis,
-        pct: Math.round((h.confidence || 0) * 100),
-        supporting: h.supporting_factors || [],
-        contradicting: h.contradicting_factors || [],
-        tests: allTests,
-        medications: management.medications,
-        mustNotMiss: false,
-      };
-    });
+    return pipelineHypotheses.slice(0, 5).map(h => ({
+      name: h.diagnosis,
+      pct: Math.round((h.confidence || 0) * 100),
+      supporting: h.supporting_factors || [],
+      contradicting: h.contradicting_factors || [],
+      tests: h.recommended_tests || [],
+      mustNotMiss: false,
+    }));
   }, [pipelineBayesian, pipelineHypotheses]);
 
-  // ── All recommended tests from pipeline + management engine ──
+  // ── Recommended tests from all diagnoses ──
   const allRecommendedTests = useMemo(() => {
     const tests = new Set<string>();
     mergedDiagnoses.forEach((d: any) => d.tests?.forEach((t: string) => tests.add(t)));
@@ -699,53 +552,13 @@ export default function CockpitPlayground() {
     return Array.from(tests);
   }, [mergedDiagnoses, pipelineHypotheses]);
 
-  // ── All recommended medications from management engine ──
-  const allRecommendedMedications = useMemo(() => {
-    const seen = new Set<string>();
-    const meds: Array<{ drug: string; dose: string; freq: string; dur: string }> = [];
-    mergedDiagnoses.forEach((d: any) => {
-      d.medications?.forEach((rx: any) => {
-        if (!seen.has(rx.drug)) { seen.add(rx.drug); meds.push(rx); }
-      });
-    });
-    return meds;
-  }, [mergedDiagnoses]);
-
-  // ── Plan sections derived from selections ──
-  const planInvestigations = selectedTests;
-  const planTreatments = pendingRx;
-
-  // ── Command bar handler ──
-  const handleCommand = useCallback(() => {
-    if (!commandInput.trim()) return;
-    const input = commandInput.trim().toLowerCase();
-    // Simple NLP extraction for common patterns
-    const symptomMatches = COMMON_SYMPTOMS.filter(s => input.includes(s.toLowerCase()));
-    if (symptomMatches.length > 0) {
-      setSelectedSymptoms(prev => [...new Set([...prev, ...symptomMatches])]);
-      if (!chiefComplaint && symptomMatches.length > 0) {
-        setChiefComplaint(symptomMatches[0]);
-      }
-    }
-    // Extract severity
-    for (const sev of SEVERITY_PRESETS) {
-      if (input.includes(sev.toLowerCase())) { setSelectedSeverity(sev); break; }
-    }
-    // Extract onset
-    for (const on of ONSET_PRESETS) {
-      if (input.includes(on.toLowerCase())) { setSelectedOnset(on); break; }
-    }
-    setCommandInput("");
-    toast({ title: "Context updated", description: `Extracted ${symptomMatches.length} signals from input` });
-  }, [commandInput, chiefComplaint, toast]);
-
-  // ── Copilot props — NOW with wired tests/medications ──
+  // ── Copilot props ──
   const copilotProps = {
     diagnoses: [], selectedDiagnoses,
     onToggleDiagnosis: (d: string) => setSelectedDiagnoses(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]),
-    tests: allRecommendedTests, selectedTests,
+    tests: [], selectedTests,
     onToggleTest: (t: string) => setSelectedTests(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]),
-    medications: allRecommendedMedications, selectedMedications: pendingRx,
+    medications: [], selectedMedications: pendingRx,
     onToggleMedication: (rx: any) => {
       if (pendingRx.some(p => p.drug_name === rx.drug)) {
         setPendingRx(prev => prev.filter(p => p.drug_name !== rx.drug));
@@ -770,17 +583,10 @@ export default function CockpitPlayground() {
     isAdmin: true,
   };
 
-  // ── Likelihood badge ──
-  const likelihoodBadge = (pct: number) => {
-    if (pct >= 30) return <Badge className="text-[8px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">High</Badge>;
-    if (pct >= 15) return <Badge className="text-[8px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">Moderate</Badge>;
-    return <Badge variant="outline" className="text-[8px]">Low</Badge>;
-  };
-
   // ── Context Tree Section Renderer ──
-  const ContextTreeNode = ({ label, icon: Icon, items, color, category, editPresets, variant }: {
+  const ContextTreeNode = ({ label, icon: Icon, items, color, category, editPresets, variant, isSingle }: {
     label: string; icon: any; items: string[]; color: string; category: ContextCategory;
-    editPresets: string[]; variant?: any;
+    editPresets: string[]; variant?: any; isSingle?: boolean;
   }) => {
     const isEditing = editingCategory === category;
     if (items.length === 0 && !isEditing) return null;
@@ -789,26 +595,20 @@ export default function CockpitPlayground() {
       <div className="group">
         <button
           onClick={() => setEditingCategory(isEditing ? null : category)}
-          className="flex items-center gap-1.5 w-full text-left py-1.5 hover:bg-muted/50 rounded-lg px-2 transition-colors"
+          className="flex items-center gap-1.5 w-full text-left py-1 hover:bg-muted/50 rounded px-1.5 transition-colors"
         >
-          <Icon className={`h-3.5 w-3.5 ${color} shrink-0`} />
-          <span className="text-xs font-semibold text-foreground flex-1">{label}</span>
-          {items.length > 0 && <Badge variant="outline" className="text-[9px] h-5">{items.length}</Badge>}
-          {isEditing ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <Edit3 className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
+          <Icon className={`h-3 w-3 ${color} shrink-0`} />
+          <span className="text-[11px] font-semibold text-foreground flex-1">{label}</span>
+          {items.length > 0 && <Badge variant="outline" className="text-[8px] h-4">{items.length}</Badge>}
+          {isEditing ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <Edit3 className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
         </button>
 
-        {/* Selected items as large chips */}
+        {/* Tree values */}
         {!isEditing && items.length > 0 && (
-          <div className="ml-6 mt-1 flex flex-wrap gap-1.5 pb-1">
+          <div className="ml-5 mt-0.5 space-y-0.5">
             {items.map(item => (
-              <span key={item} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                category === "symptoms" ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20" :
-                category === "risk_factors" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20" :
-                category === "medical_history" || category === "family_history" ? "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20" :
-                category === "exam_findings" ? "bg-destructive/10 text-destructive border-destructive/20" :
-                "bg-muted text-foreground border-border"
-              }`}>
-                {item}
+              <div key={item} className="flex items-center gap-1.5 text-[10px] text-muted-foreground py-0.5 pl-2 border-l border-border">
+                <span className="text-foreground">{item}</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -818,49 +618,56 @@ export default function CockpitPlayground() {
                     else if (category === "family_history") setSelectedFamilyHistory(p => p.filter(x => x !== item));
                     else if (category === "exam_findings") setSelectedExamFindings(p => p.filter(x => x !== item));
                   }}
-                  className="text-muted-foreground hover:text-destructive transition-all"
+                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-2.5 w-2.5" />
                 </button>
-              </span>
+              </div>
             ))}
           </div>
         )}
 
         {/* Inline edit chips */}
-        {isEditing && (
-          <div className="ml-6 mt-1 pb-2">
-            <div className="flex flex-wrap gap-1.5">
-              {editPresets.map(preset => {
-                const isSelected = items.includes(preset);
-                return (
-                  <Chip
-                    key={preset}
-                    variant={variant || "neutral"}
-                    size="sm"
-                    selected={isSelected}
-                    onClick={() => {
-                      if (category === "symptoms") toggleSymptom(preset);
-                      else if (category === "risk_factors") setSelectedRiskFactors(p => p.includes(preset) ? p.filter(x => x !== preset) : [...p, preset]);
-                      else if (category === "medical_history") setSelectedMedicalHistory(p => p.includes(preset) ? p.filter(x => x !== preset) : [...p, preset]);
-                      else if (category === "family_history") setSelectedFamilyHistory(p => p.includes(preset) ? p.filter(x => x !== preset) : [...p, preset]);
-                      else if (category === "exam_findings") setSelectedExamFindings(p => p.includes(preset) ? p.filter(x => x !== preset) : [...p, preset]);
-                    }}
-                  >
-                    {preset}
-                  </Chip>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <AnimatePresence>
+          {isEditing && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="ml-5 mt-1 overflow-hidden"
+            >
+              <div className="flex flex-wrap gap-1 pb-2">
+                {editPresets.map(preset => {
+                  const isSelected = items.includes(preset);
+                  return (
+                    <Chip
+                      key={preset}
+                      variant={variant || "neutral"}
+                      size="sm"
+                      selected={isSelected}
+                      onClick={() => {
+                        if (category === "symptoms") toggleSymptom(preset);
+                        else if (category === "risk_factors") setSelectedRiskFactors(p => p.includes(preset) ? p.filter(x => x !== preset) : [...p, preset]);
+                        else if (category === "medical_history") setSelectedMedicalHistory(p => p.includes(preset) ? p.filter(x => x !== preset) : [...p, preset]);
+                        else if (category === "family_history") setSelectedFamilyHistory(p => p.includes(preset) ? p.filter(x => x !== preset) : [...p, preset]);
+                        else if (category === "exam_findings") setSelectedExamFindings(p => p.includes(preset) ? p.filter(x => x !== preset) : [...p, preset]);
+                      }}
+                    >
+                      {preset}
+                    </Chip>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   };
 
   // ── Single-value tree node for modifiers ──
-  const ModifierTreeNode = ({ label, value, presets, onSelect }: {
-    label: string; value: string; presets: string[];
+  const ModifierTreeNode = ({ label, value, presets, color, onSelect }: {
+    label: string; value: string; presets: string[]; color: string;
     onSelect: (v: string) => void;
   }) => {
     const category = label.toLowerCase().replace(/\s/g, "_") as ContextCategory;
@@ -871,33 +678,42 @@ export default function CockpitPlayground() {
       <div className="group">
         <button
           onClick={() => setEditingCategory(isEditing ? null : category as any)}
-          className="flex items-center gap-2 w-full text-left py-1 hover:bg-muted/50 rounded-lg px-2 transition-colors ml-4"
+          className="flex items-center gap-1.5 w-full text-left py-0.5 hover:bg-muted/50 rounded px-1.5 transition-colors ml-3"
         >
-          <span className="text-xs text-muted-foreground">{label}</span>
-          {value && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground border border-border ml-auto">
-              {value}
-            </span>
-          )}
-          {!value && <span className="text-xs text-muted-foreground ml-auto">—</span>}
-          {!isEditing && <Edit3 className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
+          <span className="text-[10px] text-muted-foreground">{label}</span>
+          <span className="text-[10px] font-medium text-foreground ml-auto">{value || "—"}</span>
+          {!isEditing && <Edit3 className="h-2 w-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
         </button>
 
-        {isEditing && (
-          <div className="ml-8 mt-1 pb-1.5">
-            <div className="flex flex-wrap gap-1.5">
-              {presets.map(p => (
-                <Chip key={p} variant="neutral" size="sm" selected={value === p}
-                  onClick={() => { onSelect(value === p ? "" : p); setEditingCategory(null); }}
-                >
-                  {p}
-                </Chip>
-              ))}
-            </div>
-          </div>
-        )}
+        <AnimatePresence>
+          {isEditing && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="ml-7 mt-0.5 overflow-hidden"
+            >
+              <div className="flex flex-wrap gap-1 pb-1.5">
+                {presets.map(p => (
+                  <Chip key={p} variant="neutral" size="sm" selected={value === p}
+                    onClick={() => { onSelect(value === p ? "" : p); setEditingCategory(null); }}
+                  >
+                    {p}
+                  </Chip>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
+  };
+
+  // ── Likelihood badge ──
+  const likelihoodBadge = (pct: number) => {
+    if (pct >= 30) return <Badge className="text-[8px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">High</Badge>;
+    if (pct >= 15) return <Badge className="text-[8px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">Moderate</Badge>;
+    return <Badge variant="outline" className="text-[8px]">Low</Badge>;
   };
 
   return (
@@ -911,8 +727,8 @@ export default function CockpitPlayground() {
             <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
               <Beaker className="h-4 w-4 text-primary" />
             </div>
-            <span className="text-sm font-bold text-foreground">Clinical Cockpit</span>
-            <Badge variant="outline" className="text-[10px]">Playground</Badge>
+            <span className="text-sm font-bold text-foreground">Clinical Cockpit Playground</span>
+            <Badge variant="outline" className="text-[10px]">Admin</Badge>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -971,79 +787,81 @@ export default function CockpitPlayground() {
         </div>
 
         {/* ── Comparison overlay ── */}
-        {showComparison && snapshots.length > 0 && (
-          <div className="shrink-0 border-b border-border bg-card overflow-hidden">
-            <div className="p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <GitCompare className="h-3.5 w-3.5 text-primary" /> Run Comparison
-                </p>
-                <Button variant="ghost" size="sm" className="h-5 text-[10px]" onClick={() => setShowComparison(false)}>Close</Button>
+        <AnimatePresence>
+          {showComparison && snapshots.length > 0 && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="shrink-0 border-b border-border bg-card overflow-hidden">
+              <div className="p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <GitCompare className="h-3.5 w-3.5 text-primary" /> Run Comparison
+                  </p>
+                  <Button variant="ghost" size="sm" className="h-5 text-[10px]" onClick={() => setShowComparison(false)}>Close</Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {snapshots.map((snap, idx) => (
+                    <div key={idx} className="rounded-lg border border-border p-2 bg-muted/20">
+                      <p className="text-[10px] font-bold text-foreground mb-1">{snap.label} <span className="text-muted-foreground font-normal">({new Date(snap.timestamp).toLocaleTimeString()})</span></p>
+                      {snap.hypotheses.slice(0, 5).map((h, hi) => (
+                        <div key={hi} className="flex items-center justify-between text-[10px] py-0.5">
+                          <span className="text-foreground truncate">{h.diagnosis}</span>
+                          <Badge variant="outline" className="text-[9px]">{Math.round(h.confidence * 100)}%</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {pipelineComplete && pipelineHypotheses.length > 0 && (
+                    <div className="rounded-lg border border-primary/20 p-2 bg-primary/5">
+                      <p className="text-[10px] font-bold text-primary mb-1">Current Run</p>
+                      {pipelineHypotheses.slice(0, 5).map((h, hi) => (
+                        <div key={hi} className="flex items-center justify-between text-[10px] py-0.5">
+                          <span className="text-foreground truncate">{h.diagnosis}</span>
+                          <Badge variant="outline" className="text-[9px]">{Math.round(h.confidence * 100)}%</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {snapshots.map((snap, idx) => (
-                  <div key={idx} className="rounded-lg border border-border p-2 bg-muted/20">
-                    <p className="text-[10px] font-bold text-foreground mb-1">{snap.label} <span className="text-muted-foreground font-normal">({new Date(snap.timestamp).toLocaleTimeString()})</span></p>
-                    {snap.hypotheses.slice(0, 5).map((h, hi) => (
-                      <div key={hi} className="flex items-center justify-between text-[10px] py-0.5">
-                        <span className="text-foreground truncate">{h.diagnosis}</span>
-                        <Badge variant="outline" className="text-[9px]">{Math.round(h.confidence * 100)}%</Badge>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-                {pipelineComplete && pipelineHypotheses.length > 0 && (
-                  <div className="rounded-lg border border-primary/20 p-2 bg-primary/5">
-                    <p className="text-[10px] font-bold text-primary mb-1">Current Run</p>
-                    {pipelineHypotheses.slice(0, 5).map((h, hi) => (
-                      <div key={hi} className="flex items-center justify-between text-[10px] py-0.5">
-                        <span className="text-foreground truncate">{h.diagnosis}</span>
-                        <Badge variant="outline" className="text-[9px]">{Math.round(h.confidence * 100)}%</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* ══════════ MAIN CONTENT — BALANCED 3 COLUMNS ══════════ */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3">
+        {/* ══════════ MAIN CONTENT ══════════ */}
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[300px_1fr_280px]">
 
           {/* ═══ LEFT: Patient Context ═══ */}
           <div className="overflow-y-auto border-r border-border">
             <div className="p-3 space-y-3">
 
-              {/* Empty state */}
+              {/* SECTION 1: Patient Demographics */}
               {!mockPatient ? (
-                <ClinicalCard className="p-8">
+                <ClinicalCard className="p-6">
                   <div className="flex flex-col items-center justify-center text-center">
-                    <div className="h-14 w-14 rounded-2xl bg-primary/5 flex items-center justify-center mb-4">
-                      <Stethoscope className="h-7 w-7 text-primary/30" />
+                    <div className="h-12 w-12 rounded-2xl bg-primary/5 flex items-center justify-center mb-3">
+                      <Stethoscope className="h-6 w-6 text-primary/30" />
                     </div>
                     <p className="text-sm font-semibold text-foreground mb-1">Select a Scenario</p>
-                    <p className="text-xs text-muted-foreground">Choose a textbook case above to simulate a clinical consultation.</p>
+                    <p className="text-[11px] text-muted-foreground">Choose a textbook case above to simulate a clinical consultation.</p>
                   </div>
                 </ClinicalCard>
               ) : (
                 <>
-                  {/* SECTION 1: Patient Demographics */}
                   <ClinicalCard className="p-3">
                     <div className="flex items-center gap-2.5 mb-2.5">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
                         {mockPatient.name.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">{mockPatient.name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <Badge variant="outline" className="text-[10px]">{mockPatient.age}y · {mockPatient.gender}</Badge>
-                          {mockPatient.location && <Badge variant="outline" className="text-[10px]">{mockPatient.location}</Badge>}
+                          <Badge variant="outline" className="text-[9px]">{mockPatient.age}y · {mockPatient.gender}</Badge>
+                          {mockPatient.location && <Badge variant="outline" className="text-[9px]">{mockPatient.location}</Badge>}
+                          <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 text-[8px]">Simulation</Badge>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs border-t border-border pt-2.5">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] border-t border-border pt-2">
                       {mockPatient.occupation && (
                         <div className="flex justify-between"><span className="text-muted-foreground">Occupation</span><span className="text-foreground font-medium">{mockPatient.occupation}</span></div>
                       )}
@@ -1051,11 +869,11 @@ export default function CockpitPlayground() {
                         <div className="flex justify-between"><span className="text-muted-foreground">Diet</span><span className="text-foreground font-medium">{mockPatient.diet}</span></div>
                       )}
                       {mockPatient.allergies && mockPatient.allergies.length > 0 && (
-                        <div className="col-span-2 flex items-center gap-1.5 mt-1">
-                          <Shield className="h-3 w-3 text-destructive" />
-                          <span className="text-[10px] text-destructive font-semibold">Allergies:</span>
+                        <div className="col-span-2 flex items-center gap-1 mt-1">
+                          <Shield className="h-2.5 w-2.5 text-destructive" />
+                          <span className="text-[9px] text-destructive font-semibold">Allergies:</span>
                           {mockPatient.allergies.map(a => (
-                            <Badge key={a} className="text-[9px] bg-destructive/10 text-destructive border-destructive/20">{a}</Badge>
+                            <Badge key={a} className="text-[8px] bg-destructive/10 text-destructive border-destructive/20">{a}</Badge>
                           ))}
                         </div>
                       )}
@@ -1067,11 +885,11 @@ export default function CockpitPlayground() {
 
                   {/* SECTION 2: Vitals (always visible) */}
                   <ClinicalCard className="p-3">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
-                      <HeartPulse className="h-3.5 w-3.5 text-primary" /> Vital Signs
-                      {pipelineRunning && <Loader2 className="h-3 w-3 animate-spin text-primary ml-auto" />}
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                      <HeartPulse className="h-3 w-3 text-primary" /> Vital Signs
+                      {pipelineRunning && <Loader2 className="h-2.5 w-2.5 animate-spin text-primary ml-auto" />}
                     </p>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-4 gap-1.5">
                       {[
                         { field: "bp_systolic", label: "BP", icon: Heart, isBp: true, unit: "mmHg" },
                         { field: "pulse", label: "HR", icon: Activity, unit: "bpm" },
@@ -1085,21 +903,21 @@ export default function CockpitPlayground() {
                           ? (getVitalStatus("bp_systolic", patientVitals?.bp_systolic) === "critical" || getVitalStatus("bp_diastolic", patientVitals?.bp_diastolic) === "critical" ? "critical" : getVitalStatus("bp_systolic", patientVitals?.bp_systolic) === "abnormal" || getVitalStatus("bp_diastolic", patientVitals?.bp_diastolic) === "abnormal" ? "abnormal" : "normal")
                           : getVitalStatus(v.field, patientVitals?.[v.field]);
                         return (
-                          <div key={v.field} className={`text-center p-2 rounded-lg border transition-all ${vitalStatusColor(status as VitalStatus)}`}>
-                            <v.icon className={`h-3.5 w-3.5 mx-auto mb-1 ${status === "critical" ? "text-destructive" : status === "abnormal" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`} />
+                          <div key={v.field} className={`text-center p-1.5 rounded-lg border transition-all ${vitalStatusColor(status as VitalStatus)}`}>
+                            <v.icon className={`h-3 w-3 mx-auto mb-0.5 ${status === "critical" ? "text-destructive" : status === "abnormal" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`} />
                             {v.isBp ? (
                               <div className="flex items-center justify-center gap-0.5">
                                 <input type="number" value={patientVitals?.bp_systolic ?? ""} onChange={e => updateVital("bp_systolic", e.target.value)}
-                                  className="w-7 text-center text-xs font-bold bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
-                                <span className="text-[9px] text-muted-foreground">/</span>
+                                  className="w-6 text-center text-[10px] font-bold bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                                <span className="text-[8px] text-muted-foreground">/</span>
                                 <input type="number" value={patientVitals?.bp_diastolic ?? ""} onChange={e => updateVital("bp_diastolic", e.target.value)}
-                                  className="w-7 text-center text-xs font-bold bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                                  className="w-6 text-center text-[10px] font-bold bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
                               </div>
                             ) : (
                               <input type="number" value={patientVitals?.[v.field] ?? ""} onChange={e => updateVital(v.field, e.target.value)}
-                                className="w-full text-center text-xs font-bold bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
+                                className="w-full text-center text-[10px] font-bold bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="—" />
                             )}
-                            <p className="text-[8px] mt-0.5 font-medium text-muted-foreground">{v.label} ({v.unit})</p>
+                            <p className="text-[7px] mt-0.5 font-medium text-muted-foreground">{v.unit}</p>
                           </div>
                         );
                       })}
@@ -1108,47 +926,111 @@ export default function CockpitPlayground() {
 
                   {/* SECTION 3: Clinical Context Tree */}
                   <ClinicalCard className="p-3">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
-                      <TreePine className="h-3.5 w-3.5 text-primary" /> Clinical Context
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                      <TreePine className="h-3 w-3 text-primary" /> Clinical Context
                     </p>
 
                     {/* Chief Complaint */}
                     {chiefComplaint && (
-                      <div className="flex items-center gap-2 py-2 px-2.5 rounded-lg bg-primary/[0.04] border border-primary/10 mb-3">
-                        <Brain className="h-4 w-4 text-primary shrink-0" />
-                        <span className="text-xs text-muted-foreground">Chief Complaint</span>
-                        <span className="text-sm font-semibold text-foreground ml-auto">{chiefComplaint}</span>
+                      <div className="flex items-center gap-1.5 py-1 px-1.5 rounded bg-primary/[0.04] border border-primary/10 mb-2">
+                        <Brain className="h-3 w-3 text-primary shrink-0" />
+                        <span className="text-[10px] text-muted-foreground">Chief Complaint</span>
+                        <span className="text-[11px] font-semibold text-foreground ml-auto">{chiefComplaint}</span>
                       </div>
                     )}
 
-                    <div className="space-y-1">
-                      <ContextTreeNode label="Symptoms" icon={Stethoscope} items={selectedSymptoms} color="text-blue-600 dark:text-blue-400" category="symptoms" editPresets={COMMON_SYMPTOMS} variant="symptom" />
+                    <div className="space-y-0.5">
+                      {/* Symptoms */}
+                      <ContextTreeNode
+                        label="Symptoms"
+                        icon={Stethoscope}
+                        items={selectedSymptoms}
+                        color="text-blue-600 dark:text-blue-400"
+                        category="symptoms"
+                        editPresets={COMMON_SYMPTOMS}
+                        variant="symptom"
+                      />
+
+                      {/* Symptom expansions */}
+                      {selectedSymptoms.map(symptom => {
+                        const exp = SYMPTOM_EXPANSIONS[symptom];
+                        if (!exp) return null;
+                        const selected = expansionSelections[symptom] || [];
+                        if (selected.length === 0) return null;
+                        return (
+                          <div key={`exp-${symptom}`} className="ml-7 text-[10px] text-muted-foreground">
+                            {selected.map(s => (
+                              <span key={s} className="inline-flex items-center gap-0.5 mr-1.5">
+                                <span className="text-foreground">{s}</span>
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })}
 
                       {/* Modifiers */}
                       {(selectedDuration || selectedOnset || selectedSeverity || selectedBodyLocation) && (
-                        <div className="mt-2">
-                          <div className="flex items-center gap-1.5 py-1.5 px-2">
-                            <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            <span className="text-xs font-semibold text-foreground">Modifiers</span>
+                        <div className="mt-1">
+                          <div className="flex items-center gap-1.5 py-1 px-1.5">
+                            <Layers className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="text-[11px] font-semibold text-foreground">Modifiers</span>
                           </div>
-                          <ModifierTreeNode label="Duration" value={selectedDuration} presets={DURATION_PRESETS} onSelect={setSelectedDuration} />
-                          <ModifierTreeNode label="Onset" value={selectedOnset} presets={ONSET_PRESETS} onSelect={setSelectedOnset} />
-                          <ModifierTreeNode label="Severity" value={selectedSeverity} presets={SEVERITY_PRESETS} onSelect={setSelectedSeverity} />
-                          <ModifierTreeNode label="Location" value={selectedBodyLocation} presets={BODY_LOCATION_PRESETS} onSelect={setSelectedBodyLocation} />
+                          <ModifierTreeNode label="Duration" value={selectedDuration} presets={DURATION_PRESETS} color="" onSelect={setSelectedDuration} />
+                          <ModifierTreeNode label="Onset" value={selectedOnset} presets={ONSET_PRESETS} color="" onSelect={setSelectedOnset} />
+                          <ModifierTreeNode label="Severity" value={selectedSeverity} presets={SEVERITY_PRESETS} color="" onSelect={setSelectedSeverity} />
+                          <ModifierTreeNode label="Location" value={selectedBodyLocation} presets={BODY_LOCATION_PRESETS} color="" onSelect={setSelectedBodyLocation} />
                         </div>
                       )}
 
-                      <ContextTreeNode label="Risk Factors" icon={AlertTriangle} items={selectedRiskFactors} color="text-amber-600 dark:text-amber-400" category="risk_factors" editPresets={RISK_FACTOR_PRESETS} variant="alert" />
-                      <ContextTreeNode label="Past Medical History" icon={FileText} items={selectedMedicalHistory} color="text-purple-600 dark:text-purple-400" category="medical_history" editPresets={MEDICAL_HISTORY_PRESETS} variant="diagnosis" />
-                      <ContextTreeNode label="Family History" icon={User} items={selectedFamilyHistory} color="text-purple-500 dark:text-purple-300" category="family_history" editPresets={FAMILY_HISTORY_PRESETS} />
-                      <ContextTreeNode label="Exam Findings" icon={Eye} items={selectedExamFindings} color="text-destructive" category="exam_findings" editPresets={EXAM_FINDINGS_PRESETS} variant="alert" />
+                      {/* Risk Factors */}
+                      <ContextTreeNode
+                        label="Risk Factors"
+                        icon={AlertTriangle}
+                        items={selectedRiskFactors}
+                        color="text-amber-600 dark:text-amber-400"
+                        category="risk_factors"
+                        editPresets={RISK_FACTOR_PRESETS}
+                        variant="alert"
+                      />
+
+                      {/* Past Medical History */}
+                      <ContextTreeNode
+                        label="Past Medical History"
+                        icon={FileText}
+                        items={selectedMedicalHistory}
+                        color="text-purple-600 dark:text-purple-400"
+                        category="medical_history"
+                        editPresets={MEDICAL_HISTORY_PRESETS}
+                        variant="diagnosis"
+                      />
+
+                      {/* Family History */}
+                      <ContextTreeNode
+                        label="Family History"
+                        icon={User}
+                        items={selectedFamilyHistory}
+                        color="text-purple-500 dark:text-purple-300"
+                        category="family_history"
+                        editPresets={FAMILY_HISTORY_PRESETS}
+                      />
+
+                      {/* Exam Findings */}
+                      <ContextTreeNode
+                        label="Exam Findings"
+                        icon={Eye}
+                        items={selectedExamFindings}
+                        color="text-destructive"
+                        category="exam_findings"
+                        editPresets={EXAM_FINDINGS_PRESETS}
+                        variant="alert"
+                      />
                     </div>
 
                     {/* Quick add if no context yet */}
                     {!hasContext && (
                       <div className="mt-3">
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">Quick Add Symptoms</p>
-                        <div className="flex flex-wrap gap-1.5">
+                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1.5">Quick Add Symptoms</p>
+                        <div className="flex flex-wrap gap-1">
                           {COMMON_SYMPTOMS.slice(0, 12).map(s => (
                             <Chip key={s} variant="symptom" size="sm" onClick={() => toggleSymptom(s)}>{s}</Chip>
                           ))}
@@ -1158,27 +1040,27 @@ export default function CockpitPlayground() {
 
                     {/* Symptom search */}
                     <div className="relative mt-3">
-                      <div className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg border border-border bg-background focus-within:ring-1 focus-within:ring-primary/30">
-                        <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                      <div className="flex items-center gap-1.5 px-2.5 h-7 rounded-lg border border-border bg-background focus-within:ring-1 focus-within:ring-primary/30">
+                        <Search className="h-3 w-3 text-muted-foreground" />
                         <input type="text" value={symptomSearch} onChange={e => setSymptomSearch(e.target.value)}
                           onKeyDown={e => { if (e.key === "Enter" && symptomSearch.trim()) { toggleSymptom(symptomSearch.trim()); setSymptomSearch(""); } }}
                           placeholder="Search or add symptom…"
-                          className="flex-1 text-xs bg-transparent border-none outline-none"
+                          className="flex-1 text-[11px] bg-transparent border-none outline-none"
                         />
                       </div>
                       {filteredSymptoms.length > 0 && (
                         <div className="absolute top-full left-0 right-0 mt-0.5 bg-popover border border-border rounded-lg shadow-md z-10 max-h-32 overflow-y-auto">
                           {filteredSymptoms.map(s => (
-                            <button key={s} className="w-full text-left px-2.5 py-1.5 text-xs text-foreground hover:bg-muted transition-colors" onClick={() => { toggleSymptom(s); setSymptomSearch(""); }}>{s}</button>
+                            <button key={s} className="w-full text-left px-2.5 py-1.5 text-[11px] text-foreground hover:bg-muted transition-colors" onClick={() => { toggleSymptom(s); setSymptomSearch(""); }}>{s}</button>
                           ))}
                         </div>
                       )}
                     </div>
 
-                    {/* Add modifiers prompt */}
+                    {/* Add modifiers if not set yet */}
                     {selectedSymptoms.length > 0 && !selectedDuration && !selectedOnset && !selectedSeverity && !selectedBodyLocation && (
-                      <div className="mt-3 p-2.5 rounded-lg bg-muted/30 border border-border">
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">Add Modifiers</p>
+                      <div className="mt-3 p-2 rounded-lg bg-muted/30 border border-border">
+                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1.5">Add Modifiers</p>
                         <div className="space-y-2">
                           <ChipGroup label="Duration">
                             {DURATION_PRESETS.map(d => <Chip key={d} variant="neutral" size="sm" onClick={() => setSelectedDuration(d)}>{d}</Chip>)}
@@ -1199,7 +1081,7 @@ export default function CockpitPlayground() {
           </div>
 
           {/* ═══ CENTER: SOAP Output ═══ */}
-          <div className="overflow-y-auto border-r border-border">
+          <div className="overflow-y-auto">
             {mockPatient && (
               <div className="p-4 space-y-4">
                 <ClinicalCard className="p-4 border-primary/15">
@@ -1213,16 +1095,16 @@ export default function CockpitPlayground() {
                     <div className="flex gap-1.5 items-center">
                       <AiDisclosureBadge label="AI Draft" tooltip="Generated by AI pipeline" />
                       {pipelineComplete && (
-                        <Badge className="text-[9px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
-                          <CheckCircle className="h-2.5 w-2.5 mr-0.5" /> Complete
+                        <Badge className="text-[8px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
+                          <CheckCircle className="h-2 w-2 mr-0.5" /> Pipeline Complete
                         </Badge>
                       )}
                     </div>
                   </div>
 
-                  <div className="space-y-5">
+                  <div className="space-y-4">
                     {/* ── Subjective ── */}
-                    <div className="rounded-xl border p-3.5 bg-primary/[0.03] border-primary/15">
+                    <div className="rounded-xl border p-3 bg-primary/[0.03] border-primary/15">
                       <div className="flex items-center gap-1.5 mb-2">
                         <User className="h-3.5 w-3.5 text-primary" />
                         <span className="text-xs font-bold uppercase tracking-wide text-primary">Subjective (HPI)</span>
@@ -1239,7 +1121,7 @@ export default function CockpitPlayground() {
                     </div>
 
                     {/* ── Objective ── */}
-                    <div className="rounded-xl border p-3.5 bg-emerald-500/5 border-emerald-500/15">
+                    <div className="rounded-xl border p-3 bg-emerald-500/5 border-emerald-500/15">
                       <div className="flex items-center gap-1.5 mb-2">
                         <Eye className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                         <span className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Objective</span>
@@ -1256,26 +1138,26 @@ export default function CockpitPlayground() {
                     </div>
 
                     {/* ── Assessment (Differential Diagnoses) ── */}
-                    <div className="rounded-xl border p-3.5 bg-amber-500/5 border-amber-500/15">
-                      <div className="flex items-center gap-1.5 mb-2.5">
+                    <div className="rounded-xl border p-3 bg-amber-500/5 border-amber-500/15">
+                      <div className="flex items-center gap-1.5 mb-2">
                         <Brain className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                         <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Assessment (AI Differential)</span>
                       </div>
 
                       {mergedDiagnoses.length > 0 ? (
-                        <div className="space-y-3">
+                        <div className="space-y-2.5">
                           {mergedDiagnoses.map((d: any, i: number) => (
-                            <div key={i} className="rounded-lg border border-border p-3 bg-background/60">
+                            <div key={i} className="rounded-lg border border-border p-2.5 bg-background/60">
                               <div className="flex items-center gap-2 mb-1.5">
-                                <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}.</span>
-                                <span className="text-sm font-semibold text-foreground flex-1">{d.name}</span>
+                                <span className="text-[10px] font-bold text-muted-foreground w-4">{i + 1}.</span>
+                                <span className="text-xs font-semibold text-foreground flex-1">{d.name}</span>
                                 {likelihoodBadge(d.pct)}
-                                <Badge variant="outline" className="text-[10px] font-mono">{d.pct}%</Badge>
-                                {d.mustNotMiss && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
+                                <Badge variant="outline" className="text-[9px] font-mono">{d.pct}%</Badge>
+                                {d.mustNotMiss && <AlertTriangle className="h-3 w-3 text-destructive" />}
                               </div>
 
                               {/* Probability bar */}
-                              <div className="h-1.5 rounded-full bg-muted mb-2">
+                              <div className="h-1 rounded-full bg-muted mb-1.5">
                                 <div
                                   className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`}
                                   style={{ width: `${Math.min(d.pct, 100)}%` }}
@@ -1285,21 +1167,21 @@ export default function CockpitPlayground() {
                               {reasoningLevel !== "debug" && (
                                 <>
                                   {d.supporting.length > 0 && (
-                                    <div className="mt-1.5">
-                                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-1">Supporting evidence</p>
+                                    <div className="mt-1">
+                                      <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold mb-0.5">Supporting evidence</p>
                                       <div className="flex flex-wrap gap-1">
                                         {d.supporting.slice(0, 6).map((e: string, ei: number) => (
-                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
+                                          <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
                                         ))}
                                       </div>
                                     </div>
                                   )}
                                   {d.contradicting.length > 0 && (
-                                    <div className="mt-1.5">
-                                      <p className="text-[10px] text-destructive font-semibold mb-1">Missing / Against</p>
+                                    <div className="mt-1">
+                                      <p className="text-[9px] text-destructive font-semibold mb-0.5">Against</p>
                                       <div className="flex flex-wrap gap-1">
                                         {d.contradicting.map((e: string, ei: number) => (
-                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✗ {e}</span>
+                                          <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive border border-destructive/20">✗ {e}</span>
                                         ))}
                                       </div>
                                     </div>
@@ -1307,11 +1189,11 @@ export default function CockpitPlayground() {
                                 </>
                               )}
 
-                              {/* Explanation mode */}
+                              {/* Explanation mode extras */}
                               {reasoningLevel === "explanation" && d.bayesian && (
-                                <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border">
-                                  <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Modifier Contributions</p>
-                                  <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] font-mono">
+                                <div className="mt-1.5 p-1.5 rounded bg-muted/30 border border-border">
+                                  <p className="text-[8px] text-muted-foreground font-semibold uppercase mb-0.5">Modifier Contributions</p>
+                                  <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[8px] font-mono">
                                     {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(2)}</span>}
                                     {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(2)}</span>}
                                     {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(2)}</span>}
@@ -1322,11 +1204,11 @@ export default function CockpitPlayground() {
                                 </div>
                               )}
 
-                              {/* Debug mode */}
+                              {/* Debug mode extras */}
                               {reasoningLevel === "debug" && d.bayesian && (
-                                <div className="mt-2 p-2 rounded-lg bg-muted/40 border border-border font-mono text-[9px] space-y-0.5">
-                                  <p className="font-semibold text-muted-foreground uppercase text-[8px]">Bayesian Breakdown</p>
-                                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                <div className="mt-1.5 p-1.5 rounded bg-muted/40 border border-border font-mono text-[8px] space-y-0.5">
+                                  <p className="font-semibold text-muted-foreground uppercase text-[7px]">Bayesian Breakdown</p>
+                                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                                     <span>Prior: {d.bayesian.prior?.toFixed(4)}</span>
                                     <span>Symptom LH: {d.bayesian.symptom_likelihood?.toFixed(4)}</span>
                                     <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(3)}</span>
@@ -1343,82 +1225,44 @@ export default function CockpitPlayground() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-xs text-muted-foreground italic">
+                        <p className="text-[11px] text-muted-foreground italic">
                           {pipelineRunning ? "Generating differential…" : "Add symptoms to generate differential diagnoses."}
                         </p>
                       )}
                     </div>
 
-                    {/* ── Plan (Structured subsections) ── */}
-                    <div className="rounded-xl border p-3.5 bg-purple-500/5 border-purple-500/15">
-                      <div className="flex items-center gap-1.5 mb-3">
+                    {/* ── Plan ── */}
+                    <div className="rounded-xl border p-3 bg-purple-500/5 border-purple-500/15">
+                      <div className="flex items-center gap-1.5 mb-2">
                         <ClipboardCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
                         <span className="text-xs font-bold uppercase tracking-wide text-purple-700 dark:text-purple-400">Plan</span>
                       </div>
 
-                      {/* Investigations — synced with Copilot selectedTests */}
-                      <div className="mb-3">
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
-                          <FlaskConical className="h-3 w-3" /> Investigations
-                        </p>
-                        {planInvestigations.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {planInvestigations.map(t => (
-                              <Chip key={t} variant="lab" size="sm" selected
-                                onClick={() => setSelectedTests(prev => prev.filter(x => x !== t))}>
-                                ✓ {t}
+                      {/* Recommended Tests */}
+                      {allRecommendedTests.length > 0 && (
+                        <div className="mb-2.5">
+                          <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1 flex items-center gap-1">
+                            <FlaskConical className="h-2.5 w-2.5" /> Recommended Tests
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {allRecommendedTests.map(t => (
+                              <Chip key={t} variant="lab" size="sm" selected={selectedTests.includes(t)}
+                                onClick={() => setSelectedTests(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}>
+                                {t}
                               </Chip>
                             ))}
                           </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground italic">Select tests from AI Copilot →</p>
-                        )}
-                        {/* Unselected recommended tests */}
-                        {allRecommendedTests.filter(t => !selectedTests.includes(t)).length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {allRecommendedTests.filter(t => !selectedTests.includes(t)).map(t => (
-                              <Chip key={t} variant="lab" size="sm"
-                                onClick={() => setSelectedTests(prev => [...prev, t])}>
-                                + {t}
-                              </Chip>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
-                      {/* Treatment — synced with Copilot pendingRx */}
-                      <div className="mb-3">
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
-                          <Pill className="h-3 w-3" /> Treatment
-                        </p>
-                        {planTreatments.length > 0 ? (
-                          <div className="space-y-1">
-                            {planTreatments.map((rx, i) => (
-                              <div key={i} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
-                                <span className="font-medium text-foreground">{rx.drug_name}</span>
-                                <span className="text-muted-foreground">{rx.dose} · {rx.frequency} · {rx.duration}</span>
-                                <button onClick={() => setPendingRx(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground italic">Select medications from AI Copilot →</p>
-                        )}
-                      </div>
-
-                      {/* Monitoring & Follow-up */}
-                      <div className="mb-3">
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
-                          <Activity className="h-3 w-3" /> Monitoring & Follow-up
-                        </p>
-                        <Textarea
-                          value={soapSections["Treatment Plan"] || ""}
-                          onChange={e => setSoapSections(prev => ({ ...prev, "Treatment Plan": e.target.value }))}
-                          rows={2}
-                          placeholder="Monitoring parameters, disposition, follow-up schedule…"
-                          className="text-xs min-h-[32px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
-                        />
-                      </div>
+                      {/* Treatment plan */}
+                      <Textarea
+                        value={soapSections["Treatment Plan"] || ""}
+                        onChange={e => setSoapSections(prev => ({ ...prev, "Treatment Plan": e.target.value }))}
+                        rows={3}
+                        placeholder="Treatment plan, disposition, and follow-up recommendations…"
+                        className="text-xs min-h-[36px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
+                      />
                     </div>
                   </div>
                 </ClinicalCard>
@@ -1426,12 +1270,12 @@ export default function CockpitPlayground() {
                 {/* Debug: Stage Latencies */}
                 {reasoningLevel === "debug" && Object.keys(stageLatencies).length > 0 && (
                   <ClinicalCard className="p-3">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
-                      <Zap className="h-3 w-3" /> Pipeline Latency
+                    <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
+                      <Zap className="h-2.5 w-2.5" /> Pipeline Latency
                     </p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5">
                       {Object.entries(stageLatencies).map(([stage, ms]) => (
-                        <span key={stage} className="text-[10px] font-mono text-muted-foreground">
+                        <span key={stage} className="text-[9px] font-mono text-muted-foreground">
                           {stage}: <span className={`font-semibold ${(ms as number) > 3000 ? "text-destructive" : "text-foreground"}`}>{ms as number}ms</span>
                         </span>
                       ))}
@@ -1443,7 +1287,7 @@ export default function CockpitPlayground() {
           </div>
 
           {/* ═══ RIGHT: AI Copilot ═══ */}
-          <div className="overflow-y-auto bg-card/30 hidden lg:block">
+          <div className="overflow-y-auto border-l border-border bg-card/30 hidden lg:block">
             <div className="p-3 space-y-2.5">
               <div className="flex items-center gap-2 px-0.5">
                 <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center relative">
@@ -1459,26 +1303,6 @@ export default function CockpitPlayground() {
             </div>
           </div>
         </div>
-
-        {/* ══════════ COMMAND BAR ══════════ */}
-        {mockPatient && (
-          <div className="shrink-0 border-t border-border bg-card px-4 py-2">
-            <div className="flex items-center gap-2 max-w-4xl mx-auto">
-              <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
-              <input
-                type="text"
-                value={commandInput}
-                onChange={e => setCommandInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") handleCommand(); }}
-                placeholder="Type clinical context… e.g. 'Patient has severe headache with vomiting'"
-                className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
-              />
-              <Button variant="ghost" size="sm" className="h-7 px-2.5" onClick={handleCommand} disabled={!commandInput.trim()}>
-                <Send className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
     </>
   );
