@@ -52,6 +52,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
       { drug: "Sumatriptan", dose: "50mg", route: "PO", freq: "PRN", dur: "As needed", line: "alternative" },
     ],
+    monitoring: ["Headache frequency diary", "Response to acute treatment", "Follow up in 1 week if symptoms persist"],
     instructions: ["Avoid bright lights and loud noises during episodes", "Stay hydrated — drink at least 2L water/day", "Maintain regular sleep schedule", "Seek emergency care if: worst headache of life, sudden onset, neck stiffness, confusion", "Follow up in 1 week if symptoms persist"],
   },
   "tension headache": {
@@ -60,6 +61,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "5 days", line: "first" },
       { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "3 days", line: "alternative" },
     ],
+    monitoring: ["Headache diary — frequency and triggers", "Follow up if symptoms persist >2 weeks"],
     instructions: ["Apply warm compress to neck/shoulders", "Practice stress management techniques", "Ensure adequate sleep (7-8 hours)", "Follow up if symptoms worsen or persist >2 weeks"],
   },
   "subarachnoid hemorrhage": {
@@ -68,6 +70,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Nimodipine", dose: "60mg", route: "PO", freq: "Q4H", dur: "21 days", line: "first" },
       { drug: "IV Fluids", dose: "NS 1L", route: "IV", freq: "Q8H", dur: "Ongoing", line: "first" },
     ],
+    monitoring: ["GCS every 1 hour", "Neuro checks Q1H", "BP monitoring — target SBP <160", "ICU admission required"],
     instructions: ["EMERGENCY: Immediate neurosurgical consultation required", "Strict bed rest", "Keep head of bed elevated 30°"],
   },
   "acute coronary syndrome": {
@@ -78,6 +81,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Atorvastatin", dose: "80mg", route: "PO", freq: "OD", dur: "Ongoing", line: "first" },
       { drug: "Nitroglycerin", dose: "0.4mg SL", route: "SL", freq: "PRN", dur: "As needed", line: "emergency" },
     ],
+    monitoring: ["Serial Troponin at 0, 3, 6 hours", "Continuous ECG monitoring", "Repeat ECG if symptoms change", "Cardiology consult within 48 hours"],
     instructions: ["EMERGENCY: Call ambulance if chest pain returns", "Take aspirin immediately if chest pain recurs", "Do NOT exert yourself — complete rest", "Follow up with cardiologist within 48 hours"],
   },
   "myocardial infarction": {
@@ -87,6 +91,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Clopidogrel", dose: "300mg", route: "PO", freq: "STAT", dur: "Loading dose", line: "emergency" },
       { drug: "Morphine", dose: "2-4mg", route: "IV", freq: "PRN", dur: "As needed", line: "emergency" },
     ],
+    monitoring: ["Serial Troponin at 0, 3, 6 hours", "Continuous cardiac monitoring", "BP and HR Q15min", "Door-to-balloon time tracking"],
     instructions: ["EMERGENCY: Immediate cardiology consultation", "Strict bed rest", "Continuous cardiac monitoring"],
   },
   "appendicitis": {
@@ -97,6 +102,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Metronidazole", dose: "500mg", route: "IV", freq: "TID", dur: "Perioperative", line: "first" },
       { drug: "Paracetamol", dose: "1g", route: "IV", freq: "QID", dur: "As needed", line: "first" },
     ],
+    monitoring: ["Pain score Q4H", "Temperature Q6H", "Surgical review within 4 hours", "Post-op wound inspection"],
     instructions: ["Nil by mouth (NBM) — no food or drink", "Surgical consultation required", "Return immediately if pain worsens, fever increases, or vomiting becomes severe"],
   },
   "gastroenteritis": {
@@ -106,6 +112,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Ondansetron", dose: "4mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
       { drug: "Zinc", dose: "20mg", route: "PO", freq: "OD", dur: "10 days", line: "first" },
     ],
+    monitoring: ["Hydration status — skin turgor, mucous membranes", "Urine output — target >0.5 ml/kg/hr", "Electrolytes if severe dehydration", "Return if symptoms persist >48 hours"],
     instructions: ["Drink plenty of fluids — ORS, coconut water, clear soups", "Eat light diet — rice, bananas, toast, yogurt", "Avoid dairy, spicy, and fried foods", "Wash hands frequently to prevent spread", "Seek emergency care if: bloody stools, inability to keep fluids down, high fever >103°F, signs of dehydration"],
   },
   "food poisoning": {
@@ -114,6 +121,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "ORS", dose: "200ml", route: "PO", freq: "After each stool", dur: "Until resolved", line: "first" },
       { drug: "Ondansetron", dose: "4mg", route: "PO", freq: "TID", dur: "2 days", line: "first" },
     ],
+    monitoring: ["Hydration status", "Return if symptoms persist >3 days"],
     instructions: ["Stay hydrated — small frequent sips of ORS", "Bland diet for 24-48 hours", "Return if symptoms persist beyond 3 days"],
   },
   "pulmonary embolism": {
@@ -123,6 +131,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Enoxaparin", dose: "1mg/kg", route: "SC", freq: "BD", dur: "5 days", line: "first" },
       { drug: "Warfarin", dose: "5mg", route: "PO", freq: "OD", dur: "3-6 months", line: "first" },
     ],
+    monitoring: ["APTT monitoring if on heparin", "INR monitoring — target 2-3 if on warfarin", "SpO₂ continuous monitoring", "Repeat CTPA if clinical deterioration"],
     instructions: ["EMERGENCY: Anticoagulation must not be delayed", "Avoid prolonged immobility", "Regular INR monitoring if on warfarin"],
   },
   "pneumonia": {
@@ -132,6 +141,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Azithromycin", dose: "500mg", route: "PO", freq: "OD", dur: "3 days", line: "alternative" },
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "first" },
     ],
+    monitoring: ["Temperature Q6H — fever curve", "SpO₂ monitoring", "Repeat CRP at 48-72 hours", "Follow up chest X-ray in 6 weeks"],
     instructions: ["Complete the full course of antibiotics", "Rest and stay hydrated", "Use steam inhalation for congestion", "Return if: breathing difficulty worsens, fever >103°F, coughing blood", "Follow up chest X-ray in 6 weeks"],
   },
   "community-acquired pneumonia": {
@@ -141,6 +151,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Azithromycin", dose: "500mg", route: "PO", freq: "OD", dur: "3 days", line: "alternative" },
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "first" },
     ],
+    monitoring: ["Temperature Q6H", "CURB-65 score assessment", "Repeat CRP at 48-72 hours", "Follow up in 48-72 hours if no improvement"],
     instructions: ["Complete full antibiotic course", "Increase fluid intake", "Follow up in 48-72 hours if no improvement"],
   },
   "copd exacerbation": {
@@ -150,6 +161,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Prednisolone", dose: "40mg", route: "PO", freq: "OD", dur: "5 days", line: "first" },
       { drug: "Amoxicillin-Clavulanate", dose: "625mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
     ],
+    monitoring: ["SpO₂ monitoring — target 88-92%", "Peak flow measurement BD", "ABG if SpO₂ <90%", "Follow up in 1 week"],
     instructions: ["Use inhalers as prescribed", "Avoid smoke and dust exposure", "Seek care if breathing worsens despite treatment"],
   },
   "urinary tract infection": {
@@ -158,6 +170,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Nitrofurantoin", dose: "100mg", route: "PO", freq: "BD", dur: "5 days", line: "first" },
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "As needed", line: "first" },
     ],
+    monitoring: ["Urine culture sensitivity after 48 hours", "Follow up if symptoms persist after completing antibiotics"],
     instructions: ["Drink at least 2-3 litres of water daily", "Complete the full antibiotic course", "Urinate frequently — do not hold urine", "Return if: fever, back pain, blood in urine"],
   },
   "meningitis": {
@@ -166,6 +179,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Ceftriaxone", dose: "2g", route: "IV", freq: "BD", dur: "10-14 days", line: "emergency" },
       { drug: "Dexamethasone", dose: "0.15mg/kg", route: "IV", freq: "QID", dur: "4 days", line: "first" },
     ],
+    monitoring: ["GCS Q1H", "Neuro checks Q1H", "Temperature Q4H", "Repeat LP if no improvement in 48 hours"],
     instructions: ["EMERGENCY: Antibiotics must be given within 1 hour", "ICU monitoring may be required", "Close contacts may need prophylaxis"],
   },
   "diabetic ketoacidosis": {
@@ -175,6 +189,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "IV Fluids (NS)", dose: "1L", route: "IV", freq: "Q1H initially", dur: "Until rehydrated", line: "emergency" },
       { drug: "Potassium chloride", dose: "20-40 mEq/L", route: "IV", freq: "Per IV fluid", dur: "Per protocol", line: "first" },
     ],
+    monitoring: ["Blood glucose Q1H", "Electrolytes Q2H", "ABG Q2-4H", "Potassium before and during insulin", "Urine output Q1H", "Anion gap until closed"],
     instructions: ["EMERGENCY: Continuous IV insulin and fluid resuscitation", "Monitor blood glucose hourly", "Check electrolytes every 2 hours"],
   },
   "hypertensive crisis": {
@@ -183,6 +198,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Labetalol", dose: "20mg", route: "IV", freq: "Q10min PRN", dur: "Until controlled", line: "emergency" },
       { drug: "Amlodipine", dose: "5mg", route: "PO", freq: "OD", dur: "Ongoing", line: "first" },
     ],
+    monitoring: ["BP Q5min during IV therapy", "Reduce MAP by ≤25% in first hour", "Target BP <160/100 over 2-6 hours", "End-organ damage assessment"],
     instructions: ["EMERGENCY: Blood pressure must be reduced gradually", "Do NOT reduce BP by more than 25% in first hour", "Follow up with cardiologist within 1 week"],
   },
   "costochondritis": {
@@ -191,6 +207,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "5 days", line: "alternative" },
     ],
+    monitoring: ["Pain response to NSAIDs at 1 week", "Follow up if not improving in 2 weeks"],
     instructions: ["Apply warm compress to affected area", "Avoid activities that worsen pain", "This is a benign condition — pain usually resolves in weeks", "Return if: breathlessness, radiating pain, fever"],
   },
   "musculoskeletal chest pain": {
@@ -199,6 +216,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "5 days", line: "first" },
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "alternative" },
     ],
+    monitoring: ["Follow up if pain persists >2 weeks"],
     instructions: ["Rest the affected area", "Apply ice or heat as needed", "Follow up if pain persists >2 weeks or worsens"],
   },
   "gastritis": {
@@ -207,6 +225,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Pantoprazole", dose: "40mg", route: "PO", freq: "OD", dur: "4 weeks", line: "first" },
       { drug: "Domperidone", dose: "10mg", route: "PO", freq: "TID", dur: "1 week", line: "first" },
     ],
+    monitoring: ["Symptom reassessment at 4 weeks", "H. pylori eradication confirmation if positive"],
     instructions: ["Avoid spicy, acidic, and fried foods", "Eat small frequent meals", "Avoid NSAIDs and alcohol", "Follow up in 4 weeks if symptoms persist"],
   },
   "peptic ulcer disease": {
@@ -216,6 +235,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Amoxicillin", dose: "1g", route: "PO", freq: "BD", dur: "14 days", line: "first" },
       { drug: "Clarithromycin", dose: "500mg", route: "PO", freq: "BD", dur: "14 days", line: "first" },
     ],
+    monitoring: ["H. pylori breath test at 4 weeks post-treatment", "Follow up endoscopy at 8 weeks", "Monitor for GI bleeding signs"],
     instructions: ["Complete full H. pylori eradication course", "Avoid NSAIDs", "Follow up endoscopy in 8 weeks"],
   },
   "acute bronchitis": {
@@ -224,6 +244,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "5 days", line: "first" },
       { drug: "Dextromethorphan", dose: "30mg", route: "PO", freq: "TID", dur: "5 days", line: "first" },
     ],
+    monitoring: ["Symptom duration — expect 2-3 weeks", "Return if cough persists >3 weeks"],
     instructions: ["Stay hydrated", "Use honey for cough relief", "Most cases are viral — antibiotics usually not needed", "Return if: breathing difficulty, high fever, coughing blood"],
   },
   "upper respiratory tract infection": {
@@ -232,6 +253,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
       { drug: "Cetirizine", dose: "10mg", route: "PO", freq: "OD", dur: "5 days", line: "first" },
     ],
+    monitoring: ["Self-limiting — expect 5-7 days", "Return if symptoms worsen or persist >10 days"],
     instructions: ["Rest and stay hydrated", "Steam inhalation for congestion", "Usually self-limiting (5-7 days)", "Seek care if symptoms worsen or persist >10 days"],
   },
   "viral fever": {
@@ -239,6 +261,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
     medications: [
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "3 days", line: "first" },
     ],
+    monitoring: ["Temperature monitoring BD", "Platelet count if dengue suspected", "Follow up if fever persists >5 days"],
     instructions: ["Drink plenty of fluids", "Rest", "Monitor for warning signs: persistent vomiting, bleeding, severe abdominal pain", "Follow up if fever persists >5 days"],
   },
   "stable angina": {
@@ -249,6 +272,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Nitroglycerin", dose: "0.4mg SL", route: "SL", freq: "PRN", dur: "As needed", line: "first" },
       { drug: "Metoprolol", dose: "25mg", route: "PO", freq: "BD", dur: "Ongoing", line: "first" },
     ],
+    monitoring: ["Exercise tolerance assessment", "Lipid profile at 6 weeks", "Cardiology follow-up in 2 weeks", "BP and HR monitoring"],
     instructions: ["Take aspirin daily", "Use sublingual nitroglycerin for acute episodes", "Follow up with cardiologist", "Lifestyle: exercise, diet modification, smoking cessation"],
   },
   "gerd": {
@@ -257,6 +281,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Pantoprazole", dose: "40mg", route: "PO", freq: "OD", dur: "8 weeks", line: "first" },
       { drug: "Domperidone", dose: "10mg", route: "PO", freq: "TID", dur: "2 weeks", line: "first" },
     ],
+    monitoring: ["Symptom response at 4 weeks", "Consider step-down to H2 blocker after 8 weeks"],
     instructions: ["Elevate head of bed", "Avoid eating 3 hours before bedtime", "Avoid spicy, fatty, citrus foods and caffeine", "Lose weight if overweight"],
   },
   "asthma exacerbation": {
@@ -266,17 +291,18 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Prednisolone", dose: "40mg", route: "PO", freq: "OD", dur: "5 days", line: "first" },
       { drug: "Ipratropium nebulization", dose: "0.5mg", route: "NEB", freq: "Q4H", dur: "As needed", line: "alternative" },
     ],
+    monitoring: ["Peak flow BD — target >80% predicted", "SpO₂ monitoring", "Reassess after 3 nebulizations", "Step-down plan after acute phase"],
     instructions: ["Use rescue inhaler as prescribed", "Complete steroid course", "Identify and avoid triggers", "Seek emergency care if no improvement with nebulization"],
   },
 };
 
-function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }>; instructions: string[] } {
+function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }>; instructions: string[]; monitoring: string[] } {
   const key = diagnosisName.toLowerCase().trim();
-  if (MANAGEMENT_MAP[key]) return { ...MANAGEMENT_MAP[key], instructions: MANAGEMENT_MAP[key].instructions || [] };
+  if (MANAGEMENT_MAP[key]) return { ...MANAGEMENT_MAP[key], instructions: MANAGEMENT_MAP[key].instructions || [], monitoring: MANAGEMENT_MAP[key].monitoring || [] };
   for (const [mapKey, val] of Object.entries(MANAGEMENT_MAP)) {
-    if (key.includes(mapKey) || mapKey.includes(key)) return { ...val, instructions: val.instructions || [] };
+    if (key.includes(mapKey) || mapKey.includes(key)) return { ...val, instructions: val.instructions || [], monitoring: val.monitoring || [] };
   }
-  return { tests: [], medications: [], instructions: [] };
+  return { tests: [], medications: [], instructions: [], monitoring: [] };
 }
 
 // ── Scenarios ──
@@ -808,6 +834,7 @@ export default function CockpitPlayground() {
           mustNotMiss: ddxEntry?.mustNotMiss || d.must_not_miss || false,
           bayesian: d,
           instructions: management.instructions,
+          monitoring: management.monitoring,
         };
       });
     }
@@ -825,6 +852,7 @@ export default function CockpitPlayground() {
           medications: management.medications.length > 0 ? management.medications : ddxMedsForDx.map((m: any) => ({ drug: m.drug, dose: m.dose, route: m.route || "PO", freq: m.freq, dur: m.dur, line: m.line || "first" })),
           mustNotMiss: t.must_not_miss || false,
           instructions: management.instructions,
+          monitoring: management.monitoring,
         };
       });
     }
@@ -841,6 +869,7 @@ export default function CockpitPlayground() {
         medications: management.medications,
         mustNotMiss: false,
         instructions: management.instructions,
+        monitoring: management.monitoring,
       };
     });
   }, [pipelineBayesian, pipelineHypotheses, pipelineDDX]);
@@ -883,6 +912,15 @@ export default function CockpitPlayground() {
     return Array.from(insts);
   }, [mergedDiagnoses]);
 
+  // ── All monitoring parameters from management engine ──
+  const allMonitoring = useMemo(() => {
+    const mons = new Set<string>();
+    mergedDiagnoses.forEach((d: any) => {
+      (d.monitoring || []).forEach((m: string) => mons.add(m));
+    });
+    return Array.from(mons);
+  }, [mergedDiagnoses]);
+
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
   const planTreatments = pendingRx;
@@ -922,13 +960,16 @@ export default function CockpitPlayground() {
       const rxLines = pendingRx.map(rx => `${rx.drug_name} ${rx.dose} ${(rx as any).route || "PO"} ${rx.frequency}`).join("; ");
       parts.push(`Treatment: ${rxLines}.`);
     }
+    if (allMonitoring.length > 0) {
+      parts.push(`Monitoring: ${allMonitoring.join("; ")}.`);
+    }
     if (selectedInstructions.length > 0) {
       parts.push(`Patient instructions: ${selectedInstructions.join(". ")}.`);
     }
     if (parts.length > 0) {
       setSoapSections(prev => ({ ...prev, "Treatment Plan": parts.join("\n") }));
     }
-  }, [selectedTests, pendingRx, selectedInstructions, soapManualEdits]);
+  }, [selectedTests, pendingRx, selectedInstructions, allMonitoring, soapManualEdits]);
 
   // ── Copilot props — wired tests/medications, NO diagnoses ──
   const copilotProps = {
@@ -1598,16 +1639,6 @@ export default function CockpitPlayground() {
                         ) : (
                           <p className="text-xs text-muted-foreground italic">Select investigations from AI Copilot →</p>
                         )}
-                        {allRecommendedTests.filter(t => !selectedTests.includes(t)).length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {allRecommendedTests.filter(t => !selectedTests.includes(t)).map(t => (
-                              <Chip key={t} variant="lab" size="sm"
-                                onClick={() => setSelectedTests(prev => [...prev, t])}>
-                                + {t}
-                              </Chip>
-                            ))}
-                          </div>
-                        )}
                       </div>
 
                       {/* Treatment — with Drug/Dose/Route/Freq format */}
@@ -1639,13 +1670,18 @@ export default function CockpitPlayground() {
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <Activity className="h-3 w-3" /> Monitoring & Follow-up
                         </p>
-                        <Textarea
-                          value={soapSections["Treatment Plan"] || ""}
-                          onChange={e => setSoapSections(prev => ({ ...prev, "Treatment Plan": e.target.value }))}
-                          rows={2}
-                          placeholder="Monitoring parameters, disposition, follow-up schedule…"
-                          className="text-xs min-h-[32px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
-                        />
+                        {allMonitoring.length > 0 ? (
+                          <div className="space-y-1">
+                            {allMonitoring.map((m, i) => (
+                              <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
+                                <Activity className="h-3 w-3 text-primary shrink-0" />
+                                <span className="flex-1 text-foreground">{m}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">Monitoring parameters will appear after diagnosis.</p>
+                        )}
                       </div>
 
                       {/* Patient Instructions */}
@@ -1667,16 +1703,6 @@ export default function CockpitPlayground() {
                           <p className="text-xs text-muted-foreground italic">
                             {allInstructions.length > 0 ? "Select instructions from AI Copilot →" : "Instructions will appear after diagnosis."}
                           </p>
-                        )}
-                        {allInstructions.filter(i => !selectedInstructions.includes(i)).length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {allInstructions.filter(i => !selectedInstructions.includes(i)).slice(0, 5).map((inst, i) => (
-                              <Chip key={i} variant="action" size="sm"
-                                onClick={() => setSelectedInstructions(prev => [...prev, inst])}>
-                                + {inst.length > 40 ? inst.slice(0, 40) + "…" : inst}
-                              </Chip>
-                            ))}
-                          </div>
                         )}
                       </div>
                     </div>
