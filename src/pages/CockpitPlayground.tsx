@@ -261,6 +261,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
     medications: [
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "3 days", line: "first" },
     ],
+    monitoring: ["Temperature monitoring BD", "Platelet count if dengue suspected", "Follow up if fever persists >5 days"],
     instructions: ["Drink plenty of fluids", "Rest", "Monitor for warning signs: persistent vomiting, bleeding, severe abdominal pain", "Follow up if fever persists >5 days"],
   },
   "stable angina": {
