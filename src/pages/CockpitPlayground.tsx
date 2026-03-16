@@ -1702,16 +1702,6 @@ export default function CockpitPlayground() {
                             {allInstructions.length > 0 ? "Select instructions from AI Copilot →" : "Instructions will appear after diagnosis."}
                           </p>
                         )}
-                        {allInstructions.filter(i => !selectedInstructions.includes(i)).length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {allInstructions.filter(i => !selectedInstructions.includes(i)).slice(0, 5).map((inst, i) => (
-                              <Chip key={i} variant="action" size="sm"
-                                onClick={() => setSelectedInstructions(prev => [...prev, inst])}>
-                                + {inst.length > 40 ? inst.slice(0, 40) + "…" : inst}
-                              </Chip>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
