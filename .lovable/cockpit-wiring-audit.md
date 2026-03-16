@@ -45,7 +45,7 @@
 | **Family History** | ❌ Not captured | ❌ Not in ClinicalContext | 🔴 MISSING |
 | **Physical Findings** | ✅ Free-text in SOAP Objective section | ⚠️ Not structured for pipeline | 🟡 PARTIAL |
 | **Allergies** | ✅ Patient record + intake | ✅ → `allergies[]` | ✅ PASS |
-| **Body Location** | ✅ SYMPTOM_EXPANSIONS for abdominal pain (Upper/Lower/Right/Left) | ⚠️ Not wired to localisation engine | 🔴 BROKEN WIRING |
+| **Body Location** | ✅ ChipGroup (10 presets) | ✅ → `body_location` in Bayesian | ✅ FIXED |
 
 ### Critical Missing Signals
 
