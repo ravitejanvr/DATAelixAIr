@@ -407,8 +407,8 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Physiological Context */}
-      {physiologicalContext && physiologicalContext.physiological_states.length > 0 && (
+      {/* Physiological Context — hidden in Doctor mode */}
+      {physiologicalContext && physiologicalContext.physiological_states.length > 0 && reasoningLevel !== "doctor" && (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
