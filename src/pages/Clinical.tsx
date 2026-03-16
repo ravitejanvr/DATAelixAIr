@@ -424,7 +424,6 @@ export default function Clinical() {
 
     return lines.join("\n");
   }, [selectedPatient, selectedSymptoms, selectedDuration, selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors, selectedMedicalHistory, patientVitals, expansionSelections, priorMeds, selectedDiagnoses, pendingRxFromSuggestions, selectedTests, selectedInstructions, transcript, intakeData]);
-  }, [selectedPatient, selectedSymptoms, selectedDuration, patientVitals, expansionSelections, priorMeds, selectedDiagnoses, pendingRxFromSuggestions, selectedTests, selectedInstructions, transcript, intakeData]);
 
   // Auto-update summary unless manually edited
   useEffect(() => {
