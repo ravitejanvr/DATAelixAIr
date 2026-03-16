@@ -244,6 +244,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "5 days", line: "first" },
       { drug: "Dextromethorphan", dose: "30mg", route: "PO", freq: "TID", dur: "5 days", line: "first" },
     ],
+    monitoring: ["Symptom duration — expect 2-3 weeks", "Return if cough persists >3 weeks"],
     instructions: ["Stay hydrated", "Use honey for cough relief", "Most cases are viral — antibiotics usually not needed", "Return if: breathing difficulty, high fever, coughing blood"],
   },
   "upper respiratory tract infection": {
