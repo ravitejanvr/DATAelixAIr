@@ -121,6 +121,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "ORS", dose: "200ml", route: "PO", freq: "After each stool", dur: "Until resolved", line: "first" },
       { drug: "Ondansetron", dose: "4mg", route: "PO", freq: "TID", dur: "2 days", line: "first" },
     ],
+    monitoring: ["Hydration status", "Return if symptoms persist >3 days"],
     instructions: ["Stay hydrated — small frequent sips of ORS", "Bland diet for 24-48 hours", "Return if symptoms persist beyond 3 days"],
   },
   "pulmonary embolism": {
