@@ -745,7 +745,7 @@ export default function CockpitPlayground() {
     onToggleDiagnosis: (d: string) => setSelectedDiagnoses(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]),
     tests: allRecommendedTests, selectedTests,
     onToggleTest: (t: string) => setSelectedTests(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]),
-    medications: [], selectedMedications: pendingRx,
+    medications: allRecommendedMedications, selectedMedications: pendingRx,
     onToggleMedication: (rx: any) => {
       if (pendingRx.some(p => p.drug_name === rx.drug)) {
         setPendingRx(prev => prev.filter(p => p.drug_name !== rx.drug));
