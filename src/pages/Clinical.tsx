@@ -1091,6 +1091,8 @@ export default function Clinical() {
     setClinicalContext(EMPTY_CLINICAL_CONTEXT); setPatientVitals(null);
     setFollowUpDate(""); setFollowUpNotes("");
     setSelectedSymptoms([]); setSelectedDuration(""); setExpansionSelections({});
+    setSelectedOnset(""); setSelectedSeverity(""); setSelectedBodyLocation("");
+    setSelectedRiskFactors([]); setSelectedMedicalHistory([]);
     setPriorMeds([]); setAutoGenerateTriggered(false); setSymptomSearch("");
     setFinalizationResults(null); setIsFinalizingConsultation(false);
     setConsultationSummary(""); setSummaryManuallyEdited(false);
@@ -1099,6 +1101,14 @@ export default function Clinical() {
     setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
     setPipelinePhysiology(null); setPipelineBayesian(null);
     setPipelineStage(null); setStageLatencies({});
+  };
+
+  // Re-analyze: allow doctor to re-trigger pipeline after editing context
+  const reAnalyze = () => {
+    setAutoGenerateTriggered(false);
+    setPipelineComplete(false);
+    setTranscript(""); // Reset synthetic transcript so it rebuilds from chips
+    setTimeout(() => runFullPipeline(), 200);
   };
 
   const updateSoapSection = (section: keyof SoapSections, value: string) => setSoapSections(prev => ({ ...prev, [section]: value }));
