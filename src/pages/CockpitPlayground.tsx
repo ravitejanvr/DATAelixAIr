@@ -235,6 +235,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Amoxicillin", dose: "1g", route: "PO", freq: "BD", dur: "14 days", line: "first" },
       { drug: "Clarithromycin", dose: "500mg", route: "PO", freq: "BD", dur: "14 days", line: "first" },
     ],
+    monitoring: ["H. pylori breath test at 4 weeks post-treatment", "Follow up endoscopy at 8 weeks", "Monitor for GI bleeding signs"],
     instructions: ["Complete full H. pylori eradication course", "Avoid NSAIDs", "Follow up endoscopy in 8 weeks"],
   },
   "acute bronchitis": {
