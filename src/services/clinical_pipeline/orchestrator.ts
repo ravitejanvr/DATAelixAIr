@@ -788,6 +788,13 @@ export async function runUnifiedClinicalPipeline(
               visit_id: input.visit_id,
               clinic_id: input.clinic_id,
               physiological_context: physioPayload,
+              // Clinical modifiers for multi-signal candidate retrieval
+              onset_pattern: (ctx as any).onset_pattern || null,
+              severity: (ctx as any).severity || null,
+              body_location: (ctx as any).body_location || null,
+              risk_factors: ctx.risk_factors || [],
+              duration: ctx.symptom_duration || null,
+              family_history: (ctx as any).family_history || [],
             }),
           ),
           TIMEOUT.DDX,
