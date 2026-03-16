@@ -507,11 +507,11 @@ export default function DiagnosticSimulator() {
                         </pre>
                       </div>
                       {/* Bayesian raw */}
-                      {rawResult.bayesian_result && (
+                      {rawResult.bayesian && (
                         <div>
                           <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Bayesian Raw</p>
                           <pre className="text-[9px] text-muted-foreground bg-muted rounded-lg p-2 overflow-x-auto max-h-48 font-mono">
-                            {JSON.stringify(rawResult.bayesian_result, null, 2)}
+                            {JSON.stringify(rawResult.bayesian, null, 2)}
                           </pre>
                         </div>
                       )}
