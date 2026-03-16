@@ -60,6 +60,7 @@ import PipelineTrace from "./pages/PipelineTrace";
 import GPBenchmarkDashboard from "./pages/GPBenchmarkDashboard";
 import ModifierSensitivityTest from "./pages/ModifierSensitivityTest";
 import DiagnosticSimulator from "./pages/DiagnosticSimulator";
+import CockpitPlayground from "./pages/CockpitPlayground";
 
 const queryClient = new QueryClient();
 
