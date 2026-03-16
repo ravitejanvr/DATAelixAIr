@@ -118,6 +118,12 @@ export interface DDXInput {
     affected_systems: string[];
     physiological_states: Array<{ state: string; confidence: number; system: string }>;
   };
+  // Clinical modifiers for multi-signal candidate retrieval
+  onset_pattern?: string | null;
+  severity?: string | null;
+  body_location?: string | null;
+  duration?: string | null;
+  family_history?: string[];
 }
 
 /**
