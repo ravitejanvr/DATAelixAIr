@@ -52,6 +52,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
       { drug: "Sumatriptan", dose: "50mg", route: "PO", freq: "PRN", dur: "As needed", line: "alternative" },
     ],
+    monitoring: ["Headache frequency diary", "Response to acute treatment", "Follow up in 1 week if symptoms persist"],
     instructions: ["Avoid bright lights and loud noises during episodes", "Stay hydrated — drink at least 2L water/day", "Maintain regular sleep schedule", "Seek emergency care if: worst headache of life, sudden onset, neck stiffness, confusion", "Follow up in 1 week if symptoms persist"],
   },
   "tension headache": {
