@@ -43,6 +43,149 @@ const SYMPTOM_EXPANSIONS: Record<string, { label: string; chips: string[] }> = {
   "Abdominal pain": { label: "Location", chips: ["Upper", "Lower", "Right", "Left", "Diffuse", "Periumbilical"] },
 };
 
+// ═══ MANAGEMENT ENGINE — Maps diagnoses to recommended tests & treatments ═══
+// This fills the gap when the pipeline doesn't return management recommendations
+const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ drug: string; dose: string; freq: string; dur: string }>; monitoring?: string[] }> = {
+  "migraine": {
+    tests: ["CT Brain (if red flags)", "MRI Brain (if atypical)"],
+    medications: [
+      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "3 days" },
+      { drug: "Ibuprofen", dose: "400mg", freq: "TID", dur: "3 days" },
+      { drug: "Sumatriptan", dose: "50mg", freq: "PRN", dur: "As needed" },
+    ],
+  },
+  "tension headache": {
+    tests: [],
+    medications: [
+      { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "5 days" },
+      { drug: "Ibuprofen", dose: "400mg", freq: "TID", dur: "3 days" },
+    ],
+  },
+  "subarachnoid hemorrhage": {
+    tests: ["CT Brain (urgent)", "CT Angiography", "Lumbar puncture (if CT negative)", "CBC", "Coagulation profile"],
+    medications: [
+      { drug: "Nimodipine", dose: "60mg", freq: "Q4H", dur: "21 days" },
+      { drug: "IV Fluids", dose: "NS 1L", freq: "Q8H", dur: "Ongoing" },
+    ],
+  },
+  "acute coronary syndrome": {
+    tests: ["ECG (12-lead)", "Troponin I/T", "CBC", "BMP", "Lipid profile", "Chest X-ray", "Echocardiogram"],
+    medications: [
+      { drug: "Aspirin", dose: "325mg", freq: "STAT", dur: "Single dose" },
+      { drug: "Clopidogrel", dose: "300mg", freq: "STAT", dur: "Loading dose" },
+      { drug: "Atorvastatin", dose: "80mg", freq: "OD", dur: "Ongoing" },
+      { drug: "Nitroglycerin", dose: "0.4mg SL", freq: "PRN", dur: "As needed" },
+    ],
+  },
+  "myocardial infarction": {
+    tests: ["ECG (12-lead)", "Troponin I/T", "CBC", "BMP", "Chest X-ray"],
+    medications: [
+      { drug: "Aspirin", dose: "325mg", freq: "STAT", dur: "Single dose" },
+      { drug: "Clopidogrel", dose: "300mg", freq: "STAT", dur: "Loading dose" },
+      { drug: "Morphine", dose: "2-4mg IV", freq: "PRN", dur: "As needed" },
+    ],
+  },
+  "appendicitis": {
+    tests: ["CBC", "CRP", "Ultrasound abdomen", "CT abdomen (if diagnosis unclear)", "Urinalysis"],
+    medications: [
+      { drug: "IV Fluids", dose: "NS 1L", freq: "Q8H", dur: "Pre-op" },
+      { drug: "Ceftriaxone", dose: "1g IV", freq: "BD", dur: "Perioperative" },
+      { drug: "Metronidazole", dose: "500mg IV", freq: "TID", dur: "Perioperative" },
+      { drug: "Paracetamol", dose: "1g IV", freq: "QID", dur: "As needed" },
+    ],
+  },
+  "gastroenteritis": {
+    tests: ["CBC", "CRP", "Stool culture", "Electrolytes", "Renal function"],
+    medications: [
+      { drug: "ORS", dose: "200ml", freq: "After each stool", dur: "Until resolved" },
+      { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "3 days" },
+      { drug: "Zinc", dose: "20mg", freq: "OD", dur: "10 days" },
+    ],
+  },
+  "food poisoning": {
+    tests: ["Stool culture", "CBC", "Electrolytes"],
+    medications: [
+      { drug: "ORS", dose: "200ml", freq: "After each stool", dur: "Until resolved" },
+      { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "2 days" },
+    ],
+  },
+  "pulmonary embolism": {
+    tests: ["CT Pulmonary Angiography", "D-dimer", "ECG", "ABG", "Echocardiogram", "CBC", "Troponin"],
+    medications: [
+      { drug: "Heparin", dose: "80 units/kg IV", freq: "STAT", dur: "Loading dose" },
+      { drug: "Enoxaparin", dose: "1mg/kg SC", freq: "BD", dur: "5 days" },
+      { drug: "Warfarin", dose: "5mg", freq: "OD", dur: "3-6 months" },
+    ],
+  },
+  "pneumonia": {
+    tests: ["Chest X-ray", "CBC", "CRP", "Blood culture", "Sputum culture", "Procalcitonin"],
+    medications: [
+      { drug: "Amoxicillin", dose: "500mg", freq: "TID", dur: "7 days" },
+      { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
+      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "As needed" },
+    ],
+  },
+  "community-acquired pneumonia": {
+    tests: ["Chest X-ray", "CBC", "CRP", "Blood culture", "Sputum culture"],
+    medications: [
+      { drug: "Amoxicillin-Clavulanate", dose: "625mg", freq: "TID", dur: "7 days" },
+      { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
+      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "As needed" },
+    ],
+  },
+  "copd exacerbation": {
+    tests: ["Chest X-ray", "ABG", "CBC", "Sputum culture"],
+    medications: [
+      { drug: "Salbutamol nebulization", dose: "2.5mg", freq: "QID", dur: "5 days" },
+      { drug: "Prednisolone", dose: "40mg", freq: "OD", dur: "5 days" },
+      { drug: "Amoxicillin-Clavulanate", dose: "625mg", freq: "TID", dur: "7 days" },
+    ],
+  },
+  "urinary tract infection": {
+    tests: ["Urinalysis", "Urine culture", "CBC"],
+    medications: [
+      { drug: "Nitrofurantoin", dose: "100mg", freq: "BD", dur: "5 days" },
+      { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "As needed" },
+    ],
+  },
+  "meningitis": {
+    tests: ["CT Brain", "Lumbar puncture", "CSF analysis", "Blood culture", "CBC", "CRP", "Procalcitonin"],
+    medications: [
+      { drug: "Ceftriaxone", dose: "2g IV", freq: "BD", dur: "10-14 days" },
+      { drug: "Dexamethasone", dose: "0.15mg/kg IV", freq: "QID", dur: "4 days" },
+    ],
+  },
+  "diabetic ketoacidosis": {
+    tests: ["Blood glucose", "ABG", "Electrolytes", "Serum ketones", "CBC", "Renal function"],
+    medications: [
+      { drug: "Insulin (Regular)", dose: "0.1 units/kg/hr IV", freq: "Infusion", dur: "Until resolved" },
+      { drug: "IV Fluids (NS)", dose: "1L", freq: "Q1H initially", dur: "Until rehydrated" },
+      { drug: "Potassium chloride", dose: "20-40 mEq/L", freq: "Per IV fluid", dur: "Per protocol" },
+    ],
+  },
+  "hypertensive crisis": {
+    tests: ["ECG", "BMP", "Renal function", "Urinalysis", "Chest X-ray", "Fundoscopy"],
+    medications: [
+      { drug: "Labetalol", dose: "20mg IV", freq: "Q10min PRN", dur: "Until controlled" },
+      { drug: "Amlodipine", dose: "5mg", freq: "OD", dur: "Ongoing" },
+    ],
+  },
+};
+
+/**
+ * Management Engine: resolves recommended tests and medications from diagnosis names.
+ * Falls back to partial keyword matching when exact match unavailable.
+ */
+function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; freq: string; dur: string }> } {
+  const key = diagnosisName.toLowerCase().trim();
+  if (MANAGEMENT_MAP[key]) return MANAGEMENT_MAP[key];
+  // Partial match
+  for (const [mapKey, val] of Object.entries(MANAGEMENT_MAP)) {
+    if (key.includes(mapKey) || mapKey.includes(key)) return val;
+  }
+  return { tests: [], medications: [] };
+}
+
 // ── Scenarios ──
 interface Scenario {
   name: string;
@@ -501,41 +644,72 @@ export default function CockpitPlayground() {
     const hasHyp = pipelineHypotheses.length > 0;
     if (!hasBayesian && !hasHyp) return [];
     if (hasBayesian) {
-      return pipelineBayesian.diagnoses.slice(0, 5).map((d: any) => {
+      return pipelineBayesian.diagnoses.slice(0, 5).map((d: any, idx: number) => {
+        // Improved name resolution: try hypothesis match, then diagnosis_name field, then evidence
         const hyp = pipelineHypotheses.find(
-          (h: any) => h.diagnosis && d.supporting_evidence?.some((e: string) => h.supporting_factors?.includes(e))
+          (h: any) => h.diagnosis && (
+            d.diagnosis_name?.toLowerCase() === h.diagnosis.toLowerCase() ||
+            d.supporting_evidence?.some((e: string) => h.supporting_factors?.includes(e))
+          )
         );
-        const name = hyp?.diagnosis || d.diagnosis_id;
-        const isUUID = /^[0-9a-f]{8}-/.test(name);
-        const displayName = isUUID ? (d.supporting_evidence?.[0] || `Diagnosis ${pipelineBayesian.diagnoses.indexOf(d) + 1}`) : name;
+        const rawName = hyp?.diagnosis || d.diagnosis_name || d.diagnosis_id;
+        const isUUID = /^[0-9a-f]{8}-/.test(rawName);
+        // Fallback chain: hyp name → diagnosis_name → first supporting evidence → ranked label
+        const displayName = isUUID
+          ? (d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e)) || `Diagnosis ${idx + 1}`)
+          : rawName;
+
+        // Resolve management from management engine
+        const management = resolveManagement(displayName);
+        const pipelineTests = hyp?.recommended_tests || [];
+        const allTests = [...new Set([...pipelineTests, ...management.tests])];
+
         return {
           name: displayName,
           pct: Math.round((d.posterior_probability || 0) * 100),
           supporting: [...new Set([...(d.supporting_evidence || []), ...(hyp?.supporting_factors || [])])],
           contradicting: hyp?.contradicting_factors || [],
-          tests: hyp?.recommended_tests || [],
+          tests: allTests,
+          medications: management.medications,
           mustNotMiss: d.must_not_miss || false,
           bayesian: d,
         };
       });
     }
-    return pipelineHypotheses.slice(0, 5).map(h => ({
-      name: h.diagnosis,
-      pct: Math.round((h.confidence || 0) * 100),
-      supporting: h.supporting_factors || [],
-      contradicting: h.contradicting_factors || [],
-      tests: h.recommended_tests || [],
-      mustNotMiss: false,
-    }));
+    return pipelineHypotheses.slice(0, 5).map(h => {
+      const management = resolveManagement(h.diagnosis);
+      const allTests = [...new Set([...(h.recommended_tests || []), ...management.tests])];
+      return {
+        name: h.diagnosis,
+        pct: Math.round((h.confidence || 0) * 100),
+        supporting: h.supporting_factors || [],
+        contradicting: h.contradicting_factors || [],
+        tests: allTests,
+        medications: management.medications,
+        mustNotMiss: false,
+      };
+    });
   }, [pipelineBayesian, pipelineHypotheses]);
 
-  // ── All recommended tests from pipeline ──
+  // ── All recommended tests from pipeline + management engine ──
   const allRecommendedTests = useMemo(() => {
     const tests = new Set<string>();
     mergedDiagnoses.forEach((d: any) => d.tests?.forEach((t: string) => tests.add(t)));
     pipelineHypotheses.forEach(h => h.recommended_tests?.forEach(t => tests.add(t)));
     return Array.from(tests);
   }, [mergedDiagnoses, pipelineHypotheses]);
+
+  // ── All recommended medications from management engine ──
+  const allRecommendedMedications = useMemo(() => {
+    const seen = new Set<string>();
+    const meds: Array<{ drug: string; dose: string; freq: string; dur: string }> = [];
+    mergedDiagnoses.forEach((d: any) => {
+      d.medications?.forEach((rx: any) => {
+        if (!seen.has(rx.drug)) { seen.add(rx.drug); meds.push(rx); }
+      });
+    });
+    return meds;
+  }, [mergedDiagnoses]);
 
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
@@ -571,7 +745,7 @@ export default function CockpitPlayground() {
     onToggleDiagnosis: (d: string) => setSelectedDiagnoses(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]),
     tests: allRecommendedTests, selectedTests,
     onToggleTest: (t: string) => setSelectedTests(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]),
-    medications: [], selectedMedications: pendingRx,
+    medications: allRecommendedMedications, selectedMedications: pendingRx,
     onToggleMedication: (rx: any) => {
       if (pendingRx.some(p => p.drug_name === rx.drug)) {
         setPendingRx(prev => prev.filter(p => p.drug_name !== rx.drug));
