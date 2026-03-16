@@ -369,6 +369,7 @@ export default function Clinical() {
     if (selectedBodyLocation) subjParts.push(`Location: ${selectedBodyLocation}`);
     if (selectedRiskFactors.length > 0) subjParts.push(`Risk factors: ${selectedRiskFactors.join(", ")}`);
     if (selectedMedicalHistory.length > 0) subjParts.push(`PMH: ${selectedMedicalHistory.join(", ")}`);
+    if (selectedFamilyHistory.length > 0) subjParts.push(`FH: ${selectedFamilyHistory.join(", ")}`);
 
     const expDetails = Object.entries(expansionSelections)
       .filter(([_, vals]) => vals.length > 0)
