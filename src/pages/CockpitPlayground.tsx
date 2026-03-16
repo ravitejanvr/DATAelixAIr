@@ -530,6 +530,7 @@ export default function CockpitPlayground() {
           if (runId !== pipelineRunIdRef.current) return;
           setPipelineStage(stage);
           if (data.physiological_context) setPipelinePhysiology(data.physiological_context);
+          if (data.ddx) setPipelineDDX(data.ddx);
           if (data.bayesian) setPipelineBayesian(data.bayesian);
           if (data.hypotheses?.hypotheses) {
             setPipelineHypotheses(data.hypotheses.hypotheses.map((h: any) => ({
