@@ -828,9 +828,28 @@ export default function CockpitPlayground() {
     toast({ title: "Context updated", description: `Extracted ${symptomMatches.length} signals from input` });
   }, [commandInput, chiefComplaint, toast]);
 
-  // ── Copilot props — NOW with wired tests/medications ──
+  // ── SOAP auto-sync: regenerate Treatment Plan text from selections ──
+  useEffect(() => {
+    if (soapManualEdits["Treatment Plan"]) return;
+    const parts: string[] = [];
+    if (selectedTests.length > 0) {
+      parts.push(`Investigations: ${selectedTests.join(", ")}.`);
+    }
+    if (pendingRx.length > 0) {
+      const rxLines = pendingRx.map(rx => `${rx.drug_name} ${rx.dose} ${(rx as any).route || "PO"} ${rx.frequency}`).join("; ");
+      parts.push(`Treatment: ${rxLines}.`);
+    }
+    if (selectedInstructions.length > 0) {
+      parts.push(`Patient instructions: ${selectedInstructions.join(". ")}.`);
+    }
+    if (parts.length > 0) {
+      setSoapSections(prev => ({ ...prev, "Treatment Plan": parts.join("\n") }));
+    }
+  }, [selectedTests, pendingRx, selectedInstructions, soapManualEdits]);
+
+  // ── Copilot props — wired tests/medications, NO diagnoses ──
   const copilotProps = {
-    diagnoses: [], selectedDiagnoses,
+    diagnoses: [] as string[], selectedDiagnoses,
     onToggleDiagnosis: (d: string) => setSelectedDiagnoses(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]),
     tests: allRecommendedTests, selectedTests,
     onToggleTest: (t: string) => setSelectedTests(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]),
@@ -849,13 +868,12 @@ export default function CockpitPlayground() {
     chiefComplaint,
     instructions: allInstructions, selectedInstructions,
     onToggleInstruction: (inst: string) => setSelectedInstructions(prev => prev.includes(inst) ? prev.filter(x => x !== inst) : [...prev, inst]),
-    hypotheses: pipelineHypotheses.length > 0 ? pipelineHypotheses : undefined,
+    // No hypotheses or bayesian passed — diagnoses live only in Assessment
     pipelineEvidence, pipelineCompliance,
     visitId: null, consultationId: null, clinicId: null,
     pipelineStage: pipelineRunning ? pipelineStage : null,
     stageLatencies,
     physiologicalContext: pipelinePhysiology,
-    bayesianResult: pipelineBayesian,
     isAdmin: true,
   };
 
