@@ -643,7 +643,12 @@ export default function Clinical() {
         .map(([symptom, vals]) => `${symptom} characteristics: ${vals.join(", ")}`)
         .join(". ");
       const medsContext = priorMeds.length > 0 ? ` Patient has already taken: ${priorMeds.map(m => `${m.name}${m.dose ? ` ${m.dose}` : ""}`).join(", ")}.` : "";
-      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${expansionDetails ? ` ${expansionDetails}.` : ""}${medsContext}`;
+      const onsetContext = selectedOnset ? ` Onset: ${selectedOnset}.` : "";
+      const severityContext = selectedSeverity ? ` Severity: ${selectedSeverity}.` : "";
+      const locationContext = selectedBodyLocation ? ` Location: ${selectedBodyLocation}.` : "";
+      const riskContext = selectedRiskFactors.length > 0 ? ` Risk factors: ${selectedRiskFactors.join(", ")}.` : "";
+      const historyContext = selectedMedicalHistory.length > 0 ? ` Medical history: ${selectedMedicalHistory.join(", ")}.` : "";
+      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${onsetContext}${severityContext}${locationContext}${expansionDetails ? ` ${expansionDetails}.` : ""}${medsContext}${riskContext}${historyContext}`;
       setTranscript(effectiveTranscript);
     }
     if (!effectiveTranscript) return;
