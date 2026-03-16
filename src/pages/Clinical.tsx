@@ -1365,6 +1365,12 @@ export default function Clinical() {
               {darkMode ? <Sun className="h-3 w-3 text-foreground" /> : <Moon className="h-3 w-3 text-foreground" />}
             </button>
 
+            {autoGenerateTriggered && !pipelineRunning && selectedPatient && (
+              <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1 rounded-lg border-primary/30 text-primary hover:bg-primary/5" onClick={reAnalyze}>
+                <RotateCcw className="h-2.5 w-2.5" /> Re-analyze
+              </Button>
+            )}
+
             <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 rounded-lg" onClick={startNewSession}>
               <RotateCcw className="h-2.5 w-2.5" /> New
             </Button>
