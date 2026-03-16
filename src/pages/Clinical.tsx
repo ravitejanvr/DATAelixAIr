@@ -525,6 +525,19 @@ export default function Clinical() {
     }
   }, [selectedSymptoms, selectedDuration, selectedPatient, autoGenerateTriggered, pipelineRunning, pipelineComplete, transcript]);
 
+  // Auto-retrigger pipeline when modifier signals change (after initial run)
+  useEffect(() => {
+    if (!autoGenerateTriggered || pipelineRunning || !pipelineComplete || !selectedPatient) return;
+    // Debounce modifier changes to avoid rapid re-runs
+    const timer = setTimeout(() => {
+      setAutoGenerateTriggered(false);
+      setPipelineComplete(false);
+      setTranscript("");
+      setTimeout(() => runFullPipeline(), 100);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors.length, selectedMedicalHistory.length]);
+
   useEffect(() => {
     if (!user) return;
     supabase.from("profiles").select("clinic_id").eq("user_id", user.id).maybeSingle().then(({ data }) => {
