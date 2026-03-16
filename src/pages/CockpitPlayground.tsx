@@ -272,6 +272,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Nitroglycerin", dose: "0.4mg SL", route: "SL", freq: "PRN", dur: "As needed", line: "first" },
       { drug: "Metoprolol", dose: "25mg", route: "PO", freq: "BD", dur: "Ongoing", line: "first" },
     ],
+    monitoring: ["Exercise tolerance assessment", "Lipid profile at 6 weeks", "Cardiology follow-up in 2 weeks", "BP and HR monitoring"],
     instructions: ["Take aspirin daily", "Use sublingual nitroglycerin for acute episodes", "Follow up with cardiologist", "Lifestyle: exercise, diet modification, smoking cessation"],
   },
   "gerd": {
