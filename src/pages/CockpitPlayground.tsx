@@ -430,7 +430,7 @@ export default function CockpitPlayground() {
     setSoapSections(EMPTY_SOAP); setSoapManualEdits({});
     setPipelineComplete(false); setPipelineRunning(false);
     setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
-    setPipelinePhysiology(null); setPipelineBayesian(null); setSafetyResults(null);
+    setPipelinePhysiology(null); setPipelineBayesian(null); setPipelineDDX(null); setSafetyResults(null);
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedInstructions([]);
     setPendingRx([]); setSelectedScenario(""); setSnapshots([]); setShowComparison(false);
     setPipelineStage(null); setStageLatencies({}); setEditingCategory(null);
