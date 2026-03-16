@@ -91,6 +91,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Clopidogrel", dose: "300mg", route: "PO", freq: "STAT", dur: "Loading dose", line: "emergency" },
       { drug: "Morphine", dose: "2-4mg", route: "IV", freq: "PRN", dur: "As needed", line: "emergency" },
     ],
+    monitoring: ["Serial Troponin at 0, 3, 6 hours", "Continuous cardiac monitoring", "BP and HR Q15min", "Door-to-balloon time tracking"],
     instructions: ["EMERGENCY: Immediate cardiology consultation", "Strict bed rest", "Continuous cardiac monitoring"],
   },
   "appendicitis": {
