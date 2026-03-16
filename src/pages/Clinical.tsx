@@ -51,9 +51,16 @@ import {
 import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext } from "@/lib/clinical-context";
 
 // Symptom presets
-const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain"];
+const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain", "Dizziness", "Back pain", "Dysuria", "Rash", "Joint pain", "Palpitations", "Neck stiffness", "Syncope"];
 const DURATION_PRESETS = ["Today", "2 days", "3 days", "5 days", "1 week", "2 weeks", "1 month"];
 const MEDICATION_PRESETS = ["Paracetamol", "Ibuprofen", "Azithromycin", "Amoxicillin", "ORS", "Pantoprazole", "Cetirizine"];
+
+// Clinical signal presets
+const ONSET_PRESETS = ["Sudden", "Gradual", "Intermittent", "Progressive", "Episodic"];
+const SEVERITY_PRESETS = ["Mild", "Moderate", "Severe", "Worsening", "Improving"];
+const BODY_LOCATION_PRESETS = ["Head", "Neck", "Chest", "Upper abdomen", "Lower abdomen", "Back", "Limbs", "Generalized", "Left side", "Right side"];
+const RISK_FACTOR_PRESETS = ["Smoking", "Alcohol", "Diabetes", "Hypertension", "Obesity", "Pregnancy", "Immunocompromised", "Recent surgery", "Recent travel", "Occupational exposure"];
+const MEDICAL_HISTORY_PRESETS = ["Asthma", "COPD", "Heart failure", "Diabetes mellitus", "Hypertension", "Previous stroke", "Gallstones", "Thyroid disorder", "Chronic kidney disease", "Cancer history"];
 
 // Chief complaint → recommended symptoms map
 const CHIEF_COMPLAINT_SYMPTOMS: Record<string, string[]> = {
