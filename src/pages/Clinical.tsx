@@ -51,9 +51,16 @@ import {
 import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext } from "@/lib/clinical-context";
 
 // Symptom presets
-const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain"];
+const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain", "Dizziness", "Back pain", "Dysuria", "Rash", "Joint pain", "Palpitations", "Neck stiffness", "Syncope"];
 const DURATION_PRESETS = ["Today", "2 days", "3 days", "5 days", "1 week", "2 weeks", "1 month"];
 const MEDICATION_PRESETS = ["Paracetamol", "Ibuprofen", "Azithromycin", "Amoxicillin", "ORS", "Pantoprazole", "Cetirizine"];
+
+// Clinical signal presets
+const ONSET_PRESETS = ["Sudden", "Gradual", "Intermittent", "Progressive", "Episodic"];
+const SEVERITY_PRESETS = ["Mild", "Moderate", "Severe", "Worsening", "Improving"];
+const BODY_LOCATION_PRESETS = ["Head", "Neck", "Chest", "Upper abdomen", "Lower abdomen", "Back", "Limbs", "Generalized", "Left side", "Right side"];
+const RISK_FACTOR_PRESETS = ["Smoking", "Alcohol", "Diabetes", "Hypertension", "Obesity", "Pregnancy", "Immunocompromised", "Recent surgery", "Recent travel", "Occupational exposure"];
+const MEDICAL_HISTORY_PRESETS = ["Asthma", "COPD", "Heart failure", "Diabetes mellitus", "Hypertension", "Previous stroke", "Gallstones", "Thyroid disorder", "Chronic kidney disease", "Cancer history"];
 
 // Chief complaint → recommended symptoms map
 const CHIEF_COMPLAINT_SYMPTOMS: Record<string, string[]> = {
@@ -263,6 +270,11 @@ export default function Clinical() {
   // Symptom chips
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [selectedDuration, setSelectedDuration] = useState<string>("");
+  const [selectedOnset, setSelectedOnset] = useState<string>("");
+  const [selectedSeverity, setSelectedSeverity] = useState<string>("");
+  const [selectedBodyLocation, setSelectedBodyLocation] = useState<string>("");
+  const [selectedRiskFactors, setSelectedRiskFactors] = useState<string[]>([]);
+  const [selectedMedicalHistory, setSelectedMedicalHistory] = useState<string[]>([]);
   const [expansionSelections, setExpansionSelections] = useState<Record<string, string[]>>({});
   const [priorMeds, setPriorMeds] = useState<{ name: string; dose: string; frequency: string }[]>([]);
   const [symptomSearch, setSymptomSearch] = useState("");
@@ -348,6 +360,11 @@ export default function Clinical() {
       subjParts.push(`c/o ${selectedSymptoms.join(", ")}`);
     }
     if (selectedDuration) subjParts.push(`× ${selectedDuration}`);
+    if (selectedOnset) subjParts.push(`Onset: ${selectedOnset}`);
+    if (selectedSeverity) subjParts.push(`Severity: ${selectedSeverity}`);
+    if (selectedBodyLocation) subjParts.push(`Location: ${selectedBodyLocation}`);
+    if (selectedRiskFactors.length > 0) subjParts.push(`Risk factors: ${selectedRiskFactors.join(", ")}`);
+    if (selectedMedicalHistory.length > 0) subjParts.push(`PMH: ${selectedMedicalHistory.join(", ")}`);
 
     const expDetails = Object.entries(expansionSelections)
       .filter(([_, vals]) => vals.length > 0)
@@ -406,7 +423,7 @@ export default function Clinical() {
     if (transcript.trim()) lines.push(`\nNotes: ${transcript}`);
 
     return lines.join("\n");
-  }, [selectedPatient, selectedSymptoms, selectedDuration, patientVitals, expansionSelections, priorMeds, selectedDiagnoses, pendingRxFromSuggestions, selectedTests, selectedInstructions, transcript, intakeData]);
+  }, [selectedPatient, selectedSymptoms, selectedDuration, selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors, selectedMedicalHistory, patientVitals, expansionSelections, priorMeds, selectedDiagnoses, pendingRxFromSuggestions, selectedTests, selectedInstructions, transcript, intakeData]);
 
   // Auto-update summary unless manually edited
   useEffect(() => {
@@ -631,7 +648,12 @@ export default function Clinical() {
         .map(([symptom, vals]) => `${symptom} characteristics: ${vals.join(", ")}`)
         .join(". ");
       const medsContext = priorMeds.length > 0 ? ` Patient has already taken: ${priorMeds.map(m => `${m.name}${m.dose ? ` ${m.dose}` : ""}`).join(", ")}.` : "";
-      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${expansionDetails ? ` ${expansionDetails}.` : ""}${medsContext}`;
+      const onsetContext = selectedOnset ? ` Onset: ${selectedOnset}.` : "";
+      const severityContext = selectedSeverity ? ` Severity: ${selectedSeverity}.` : "";
+      const locationContext = selectedBodyLocation ? ` Location: ${selectedBodyLocation}.` : "";
+      const riskContext = selectedRiskFactors.length > 0 ? ` Risk factors: ${selectedRiskFactors.join(", ")}.` : "";
+      const historyContext = selectedMedicalHistory.length > 0 ? ` Medical history: ${selectedMedicalHistory.join(", ")}.` : "";
+      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${onsetContext}${severityContext}${locationContext}${expansionDetails ? ` ${expansionDetails}.` : ""}${medsContext}${riskContext}${historyContext}`;
       setTranscript(effectiveTranscript);
     }
     if (!effectiveTranscript) return;
@@ -660,6 +682,16 @@ export default function Clinical() {
         // Override chief complaint from chip selection if available
         if (chiefComplaint) (pipelineContext as any).chief_complaint = chiefComplaint;
         if (selectedSymptoms.length > 0) (pipelineContext as any).symptoms = selectedSymptoms;
+        if (selectedOnset) (pipelineContext as any).onset_pattern = selectedOnset;
+        if (selectedSeverity) (pipelineContext as any).severity = selectedSeverity;
+        if (selectedBodyLocation) (pipelineContext as any).body_location = selectedBodyLocation;
+        if (selectedRiskFactors.length > 0) (pipelineContext as any).risk_factors = selectedRiskFactors;
+        if (selectedMedicalHistory.length > 0) {
+          (pipelineContext as any).medical_history = [
+            ...(pipelineContext.medical_history || []),
+            ...selectedMedicalHistory.filter(mh => !(pipelineContext.medical_history || []).includes(mh)),
+          ];
+        }
 
         const o1Result = await runUnifiedClinicalPipeline(
           {
@@ -1064,6 +1096,8 @@ export default function Clinical() {
     setClinicalContext(EMPTY_CLINICAL_CONTEXT); setPatientVitals(null);
     setFollowUpDate(""); setFollowUpNotes("");
     setSelectedSymptoms([]); setSelectedDuration(""); setExpansionSelections({});
+    setSelectedOnset(""); setSelectedSeverity(""); setSelectedBodyLocation("");
+    setSelectedRiskFactors([]); setSelectedMedicalHistory([]);
     setPriorMeds([]); setAutoGenerateTriggered(false); setSymptomSearch("");
     setFinalizationResults(null); setIsFinalizingConsultation(false);
     setConsultationSummary(""); setSummaryManuallyEdited(false);
@@ -1072,6 +1106,14 @@ export default function Clinical() {
     setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
     setPipelinePhysiology(null); setPipelineBayesian(null);
     setPipelineStage(null); setStageLatencies({});
+  };
+
+  // Re-analyze: allow doctor to re-trigger pipeline after editing context
+  const reAnalyze = () => {
+    setAutoGenerateTriggered(false);
+    setPipelineComplete(false);
+    setTranscript(""); // Reset synthetic transcript so it rebuilds from chips
+    setTimeout(() => runFullPipeline(), 200);
   };
 
   const updateSoapSection = (section: keyof SoapSections, value: string) => setSoapSections(prev => ({ ...prev, [section]: value }));
@@ -1107,7 +1149,7 @@ export default function Clinical() {
   }, [chiefComplaint, selectedSymptoms]);
 
   const filteredSymptoms = useMemo(() => {
-    if (symptomSearch.length >= 3) {
+    if (symptomSearch.length >= 1) {
       return COMMON_SYMPTOMS.filter(s => s.toLowerCase().includes(symptomSearch.toLowerCase()) && !selectedSymptoms.includes(s));
     }
     return [];
@@ -1327,6 +1369,12 @@ export default function Clinical() {
             <button onClick={toggleDarkMode} className="h-6 w-6 rounded-lg border border-border bg-background flex items-center justify-center hover:bg-muted transition-colors">
               {darkMode ? <Sun className="h-3 w-3 text-foreground" /> : <Moon className="h-3 w-3 text-foreground" />}
             </button>
+
+            {autoGenerateTriggered && !pipelineRunning && selectedPatient && (
+              <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1 rounded-lg border-primary/30 text-primary hover:bg-primary/5" onClick={reAnalyze}>
+                <RotateCcw className="h-2.5 w-2.5" /> Re-analyze
+              </Button>
+            )}
 
             <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 rounded-lg" onClick={startNewSession}>
               <RotateCcw className="h-2.5 w-2.5" /> New
@@ -1607,15 +1655,78 @@ export default function Clinical() {
                   {/* Duration */}
                   <AnimatePresence>
                     {selectedSymptoms.length > 0 && (
-                      <motion.div {...fadeIn} className="mt-1.5">
+                      <motion.div {...fadeIn} className="mt-1.5 space-y-1.5">
                         <ChipGroup label="Duration">
                           {DURATION_PRESETS.map(d => (
                             <Chip key={d} variant="neutral" selected={selectedDuration === d} onClick={() => setSelectedDuration(selectedDuration === d ? "" : d)}>{d}</Chip>
                           ))}
                         </ChipGroup>
+
+                        <ChipGroup label="Onset">
+                          {ONSET_PRESETS.map(o => (
+                            <Chip key={o} variant="neutral" selected={selectedOnset === o} onClick={() => setSelectedOnset(selectedOnset === o ? "" : o)}>{o}</Chip>
+                          ))}
+                        </ChipGroup>
+
+                        <ChipGroup label="Severity">
+                          {SEVERITY_PRESETS.map(s => (
+                            <Chip key={s} variant={s === "Severe" || s === "Worsening" ? "alert" : "neutral"} selected={selectedSeverity === s} onClick={() => setSelectedSeverity(selectedSeverity === s ? "" : s)}>{s}</Chip>
+                          ))}
+                        </ChipGroup>
+
+                        <ChipGroup label="Location">
+                          {BODY_LOCATION_PRESETS.map(l => (
+                            <Chip key={l} variant="neutral" selected={selectedBodyLocation === l} onClick={() => setSelectedBodyLocation(selectedBodyLocation === l ? "" : l)}>{l}</Chip>
+                          ))}
+                        </ChipGroup>
                       </motion.div>
                     )}
                   </AnimatePresence>
+
+                  {/* Risk Factors */}
+                  {selectedPatient && selectedSymptoms.length > 0 && (
+                    <div className="mt-2">
+                      <ChipGroup label="Risk Factors">
+                        {RISK_FACTOR_PRESETS.map(rf => (
+                          <Chip
+                            key={rf}
+                            variant="alert"
+                            size="sm"
+                            selected={selectedRiskFactors.includes(rf)}
+                            onClick={() => setSelectedRiskFactors(prev => prev.includes(rf) ? prev.filter(x => x !== rf) : [...prev, rf])}
+                          >
+                            {rf}
+                          </Chip>
+                        ))}
+                      </ChipGroup>
+                    </div>
+                  )}
+
+                  {/* Medical History quick-add */}
+                  {selectedPatient && selectedSymptoms.length > 0 && (
+                    <div className="mt-2">
+                      <ChipGroup label="Medical History">
+                        {MEDICAL_HISTORY_PRESETS.filter(mh => {
+                          const existing = selectedPatient.medical_history;
+                          if (!existing || !Array.isArray(existing)) return true;
+                          return !(existing as any[]).some((h: any) => {
+                            const cond = typeof h === "string" ? h : h?.condition || "";
+                            return cond.toLowerCase() === mh.toLowerCase();
+                          });
+                        }).map(mh => (
+                          <Chip
+                            key={mh}
+                            variant="diagnosis"
+                            size="sm"
+                            selected={selectedMedicalHistory.includes(mh)}
+                            onClick={() => setSelectedMedicalHistory(prev => prev.includes(mh) ? prev.filter(x => x !== mh) : [...prev, mh])}
+                          >
+                            {mh}
+                          </Chip>
+                        ))}
+                      </ChipGroup>
+                    </div>
+                  )}
                 </ClinicalCard>
               )}
 

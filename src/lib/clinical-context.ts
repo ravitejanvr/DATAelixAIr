@@ -26,6 +26,10 @@ export interface ClinicalContext {
   associated_symptoms?: string[];
   risk_flags?: string[];
   risk_factors?: string[];
+  // Structured clinical signals for reasoning engine
+  onset_pattern?: string;
+  severity?: string;
+  body_location?: string;
 }
 
 export const EMPTY_CLINICAL_CONTEXT: ClinicalContext = {
