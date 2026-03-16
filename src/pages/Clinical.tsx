@@ -1967,6 +1967,8 @@ export default function Clinical() {
                           if (vitalParts.length) parts.push(vitalParts.join(", "));
                           // Lab results from tests
                           if (selectedTests.length > 0) parts.push(`Labs ordered: ${selectedTests.join(", ")}`);
+                          // Exam findings
+                          if (selectedExamFindings.length > 0) parts.push(`Exam: ${selectedExamFindings.join(", ")}`);
                         }
                         return parts.join("\n");
                       })()}
