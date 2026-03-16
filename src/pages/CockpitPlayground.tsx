@@ -131,6 +131,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Enoxaparin", dose: "1mg/kg", route: "SC", freq: "BD", dur: "5 days", line: "first" },
       { drug: "Warfarin", dose: "5mg", route: "PO", freq: "OD", dur: "3-6 months", line: "first" },
     ],
+    monitoring: ["APTT monitoring if on heparin", "INR monitoring — target 2-3 if on warfarin", "SpO₂ continuous monitoring", "Repeat CTPA if clinical deterioration"],
     instructions: ["EMERGENCY: Anticoagulation must not be delayed", "Avoid prolonged immobility", "Regular INR monitoring if on warfarin"],
   },
   "pneumonia": {
