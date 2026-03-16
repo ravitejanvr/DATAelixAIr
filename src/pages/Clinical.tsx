@@ -1356,6 +1356,7 @@ export default function Clinical() {
     stageLatencies,
     physiologicalContext: pipelinePhysiology,
     bayesianResult: pipelineBayesian,
+    isAdmin: user?.email?.includes("@elixair.uk") || user?.email === "raviteja.nvr@gmail.com",
   };
 
   // ═══════════════════════════════════════════════════════════
