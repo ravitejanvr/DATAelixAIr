@@ -43,6 +43,149 @@ const SYMPTOM_EXPANSIONS: Record<string, { label: string; chips: string[] }> = {
   "Abdominal pain": { label: "Location", chips: ["Upper", "Lower", "Right", "Left", "Diffuse", "Periumbilical"] },
 };
 
+// ═══ MANAGEMENT ENGINE — Maps diagnoses to recommended tests & treatments ═══
+// This fills the gap when the pipeline doesn't return management recommendations
+const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ drug: string; dose: string; freq: string; dur: string }>; monitoring?: string[] }> = {
+  "migraine": {
+    tests: ["CT Brain (if red flags)", "MRI Brain (if atypical)"],
+    medications: [
+      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "3 days" },
+      { drug: "Ibuprofen", dose: "400mg", freq: "TID", dur: "3 days" },
+      { drug: "Sumatriptan", dose: "50mg", freq: "PRN", dur: "As needed" },
+    ],
+  },
+  "tension headache": {
+    tests: [],
+    medications: [
+      { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "5 days" },
+      { drug: "Ibuprofen", dose: "400mg", freq: "TID", dur: "3 days" },
+    ],
+  },
+  "subarachnoid hemorrhage": {
+    tests: ["CT Brain (urgent)", "CT Angiography", "Lumbar puncture (if CT negative)", "CBC", "Coagulation profile"],
+    medications: [
+      { drug: "Nimodipine", dose: "60mg", freq: "Q4H", dur: "21 days" },
+      { drug: "IV Fluids", dose: "NS 1L", freq: "Q8H", dur: "Ongoing" },
+    ],
+  },
+  "acute coronary syndrome": {
+    tests: ["ECG (12-lead)", "Troponin I/T", "CBC", "BMP", "Lipid profile", "Chest X-ray", "Echocardiogram"],
+    medications: [
+      { drug: "Aspirin", dose: "325mg", freq: "STAT", dur: "Single dose" },
+      { drug: "Clopidogrel", dose: "300mg", freq: "STAT", dur: "Loading dose" },
+      { drug: "Atorvastatin", dose: "80mg", freq: "OD", dur: "Ongoing" },
+      { drug: "Nitroglycerin", dose: "0.4mg SL", freq: "PRN", dur: "As needed" },
+    ],
+  },
+  "myocardial infarction": {
+    tests: ["ECG (12-lead)", "Troponin I/T", "CBC", "BMP", "Chest X-ray"],
+    medications: [
+      { drug: "Aspirin", dose: "325mg", freq: "STAT", dur: "Single dose" },
+      { drug: "Clopidogrel", dose: "300mg", freq: "STAT", dur: "Loading dose" },
+      { drug: "Morphine", dose: "2-4mg IV", freq: "PRN", dur: "As needed" },
+    ],
+  },
+  "appendicitis": {
+    tests: ["CBC", "CRP", "Ultrasound abdomen", "CT abdomen (if diagnosis unclear)", "Urinalysis"],
+    medications: [
+      { drug: "IV Fluids", dose: "NS 1L", freq: "Q8H", dur: "Pre-op" },
+      { drug: "Ceftriaxone", dose: "1g IV", freq: "BD", dur: "Perioperative" },
+      { drug: "Metronidazole", dose: "500mg IV", freq: "TID", dur: "Perioperative" },
+      { drug: "Paracetamol", dose: "1g IV", freq: "QID", dur: "As needed" },
+    ],
+  },
+  "gastroenteritis": {
+    tests: ["CBC", "CRP", "Stool culture", "Electrolytes", "Renal function"],
+    medications: [
+      { drug: "ORS", dose: "200ml", freq: "After each stool", dur: "Until resolved" },
+      { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "3 days" },
+      { drug: "Zinc", dose: "20mg", freq: "OD", dur: "10 days" },
+    ],
+  },
+  "food poisoning": {
+    tests: ["Stool culture", "CBC", "Electrolytes"],
+    medications: [
+      { drug: "ORS", dose: "200ml", freq: "After each stool", dur: "Until resolved" },
+      { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "2 days" },
+    ],
+  },
+  "pulmonary embolism": {
+    tests: ["CT Pulmonary Angiography", "D-dimer", "ECG", "ABG", "Echocardiogram", "CBC", "Troponin"],
+    medications: [
+      { drug: "Heparin", dose: "80 units/kg IV", freq: "STAT", dur: "Loading dose" },
+      { drug: "Enoxaparin", dose: "1mg/kg SC", freq: "BD", dur: "5 days" },
+      { drug: "Warfarin", dose: "5mg", freq: "OD", dur: "3-6 months" },
+    ],
+  },
+  "pneumonia": {
+    tests: ["Chest X-ray", "CBC", "CRP", "Blood culture", "Sputum culture", "Procalcitonin"],
+    medications: [
+      { drug: "Amoxicillin", dose: "500mg", freq: "TID", dur: "7 days" },
+      { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
+      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "As needed" },
+    ],
+  },
+  "community-acquired pneumonia": {
+    tests: ["Chest X-ray", "CBC", "CRP", "Blood culture", "Sputum culture"],
+    medications: [
+      { drug: "Amoxicillin-Clavulanate", dose: "625mg", freq: "TID", dur: "7 days" },
+      { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
+      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "As needed" },
+    ],
+  },
+  "copd exacerbation": {
+    tests: ["Chest X-ray", "ABG", "CBC", "Sputum culture"],
+    medications: [
+      { drug: "Salbutamol nebulization", dose: "2.5mg", freq: "QID", dur: "5 days" },
+      { drug: "Prednisolone", dose: "40mg", freq: "OD", dur: "5 days" },
+      { drug: "Amoxicillin-Clavulanate", dose: "625mg", freq: "TID", dur: "7 days" },
+    ],
+  },
+  "urinary tract infection": {
+    tests: ["Urinalysis", "Urine culture", "CBC"],
+    medications: [
+      { drug: "Nitrofurantoin", dose: "100mg", freq: "BD", dur: "5 days" },
+      { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "As needed" },
+    ],
+  },
+  "meningitis": {
+    tests: ["CT Brain", "Lumbar puncture", "CSF analysis", "Blood culture", "CBC", "CRP", "Procalcitonin"],
+    medications: [
+      { drug: "Ceftriaxone", dose: "2g IV", freq: "BD", dur: "10-14 days" },
+      { drug: "Dexamethasone", dose: "0.15mg/kg IV", freq: "QID", dur: "4 days" },
+    ],
+  },
+  "diabetic ketoacidosis": {
+    tests: ["Blood glucose", "ABG", "Electrolytes", "Serum ketones", "CBC", "Renal function"],
+    medications: [
+      { drug: "Insulin (Regular)", dose: "0.1 units/kg/hr IV", freq: "Infusion", dur: "Until resolved" },
+      { drug: "IV Fluids (NS)", dose: "1L", freq: "Q1H initially", dur: "Until rehydrated" },
+      { drug: "Potassium chloride", dose: "20-40 mEq/L", freq: "Per IV fluid", dur: "Per protocol" },
+    ],
+  },
+  "hypertensive crisis": {
+    tests: ["ECG", "BMP", "Renal function", "Urinalysis", "Chest X-ray", "Fundoscopy"],
+    medications: [
+      { drug: "Labetalol", dose: "20mg IV", freq: "Q10min PRN", dur: "Until controlled" },
+      { drug: "Amlodipine", dose: "5mg", freq: "OD", dur: "Ongoing" },
+    ],
+  },
+};
+
+/**
+ * Management Engine: resolves recommended tests and medications from diagnosis names.
+ * Falls back to partial keyword matching when exact match unavailable.
+ */
+function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; freq: string; dur: string }> } {
+  const key = diagnosisName.toLowerCase().trim();
+  if (MANAGEMENT_MAP[key]) return MANAGEMENT_MAP[key];
+  // Partial match
+  for (const [mapKey, val] of Object.entries(MANAGEMENT_MAP)) {
+    if (key.includes(mapKey) || mapKey.includes(key)) return val;
+  }
+  return { tests: [], medications: [] };
+}
+
 // ── Scenarios ──
 interface Scenario {
   name: string;
