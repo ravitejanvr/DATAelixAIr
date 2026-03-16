@@ -161,6 +161,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Prednisolone", dose: "40mg", route: "PO", freq: "OD", dur: "5 days", line: "first" },
       { drug: "Amoxicillin-Clavulanate", dose: "625mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
     ],
+    monitoring: ["SpO₂ monitoring — target 88-92%", "Peak flow measurement BD", "ABG if SpO₂ <90%", "Follow up in 1 week"],
     instructions: ["Use inhalers as prescribed", "Avoid smoke and dust exposure", "Seek care if breathing worsens despite treatment"],
   },
   "urinary tract infection": {
