@@ -270,6 +270,11 @@ export default function Clinical() {
   // Symptom chips
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [selectedDuration, setSelectedDuration] = useState<string>("");
+  const [selectedOnset, setSelectedOnset] = useState<string>("");
+  const [selectedSeverity, setSelectedSeverity] = useState<string>("");
+  const [selectedBodyLocation, setSelectedBodyLocation] = useState<string>("");
+  const [selectedRiskFactors, setSelectedRiskFactors] = useState<string[]>([]);
+  const [selectedMedicalHistory, setSelectedMedicalHistory] = useState<string[]>([]);
   const [expansionSelections, setExpansionSelections] = useState<Record<string, string[]>>({});
   const [priorMeds, setPriorMeds] = useState<{ name: string; dose: string; frequency: string }[]>([]);
   const [symptomSearch, setSymptomSearch] = useState("");
