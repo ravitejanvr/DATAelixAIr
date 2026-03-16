@@ -1,8 +1,9 @@
-# Clinical Cockpit UI → Diagnostic Reasoning Pipeline Wiring Audit
+# Clinical Cockpit UI → Diagnostic Reasoning Pipeline Wiring Audit (v2)
 
-**Date:** 2026-03-16  
+**Date:** 2026-03-16 (Updated)  
 **Auditor:** DATAelixAIr Multidisciplinary Expert System  
-**Scope:** Clinical.tsx cockpit UI ↔ Pipeline Orchestrator v4.3
+**Scope:** Clinical.tsx cockpit UI ↔ Pipeline Orchestrator v4.3  
+**Overall Wiring Score:** 68% → **82%** (post-fix)
 
 ---
 
