@@ -1134,7 +1134,7 @@ export default function Clinical() {
   }, [chiefComplaint, selectedSymptoms]);
 
   const filteredSymptoms = useMemo(() => {
-    if (symptomSearch.length >= 3) {
+    if (symptomSearch.length >= 1) {
       return COMMON_SYMPTOMS.filter(s => s.toLowerCase().includes(symptomSearch.toLowerCase()) && !selectedSymptoms.includes(s));
     }
     return [];
