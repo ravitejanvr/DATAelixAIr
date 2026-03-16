@@ -151,6 +151,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Azithromycin", dose: "500mg", route: "PO", freq: "OD", dur: "3 days", line: "alternative" },
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "first" },
     ],
+    monitoring: ["Temperature Q6H", "CURB-65 score assessment", "Repeat CRP at 48-72 hours", "Follow up in 48-72 hours if no improvement"],
     instructions: ["Complete full antibiotic course", "Increase fluid intake", "Follow up in 48-72 hours if no improvement"],
   },
   "copd exacerbation": {
