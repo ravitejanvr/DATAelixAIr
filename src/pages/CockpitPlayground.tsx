@@ -70,6 +70,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Nimodipine", dose: "60mg", route: "PO", freq: "Q4H", dur: "21 days", line: "first" },
       { drug: "IV Fluids", dose: "NS 1L", route: "IV", freq: "Q8H", dur: "Ongoing", line: "first" },
     ],
+    monitoring: ["GCS every 1 hour", "Neuro checks Q1H", "BP monitoring — target SBP <160", "ICU admission required"],
     instructions: ["EMERGENCY: Immediate neurosurgical consultation required", "Strict bed rest", "Keep head of bed elevated 30°"],
   },
   "acute coronary syndrome": {
