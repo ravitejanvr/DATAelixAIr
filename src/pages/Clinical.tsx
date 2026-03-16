@@ -705,6 +705,14 @@ export default function Clinical() {
         if (selectedSeverity) (pipelineContext as any).severity = selectedSeverity;
         if (selectedBodyLocation) (pipelineContext as any).body_location = selectedBodyLocation;
         if (selectedRiskFactors.length > 0) (pipelineContext as any).risk_factors = selectedRiskFactors;
+        if (selectedFamilyHistory.length > 0) (pipelineContext as any).family_history = selectedFamilyHistory;
+        if (selectedExamFindings.length > 0) {
+          // Exam findings feed as additional symptoms for reasoning (e.g., "neck stiffness" maps to meningitis cluster)
+          const existingSymptoms = (pipelineContext as any).symptoms || [];
+          (pipelineContext as any).symptoms = [...new Set([...existingSymptoms, ...selectedExamFindings])];
+          (pipelineContext as any).exam_findings = selectedExamFindings;
+        }
+        if (patientVitals?.blood_sugar) (pipelineContext as any).blood_sugar = patientVitals.blood_sugar;
         if (selectedMedicalHistory.length > 0) {
           (pipelineContext as any).medical_history = [
             ...(pipelineContext.medical_history || []),
