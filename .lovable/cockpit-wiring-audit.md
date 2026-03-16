@@ -126,9 +126,9 @@ Symptoms entered via free-text command bar bypass all normalization. A doctor ty
 | Reasoning Layer | Required Input | UI Provides | Activation Status |
 |---|---|---|---|
 | **Duration Modifiers** (125 rows) | `duration` string | ✅ ChipGroup presets | ✅ ACTIVE |
-| **Onset Modifiers** (95 rows) | `onset_pattern` | ❌ No UI field | 🔴 NEVER ACTIVATES |
+| **Onset Modifiers** (95 rows) | `onset_pattern` | ✅ ChipGroup (5 presets) | ✅ ACTIVE (FIXED) |
 | **Vital Sign Modifiers** (79 rows) | Parsed vitals object | ✅ Editable vitals panel | ✅ ACTIVE |
-| **Risk Factor Modifiers** | `risk_factors[]` | ❌ No UI field | 🔴 NEVER ACTIVATES |
+| **Risk Factor Modifiers** | `risk_factors[]` | ✅ ChipGroup (10 presets) | ✅ ACTIVE (FIXED) |
 | **Symptom Cluster Modifiers** (41 rows) | Symptom overlap detection | ✅ Selected symptoms forwarded | ✅ ACTIVE |
 | **Localisation Modifiers** (190 edges) | Dominant organ system | ✅ Inferred from symptoms | ✅ ACTIVE |
 | **History Modifiers** | `medical_history[]` | ✅ From patient record | ✅ ACTIVE |
