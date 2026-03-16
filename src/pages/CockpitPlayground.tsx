@@ -839,7 +839,7 @@ export default function CockpitPlayground() {
       if (pendingRx.some(p => p.drug_name === rx.drug)) {
         setPendingRx(prev => prev.filter(p => p.drug_name !== rx.drug));
       } else {
-        setPendingRx(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur }]);
+        setPendingRx(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur, route: rx.route || "PO" }]);
       }
     },
     safetyResults,
@@ -847,7 +847,7 @@ export default function CockpitPlayground() {
     allergies: mockPatient?.allergies || [],
     diagnosis: selectedDiagnoses[0],
     chiefComplaint,
-    instructions: [], selectedInstructions,
+    instructions: allInstructions, selectedInstructions,
     onToggleInstruction: (inst: string) => setSelectedInstructions(prev => prev.includes(inst) ? prev.filter(x => x !== inst) : [...prev, inst]),
     hypotheses: pipelineHypotheses.length > 0 ? pipelineHypotheses : undefined,
     pipelineEvidence, pipelineCompliance,
