@@ -408,6 +408,7 @@ export default function CockpitPlayground() {
     setPipelineComplete(false);
     setPipelineHypotheses([]);
     setPipelineBayesian(null);
+    setPipelineDDX(null);
     setSoapSections(EMPTY_SOAP);
     setSoapManualEdits({});
     setSelectedDiagnoses([]);
