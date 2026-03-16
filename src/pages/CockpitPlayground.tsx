@@ -363,6 +363,7 @@ export default function CockpitPlayground() {
   const [pipelineCompliance, setPipelineCompliance] = useState<PipelineCompliance | null>(null);
   const [pipelinePhysiology, setPipelinePhysiology] = useState<any>(null);
   const [pipelineBayesian, setPipelineBayesian] = useState<any>(null);
+  const [pipelineDDX, setPipelineDDX] = useState<any>(null);
   const [safetyResults, setSafetyResults] = useState<SafetyResults | null>(null);
 
   // Copilot selections — bidirectional with Plan
