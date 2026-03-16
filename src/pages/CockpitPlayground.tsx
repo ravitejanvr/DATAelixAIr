@@ -141,6 +141,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Azithromycin", dose: "500mg", route: "PO", freq: "OD", dur: "3 days", line: "alternative" },
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "first" },
     ],
+    monitoring: ["Temperature Q6H — fever curve", "SpO₂ monitoring", "Repeat CRP at 48-72 hours", "Follow up chest X-ray in 6 weeks"],
     instructions: ["Complete the full course of antibiotics", "Rest and stay hydrated", "Use steam inhalation for congestion", "Return if: breathing difficulty worsens, fever >103°F, coughing blood", "Follow up chest X-ray in 6 weeks"],
   },
   "community-acquired pneumonia": {
