@@ -174,8 +174,8 @@ Symptoms entered via free-text command bar bypass all normalization. A doctor ty
 | 2. Symptom refinement | Enter symptoms, attributes, duration | ✅ Chip selector + expansions + duration | ✅ |
 | 3. AI diagnostic suggestions | Auto-trigger pipeline | ✅ Auto-triggers after ≥2 symptoms + duration (line 501-509) | ✅ |
 | 4. Doctor review | View DDX, Bayesian, safety | ✅ ClinicalCopilot shows all | ✅ |
-| 5. Doctor adds missing context | Edit symptoms/vitals, re-trigger | ⚠️ No explicit "re-run pipeline" button after edits | 🟡 GAP |
-| 6. AI recalculates | Re-run pipeline with new inputs | ❌ Pipeline only runs once (`autoGenerateTriggered` flag prevents re-run) | 🔴 BROKEN |
+| 5. Doctor adds missing context | Edit symptoms/vitals, re-trigger | ✅ Modifier changes auto-retrigger pipeline (1.2s debounce) | ✅ FIXED |
+| 6. AI recalculates | Re-run pipeline with new inputs | ✅ Auto-retrigger + Re-analyze button in toolbar | ✅ FIXED |
 | 7. Final differential | Confirmed diagnosis selection | ✅ Diagnosis chips with toggle | ✅ |
 | 8. SOAP note generation | AI-generated, editable | ✅ SOAP sections auto-populated, fully editable | ✅ |
 
