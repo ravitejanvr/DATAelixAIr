@@ -910,6 +910,15 @@ export default function CockpitPlayground() {
     return Array.from(insts);
   }, [mergedDiagnoses]);
 
+  // ── All monitoring parameters from management engine ──
+  const allMonitoring = useMemo(() => {
+    const mons = new Set<string>();
+    mergedDiagnoses.forEach((d: any) => {
+      (d.monitoring || []).forEach((m: string) => mons.add(m));
+    });
+    return Array.from(mons);
+  }, [mergedDiagnoses]);
+
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
   const planTreatments = pendingRx;
