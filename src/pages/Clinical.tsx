@@ -525,6 +525,19 @@ export default function Clinical() {
     }
   }, [selectedSymptoms, selectedDuration, selectedPatient, autoGenerateTriggered, pipelineRunning, pipelineComplete, transcript]);
 
+  // Auto-retrigger pipeline when modifier signals change (after initial run)
+  useEffect(() => {
+    if (!autoGenerateTriggered || pipelineRunning || !pipelineComplete || !selectedPatient) return;
+    // Debounce modifier changes to avoid rapid re-runs
+    const timer = setTimeout(() => {
+      setAutoGenerateTriggered(false);
+      setPipelineComplete(false);
+      setTranscript("");
+      setTimeout(() => runFullPipeline(), 100);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors.length, selectedMedicalHistory.length]);
+
   useEffect(() => {
     if (!user) return;
     supabase.from("profiles").select("clinic_id").eq("user_id", user.id).maybeSingle().then(({ data }) => {
@@ -1702,31 +1715,49 @@ export default function Clinical() {
                     </div>
                   )}
 
-                  {/* Medical History quick-add */}
-                  {selectedPatient && selectedSymptoms.length > 0 && (
-                    <div className="mt-2">
-                      <ChipGroup label="Medical History">
-                        {MEDICAL_HISTORY_PRESETS.filter(mh => {
-                          const existing = selectedPatient.medical_history;
-                          if (!existing || !Array.isArray(existing)) return true;
-                          return !(existing as any[]).some((h: any) => {
-                            const cond = typeof h === "string" ? h : h?.condition || "";
-                            return cond.toLowerCase() === mh.toLowerCase();
-                          });
-                        }).map(mh => (
-                          <Chip
-                            key={mh}
-                            variant="diagnosis"
-                            size="sm"
-                            selected={selectedMedicalHistory.includes(mh)}
-                            onClick={() => setSelectedMedicalHistory(prev => prev.includes(mh) ? prev.filter(x => x !== mh) : [...prev, mh])}
-                          >
-                            {mh}
-                          </Chip>
-                        ))}
-                      </ChipGroup>
-                    </div>
-                  )}
+                  {/* Medical History quick-add — only shows conditions NOT already in patient record */}
+                  {selectedPatient && selectedSymptoms.length > 0 && (() => {
+                    const existingConditions = new Set<string>();
+                    if (selectedPatient.medical_history && Array.isArray(selectedPatient.medical_history)) {
+                      (selectedPatient.medical_history as any[]).forEach((h: any) => {
+                        const cond = typeof h === "string" ? h : h?.condition || "";
+                        if (cond) existingConditions.add(cond.toLowerCase());
+                      });
+                    }
+                    const availablePresets = MEDICAL_HISTORY_PRESETS.filter(mh =>
+                      !existingConditions.has(mh.toLowerCase()) && !selectedMedicalHistory.some(s => s.toLowerCase() === mh.toLowerCase())
+                    );
+                    // Only show section if there are conditions to add
+                    if (availablePresets.length === 0 && selectedMedicalHistory.length === 0) return null;
+                    return (
+                      <div className="mt-2">
+                        <ChipGroup label="Add Medical History">
+                          {selectedMedicalHistory.map(mh => (
+                            <Chip
+                              key={mh}
+                              variant="diagnosis"
+                              size="sm"
+                              selected
+                              removable
+                              onRemove={() => setSelectedMedicalHistory(prev => prev.filter(x => x !== mh))}
+                            >
+                              {mh}
+                            </Chip>
+                          ))}
+                          {availablePresets.map(mh => (
+                            <Chip
+                              key={mh}
+                              variant="diagnosis"
+                              size="sm"
+                              onClick={() => setSelectedMedicalHistory(prev => [...prev, mh])}
+                            >
+                              {mh}
+                            </Chip>
+                          ))}
+                        </ChipGroup>
+                      </div>
+                    );
+                  })()}
                 </ClinicalCard>
               )}
 

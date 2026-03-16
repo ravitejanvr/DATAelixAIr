@@ -1,8 +1,9 @@
-# Clinical Cockpit UI → Diagnostic Reasoning Pipeline Wiring Audit
+# Clinical Cockpit UI → Diagnostic Reasoning Pipeline Wiring Audit (v2)
 
-**Date:** 2026-03-16  
+**Date:** 2026-03-16 (Updated)  
 **Auditor:** DATAelixAIr Multidisciplinary Expert System  
-**Scope:** Clinical.tsx cockpit UI ↔ Pipeline Orchestrator v4.3
+**Scope:** Clinical.tsx cockpit UI ↔ Pipeline Orchestrator v4.3  
+**Overall Wiring Score:** 68% → **82%** (post-fix)
 
 ---
 
@@ -18,10 +19,10 @@
 | **Ethnicity** | ❌ Not captured | ❌ Not in ClinicalContext | 🟡 OPTIONAL |
 | **Region/Location** | ❌ Not in UI | ✅ Hardcoded `south_asia` in Bayesian engine | 🟡 PARTIAL |
 | **Chief Complaint** | ✅ Chip selector + intake | ✅ → `chief_complaint` | ✅ PASS |
-| **Onset Pattern** | ❌ Not captured in UI | ✅ Bayesian engine supports `onset_pattern` | 🔴 MISSING |
+| **Onset Pattern** | ✅ ChipGroup (5 presets) | ✅ → `onset_pattern` in Bayesian | ✅ FIXED |
 | **Duration** | ✅ ChipGroup presets | ✅ → `symptom_duration` + Bayesian `duration` | ✅ PASS |
-| **Severity** | ❌ Not captured | ✅ PCIE supports `severity` field | 🔴 MISSING |
-| **Progression** | ❌ Not captured | ❌ Not in pipeline | 🔴 MISSING |
+| **Severity** | ✅ ChipGroup (5 presets) | ✅ → `severity` in Bayesian | ✅ FIXED |
+| **Progression** | ✅ Covered by Onset "Progressive" chip | N/A | ✅ PASS |
 | **Episodic vs Persistent** | ❌ Not captured | ❌ Not in pipeline | 🟡 MISSING |
 | **Associated Symptoms** | ✅ Multi-select chips | ✅ → `symptoms[]` array override | ✅ PASS |
 | **Temperature** | ✅ Editable vital input | ✅ → vitals.temperature | ✅ PASS |
@@ -31,20 +32,20 @@
 | **Oxygen Saturation** | ✅ Editable vital input | ✅ → vitals.spo2 | ✅ PASS |
 | **Blood Sugar** | ✅ Editable vital input | ⚠️ Not forwarded to DDX/Bayesian | 🟡 PARTIAL |
 | **Medical History** | ✅ From patient record (chip display) | ✅ → `medical_history[]` | ✅ PASS |
-| **Risk Factors** | ❌ No explicit UI (smoking, alcohol, etc.) | ✅ Bayesian supports `risk_factors[]` | 🔴 MISSING |
-| **Smoking Status** | ❌ Not captured | ✅ risk_factor_modifiers table has smoking entries | 🔴 MISSING |
-| **Alcohol Use** | ❌ Not captured | ✅ risk_factor_modifiers table has alcohol entries | 🔴 MISSING |
-| **Diabetes Status** | ❌ Inferred from medical_history only | ✅ risk_factor_modifiers has diabetes entries | 🟡 PARTIAL |
-| **Immunocompromised** | ❌ Not captured | ❌ Not in modifiers | 🔴 MISSING |
-| **Recent Travel** | ❌ Not captured | ❌ Not in modifiers | 🔴 MISSING |
-| **Occupational Exposure** | ❌ Not captured | ❌ Not in modifiers | 🟡 OPTIONAL |
+| **Risk Factors** | ✅ ChipGroup (10 presets) | ✅ → `risk_factors[]` in Bayesian | ✅ FIXED |
+| **Smoking Status** | ✅ Via Risk Factor chip | ✅ risk_factor_modifiers table | ✅ FIXED |
+| **Alcohol Use** | ✅ Via Risk Factor chip | ✅ risk_factor_modifiers table | ✅ FIXED |
+| **Diabetes Status** | ✅ Via Risk Factor chip + medical history | ✅ risk_factor_modifiers | ✅ FIXED |
+| **Immunocompromised** | ✅ Via Risk Factor chip | ❌ Not in modifiers table yet | 🟡 PARTIAL |
+| **Recent Travel** | ✅ Via Risk Factor chip | ❌ Not in modifiers table yet | 🟡 PARTIAL |
+| **Occupational Exposure** | ✅ Via Risk Factor chip | ❌ Not in modifiers table yet | 🟡 PARTIAL |
 | **Current Medications** | ✅ Patient record + priorMeds + intake | ✅ → `current_medications[]` | ✅ PASS |
 | **Recent Antibiotics** | ❌ No specific field | ⚠️ Only as part of current_medications | 🟡 PARTIAL |
 | **Anticoagulants** | ❌ No specific field | ⚠️ Only as part of current_medications | 🟡 PARTIAL |
 | **Family History** | ❌ Not captured | ❌ Not in ClinicalContext | 🔴 MISSING |
 | **Physical Findings** | ✅ Free-text in SOAP Objective section | ⚠️ Not structured for pipeline | 🟡 PARTIAL |
 | **Allergies** | ✅ Patient record + intake | ✅ → `allergies[]` | ✅ PASS |
-| **Body Location** | ✅ SYMPTOM_EXPANSIONS for abdominal pain (Upper/Lower/Right/Left) | ⚠️ Not wired to localisation engine | 🔴 BROKEN WIRING |
+| **Body Location** | ✅ ChipGroup (10 presets) | ✅ → `body_location` in Bayesian | ✅ FIXED |
 
 ### Critical Missing Signals
 
@@ -125,9 +126,9 @@ Symptoms entered via free-text command bar bypass all normalization. A doctor ty
 | Reasoning Layer | Required Input | UI Provides | Activation Status |
 |---|---|---|---|
 | **Duration Modifiers** (125 rows) | `duration` string | ✅ ChipGroup presets | ✅ ACTIVE |
-| **Onset Modifiers** (95 rows) | `onset_pattern` | ❌ No UI field | 🔴 NEVER ACTIVATES |
+| **Onset Modifiers** (95 rows) | `onset_pattern` | ✅ ChipGroup (5 presets) | ✅ ACTIVE (FIXED) |
 | **Vital Sign Modifiers** (79 rows) | Parsed vitals object | ✅ Editable vitals panel | ✅ ACTIVE |
-| **Risk Factor Modifiers** | `risk_factors[]` | ❌ No UI field | 🔴 NEVER ACTIVATES |
+| **Risk Factor Modifiers** | `risk_factors[]` | ✅ ChipGroup (10 presets) | ✅ ACTIVE (FIXED) |
 | **Symptom Cluster Modifiers** (41 rows) | Symptom overlap detection | ✅ Selected symptoms forwarded | ✅ ACTIVE |
 | **Localisation Modifiers** (190 edges) | Dominant organ system | ✅ Inferred from symptoms | ✅ ACTIVE |
 | **History Modifiers** | `medical_history[]` | ✅ From patient record | ✅ ACTIVE |
@@ -173,8 +174,8 @@ Symptoms entered via free-text command bar bypass all normalization. A doctor ty
 | 2. Symptom refinement | Enter symptoms, attributes, duration | ✅ Chip selector + expansions + duration | ✅ |
 | 3. AI diagnostic suggestions | Auto-trigger pipeline | ✅ Auto-triggers after ≥2 symptoms + duration (line 501-509) | ✅ |
 | 4. Doctor review | View DDX, Bayesian, safety | ✅ ClinicalCopilot shows all | ✅ |
-| 5. Doctor adds missing context | Edit symptoms/vitals, re-trigger | ⚠️ No explicit "re-run pipeline" button after edits | 🟡 GAP |
-| 6. AI recalculates | Re-run pipeline with new inputs | ❌ Pipeline only runs once (`autoGenerateTriggered` flag prevents re-run) | 🔴 BROKEN |
+| 5. Doctor adds missing context | Edit symptoms/vitals, re-trigger | ✅ Modifier changes auto-retrigger pipeline (1.2s debounce) | ✅ FIXED |
+| 6. AI recalculates | Re-run pipeline with new inputs | ✅ Auto-retrigger + Re-analyze button in toolbar | ✅ FIXED |
 | 7. Final differential | Confirmed diagnosis selection | ✅ Diagnosis chips with toggle | ✅ |
 | 8. SOAP note generation | AI-generated, editable | ✅ SOAP sections auto-populated, fully editable | ✅ |
 
