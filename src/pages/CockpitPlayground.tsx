@@ -253,6 +253,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
       { drug: "Cetirizine", dose: "10mg", route: "PO", freq: "OD", dur: "5 days", line: "first" },
     ],
+    monitoring: ["Self-limiting — expect 5-7 days", "Return if symptoms worsen or persist >10 days"],
     instructions: ["Rest and stay hydrated", "Steam inhalation for congestion", "Usually self-limiting (5-7 days)", "Seek care if symptoms worsen or persist >10 days"],
   },
   "viral fever": {
