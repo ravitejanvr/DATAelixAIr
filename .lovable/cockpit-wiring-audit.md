@@ -32,13 +32,13 @@
 | **Oxygen Saturation** | ✅ Editable vital input | ✅ → vitals.spo2 | ✅ PASS |
 | **Blood Sugar** | ✅ Editable vital input | ⚠️ Not forwarded to DDX/Bayesian | 🟡 PARTIAL |
 | **Medical History** | ✅ From patient record (chip display) | ✅ → `medical_history[]` | ✅ PASS |
-| **Risk Factors** | ❌ No explicit UI (smoking, alcohol, etc.) | ✅ Bayesian supports `risk_factors[]` | 🔴 MISSING |
-| **Smoking Status** | ❌ Not captured | ✅ risk_factor_modifiers table has smoking entries | 🔴 MISSING |
-| **Alcohol Use** | ❌ Not captured | ✅ risk_factor_modifiers table has alcohol entries | 🔴 MISSING |
-| **Diabetes Status** | ❌ Inferred from medical_history only | ✅ risk_factor_modifiers has diabetes entries | 🟡 PARTIAL |
-| **Immunocompromised** | ❌ Not captured | ❌ Not in modifiers | 🔴 MISSING |
-| **Recent Travel** | ❌ Not captured | ❌ Not in modifiers | 🔴 MISSING |
-| **Occupational Exposure** | ❌ Not captured | ❌ Not in modifiers | 🟡 OPTIONAL |
+| **Risk Factors** | ✅ ChipGroup (10 presets) | ✅ → `risk_factors[]` in Bayesian | ✅ FIXED |
+| **Smoking Status** | ✅ Via Risk Factor chip | ✅ risk_factor_modifiers table | ✅ FIXED |
+| **Alcohol Use** | ✅ Via Risk Factor chip | ✅ risk_factor_modifiers table | ✅ FIXED |
+| **Diabetes Status** | ✅ Via Risk Factor chip + medical history | ✅ risk_factor_modifiers | ✅ FIXED |
+| **Immunocompromised** | ✅ Via Risk Factor chip | ❌ Not in modifiers table yet | 🟡 PARTIAL |
+| **Recent Travel** | ✅ Via Risk Factor chip | ❌ Not in modifiers table yet | 🟡 PARTIAL |
+| **Occupational Exposure** | ✅ Via Risk Factor chip | ❌ Not in modifiers table yet | 🟡 PARTIAL |
 | **Current Medications** | ✅ Patient record + priorMeds + intake | ✅ → `current_medications[]` | ✅ PASS |
 | **Recent Antibiotics** | ❌ No specific field | ⚠️ Only as part of current_medications | 🟡 PARTIAL |
 | **Anticoagulants** | ❌ No specific field | ⚠️ Only as part of current_medications | 🟡 PARTIAL |
