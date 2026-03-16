@@ -44,146 +44,156 @@ const SYMPTOM_EXPANSIONS: Record<string, { label: string; chips: string[] }> = {
 };
 
 // ═══ MANAGEMENT ENGINE — Maps diagnoses to recommended tests & treatments ═══
-// This fills the gap when the pipeline doesn't return management recommendations
-const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ drug: string; dose: string; freq: string; dur: string }>; monitoring?: string[] }> = {
+const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }>; monitoring?: string[]; instructions?: string[] }> = {
   "migraine": {
     tests: ["CT Brain (if red flags)", "MRI Brain (if atypical)"],
     medications: [
-      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "3 days" },
-      { drug: "Ibuprofen", dose: "400mg", freq: "TID", dur: "3 days" },
-      { drug: "Sumatriptan", dose: "50mg", freq: "PRN", dur: "As needed" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "3 days", line: "first" },
+      { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
+      { drug: "Sumatriptan", dose: "50mg", route: "PO", freq: "PRN", dur: "As needed", line: "alternative" },
     ],
+    instructions: ["Avoid bright lights and loud noises during episodes", "Stay hydrated — drink at least 2L water/day", "Maintain regular sleep schedule", "Seek emergency care if: worst headache of life, sudden onset, neck stiffness, confusion", "Follow up in 1 week if symptoms persist"],
   },
   "tension headache": {
     tests: [],
     medications: [
-      { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "5 days" },
-      { drug: "Ibuprofen", dose: "400mg", freq: "TID", dur: "3 days" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "5 days", line: "first" },
+      { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "3 days", line: "alternative" },
     ],
+    instructions: ["Apply warm compress to neck/shoulders", "Practice stress management techniques", "Ensure adequate sleep (7-8 hours)", "Follow up if symptoms worsen or persist >2 weeks"],
   },
   "subarachnoid hemorrhage": {
     tests: ["CT Brain (urgent)", "CT Angiography", "Lumbar puncture (if CT negative)", "CBC", "Coagulation profile"],
     medications: [
-      { drug: "Nimodipine", dose: "60mg", freq: "Q4H", dur: "21 days" },
-      { drug: "IV Fluids", dose: "NS 1L", freq: "Q8H", dur: "Ongoing" },
+      { drug: "Nimodipine", dose: "60mg", route: "PO", freq: "Q4H", dur: "21 days", line: "first" },
+      { drug: "IV Fluids", dose: "NS 1L", route: "IV", freq: "Q8H", dur: "Ongoing", line: "first" },
     ],
+    instructions: ["EMERGENCY: Immediate neurosurgical consultation required", "Strict bed rest", "Keep head of bed elevated 30°"],
   },
   "acute coronary syndrome": {
     tests: ["ECG (12-lead)", "Troponin I/T", "CBC", "BMP", "Lipid profile", "Chest X-ray", "Echocardiogram"],
     medications: [
-      { drug: "Aspirin", dose: "325mg", freq: "STAT", dur: "Single dose" },
-      { drug: "Clopidogrel", dose: "300mg", freq: "STAT", dur: "Loading dose" },
-      { drug: "Atorvastatin", dose: "80mg", freq: "OD", dur: "Ongoing" },
-      { drug: "Nitroglycerin", dose: "0.4mg SL", freq: "PRN", dur: "As needed" },
+      { drug: "Aspirin", dose: "325mg", route: "PO", freq: "STAT", dur: "Single dose", line: "emergency" },
+      { drug: "Clopidogrel", dose: "300mg", route: "PO", freq: "STAT", dur: "Loading dose", line: "emergency" },
+      { drug: "Atorvastatin", dose: "80mg", route: "PO", freq: "OD", dur: "Ongoing", line: "first" },
+      { drug: "Nitroglycerin", dose: "0.4mg SL", route: "SL", freq: "PRN", dur: "As needed", line: "emergency" },
     ],
+    instructions: ["EMERGENCY: Call ambulance if chest pain returns", "Take aspirin immediately if chest pain recurs", "Do NOT exert yourself — complete rest", "Follow up with cardiologist within 48 hours"],
   },
   "myocardial infarction": {
     tests: ["ECG (12-lead)", "Troponin I/T", "CBC", "BMP", "Chest X-ray"],
     medications: [
-      { drug: "Aspirin", dose: "325mg", freq: "STAT", dur: "Single dose" },
-      { drug: "Clopidogrel", dose: "300mg", freq: "STAT", dur: "Loading dose" },
-      { drug: "Morphine", dose: "2-4mg IV", freq: "PRN", dur: "As needed" },
+      { drug: "Aspirin", dose: "325mg", route: "PO", freq: "STAT", dur: "Single dose", line: "emergency" },
+      { drug: "Clopidogrel", dose: "300mg", route: "PO", freq: "STAT", dur: "Loading dose", line: "emergency" },
+      { drug: "Morphine", dose: "2-4mg", route: "IV", freq: "PRN", dur: "As needed", line: "emergency" },
     ],
+    instructions: ["EMERGENCY: Immediate cardiology consultation", "Strict bed rest", "Continuous cardiac monitoring"],
   },
   "appendicitis": {
     tests: ["CBC", "CRP", "Ultrasound abdomen", "CT abdomen (if diagnosis unclear)", "Urinalysis"],
     medications: [
-      { drug: "IV Fluids", dose: "NS 1L", freq: "Q8H", dur: "Pre-op" },
-      { drug: "Ceftriaxone", dose: "1g IV", freq: "BD", dur: "Perioperative" },
-      { drug: "Metronidazole", dose: "500mg IV", freq: "TID", dur: "Perioperative" },
-      { drug: "Paracetamol", dose: "1g IV", freq: "QID", dur: "As needed" },
+      { drug: "IV Fluids", dose: "NS 1L", route: "IV", freq: "Q8H", dur: "Pre-op", line: "first" },
+      { drug: "Ceftriaxone", dose: "1g", route: "IV", freq: "BD", dur: "Perioperative", line: "first" },
+      { drug: "Metronidazole", dose: "500mg", route: "IV", freq: "TID", dur: "Perioperative", line: "first" },
+      { drug: "Paracetamol", dose: "1g", route: "IV", freq: "QID", dur: "As needed", line: "first" },
     ],
+    instructions: ["Nil by mouth (NBM) — no food or drink", "Surgical consultation required", "Return immediately if pain worsens, fever increases, or vomiting becomes severe"],
   },
   "gastroenteritis": {
     tests: ["CBC", "CRP", "Stool culture", "Electrolytes", "Renal function"],
     medications: [
-      { drug: "ORS", dose: "200ml", freq: "After each stool", dur: "Until resolved" },
-      { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "3 days" },
-      { drug: "Zinc", dose: "20mg", freq: "OD", dur: "10 days" },
+      { drug: "ORS", dose: "200ml", route: "PO", freq: "After each stool", dur: "Until resolved", line: "first" },
+      { drug: "Ondansetron", dose: "4mg", route: "PO", freq: "TID", dur: "3 days", line: "first" },
+      { drug: "Zinc", dose: "20mg", route: "PO", freq: "OD", dur: "10 days", line: "first" },
     ],
+    instructions: ["Drink plenty of fluids — ORS, coconut water, clear soups", "Eat light diet — rice, bananas, toast, yogurt", "Avoid dairy, spicy, and fried foods", "Wash hands frequently to prevent spread", "Seek emergency care if: bloody stools, inability to keep fluids down, high fever >103°F, signs of dehydration"],
   },
   "food poisoning": {
     tests: ["Stool culture", "CBC", "Electrolytes"],
     medications: [
-      { drug: "ORS", dose: "200ml", freq: "After each stool", dur: "Until resolved" },
-      { drug: "Ondansetron", dose: "4mg", freq: "TID", dur: "2 days" },
+      { drug: "ORS", dose: "200ml", route: "PO", freq: "After each stool", dur: "Until resolved", line: "first" },
+      { drug: "Ondansetron", dose: "4mg", route: "PO", freq: "TID", dur: "2 days", line: "first" },
     ],
+    instructions: ["Stay hydrated — small frequent sips of ORS", "Bland diet for 24-48 hours", "Return if symptoms persist beyond 3 days"],
   },
   "pulmonary embolism": {
     tests: ["CT Pulmonary Angiography", "D-dimer", "ECG", "ABG", "Echocardiogram", "CBC", "Troponin"],
     medications: [
-      { drug: "Heparin", dose: "80 units/kg IV", freq: "STAT", dur: "Loading dose" },
-      { drug: "Enoxaparin", dose: "1mg/kg SC", freq: "BD", dur: "5 days" },
-      { drug: "Warfarin", dose: "5mg", freq: "OD", dur: "3-6 months" },
+      { drug: "Heparin", dose: "80 units/kg", route: "IV", freq: "STAT", dur: "Loading dose", line: "emergency" },
+      { drug: "Enoxaparin", dose: "1mg/kg", route: "SC", freq: "BD", dur: "5 days", line: "first" },
+      { drug: "Warfarin", dose: "5mg", route: "PO", freq: "OD", dur: "3-6 months", line: "first" },
     ],
+    instructions: ["EMERGENCY: Anticoagulation must not be delayed", "Avoid prolonged immobility", "Regular INR monitoring if on warfarin"],
   },
   "pneumonia": {
     tests: ["Chest X-ray", "CBC", "CRP", "Blood culture", "Sputum culture", "Procalcitonin"],
     medications: [
-      { drug: "Amoxicillin", dose: "500mg", freq: "TID", dur: "7 days" },
-      { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
-      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "As needed" },
+      { drug: "Amoxicillin", dose: "500mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
+      { drug: "Azithromycin", dose: "500mg", route: "PO", freq: "OD", dur: "3 days", line: "alternative" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "first" },
     ],
+    instructions: ["Complete the full course of antibiotics", "Rest and stay hydrated", "Use steam inhalation for congestion", "Return if: breathing difficulty worsens, fever >103°F, coughing blood", "Follow up chest X-ray in 6 weeks"],
   },
   "community-acquired pneumonia": {
     tests: ["Chest X-ray", "CBC", "CRP", "Blood culture", "Sputum culture"],
     medications: [
-      { drug: "Amoxicillin-Clavulanate", dose: "625mg", freq: "TID", dur: "7 days" },
-      { drug: "Azithromycin", dose: "500mg", freq: "OD", dur: "3 days" },
-      { drug: "Paracetamol", dose: "500mg", freq: "QID", dur: "As needed" },
+      { drug: "Amoxicillin-Clavulanate", dose: "625mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
+      { drug: "Azithromycin", dose: "500mg", route: "PO", freq: "OD", dur: "3 days", line: "alternative" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "QID", dur: "As needed", line: "first" },
     ],
+    instructions: ["Complete full antibiotic course", "Increase fluid intake", "Follow up in 48-72 hours if no improvement"],
   },
   "copd exacerbation": {
     tests: ["Chest X-ray", "ABG", "CBC", "Sputum culture"],
     medications: [
-      { drug: "Salbutamol nebulization", dose: "2.5mg", freq: "QID", dur: "5 days" },
-      { drug: "Prednisolone", dose: "40mg", freq: "OD", dur: "5 days" },
-      { drug: "Amoxicillin-Clavulanate", dose: "625mg", freq: "TID", dur: "7 days" },
+      { drug: "Salbutamol nebulization", dose: "2.5mg", route: "NEB", freq: "QID", dur: "5 days", line: "first" },
+      { drug: "Prednisolone", dose: "40mg", route: "PO", freq: "OD", dur: "5 days", line: "first" },
+      { drug: "Amoxicillin-Clavulanate", dose: "625mg", route: "PO", freq: "TID", dur: "7 days", line: "first" },
     ],
+    instructions: ["Use inhalers as prescribed", "Avoid smoke and dust exposure", "Seek care if breathing worsens despite treatment"],
   },
   "urinary tract infection": {
     tests: ["Urinalysis", "Urine culture", "CBC"],
     medications: [
-      { drug: "Nitrofurantoin", dose: "100mg", freq: "BD", dur: "5 days" },
-      { drug: "Paracetamol", dose: "500mg", freq: "TID", dur: "As needed" },
+      { drug: "Nitrofurantoin", dose: "100mg", route: "PO", freq: "BD", dur: "5 days", line: "first" },
+      { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "As needed", line: "first" },
     ],
+    instructions: ["Drink at least 2-3 litres of water daily", "Complete the full antibiotic course", "Urinate frequently — do not hold urine", "Return if: fever, back pain, blood in urine"],
   },
   "meningitis": {
     tests: ["CT Brain", "Lumbar puncture", "CSF analysis", "Blood culture", "CBC", "CRP", "Procalcitonin"],
     medications: [
-      { drug: "Ceftriaxone", dose: "2g IV", freq: "BD", dur: "10-14 days" },
-      { drug: "Dexamethasone", dose: "0.15mg/kg IV", freq: "QID", dur: "4 days" },
+      { drug: "Ceftriaxone", dose: "2g", route: "IV", freq: "BD", dur: "10-14 days", line: "emergency" },
+      { drug: "Dexamethasone", dose: "0.15mg/kg", route: "IV", freq: "QID", dur: "4 days", line: "first" },
     ],
+    instructions: ["EMERGENCY: Antibiotics must be given within 1 hour", "ICU monitoring may be required", "Close contacts may need prophylaxis"],
   },
   "diabetic ketoacidosis": {
     tests: ["Blood glucose", "ABG", "Electrolytes", "Serum ketones", "CBC", "Renal function"],
     medications: [
-      { drug: "Insulin (Regular)", dose: "0.1 units/kg/hr IV", freq: "Infusion", dur: "Until resolved" },
-      { drug: "IV Fluids (NS)", dose: "1L", freq: "Q1H initially", dur: "Until rehydrated" },
-      { drug: "Potassium chloride", dose: "20-40 mEq/L", freq: "Per IV fluid", dur: "Per protocol" },
+      { drug: "Insulin (Regular)", dose: "0.1 units/kg/hr", route: "IV", freq: "Infusion", dur: "Until resolved", line: "emergency" },
+      { drug: "IV Fluids (NS)", dose: "1L", route: "IV", freq: "Q1H initially", dur: "Until rehydrated", line: "emergency" },
+      { drug: "Potassium chloride", dose: "20-40 mEq/L", route: "IV", freq: "Per IV fluid", dur: "Per protocol", line: "first" },
     ],
+    instructions: ["EMERGENCY: Continuous IV insulin and fluid resuscitation", "Monitor blood glucose hourly", "Check electrolytes every 2 hours"],
   },
   "hypertensive crisis": {
     tests: ["ECG", "BMP", "Renal function", "Urinalysis", "Chest X-ray", "Fundoscopy"],
     medications: [
-      { drug: "Labetalol", dose: "20mg IV", freq: "Q10min PRN", dur: "Until controlled" },
-      { drug: "Amlodipine", dose: "5mg", freq: "OD", dur: "Ongoing" },
+      { drug: "Labetalol", dose: "20mg", route: "IV", freq: "Q10min PRN", dur: "Until controlled", line: "emergency" },
+      { drug: "Amlodipine", dose: "5mg", route: "PO", freq: "OD", dur: "Ongoing", line: "first" },
     ],
+    instructions: ["EMERGENCY: Blood pressure must be reduced gradually", "Do NOT reduce BP by more than 25% in first hour", "Follow up with cardiologist within 1 week"],
   },
 };
 
-/**
- * Management Engine: resolves recommended tests and medications from diagnosis names.
- * Falls back to partial keyword matching when exact match unavailable.
- */
-function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; freq: string; dur: string }> } {
+function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }>; instructions: string[] } {
   const key = diagnosisName.toLowerCase().trim();
-  if (MANAGEMENT_MAP[key]) return MANAGEMENT_MAP[key];
-  // Partial match
+  if (MANAGEMENT_MAP[key]) return { ...MANAGEMENT_MAP[key], instructions: MANAGEMENT_MAP[key].instructions || [] };
   for (const [mapKey, val] of Object.entries(MANAGEMENT_MAP)) {
-    if (key.includes(mapKey) || mapKey.includes(key)) return val;
+    if (key.includes(mapKey) || mapKey.includes(key)) return { ...val, instructions: val.instructions || [] };
   }
-  return { tests: [], medications: [] };
+  return { tests: [], medications: [], instructions: [] };
 }
 
 // ── Scenarios ──
