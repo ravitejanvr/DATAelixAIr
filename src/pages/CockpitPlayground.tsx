@@ -1348,88 +1348,123 @@ export default function CockpitPlayground() {
                     <div className="rounded-xl border p-3.5 bg-amber-500/5 border-amber-500/15">
                       <div className="flex items-center gap-1.5 mb-2.5">
                         <Brain className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                        <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Assessment (AI Differential)</span>
+                        <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Assessment</span>
                       </div>
 
                       {mergedDiagnoses.length > 0 ? (
-                        <div className="space-y-3">
-                          {mergedDiagnoses.map((d: any, i: number) => (
-                            <div key={i} className="rounded-lg border border-border p-3 bg-background/60">
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}.</span>
-                                <span className="text-sm font-semibold text-foreground flex-1">{d.name}</span>
-                                {likelihoodBadge(d.pct)}
-                                <Badge variant="outline" className="text-[10px] font-mono">{d.pct}%</Badge>
-                                {d.mustNotMiss && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
-                              </div>
-
-                              {/* Probability bar */}
-                              <div className="h-1.5 rounded-full bg-muted mb-2">
-                                <div
-                                  className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`}
-                                  style={{ width: `${Math.min(d.pct, 100)}%` }}
-                                />
-                              </div>
-
-                              {reasoningLevel !== "debug" && (
-                                <>
-                                  {d.supporting.length > 0 && (
-                                    <div className="mt-1.5">
-                                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mb-1">Supporting evidence</p>
-                                      <div className="flex flex-wrap gap-1">
-                                        {d.supporting.slice(0, 6).map((e: string, ei: number) => (
-                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {d.contradicting.length > 0 && (
-                                    <div className="mt-1.5">
-                                      <p className="text-[10px] text-destructive font-semibold mb-1">Missing / Against</p>
-                                      <div className="flex flex-wrap gap-1">
-                                        {d.contradicting.map((e: string, ei: number) => (
-                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✗ {e}</span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
-                              )}
-
-                              {/* Explanation mode */}
-                              {reasoningLevel === "explanation" && d.bayesian && (
-                                <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border">
-                                  <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Modifier Contributions</p>
-                                  <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] font-mono">
-                                    {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(2)}</span>}
-                                    {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(2)}</span>}
-                                    {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(2)}</span>}
-                                    {d.bayesian.cluster_modifier != null && d.bayesian.cluster_modifier !== 1 && <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(2)}</span>}
-                                    {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && <span>Vitals: ×{d.bayesian.vital_modifier?.toFixed(2)}</span>}
-                                    {d.bayesian.anatomical_modifier != null && d.bayesian.anatomical_modifier !== 1 && <span>Location: ×{d.bayesian.anatomical_modifier?.toFixed(2)}</span>}
-                                  </div>
+                        <div className="space-y-2">
+                          {/* Primary Diagnosis */}
+                          {mergedDiagnoses.slice(0, 1).map((d: any, i: number) => (
+                            <div key={i}>
+                              <p className="text-[9px] font-bold text-primary uppercase tracking-wider mb-1.5">Primary Diagnosis</p>
+                              <div className="rounded-lg border border-primary/20 p-3 bg-primary/[0.03]">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="text-sm font-bold text-foreground flex-1">{d.name}</span>
+                                  {likelihoodBadge(d.pct)}
+                                  <Badge variant="outline" className="text-[10px] font-mono">{d.pct}%</Badge>
+                                  {d.mustNotMiss && <Badge className="text-[8px] bg-destructive/10 text-destructive border-destructive/20">⚠ Must not miss</Badge>}
                                 </div>
-                              )}
-
-                              {/* Debug mode */}
-                              {reasoningLevel === "debug" && d.bayesian && (
-                                <div className="mt-2 p-2 rounded-lg bg-muted/40 border border-border font-mono text-[9px] space-y-0.5">
-                                  <p className="font-semibold text-muted-foreground uppercase text-[8px]">Bayesian Breakdown</p>
-                                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                                    <span>Prior: {d.bayesian.prior?.toFixed(4)}</span>
-                                    <span>Symptom LH: {d.bayesian.symptom_likelihood?.toFixed(4)}</span>
-                                    <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(3)}</span>
-                                    <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(3)}</span>
-                                    <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(3)}</span>
-                                    <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(3)}</span>
-                                    <span>Vital: ×{d.bayesian.vital_modifier?.toFixed(3)}</span>
-                                    <span>Anatomical: ×{d.bayesian.anatomical_modifier?.toFixed(3)}</span>
-                                    <span className="col-span-2 font-bold text-primary">Posterior: {d.bayesian.posterior_probability?.toFixed(4)}</span>
-                                  </div>
+                                <div className="h-1.5 rounded-full bg-muted mb-2">
+                                  <div className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
                                 </div>
-                              )}
+                                {reasoningLevel !== "debug" && d.supporting.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {d.supporting.slice(0, 6).map((e: string, ei: number) => (
+                                      <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {reasoningLevel !== "debug" && d.contradicting.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {d.contradicting.map((e: string, ei: number) => (
+                                      <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✗ {e}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {reasoningLevel === "explanation" && d.bayesian && (
+                                  <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border">
+                                    <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Modifier Contributions</p>
+                                    <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] font-mono">
+                                      {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(2)}</span>}
+                                      {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(2)}</span>}
+                                      {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(2)}</span>}
+                                      {d.bayesian.cluster_modifier != null && d.bayesian.cluster_modifier !== 1 && <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(2)}</span>}
+                                      {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && <span>Vitals: ×{d.bayesian.vital_modifier?.toFixed(2)}</span>}
+                                    </div>
+                                  </div>
+                                )}
+                                {reasoningLevel === "debug" && d.bayesian && (
+                                  <div className="mt-2 p-2 rounded-lg bg-muted/40 border border-border font-mono text-[9px] space-y-0.5">
+                                    <p className="font-semibold text-muted-foreground uppercase text-[8px]">Bayesian Breakdown</p>
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                      <span>Prior: {d.bayesian.prior?.toFixed(4)}</span>
+                                      <span>Symptom LH: {d.bayesian.symptom_likelihood?.toFixed(4)}</span>
+                                      <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(3)}</span>
+                                      <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(3)}</span>
+                                      <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(3)}</span>
+                                      <span>Vital: ×{d.bayesian.vital_modifier?.toFixed(3)}</span>
+                                      <span className="col-span-2 font-bold text-primary">Posterior: {d.bayesian.posterior_probability?.toFixed(4)}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           ))}
+
+                          {/* Working Differentials */}
+                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 5).length > 0 && (
+                            <div>
+                              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-2">Working Differentials</p>
+                              <div className="space-y-1.5">
+                                {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 5).map((d: any, i: number) => (
+                                  <div key={i} className="rounded-lg border border-border p-2.5 bg-background/60">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-semibold text-foreground flex-1">{d.name}</span>
+                                      {likelihoodBadge(d.pct)}
+                                      <span className="text-xs font-mono text-muted-foreground">{d.pct}%</span>
+                                    </div>
+                                    <div className="h-1 rounded-full bg-muted mt-1">
+                                      <div className={`h-full rounded-full ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
+                                    </div>
+                                    {reasoningLevel !== "debug" && d.supporting.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-1.5">
+                                        {d.supporting.slice(0, 4).map((e: string, ei: number) => (
+                                          <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Must-Not-Miss */}
+                          {mergedDiagnoses.filter((d: any) => d.mustNotMiss && mergedDiagnoses.indexOf(d) > 0).length > 0 && (
+                            <div>
+                              <p className="text-[9px] font-bold text-destructive uppercase tracking-wider mb-1.5 mt-2 flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" /> Must Not Miss
+                              </p>
+                              <div className="space-y-1.5">
+                                {mergedDiagnoses.filter((d: any) => d.mustNotMiss && mergedDiagnoses.indexOf(d) > 0).map((d: any, i: number) => (
+                                  <div key={i} className="rounded-lg border border-destructive/30 p-2.5 bg-destructive/5">
+                                    <div className="flex items-center gap-2">
+                                      <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                      <span className="text-xs font-semibold text-destructive flex-1">{d.name}</span>
+                                      <span className="text-xs font-mono text-destructive">{d.pct}%</span>
+                                    </div>
+                                    {d.supporting.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-1.5 ml-5">
+                                        {d.supporting.slice(0, 3).map((e: string, ei: number) => (
+                                          <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✓ {e}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground italic">
@@ -1445,7 +1480,7 @@ export default function CockpitPlayground() {
                         <span className="text-xs font-bold uppercase tracking-wide text-purple-700 dark:text-purple-400">Plan</span>
                       </div>
 
-                      {/* Investigations — synced with Copilot selectedTests */}
+                      {/* Investigations */}
                       <div className="mb-3">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <FlaskConical className="h-3 w-3" /> Investigations
@@ -1460,9 +1495,8 @@ export default function CockpitPlayground() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">Select tests from AI Copilot →</p>
+                          <p className="text-xs text-muted-foreground italic">Select investigations from AI Copilot →</p>
                         )}
-                        {/* Unselected recommended tests */}
                         {allRecommendedTests.filter(t => !selectedTests.includes(t)).length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-1">
                             {allRecommendedTests.filter(t => !selectedTests.includes(t)).map(t => (
@@ -1475,23 +1509,27 @@ export default function CockpitPlayground() {
                         )}
                       </div>
 
-                      {/* Treatment — synced with Copilot pendingRx */}
+                      {/* Treatment — with Drug/Dose/Route/Freq format */}
                       <div className="mb-3">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <Pill className="h-3 w-3" /> Treatment
                         </p>
                         {planTreatments.length > 0 ? (
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             {planTreatments.map((rx, i) => (
-                              <div key={i} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
-                                <span className="font-medium text-foreground">{rx.drug_name}</span>
-                                <span className="text-muted-foreground">{rx.dose} · {rx.frequency} · {rx.duration}</span>
-                                <button onClick={() => setPendingRx(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
+                              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-foreground">{rx.drug_name}</p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {rx.dose} {(rx as any).route ? `${(rx as any).route} ` : ""}{rx.frequency} × {rx.duration}
+                                  </p>
+                                </div>
+                                <button onClick={() => setPendingRx(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">Select medications from AI Copilot →</p>
+                          <p className="text-xs text-muted-foreground italic">Select prescriptions from AI Copilot →</p>
                         )}
                       </div>
 
@@ -1507,6 +1545,38 @@ export default function CockpitPlayground() {
                           placeholder="Monitoring parameters, disposition, follow-up schedule…"
                           className="text-xs min-h-[32px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
                         />
+                      </div>
+
+                      {/* Patient Instructions */}
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
+                          <MessageSquare className="h-3 w-3" /> Instructions to Patient
+                        </p>
+                        {selectedInstructions.length > 0 ? (
+                          <div className="space-y-1">
+                            {selectedInstructions.map((inst, i) => (
+                              <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
+                                <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span className="flex-1 text-foreground">{inst}</span>
+                                <button onClick={() => setSelectedInstructions(prev => prev.filter(x => x !== inst))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">
+                            {allInstructions.length > 0 ? "Select instructions from AI Copilot →" : "Instructions will appear after diagnosis."}
+                          </p>
+                        )}
+                        {allInstructions.filter(i => !selectedInstructions.includes(i)).length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {allInstructions.filter(i => !selectedInstructions.includes(i)).slice(0, 5).map((inst, i) => (
+                              <Chip key={i} variant="action" size="sm"
+                                onClick={() => setSelectedInstructions(prev => [...prev, inst])}>
+                                + {inst.length > 40 ? inst.slice(0, 40) + "…" : inst}
+                              </Chip>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
