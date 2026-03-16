@@ -61,6 +61,8 @@ const SEVERITY_PRESETS = ["Mild", "Moderate", "Severe", "Worsening", "Improving"
 const BODY_LOCATION_PRESETS = ["Head", "Neck", "Chest", "Upper abdomen", "Lower abdomen", "Back", "Limbs", "Generalized", "Left side", "Right side"];
 const RISK_FACTOR_PRESETS = ["Smoking", "Alcohol", "Diabetes", "Hypertension", "Obesity", "Pregnancy", "Immunocompromised", "Recent surgery", "Recent travel", "Occupational exposure"];
 const MEDICAL_HISTORY_PRESETS = ["Asthma", "COPD", "Heart failure", "Diabetes mellitus", "Hypertension", "Previous stroke", "Gallstones", "Thyroid disorder", "Chronic kidney disease", "Cancer history"];
+const FAMILY_HISTORY_PRESETS = ["Heart disease", "Diabetes", "Cancer", "Stroke", "Autoimmune disease", "Hypertension", "Asthma"];
+const EXAM_FINDINGS_PRESETS = ["Neck stiffness", "Wheezing", "Crepitations", "Rebound tenderness", "Guarding", "Focal neurological deficit", "Pallor", "Jaundice", "Lymphadenopathy", "Pedal edema"];
 
 // Chief complaint → recommended symptoms map
 const CHIEF_COMPLAINT_SYMPTOMS: Record<string, string[]> = {
@@ -275,6 +277,8 @@ export default function Clinical() {
   const [selectedBodyLocation, setSelectedBodyLocation] = useState<string>("");
   const [selectedRiskFactors, setSelectedRiskFactors] = useState<string[]>([]);
   const [selectedMedicalHistory, setSelectedMedicalHistory] = useState<string[]>([]);
+  const [selectedFamilyHistory, setSelectedFamilyHistory] = useState<string[]>([]);
+  const [selectedExamFindings, setSelectedExamFindings] = useState<string[]>([]);
   const [expansionSelections, setExpansionSelections] = useState<Record<string, string[]>>({});
   const [priorMeds, setPriorMeds] = useState<{ name: string; dose: string; frequency: string }[]>([]);
   const [symptomSearch, setSymptomSearch] = useState("");
@@ -365,6 +369,7 @@ export default function Clinical() {
     if (selectedBodyLocation) subjParts.push(`Location: ${selectedBodyLocation}`);
     if (selectedRiskFactors.length > 0) subjParts.push(`Risk factors: ${selectedRiskFactors.join(", ")}`);
     if (selectedMedicalHistory.length > 0) subjParts.push(`PMH: ${selectedMedicalHistory.join(", ")}`);
+    if (selectedFamilyHistory.length > 0) subjParts.push(`FH: ${selectedFamilyHistory.join(", ")}`);
 
     const expDetails = Object.entries(expansionSelections)
       .filter(([_, vals]) => vals.length > 0)
@@ -423,7 +428,7 @@ export default function Clinical() {
     if (transcript.trim()) lines.push(`\nNotes: ${transcript}`);
 
     return lines.join("\n");
-  }, [selectedPatient, selectedSymptoms, selectedDuration, selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors, selectedMedicalHistory, patientVitals, expansionSelections, priorMeds, selectedDiagnoses, pendingRxFromSuggestions, selectedTests, selectedInstructions, transcript, intakeData]);
+  }, [selectedPatient, selectedSymptoms, selectedDuration, selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors, selectedMedicalHistory, selectedFamilyHistory, selectedExamFindings, patientVitals, expansionSelections, priorMeds, selectedDiagnoses, pendingRxFromSuggestions, selectedTests, selectedInstructions, transcript, intakeData]);
 
   // Auto-update summary unless manually edited
   useEffect(() => {
@@ -536,7 +541,7 @@ export default function Clinical() {
       setTimeout(() => runFullPipeline(), 100);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors.length, selectedMedicalHistory.length]);
+  }, [selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors.length, selectedMedicalHistory.length, selectedFamilyHistory.length, selectedExamFindings.length, patientVitals?.blood_sugar, patientVitals?.temperature, patientVitals?.pulse, patientVitals?.spo2]);
 
   useEffect(() => {
     if (!user) return;
@@ -666,7 +671,9 @@ export default function Clinical() {
       const locationContext = selectedBodyLocation ? ` Location: ${selectedBodyLocation}.` : "";
       const riskContext = selectedRiskFactors.length > 0 ? ` Risk factors: ${selectedRiskFactors.join(", ")}.` : "";
       const historyContext = selectedMedicalHistory.length > 0 ? ` Medical history: ${selectedMedicalHistory.join(", ")}.` : "";
-      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${onsetContext}${severityContext}${locationContext}${expansionDetails ? ` ${expansionDetails}.` : ""}${medsContext}${riskContext}${historyContext}`;
+      const familyContext = selectedFamilyHistory.length > 0 ? ` Family history: ${selectedFamilyHistory.join(", ")}.` : "";
+      const examContext = selectedExamFindings.length > 0 ? ` Exam findings: ${selectedExamFindings.join(", ")}.` : "";
+      effectiveTranscript = `Patient presents with ${selectedSymptoms.join(", ")}. Duration: ${selectedDuration || "not specified"}.${onsetContext}${severityContext}${locationContext}${expansionDetails ? ` ${expansionDetails}.` : ""}${medsContext}${riskContext}${historyContext}${familyContext}${examContext}`;
       setTranscript(effectiveTranscript);
     }
     if (!effectiveTranscript) return;
@@ -699,6 +706,14 @@ export default function Clinical() {
         if (selectedSeverity) (pipelineContext as any).severity = selectedSeverity;
         if (selectedBodyLocation) (pipelineContext as any).body_location = selectedBodyLocation;
         if (selectedRiskFactors.length > 0) (pipelineContext as any).risk_factors = selectedRiskFactors;
+        if (selectedFamilyHistory.length > 0) (pipelineContext as any).family_history = selectedFamilyHistory;
+        if (selectedExamFindings.length > 0) {
+          // Exam findings feed as additional symptoms for reasoning (e.g., "neck stiffness" maps to meningitis cluster)
+          const existingSymptoms = (pipelineContext as any).symptoms || [];
+          (pipelineContext as any).symptoms = [...new Set([...existingSymptoms, ...selectedExamFindings])];
+          (pipelineContext as any).exam_findings = selectedExamFindings;
+        }
+        if (patientVitals?.blood_sugar) (pipelineContext as any).blood_sugar = patientVitals.blood_sugar;
         if (selectedMedicalHistory.length > 0) {
           (pipelineContext as any).medical_history = [
             ...(pipelineContext.medical_history || []),
@@ -1110,7 +1125,7 @@ export default function Clinical() {
     setFollowUpDate(""); setFollowUpNotes("");
     setSelectedSymptoms([]); setSelectedDuration(""); setExpansionSelections({});
     setSelectedOnset(""); setSelectedSeverity(""); setSelectedBodyLocation("");
-    setSelectedRiskFactors([]); setSelectedMedicalHistory([]);
+    setSelectedRiskFactors([]); setSelectedMedicalHistory([]); setSelectedFamilyHistory([]); setSelectedExamFindings([]);
     setPriorMeds([]); setAutoGenerateTriggered(false); setSymptomSearch("");
     setFinalizationResults(null); setIsFinalizingConsultation(false);
     setConsultationSummary(""); setSummaryManuallyEdited(false);
@@ -1758,6 +1773,66 @@ export default function Clinical() {
                       </div>
                     );
                   })()}
+
+                  {/* Family History */}
+                  {selectedPatient && selectedSymptoms.length > 0 && (
+                    <div className="mt-2">
+                      <ChipGroup label="Family History">
+                        {selectedFamilyHistory.map(fh => (
+                          <Chip
+                            key={fh}
+                            variant="neutral"
+                            size="sm"
+                            selected
+                            removable
+                            onRemove={() => setSelectedFamilyHistory(prev => prev.filter(x => x !== fh))}
+                          >
+                            {fh}
+                          </Chip>
+                        ))}
+                        {FAMILY_HISTORY_PRESETS.filter(fh => !selectedFamilyHistory.includes(fh)).map(fh => (
+                          <Chip
+                            key={fh}
+                            variant="neutral"
+                            size="sm"
+                            onClick={() => setSelectedFamilyHistory(prev => [...prev, fh])}
+                          >
+                            {fh}
+                          </Chip>
+                        ))}
+                      </ChipGroup>
+                    </div>
+                  )}
+
+                  {/* Physical Examination Findings */}
+                  {selectedPatient && selectedSymptoms.length > 0 && (
+                    <div className="mt-2">
+                      <ChipGroup label="Exam Findings">
+                        {selectedExamFindings.map(ef => (
+                          <Chip
+                            key={ef}
+                            variant="alert"
+                            size="sm"
+                            selected
+                            removable
+                            onRemove={() => setSelectedExamFindings(prev => prev.filter(x => x !== ef))}
+                          >
+                            {ef}
+                          </Chip>
+                        ))}
+                        {EXAM_FINDINGS_PRESETS.filter(ef => !selectedExamFindings.includes(ef)).map(ef => (
+                          <Chip
+                            key={ef}
+                            variant="alert"
+                            size="sm"
+                            onClick={() => setSelectedExamFindings(prev => [...prev, ef])}
+                          >
+                            {ef}
+                          </Chip>
+                        ))}
+                      </ChipGroup>
+                    </div>
+                  )}
                 </ClinicalCard>
               )}
 
@@ -1892,6 +1967,8 @@ export default function Clinical() {
                           if (vitalParts.length) parts.push(vitalParts.join(", "));
                           // Lab results from tests
                           if (selectedTests.length > 0) parts.push(`Labs ordered: ${selectedTests.join(", ")}`);
+                          // Exam findings
+                          if (selectedExamFindings.length > 0) parts.push(`Exam: ${selectedExamFindings.join(", ")}`);
                         }
                         return parts.join("\n");
                       })()}
@@ -1902,7 +1979,7 @@ export default function Clinical() {
                     />
                   </div>
 
-                  {/* Assessment */}
+                  {/* Assessment — Enhanced with Bayesian ranking */}
                   <div className="rounded-xl border p-3 bg-amber-500/5 border-amber-500/15">
                     <div className="flex items-center gap-1.5 mb-2">
                       <Brain className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
@@ -1911,6 +1988,29 @@ export default function Clinical() {
                     {selectedDiagnoses.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-2">
                         {selectedDiagnoses.map(d => <Chip key={d} variant="diagnosis" selected removable onRemove={() => toggleDiagnosis(d)}>{d}</Chip>)}
+                      </div>
+                    )}
+                    {/* Bayesian-ranked differential inline */}
+                    {pipelineBayesian && pipelineBayesian.diagnoses?.length > 0 && selectedDiagnoses.length === 0 && (
+                      <div className="mb-2 space-y-1">
+                        <p className="text-[9px] font-semibold text-muted-foreground uppercase">AI Differential (tap to select)</p>
+                        {pipelineBayesian.diagnoses.slice(0, 5).map((d: any, i: number) => {
+                          const pct = Math.round((d.posterior_probability || 0) * 100);
+                          const name = pipelineHypotheses?.find(
+                            (h: any) => h.diagnosis && d.supporting_evidence?.some((e: string) => h.supporting_factors?.includes(e))
+                          )?.diagnosis || d.diagnosis_id;
+                          const isUUID = /^[0-9a-f]{8}-/.test(name);
+                          const displayName = isUUID ? (d.supporting_evidence?.[0] || `Dx ${i + 1}`) : name;
+                          return (
+                            <div key={d.diagnosis_id} className="flex items-center gap-1.5">
+                              <Chip variant="diagnosis" size="sm" onClick={() => toggleDiagnosis(displayName)}>
+                                {displayName}
+                              </Chip>
+                              <Badge variant="outline" className="text-[9px]">{pct}%</Badge>
+                              {d.must_not_miss && <AlertTriangle className="h-2.5 w-2.5 text-destructive" />}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     <Textarea
