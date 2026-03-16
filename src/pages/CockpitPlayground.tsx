@@ -170,6 +170,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Nitrofurantoin", dose: "100mg", route: "PO", freq: "BD", dur: "5 days", line: "first" },
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "As needed", line: "first" },
     ],
+    monitoring: ["Urine culture sensitivity after 48 hours", "Follow up if symptoms persist after completing antibiotics"],
     instructions: ["Drink at least 2-3 litres of water daily", "Complete the full antibiotic course", "Urinate frequently — do not hold urine", "Return if: fever, back pain, blood in urine"],
   },
   "meningitis": {
