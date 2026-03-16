@@ -225,6 +225,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Pantoprazole", dose: "40mg", route: "PO", freq: "OD", dur: "4 weeks", line: "first" },
       { drug: "Domperidone", dose: "10mg", route: "PO", freq: "TID", dur: "1 week", line: "first" },
     ],
+    monitoring: ["Symptom reassessment at 4 weeks", "H. pylori eradication confirmation if positive"],
     instructions: ["Avoid spicy, acidic, and fried foods", "Eat small frequent meals", "Avoid NSAIDs and alcohol", "Follow up in 4 weeks if symptoms persist"],
   },
   "peptic ulcer disease": {
