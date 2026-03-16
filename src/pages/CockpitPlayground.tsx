@@ -61,6 +61,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Paracetamol", dose: "500mg", route: "PO", freq: "TID", dur: "5 days", line: "first" },
       { drug: "Ibuprofen", dose: "400mg", route: "PO", freq: "TID", dur: "3 days", line: "alternative" },
     ],
+    monitoring: ["Headache diary — frequency and triggers", "Follow up if symptoms persist >2 weeks"],
     instructions: ["Apply warm compress to neck/shoulders", "Practice stress management techniques", "Ensure adequate sleep (7-8 hours)", "Follow up if symptoms worsen or persist >2 weeks"],
   },
   "subarachnoid hemorrhage": {
