@@ -277,6 +277,8 @@ export default function Clinical() {
   const [selectedBodyLocation, setSelectedBodyLocation] = useState<string>("");
   const [selectedRiskFactors, setSelectedRiskFactors] = useState<string[]>([]);
   const [selectedMedicalHistory, setSelectedMedicalHistory] = useState<string[]>([]);
+  const [selectedFamilyHistory, setSelectedFamilyHistory] = useState<string[]>([]);
+  const [selectedExamFindings, setSelectedExamFindings] = useState<string[]>([]);
   const [expansionSelections, setExpansionSelections] = useState<Record<string, string[]>>({});
   const [priorMeds, setPriorMeds] = useState<{ name: string; dose: string; frequency: string }[]>([]);
   const [symptomSearch, setSymptomSearch] = useState("");

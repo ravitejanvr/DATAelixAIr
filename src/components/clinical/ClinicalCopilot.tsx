@@ -415,55 +415,109 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Bayesian Probability Ranking */}
+      {/* Bayesian Probability Ranking — Enhanced with diagnosis names & evidence */}
       {bayesianResult && bayesianResult.diagnoses.length > 0 && (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <TrendingUp className="h-3 w-3 text-primary" /> Bayesian Probability
+              <TrendingUp className="h-3 w-3 text-primary" /> Differential Diagnosis
               <Badge variant="outline" className="text-[8px] ml-auto">
                 {bayesianResult.execution_ms}ms
               </Badge>
             </p>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {bayesianResult.diagnoses.slice(0, 6).map((d, i) => {
                 const pct = Math.round(d.posterior_probability * 100);
+                // Try to resolve a readable name from hypotheses or DDX
+                const resolvedName = hypotheses?.find(
+                  h => h.diagnosis.toLowerCase().includes(d.diagnosis_id.slice(0, 6)) ||
+                       d.supporting_evidence?.some(e => h.supporting_factors?.includes(e))
+                )?.diagnosis || d.diagnosis_id;
+                const isUUID = /^[0-9a-f]{8}-/.test(resolvedName);
+                const displayName = isUUID ? (d.supporting_evidence?.[0] || resolvedName.slice(0, 12) + "…") : resolvedName;
+                const isSelected = selectedDiagnoses.includes(displayName);
                 return (
-                  <div key={d.diagnosis_id} className="flex items-center gap-1.5">
-                    <span className="text-[9px] text-muted-foreground w-3 shrink-0">{i + 1}.</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[9px] font-medium text-foreground truncate">
-                          {d.diagnosis_id.slice(0, 8)}…
-                        </span>
-                        {d.must_not_miss && (
-                          <AlertTriangle className="h-2.5 w-2.5 text-destructive shrink-0" />
+                  <div key={d.diagnosis_id} className="group">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-muted-foreground w-3 shrink-0">{i + 1}.</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <Chip
+                            variant="diagnosis"
+                            size="sm"
+                            selected={isSelected}
+                            onClick={() => handleDiagnosisToggle(displayName)}
+                          >
+                            {displayName}
+                          </Chip>
+                          {d.must_not_miss && (
+                            <AlertTriangle className="h-2.5 w-2.5 text-destructive shrink-0" title="Must not miss" />
+                          )}
+                        </div>
+                        <div className="h-1 bg-muted rounded-full mt-0.5 overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all"
+                            style={{ width: `${Math.max(pct, 2)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] shrink-0 ${
+                          pct >= 30 ? "text-emerald-600 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800" :
+                          pct >= 15 ? "text-amber-600 border-amber-200 dark:text-amber-400 dark:border-amber-800" :
+                          "text-muted-foreground"
+                        }`}
+                      >
+                        {pct}%
+                      </Badge>
+                    </div>
+                    {/* Supporting evidence for top 3 */}
+                    {i < 3 && d.supporting_evidence?.length > 0 && (
+                      <div className="ml-6 mt-0.5 text-[8px] text-muted-foreground">
+                        <span className="text-emerald-600 dark:text-emerald-400">✓</span> {d.supporting_evidence.slice(0, 4).join(", ")}
+                      </div>
+                    )}
+                    {/* Show key modifiers applied */}
+                    {i < 2 && (
+                      <div className="ml-6 mt-0.5 flex flex-wrap gap-0.5">
+                        {d.onset_modifier && d.onset_modifier !== 1 && (
+                          <span className={`text-[7px] px-1 py-0.5 rounded ${d.onset_modifier > 1 ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400"}`}>
+                            Onset ×{d.onset_modifier.toFixed(1)}
+                          </span>
+                        )}
+                        {d.duration_modifier && d.duration_modifier !== 1 && (
+                          <span className={`text-[7px] px-1 py-0.5 rounded ${d.duration_modifier > 1 ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400"}`}>
+                            Duration ×{d.duration_modifier.toFixed(1)}
+                          </span>
+                        )}
+                        {d.vital_modifier && d.vital_modifier !== 1 && (
+                          <span className={`text-[7px] px-1 py-0.5 rounded ${d.vital_modifier > 1 ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400"}`}>
+                            Vitals ×{d.vital_modifier.toFixed(1)}
+                          </span>
+                        )}
+                        {d.risk_modifier && d.risk_modifier !== 1 && (
+                          <span className={`text-[7px] px-1 py-0.5 rounded ${d.risk_modifier > 1 ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400"}`}>
+                            Risk ×{d.risk_modifier.toFixed(1)}
+                          </span>
+                        )}
+                        {d.cluster_modifier && d.cluster_modifier !== 1 && (
+                          <span className={`text-[7px] px-1 py-0.5 rounded ${d.cluster_modifier > 1 ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400"}`}>
+                            Cluster ×{d.cluster_modifier.toFixed(1)}
+                          </span>
                         )}
                       </div>
-                      <div className="h-1 bg-muted rounded-full mt-0.5 overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${Math.max(pct, 2)}%` }}
-                        />
-                      </div>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={`text-[9px] shrink-0 ${
-                        pct >= 30 ? "text-emerald-600 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800" :
-                        pct >= 15 ? "text-amber-600 border-amber-200 dark:text-amber-400 dark:border-amber-800" :
-                        "text-muted-foreground"
-                      }`}
-                    >
-                      {pct}%
-                    </Badge>
+                    )}
                   </div>
                 );
               })}
             </div>
             {bayesianResult.symptoms_resolved > 0 && (
-              <p className="text-[8px] text-muted-foreground mt-1">
-                {bayesianResult.symptoms_resolved} symptoms · {bayesianResult.physiology_states_used} physiology states · {bayesianResult.risk_factors_applied} risk factors
+              <p className="text-[8px] text-muted-foreground mt-1.5">
+                {bayesianResult.symptoms_resolved} symptoms · {bayesianResult.physiology_states_used} physio · {bayesianResult.risk_factors_applied} risk factors
+                {bayesianResult.onset_pattern && <> · onset: {bayesianResult.onset_pattern}</>}
+                {bayesianResult.duration_category && <> · duration: {bayesianResult.duration_category}</>}
+                {bayesianResult.cluster_matches && bayesianResult.cluster_matches > 0 && <> · {bayesianResult.cluster_matches} clusters</>}
               </p>
             )}
           </ClinicalCard>
