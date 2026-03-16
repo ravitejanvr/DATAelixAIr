@@ -759,25 +759,36 @@ export default function CockpitPlayground() {
     });
   }, [pipelineBayesian, pipelineHypotheses, pipelineDDX]);
 
-  // ── All recommended tests from pipeline + management engine ──
+  // ── All recommended tests from DDX + pipeline + management engine ──
   const allRecommendedTests = useMemo(() => {
     const tests = new Set<string>();
+    // Direct from DDX engine
+    (pipelineDDX?.recommended_labs || []).forEach((l: any) => tests.add(l.test_name));
     mergedDiagnoses.forEach((d: any) => d.tests?.forEach((t: string) => tests.add(t)));
     pipelineHypotheses.forEach(h => h.recommended_tests?.forEach(t => tests.add(t)));
     return Array.from(tests);
-  }, [mergedDiagnoses, pipelineHypotheses]);
+  }, [mergedDiagnoses, pipelineHypotheses, pipelineDDX]);
 
-  // ── All recommended medications from management engine ──
+  // ── All recommended medications from DDX + management engine ──
   const allRecommendedMedications = useMemo(() => {
     const seen = new Set<string>();
     const meds: Array<{ drug: string; dose: string; freq: string; dur: string }> = [];
+    // Direct from DDX engine suggested_medications
+    (pipelineDDX?.suggested_medications || []).forEach((m: any) => {
+      const name = m.generic_name || m.drug_name || m.drug || "";
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        meds.push({ drug: name, dose: m.dose || "", freq: m.frequency || "", dur: m.duration || "" });
+      }
+    });
+    // From management engine via mergedDiagnoses
     mergedDiagnoses.forEach((d: any) => {
       d.medications?.forEach((rx: any) => {
         if (!seen.has(rx.drug)) { seen.add(rx.drug); meds.push(rx); }
       });
     });
     return meds;
-  }, [mergedDiagnoses]);
+  }, [mergedDiagnoses, pipelineDDX]);
 
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
