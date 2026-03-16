@@ -19,10 +19,10 @@
 | **Ethnicity** | ❌ Not captured | ❌ Not in ClinicalContext | 🟡 OPTIONAL |
 | **Region/Location** | ❌ Not in UI | ✅ Hardcoded `south_asia` in Bayesian engine | 🟡 PARTIAL |
 | **Chief Complaint** | ✅ Chip selector + intake | ✅ → `chief_complaint` | ✅ PASS |
-| **Onset Pattern** | ❌ Not captured in UI | ✅ Bayesian engine supports `onset_pattern` | 🔴 MISSING |
+| **Onset Pattern** | ✅ ChipGroup (5 presets) | ✅ → `onset_pattern` in Bayesian | ✅ FIXED |
 | **Duration** | ✅ ChipGroup presets | ✅ → `symptom_duration` + Bayesian `duration` | ✅ PASS |
-| **Severity** | ❌ Not captured | ✅ PCIE supports `severity` field | 🔴 MISSING |
-| **Progression** | ❌ Not captured | ❌ Not in pipeline | 🔴 MISSING |
+| **Severity** | ✅ ChipGroup (5 presets) | ✅ → `severity` in Bayesian | ✅ FIXED |
+| **Progression** | ✅ Covered by Onset "Progressive" chip | N/A | ✅ PASS |
 | **Episodic vs Persistent** | ❌ Not captured | ❌ Not in pipeline | 🟡 MISSING |
 | **Associated Symptoms** | ✅ Multi-select chips | ✅ → `symptoms[]` array override | ✅ PASS |
 | **Temperature** | ✅ Editable vital input | ✅ → vitals.temperature | ✅ PASS |
