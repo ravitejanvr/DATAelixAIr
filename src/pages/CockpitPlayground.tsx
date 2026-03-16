@@ -281,6 +281,7 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
       { drug: "Pantoprazole", dose: "40mg", route: "PO", freq: "OD", dur: "8 weeks", line: "first" },
       { drug: "Domperidone", dose: "10mg", route: "PO", freq: "TID", dur: "2 weeks", line: "first" },
     ],
+    monitoring: ["Symptom response at 4 weeks", "Consider step-down to H2 blocker after 8 weeks"],
     instructions: ["Elevate head of bed", "Avoid eating 3 hours before bedtime", "Avoid spicy, fatty, citrus foods and caffeine", "Lose weight if overweight"],
   },
   "asthma exacerbation": {
