@@ -714,6 +714,7 @@ export default function Clinical() {
           (pipelineContext as any).exam_findings = selectedExamFindings;
         }
         if (patientVitals?.blood_sugar) (pipelineContext as any).blood_sugar = patientVitals.blood_sugar;
+        if (selectedDuration) (pipelineContext as any).symptom_duration = selectedDuration;
         if (selectedMedicalHistory.length > 0) {
           (pipelineContext as any).medical_history = [
             ...(pipelineContext.medical_history || []),
