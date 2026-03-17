@@ -489,6 +489,7 @@ export default function CockpitPlayground() {
   const [selectedDiagnoses, setSelectedDiagnoses] = useState<string[]>([]);
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
   const [selectedInstructions, setSelectedInstructions] = useState<string[]>([]);
+  const [selectedMonitoring, setSelectedMonitoring] = useState<string[]>([]);
   const [pendingRx, setPendingRx] = useState<{ drug_name: string; dose: string; frequency: string; duration: string }[]>([]);
 
   // Scenario & comparison
@@ -497,8 +498,9 @@ export default function CockpitPlayground() {
   const [snapshots, setSnapshots] = useState<PipelineSnapshot[]>([]);
   const [showComparison, setShowComparison] = useState(false);
 
-  // Context tree inline editing
   const [editingCategory, setEditingCategory] = useState<ContextCategory | null>(null);
+  const [expandedDx, setExpandedDx] = useState<Set<string>>(new Set());
+  const [showMoreDx, setShowMoreDx] = useState(false);
 
   // Command bar
   const [commandInput, setCommandInput] = useState("");
@@ -533,6 +535,7 @@ export default function CockpitPlayground() {
     setSelectedDiagnoses([]);
     setSelectedTests([]);
     setSelectedInstructions([]);
+    setSelectedMonitoring([]);
     setPendingRx([]);
     setSelectedScenario(scenarioName);
     setEditingCategory(null);
@@ -551,7 +554,7 @@ export default function CockpitPlayground() {
     setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
     setPipelinePhysiology(null); setPipelineBayesian(null); setPipelineDDX(null); setSafetyResults(null);
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedInstructions([]);
-    setPendingRx([]); setSelectedScenario(""); setSnapshots([]); setShowComparison(false);
+    setSelectedMonitoring([]); setPendingRx([]); setSelectedScenario(""); setSnapshots([]); setShowComparison(false);
     setPipelineStage(null); setStageLatencies({}); setEditingCategory(null);
     setCommandInput("");
   };
@@ -949,6 +952,14 @@ export default function CockpitPlayground() {
     toast({ title: "Context updated", description: `Extracted ${symptomMatches.length} signals from input` });
   }, [commandInput, chiefComplaint, toast]);
 
+  // ── Auto-populate selectedDiagnoses from top mergedDiagnoses ──
+  useEffect(() => {
+    if (mergedDiagnoses.length > 0) {
+      const topNames = mergedDiagnoses.slice(0, 3).map((d: any) => d.name);
+      setSelectedDiagnoses(topNames);
+    }
+  }, [mergedDiagnoses]);
+
   // ── SOAP auto-sync: regenerate Treatment Plan text from selections ──
   useEffect(() => {
     if (soapManualEdits["Treatment Plan"]) return;
@@ -960,8 +971,8 @@ export default function CockpitPlayground() {
       const rxLines = pendingRx.map(rx => `${rx.drug_name} ${rx.dose} ${(rx as any).route || "PO"} ${rx.frequency}`).join("; ");
       parts.push(`Treatment: ${rxLines}.`);
     }
-    if (allMonitoring.length > 0) {
-      parts.push(`Monitoring: ${allMonitoring.join("; ")}.`);
+    if (selectedMonitoring.length > 0) {
+      parts.push(`Monitoring: ${selectedMonitoring.join("; ")}.`);
     }
     if (selectedInstructions.length > 0) {
       parts.push(`Patient instructions: ${selectedInstructions.join(". ")}.`);
@@ -969,9 +980,9 @@ export default function CockpitPlayground() {
     if (parts.length > 0) {
       setSoapSections(prev => ({ ...prev, "Treatment Plan": parts.join("\n") }));
     }
-  }, [selectedTests, pendingRx, selectedInstructions, allMonitoring, soapManualEdits]);
+  }, [selectedTests, pendingRx, selectedInstructions, selectedMonitoring, soapManualEdits]);
 
-  // ── Copilot props — wired tests/medications, NO diagnoses ──
+  // ── Copilot props — wired tests/medications/monitoring, NO diagnoses ──
   const copilotProps = {
     diagnoses: [] as string[], selectedDiagnoses,
     onToggleDiagnosis: (d: string) => setSelectedDiagnoses(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]),
@@ -985,20 +996,21 @@ export default function CockpitPlayground() {
         setPendingRx(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur, route: rx.route || "PO" }]);
       }
     },
-    safetyResults,
+    safetyResults: pendingRx.length > 0 ? safetyResults : null,
     patientAge: mockPatient?.age,
     allergies: mockPatient?.allergies || [],
     diagnosis: selectedDiagnoses[0],
     chiefComplaint,
     instructions: allInstructions, selectedInstructions,
     onToggleInstruction: (inst: string) => setSelectedInstructions(prev => prev.includes(inst) ? prev.filter(x => x !== inst) : [...prev, inst]),
-    // No hypotheses or bayesian passed — diagnoses live only in Assessment
+    monitoring: allMonitoring, selectedMonitoring,
+    onToggleMonitoring: (m: string) => setSelectedMonitoring(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]),
     pipelineEvidence, pipelineCompliance,
     visitId: null, consultationId: null, clinicId: null,
-    pipelineStage: pipelineRunning ? pipelineStage : null,
+    pipelineStage: reasoningLevel !== "doctor" && pipelineRunning ? pipelineStage : null,
     stageLatencies,
     physiologicalContext: pipelinePhysiology,
-    isAdmin: true,
+    isAdmin: reasoningLevel === "debug",
   };
 
   // ── Likelihood badge ──
@@ -1496,90 +1508,133 @@ export default function CockpitPlayground() {
                       {mergedDiagnoses.length > 0 ? (
                         <div className="space-y-2">
                           {/* Primary Diagnosis */}
-                          {mergedDiagnoses.slice(0, 1).map((d: any, i: number) => (
+                          {mergedDiagnoses.slice(0, 1).map((d: any, i: number) => {
+                            const isExpanded = expandedDx.has(d.name);
+                            return (
                             <div key={i}>
                               <p className="text-[9px] font-bold text-primary uppercase tracking-wider mb-1.5">Primary Diagnosis</p>
-                              <div className="rounded-lg border border-primary/20 p-3 bg-primary/[0.03]">
+                              <button
+                                onClick={() => setExpandedDx(prev => { const n = new Set(prev); n.has(d.name) ? n.delete(d.name) : n.add(d.name); return n; })}
+                                className="w-full text-left rounded-lg border border-primary/20 p-3 bg-primary/[0.03] hover:bg-primary/[0.05] transition-colors"
+                              >
                                 <div className="flex items-center gap-2 mb-1.5">
                                   <span className="text-sm font-bold text-foreground flex-1">{d.name}</span>
                                   {likelihoodBadge(d.pct)}
                                   <Badge variant="outline" className="text-[10px] font-mono">{d.pct}%</Badge>
                                   {d.mustNotMiss && <Badge className="text-[8px] bg-destructive/10 text-destructive border-destructive/20">⚠ Must not miss</Badge>}
+                                  {isExpanded ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
                                 </div>
-                                <div className="h-1.5 rounded-full bg-muted mb-2">
+                                <div className="h-1.5 rounded-full bg-muted">
                                   <div className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
                                 </div>
-                                {reasoningLevel !== "debug" && d.supporting.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {d.supporting.slice(0, 6).map((e: string, ei: number) => (
-                                      <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
-                                    ))}
-                                  </div>
-                                )}
-                                {reasoningLevel !== "debug" && d.contradicting.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {d.contradicting.map((e: string, ei: number) => (
-                                      <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✗ {e}</span>
-                                    ))}
-                                  </div>
-                                )}
-                                {reasoningLevel === "explanation" && d.bayesian && (
-                                  <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border">
-                                    <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Modifier Contributions</p>
-                                    <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] font-mono">
-                                      {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(2)}</span>}
-                                      {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(2)}</span>}
-                                      {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(2)}</span>}
-                                      {d.bayesian.cluster_modifier != null && d.bayesian.cluster_modifier !== 1 && <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(2)}</span>}
-                                      {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && <span>Vitals: ×{d.bayesian.vital_modifier?.toFixed(2)}</span>}
+                              </button>
+                              {isExpanded && (
+                                <div className="mt-1.5 rounded-lg border border-border p-2.5 bg-muted/20 space-y-2">
+                                  {d.supporting.length > 0 && (
+                                    <div>
+                                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Supporting Evidence</p>
+                                      <div className="flex flex-wrap gap-1">
+                                        {d.supporting.map((e: string, ei: number) => (
+                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                                {reasoningLevel === "debug" && d.bayesian && (
-                                  <div className="mt-2 p-2 rounded-lg bg-muted/40 border border-border font-mono text-[9px] space-y-0.5">
-                                    <p className="font-semibold text-muted-foreground uppercase text-[8px]">Bayesian Breakdown</p>
-                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                                      <span>Prior: {d.bayesian.prior?.toFixed(4)}</span>
-                                      <span>Symptom LH: {d.bayesian.symptom_likelihood?.toFixed(4)}</span>
-                                      <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(3)}</span>
-                                      <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(3)}</span>
-                                      <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(3)}</span>
-                                      <span>Vital: ×{d.bayesian.vital_modifier?.toFixed(3)}</span>
-                                      <span className="col-span-2 font-bold text-primary">Posterior: {d.bayesian.posterior_probability?.toFixed(4)}</span>
+                                  )}
+                                  {d.contradicting.length > 0 && (
+                                    <div>
+                                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Against</p>
+                                      <div className="flex flex-wrap gap-1">
+                                        {d.contradicting.map((e: string, ei: number) => (
+                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✗ {e}</span>
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
+                                  )}
+                                  {reasoningLevel === "explanation" && d.bayesian && (
+                                    <div className="p-2 rounded-lg bg-muted/30 border border-border">
+                                      <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Modifier Contributions</p>
+                                      <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] font-mono">
+                                        {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(2)}</span>}
+                                        {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(2)}</span>}
+                                        {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(2)}</span>}
+                                        {d.bayesian.cluster_modifier != null && d.bayesian.cluster_modifier !== 1 && <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(2)}</span>}
+                                        {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && <span>Vitals: ×{d.bayesian.vital_modifier?.toFixed(2)}</span>}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {reasoningLevel === "debug" && d.bayesian && (
+                                    <div className="p-2 rounded-lg bg-muted/40 border border-border font-mono text-[9px] space-y-0.5">
+                                      <p className="font-semibold text-muted-foreground uppercase text-[8px]">Bayesian Breakdown</p>
+                                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                        <span>Prior: {d.bayesian.prior?.toFixed(4)}</span>
+                                        <span>Symptom LH: {d.bayesian.symptom_likelihood?.toFixed(4)}</span>
+                                        <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(3)}</span>
+                                        <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(3)}</span>
+                                        <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(3)}</span>
+                                        <span>Vital: ×{d.bayesian.vital_modifier?.toFixed(3)}</span>
+                                        <span className="col-span-2 font-bold text-primary">Posterior: {d.bayesian.posterior_probability?.toFixed(4)}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                          ))}
+                          )})}
 
                           {/* Working Differentials */}
-                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 5).length > 0 && (
+                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 3).length > 0 && (
                             <div>
                               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-2">Working Differentials</p>
                               <div className="space-y-1.5">
-                                {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 5).map((d: any, i: number) => (
-                                  <div key={i} className="rounded-lg border border-border p-2.5 bg-background/60">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs font-semibold text-foreground flex-1">{d.name}</span>
-                                      {likelihoodBadge(d.pct)}
-                                      <span className="text-xs font-mono text-muted-foreground">{d.pct}%</span>
-                                    </div>
-                                    <div className="h-1 rounded-full bg-muted mt-1">
-                                      <div className={`h-full rounded-full ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
-                                    </div>
-                                    {reasoningLevel !== "debug" && d.supporting.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-1.5">
+                                {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 3).map((d: any, i: number) => {
+                                  const isExpanded = expandedDx.has(d.name);
+                                  return (
+                                  <div key={i}>
+                                    <button
+                                      onClick={() => setExpandedDx(prev => { const n = new Set(prev); n.has(d.name) ? n.delete(d.name) : n.add(d.name); return n; })}
+                                      className="w-full text-left rounded-lg border border-border p-2.5 bg-background/60 hover:bg-muted/50 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold text-foreground flex-1">{d.name}</span>
+                                        {likelihoodBadge(d.pct)}
+                                        <span className="text-xs font-mono text-muted-foreground">{d.pct}%</span>
+                                        {isExpanded ? <ChevronUp className="h-2.5 w-2.5 text-muted-foreground" /> : <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />}
+                                      </div>
+                                      <div className="h-1 rounded-full bg-muted mt-1">
+                                        <div className={`h-full rounded-full ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
+                                      </div>
+                                    </button>
+                                    {isExpanded && d.supporting.length > 0 && (
+                                      <div className="mt-1 ml-3 flex flex-wrap gap-1">
                                         {d.supporting.slice(0, 4).map((e: string, ei: number) => (
                                           <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
                                         ))}
                                       </div>
                                     )}
                                   </div>
-                                ))}
+                                )})}
                               </div>
                             </div>
                           )}
+
+                          {/* Show more toggle for additional differentials */}
+                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).length > 3 && (
+                            <button
+                              onClick={() => setShowMoreDx(prev => !prev)}
+                              className="text-[10px] text-primary font-medium hover:underline flex items-center gap-1 mt-1"
+                            >
+                              {showMoreDx ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              {showMoreDx ? "Show less" : `Show ${mergedDiagnoses.filter((d: any) => !d.mustNotMiss).length - 3} more`}
+                            </button>
+                          )}
+                          {showMoreDx && mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(3).map((d: any, i: number) => (
+                            <div key={`more-${i}`} className="rounded-lg border border-border p-2 bg-background/40">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-foreground flex-1">{d.name}</span>
+                                <span className="text-[10px] font-mono text-muted-foreground">{d.pct}%</span>
+                              </div>
+                            </div>
+                          ))}
 
                           {/* Must-Not-Miss */}
                           {mergedDiagnoses.filter((d: any) => d.mustNotMiss && mergedDiagnoses.indexOf(d) > 0).length > 0 && (
@@ -1665,22 +1720,25 @@ export default function CockpitPlayground() {
                         )}
                       </div>
 
-                      {/* Monitoring & Follow-up */}
+                      {/* Monitoring & Follow-up — selected only */}
                       <div className="mb-3">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <Activity className="h-3 w-3" /> Monitoring & Follow-up
                         </p>
-                        {allMonitoring.length > 0 ? (
+                        {selectedMonitoring.length > 0 ? (
                           <div className="space-y-1">
-                            {allMonitoring.map((m, i) => (
+                            {selectedMonitoring.map((m, i) => (
                               <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
-                                <Activity className="h-3 w-3 text-primary shrink-0" />
+                                <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                 <span className="flex-1 text-foreground">{m}</span>
+                                <button onClick={() => setSelectedMonitoring(prev => prev.filter(x => x !== m))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">Monitoring parameters will appear after diagnosis.</p>
+                          <p className="text-xs text-muted-foreground italic">
+                            {allMonitoring.length > 0 ? "Select monitoring from AI Copilot →" : "Monitoring parameters will appear after diagnosis."}
+                          </p>
                         )}
                       </div>
 
@@ -1749,27 +1807,19 @@ export default function CockpitPlayground() {
         {/* ══════════ COMMAND BAR ══════════ */}
         {mockPatient && (
           <div className="shrink-0 border-t border-border bg-card px-4 py-2.5">
-            <div className="flex items-center gap-2.5 max-w-4xl mx-auto">
-              <div className="flex items-center gap-1.5 shrink-0">
-                <MessageSquare className="h-4 w-4 text-primary" />
-              </div>
+            <div className="flex items-center gap-2.5 max-w-4xl mx-auto rounded-xl border border-border bg-background px-4 py-2 shadow-sm">
+              <Search className="h-4 w-4 text-muted-foreground shrink-0" />
               <input
                 type="text"
                 value={commandInput}
                 onChange={e => setCommandInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleCommand(); }}
-                placeholder="Input anything! Type notes, ask AI, or dictate…"
+                placeholder="Type clinical notes, symptoms, or ask AI…"
                 className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
               />
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Button variant="ghost" size="sm" className="h-7 px-2 gap-1 text-muted-foreground hover:text-primary" title="Voice input — Powered by ElevenLabs">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-                  <span className="text-[8px] text-muted-foreground/60">ElevenLabs</span>
-                </Button>
-                <Button variant="ghost" size="sm" className="h-7 px-2.5" onClick={handleCommand} disabled={!commandInput.trim()}>
-                  <Send className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" title="Voice input">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+              </Button>
             </div>
           </div>
         )}
