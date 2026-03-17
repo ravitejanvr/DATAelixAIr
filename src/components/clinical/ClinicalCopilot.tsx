@@ -84,6 +84,9 @@ interface ClinicalCopilotProps {
   instructions: string[];
   selectedInstructions: string[];
   onToggleInstruction: (instruction: string) => void;
+  monitoring?: string[];
+  selectedMonitoring?: string[];
+  onToggleMonitoring?: (m: string) => void;
   hypotheses?: HypothesisEntry[];
   pipelineEvidence?: PipelineEvidence | null;
   pipelineCompliance?: PipelineCompliance | null;
@@ -155,6 +158,9 @@ export default function ClinicalCopilot({
   instructions,
   selectedInstructions,
   onToggleInstruction,
+  monitoring,
+  selectedMonitoring,
+  onToggleMonitoring,
   hypotheses,
   pipelineEvidence,
   pipelineCompliance,
@@ -522,6 +528,22 @@ export default function ClinicalCopilot({
               <p className="text-[8px] text-muted-foreground mt-1 italic flex items-center gap-1"><Target className="h-2.5 w-2.5" /> Pediatric dose validation active</p>
             )}
             <p className="text-[8px] text-muted-foreground mt-1 italic">Validated in {medicationValidation.summary.validation_ms}ms. Clinical judgment required.</p>
+          </ClinicalCard>
+        </motion.div>
+      )}
+
+      {/* Monitoring Suggestions */}
+      {monitoring && monitoring.length > 0 && (
+        <motion.div {...fadeIn}>
+          <ClinicalCard className="p-2.5 border-primary/10">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+              <Activity className="h-3 w-3 text-primary" /> Monitoring & Follow-up
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {monitoring.map((m, i) => (
+                <Chip key={i} variant="action" size="sm" selected={selectedMonitoring?.includes(m)} onClick={() => onToggleMonitoring?.(m)}>{m}</Chip>
+              ))}
+            </div>
           </ClinicalCard>
         </motion.div>
       )}
