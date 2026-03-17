@@ -532,6 +532,22 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
+      {/* Monitoring Suggestions */}
+      {monitoring && monitoring.length > 0 && (
+        <motion.div {...fadeIn}>
+          <ClinicalCard className="p-2.5 border-primary/10">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+              <Activity className="h-3 w-3 text-primary" /> Monitoring & Follow-up
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {monitoring.map((m, i) => (
+                <Chip key={i} variant="action" size="sm" selected={selectedMonitoring?.includes(m)} onClick={() => onToggleMonitoring?.(m)}>{m}</Chip>
+              ))}
+            </div>
+          </ClinicalCard>
+        </motion.div>
+      )}
+
       {instructions.length > 0 && (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/10">
