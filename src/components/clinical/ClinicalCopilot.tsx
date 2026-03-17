@@ -379,8 +379,8 @@ export default function ClinicalCopilot({
 
   return (
     <div className="space-y-3">
-      {/* Pipeline Progress Indicator */}
-      {pipelineStage && (
+      {/* Pipeline Progress Indicator — hidden in Doctor mode */}
+      {pipelineStage && reasoningLevel !== "doctor" && (
         <motion.div {...fadeIn}>
           <ClinicalCard className="p-2.5 border-primary/20">
             <div className="flex items-center gap-1.5 mb-1.5">
