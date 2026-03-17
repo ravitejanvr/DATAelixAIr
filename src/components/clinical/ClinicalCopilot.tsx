@@ -451,23 +451,34 @@ export default function ClinicalCopilot({
 
       {/* Diagnosis panel REMOVED from Copilot — diagnoses appear only in Assessment (center column) */}
 
-      {/* Recommended Investigations */}
-      {tests.length > 0 && (
-        <motion.div {...fadeIn}>
-          <ClinicalCard className="p-2.5 border-primary/10">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <FlaskConical className="h-3 w-3 text-chip-lab-text" /> Recommended Investigations
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {tests.map(t => (
-                <Chip key={t} variant="lab" size="sm" selected={selectedTests.includes(t)} onClick={() => handleTestToggle(t)}>
-                  {t}
-                </Chip>
-              ))}
-            </div>
-          </ClinicalCard>
-        </motion.div>
-      )}
+      {/* Recommended Investigations — top 5 with show more */}
+      {tests.length > 0 && (() => {
+        const unselectedTests = tests.filter(t => !selectedTests.includes(t));
+        const visibleTests = unselectedTests.slice(0, showMoreTests ? unselectedTests.length : 5);
+        return (
+          <motion.div {...fadeIn}>
+            <ClinicalCard className="p-2.5 border-primary/10">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                <FlaskConical className="h-3 w-3 text-chip-lab-text" /> Recommended Investigations
+                <Badge variant="outline" className="text-[8px] ml-auto">{tests.length}</Badge>
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {visibleTests.map(t => (
+                  <Chip key={t} variant="lab" size="sm" selected={selectedTests.includes(t)} onClick={() => handleTestToggle(t)}>
+                    {t}
+                  </Chip>
+                ))}
+              </div>
+              {unselectedTests.length > 5 && (
+                <button onClick={() => setShowMoreTests(p => !p)} className="text-[9px] text-primary font-medium hover:underline mt-1.5 flex items-center gap-0.5">
+                  {showMoreTests ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
+                  {showMoreTests ? "Show less" : `+${unselectedTests.length - 5} more`}
+                </button>
+              )}
+            </ClinicalCard>
+          </motion.div>
+        );
+      })()}
 
       {/* Recommended Medications */}
       {medications.length > 0 && (
