@@ -608,8 +608,8 @@ export default function ClinicalCopilot({
         );
       })()}
 
-      {/* Safety Alerts */}
-      {safetyResults && (
+      {/* Safety Alerts — only show after doctor selects prescriptions */}
+      {safetyResults && selectedMedications.length > 0 && (
         <motion.div {...fadeIn}>
           <ClinicalCard className={`p-2.5 ${safetyAlertCount === 0 ? "border-emerald-500/20" : "border-destructive/30"}`}>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
