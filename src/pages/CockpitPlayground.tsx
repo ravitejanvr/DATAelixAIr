@@ -1355,14 +1355,18 @@ export default function CockpitPlayground() {
                       <TreePine className="h-3.5 w-3.5 text-primary" /> Clinical Context
                     </p>
 
-                    {/* Chief Complaint */}
-                    {chiefComplaint && (
-                      <div className="flex items-center gap-2 py-2 px-2.5 rounded-lg bg-primary/[0.04] border border-primary/10 mb-3">
-                        <Brain className="h-4 w-4 text-primary shrink-0" />
-                        <span className="text-xs text-muted-foreground">Chief Complaint</span>
-                        <span className="text-sm font-semibold text-foreground ml-auto">{chiefComplaint}</span>
-                      </div>
-                    )}
+                    {/* Chief Complaint — editable inline */}
+                    <div className="flex items-center gap-2 py-2 px-2.5 rounded-lg bg-primary/[0.04] border border-primary/10 mb-3">
+                      <Brain className="h-4 w-4 text-primary shrink-0" />
+                      <span className="text-xs text-muted-foreground shrink-0">Chief Complaint</span>
+                      <input
+                        type="text"
+                        value={chiefComplaint}
+                        onChange={e => setChiefComplaint(e.target.value)}
+                        placeholder="Enter chief complaint…"
+                        className="flex-1 text-sm font-semibold text-foreground bg-transparent border-none outline-none text-right placeholder:text-muted-foreground/50 placeholder:font-normal"
+                      />
+                    </div>
 
                     <div className="space-y-1">
                       <ContextTreeNode label="Symptoms" icon={Stethoscope} items={selectedSymptoms} color="text-blue-600 dark:text-blue-400" category="symptoms" editPresets={COMMON_SYMPTOMS} variant="symptom" />
