@@ -951,6 +951,14 @@ export default function CockpitPlayground() {
     toast({ title: "Context updated", description: `Extracted ${symptomMatches.length} signals from input` });
   }, [commandInput, chiefComplaint, toast]);
 
+  // ── Auto-populate selectedDiagnoses from top mergedDiagnoses ──
+  useEffect(() => {
+    if (mergedDiagnoses.length > 0) {
+      const topNames = mergedDiagnoses.slice(0, 3).map((d: any) => d.name);
+      setSelectedDiagnoses(topNames);
+    }
+  }, [mergedDiagnoses]);
+
   // ── SOAP auto-sync: regenerate Treatment Plan text from selections ──
   useEffect(() => {
     if (soapManualEdits["Treatment Plan"]) return;
@@ -962,8 +970,8 @@ export default function CockpitPlayground() {
       const rxLines = pendingRx.map(rx => `${rx.drug_name} ${rx.dose} ${(rx as any).route || "PO"} ${rx.frequency}`).join("; ");
       parts.push(`Treatment: ${rxLines}.`);
     }
-    if (allMonitoring.length > 0) {
-      parts.push(`Monitoring: ${allMonitoring.join("; ")}.`);
+    if (selectedMonitoring.length > 0) {
+      parts.push(`Monitoring: ${selectedMonitoring.join("; ")}.`);
     }
     if (selectedInstructions.length > 0) {
       parts.push(`Patient instructions: ${selectedInstructions.join(". ")}.`);
@@ -971,9 +979,9 @@ export default function CockpitPlayground() {
     if (parts.length > 0) {
       setSoapSections(prev => ({ ...prev, "Treatment Plan": parts.join("\n") }));
     }
-  }, [selectedTests, pendingRx, selectedInstructions, allMonitoring, soapManualEdits]);
+  }, [selectedTests, pendingRx, selectedInstructions, selectedMonitoring, soapManualEdits]);
 
-  // ── Copilot props — wired tests/medications, NO diagnoses ──
+  // ── Copilot props — wired tests/medications/monitoring, NO diagnoses ──
   const copilotProps = {
     diagnoses: [] as string[], selectedDiagnoses,
     onToggleDiagnosis: (d: string) => setSelectedDiagnoses(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]),
@@ -987,20 +995,21 @@ export default function CockpitPlayground() {
         setPendingRx(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur, route: rx.route || "PO" }]);
       }
     },
-    safetyResults,
+    safetyResults: pendingRx.length > 0 ? safetyResults : null,
     patientAge: mockPatient?.age,
     allergies: mockPatient?.allergies || [],
     diagnosis: selectedDiagnoses[0],
     chiefComplaint,
     instructions: allInstructions, selectedInstructions,
     onToggleInstruction: (inst: string) => setSelectedInstructions(prev => prev.includes(inst) ? prev.filter(x => x !== inst) : [...prev, inst]),
-    // No hypotheses or bayesian passed — diagnoses live only in Assessment
+    monitoring: allMonitoring, selectedMonitoring,
+    onToggleMonitoring: (m: string) => setSelectedMonitoring(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]),
     pipelineEvidence, pipelineCompliance,
     visitId: null, consultationId: null, clinicId: null,
-    pipelineStage: pipelineRunning ? pipelineStage : null,
+    pipelineStage: reasoningLevel !== "doctor" && pipelineRunning ? pipelineStage : null,
     stageLatencies,
     physiologicalContext: pipelinePhysiology,
-    isAdmin: true,
+    isAdmin: reasoningLevel === "debug",
   };
 
   // ── Likelihood badge ──
