@@ -553,7 +553,7 @@ export default function CockpitPlayground() {
     setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
     setPipelinePhysiology(null); setPipelineBayesian(null); setPipelineDDX(null); setSafetyResults(null);
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedInstructions([]);
-    setPendingRx([]); setSelectedScenario(""); setSnapshots([]); setShowComparison(false);
+    setSelectedMonitoring([]); setPendingRx([]); setSelectedScenario(""); setSnapshots([]); setShowComparison(false);
     setPipelineStage(null); setStageLatencies({}); setEditingCategory(null);
     setCommandInput("");
   };
