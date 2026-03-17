@@ -554,36 +554,59 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Monitoring Suggestions */}
-      {monitoring && monitoring.length > 0 && (
-        <motion.div {...fadeIn}>
-          <ClinicalCard className="p-2.5 border-primary/10">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <Activity className="h-3 w-3 text-primary" /> Monitoring & Follow-up
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {monitoring.map((m, i) => (
-                <Chip key={i} variant="action" size="sm" selected={selectedMonitoring?.includes(m)} onClick={() => onToggleMonitoring?.(m)}>{m}</Chip>
-              ))}
-            </div>
-          </ClinicalCard>
-        </motion.div>
-      )}
+      {/* Monitoring Suggestions — top 5 with show more */}
+      {monitoring && monitoring.length > 0 && (() => {
+        const unselectedMon = monitoring.filter(m => !selectedMonitoring?.includes(m));
+        const visibleMon = unselectedMon.slice(0, showMoreMonitoring ? unselectedMon.length : 5);
+        return (
+          <motion.div {...fadeIn}>
+            <ClinicalCard className="p-2.5 border-primary/10">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                <Activity className="h-3 w-3 text-primary" /> Monitoring & Follow-up
+                <Badge variant="outline" className="text-[8px] ml-auto">{monitoring.length}</Badge>
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {visibleMon.map((m, i) => (
+                  <Chip key={i} variant="action" size="sm" selected={selectedMonitoring?.includes(m)} onClick={() => onToggleMonitoring?.(m)}>{m}</Chip>
+                ))}
+              </div>
+              {unselectedMon.length > 5 && (
+                <button onClick={() => setShowMoreMonitoring(p => !p)} className="text-[9px] text-primary font-medium hover:underline mt-1.5 flex items-center gap-0.5">
+                  {showMoreMonitoring ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
+                  {showMoreMonitoring ? "Show less" : `+${unselectedMon.length - 5} more`}
+                </button>
+              )}
+            </ClinicalCard>
+          </motion.div>
+        );
+      })()}
 
-      {instructions.length > 0 && (
-        <motion.div {...fadeIn}>
-          <ClinicalCard className="p-2.5 border-primary/10">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <MessageSquare className="h-3 w-3 text-primary" /> Instructions to Patients
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {instructions.map((inst, i) => (
-                <Chip key={i} variant="action" size="sm" selected={selectedInstructions.includes(inst)} onClick={() => onToggleInstruction(inst)}>{inst}</Chip>
-              ))}
-            </div>
-          </ClinicalCard>
-        </motion.div>
-      )}
+      {/* Instructions — top 5 with show more */}
+      {instructions.length > 0 && (() => {
+        const unselectedInst = instructions.filter(inst => !selectedInstructions.includes(inst));
+        const visibleInst = unselectedInst.slice(0, showMoreInstructions ? unselectedInst.length : 5);
+        return (
+          <motion.div {...fadeIn}>
+            <ClinicalCard className="p-2.5 border-primary/10">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                <MessageSquare className="h-3 w-3 text-primary" /> Instructions to Patients
+                <Badge variant="outline" className="text-[8px] ml-auto">{instructions.length}</Badge>
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {visibleInst.map((inst, i) => (
+                  <Chip key={i} variant="action" size="sm" selected={selectedInstructions.includes(inst)} onClick={() => onToggleInstruction(inst)}>{inst}</Chip>
+                ))}
+              </div>
+              {unselectedInst.length > 5 && (
+                <button onClick={() => setShowMoreInstructions(p => !p)} className="text-[9px] text-primary font-medium hover:underline mt-1.5 flex items-center gap-0.5">
+                  {showMoreInstructions ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
+                  {showMoreInstructions ? "Show less" : `+${unselectedInst.length - 5} more`}
+                </button>
+              )}
+            </ClinicalCard>
+          </motion.div>
+        );
+      })()}
 
       {/* Safety Alerts */}
       {safetyResults && (
