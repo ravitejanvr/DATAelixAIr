@@ -1719,22 +1719,25 @@ export default function CockpitPlayground() {
                         )}
                       </div>
 
-                      {/* Monitoring & Follow-up */}
+                      {/* Monitoring & Follow-up — selected only */}
                       <div className="mb-3">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <Activity className="h-3 w-3" /> Monitoring & Follow-up
                         </p>
-                        {allMonitoring.length > 0 ? (
+                        {selectedMonitoring.length > 0 ? (
                           <div className="space-y-1">
-                            {allMonitoring.map((m, i) => (
+                            {selectedMonitoring.map((m, i) => (
                               <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
-                                <Activity className="h-3 w-3 text-primary shrink-0" />
+                                <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                 <span className="flex-1 text-foreground">{m}</span>
+                                <button onClick={() => setSelectedMonitoring(prev => prev.filter(x => x !== m))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">Monitoring parameters will appear after diagnosis.</p>
+                          <p className="text-xs text-muted-foreground italic">
+                            {allMonitoring.length > 0 ? "Select monitoring from AI Copilot →" : "Monitoring parameters will appear after diagnosis."}
+                          </p>
                         )}
                       </div>
 
