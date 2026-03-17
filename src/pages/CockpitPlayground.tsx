@@ -534,6 +534,7 @@ export default function CockpitPlayground() {
     setSelectedDiagnoses([]);
     setSelectedTests([]);
     setSelectedInstructions([]);
+    setSelectedMonitoring([]);
     setPendingRx([]);
     setSelectedScenario(scenarioName);
     setEditingCategory(null);
