@@ -186,6 +186,11 @@ export default function ClinicalCopilot({
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel>("doctor");
   // Per-diagnosis "Why?" expansion
   const [expandedDiagnoses, setExpandedDiagnoses] = useState<Set<string>>(new Set());
+  // Show-more toggles for suggestion limits
+  const [showMoreTests, setShowMoreTests] = useState(false);
+  const [showMoreMeds, setShowMoreMeds] = useState(false);
+  const [showMoreMonitoring, setShowMoreMonitoring] = useState(false);
+  const [showMoreInstructions, setShowMoreInstructions] = useState(false);
 
   const effectiveCompliance = pipelineCompliance?.results || complianceResults;
   const effectiveSources = pipelineCompliance?.guidelines_sources || complianceSources;
