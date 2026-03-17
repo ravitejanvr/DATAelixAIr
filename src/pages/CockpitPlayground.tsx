@@ -1507,90 +1507,133 @@ export default function CockpitPlayground() {
                       {mergedDiagnoses.length > 0 ? (
                         <div className="space-y-2">
                           {/* Primary Diagnosis */}
-                          {mergedDiagnoses.slice(0, 1).map((d: any, i: number) => (
+                          {mergedDiagnoses.slice(0, 1).map((d: any, i: number) => {
+                            const isExpanded = expandedDx.has(d.name);
+                            return (
                             <div key={i}>
                               <p className="text-[9px] font-bold text-primary uppercase tracking-wider mb-1.5">Primary Diagnosis</p>
-                              <div className="rounded-lg border border-primary/20 p-3 bg-primary/[0.03]">
+                              <button
+                                onClick={() => setExpandedDx(prev => { const n = new Set(prev); n.has(d.name) ? n.delete(d.name) : n.add(d.name); return n; })}
+                                className="w-full text-left rounded-lg border border-primary/20 p-3 bg-primary/[0.03] hover:bg-primary/[0.05] transition-colors"
+                              >
                                 <div className="flex items-center gap-2 mb-1.5">
                                   <span className="text-sm font-bold text-foreground flex-1">{d.name}</span>
                                   {likelihoodBadge(d.pct)}
                                   <Badge variant="outline" className="text-[10px] font-mono">{d.pct}%</Badge>
                                   {d.mustNotMiss && <Badge className="text-[8px] bg-destructive/10 text-destructive border-destructive/20">⚠ Must not miss</Badge>}
+                                  {isExpanded ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
                                 </div>
-                                <div className="h-1.5 rounded-full bg-muted mb-2">
+                                <div className="h-1.5 rounded-full bg-muted">
                                   <div className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
                                 </div>
-                                {reasoningLevel !== "debug" && d.supporting.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {d.supporting.slice(0, 6).map((e: string, ei: number) => (
-                                      <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
-                                    ))}
-                                  </div>
-                                )}
-                                {reasoningLevel !== "debug" && d.contradicting.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {d.contradicting.map((e: string, ei: number) => (
-                                      <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✗ {e}</span>
-                                    ))}
-                                  </div>
-                                )}
-                                {reasoningLevel === "explanation" && d.bayesian && (
-                                  <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border">
-                                    <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Modifier Contributions</p>
-                                    <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] font-mono">
-                                      {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(2)}</span>}
-                                      {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(2)}</span>}
-                                      {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(2)}</span>}
-                                      {d.bayesian.cluster_modifier != null && d.bayesian.cluster_modifier !== 1 && <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(2)}</span>}
-                                      {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && <span>Vitals: ×{d.bayesian.vital_modifier?.toFixed(2)}</span>}
+                              </button>
+                              {isExpanded && (
+                                <div className="mt-1.5 rounded-lg border border-border p-2.5 bg-muted/20 space-y-2">
+                                  {d.supporting.length > 0 && (
+                                    <div>
+                                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Supporting Evidence</p>
+                                      <div className="flex flex-wrap gap-1">
+                                        {d.supporting.map((e: string, ei: number) => (
+                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                                {reasoningLevel === "debug" && d.bayesian && (
-                                  <div className="mt-2 p-2 rounded-lg bg-muted/40 border border-border font-mono text-[9px] space-y-0.5">
-                                    <p className="font-semibold text-muted-foreground uppercase text-[8px]">Bayesian Breakdown</p>
-                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                                      <span>Prior: {d.bayesian.prior?.toFixed(4)}</span>
-                                      <span>Symptom LH: {d.bayesian.symptom_likelihood?.toFixed(4)}</span>
-                                      <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(3)}</span>
-                                      <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(3)}</span>
-                                      <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(3)}</span>
-                                      <span>Vital: ×{d.bayesian.vital_modifier?.toFixed(3)}</span>
-                                      <span className="col-span-2 font-bold text-primary">Posterior: {d.bayesian.posterior_probability?.toFixed(4)}</span>
+                                  )}
+                                  {d.contradicting.length > 0 && (
+                                    <div>
+                                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Against</p>
+                                      <div className="flex flex-wrap gap-1">
+                                        {d.contradicting.map((e: string, ei: number) => (
+                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✗ {e}</span>
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
+                                  )}
+                                  {reasoningLevel === "explanation" && d.bayesian && (
+                                    <div className="p-2 rounded-lg bg-muted/30 border border-border">
+                                      <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Modifier Contributions</p>
+                                      <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] font-mono">
+                                        {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(2)}</span>}
+                                        {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(2)}</span>}
+                                        {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(2)}</span>}
+                                        {d.bayesian.cluster_modifier != null && d.bayesian.cluster_modifier !== 1 && <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(2)}</span>}
+                                        {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && <span>Vitals: ×{d.bayesian.vital_modifier?.toFixed(2)}</span>}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {reasoningLevel === "debug" && d.bayesian && (
+                                    <div className="p-2 rounded-lg bg-muted/40 border border-border font-mono text-[9px] space-y-0.5">
+                                      <p className="font-semibold text-muted-foreground uppercase text-[8px]">Bayesian Breakdown</p>
+                                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                        <span>Prior: {d.bayesian.prior?.toFixed(4)}</span>
+                                        <span>Symptom LH: {d.bayesian.symptom_likelihood?.toFixed(4)}</span>
+                                        <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(3)}</span>
+                                        <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(3)}</span>
+                                        <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(3)}</span>
+                                        <span>Vital: ×{d.bayesian.vital_modifier?.toFixed(3)}</span>
+                                        <span className="col-span-2 font-bold text-primary">Posterior: {d.bayesian.posterior_probability?.toFixed(4)}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                          ))}
+                          )})}
 
                           {/* Working Differentials */}
-                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 5).length > 0 && (
+                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 3).length > 0 && (
                             <div>
                               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-2">Working Differentials</p>
                               <div className="space-y-1.5">
-                                {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 5).map((d: any, i: number) => (
-                                  <div key={i} className="rounded-lg border border-border p-2.5 bg-background/60">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs font-semibold text-foreground flex-1">{d.name}</span>
-                                      {likelihoodBadge(d.pct)}
-                                      <span className="text-xs font-mono text-muted-foreground">{d.pct}%</span>
-                                    </div>
-                                    <div className="h-1 rounded-full bg-muted mt-1">
-                                      <div className={`h-full rounded-full ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
-                                    </div>
-                                    {reasoningLevel !== "debug" && d.supporting.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-1.5">
+                                {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 3).map((d: any, i: number) => {
+                                  const isExpanded = expandedDx.has(d.name);
+                                  return (
+                                  <div key={i}>
+                                    <button
+                                      onClick={() => setExpandedDx(prev => { const n = new Set(prev); n.has(d.name) ? n.delete(d.name) : n.add(d.name); return n; })}
+                                      className="w-full text-left rounded-lg border border-border p-2.5 bg-background/60 hover:bg-muted/50 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold text-foreground flex-1">{d.name}</span>
+                                        {likelihoodBadge(d.pct)}
+                                        <span className="text-xs font-mono text-muted-foreground">{d.pct}%</span>
+                                        {isExpanded ? <ChevronUp className="h-2.5 w-2.5 text-muted-foreground" /> : <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />}
+                                      </div>
+                                      <div className="h-1 rounded-full bg-muted mt-1">
+                                        <div className={`h-full rounded-full ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
+                                      </div>
+                                    </button>
+                                    {isExpanded && d.supporting.length > 0 && (
+                                      <div className="mt-1 ml-3 flex flex-wrap gap-1">
                                         {d.supporting.slice(0, 4).map((e: string, ei: number) => (
                                           <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
                                         ))}
                                       </div>
                                     )}
                                   </div>
-                                ))}
+                                )})}
                               </div>
                             </div>
                           )}
+
+                          {/* Show more toggle for additional differentials */}
+                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).length > 3 && (
+                            <button
+                              onClick={() => setShowMoreDx(prev => !prev)}
+                              className="text-[10px] text-primary font-medium hover:underline flex items-center gap-1 mt-1"
+                            >
+                              {showMoreDx ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              {showMoreDx ? "Show less" : `Show ${mergedDiagnoses.filter((d: any) => !d.mustNotMiss).length - 3} more`}
+                            </button>
+                          )}
+                          {showMoreDx && mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(3).map((d: any, i: number) => (
+                            <div key={`more-${i}`} className="rounded-lg border border-border p-2 bg-background/40">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-foreground flex-1">{d.name}</span>
+                                <span className="text-[10px] font-mono text-muted-foreground">{d.pct}%</span>
+                              </div>
+                            </div>
+                          ))}
 
                           {/* Must-Not-Miss */}
                           {mergedDiagnoses.filter((d: any) => d.mustNotMiss && mergedDiagnoses.indexOf(d) > 0).length > 0 && (
