@@ -489,6 +489,7 @@ export default function CockpitPlayground() {
   const [selectedDiagnoses, setSelectedDiagnoses] = useState<string[]>([]);
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
   const [selectedInstructions, setSelectedInstructions] = useState<string[]>([]);
+  const [selectedMonitoring, setSelectedMonitoring] = useState<string[]>([]);
   const [pendingRx, setPendingRx] = useState<{ drug_name: string; dose: string; frequency: string; duration: string }[]>([]);
 
   // Scenario & comparison
