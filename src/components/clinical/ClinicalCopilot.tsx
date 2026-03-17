@@ -480,24 +480,35 @@ export default function ClinicalCopilot({
         );
       })()}
 
-      {/* Recommended Medications */}
-      {medications.length > 0 && (
-        <motion.div {...fadeIn}>
-          <ClinicalCard className="p-2.5 border-primary/10">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <Pill className="h-3 w-3 text-chip-medication-text" /> Prescription Suggestions
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {medications.map((rx, i) => (
-                <Chip key={i} variant="medication" size="sm" addable selected={selectedMedications.some(p => p.drug_name === rx.drug)} onClick={() => handleMedicationToggle(rx)}>
-                  {rx.drug} {rx.dose} {rx.freq}
-                </Chip>
-              ))}
-            </div>
-            <p className="text-[8px] text-muted-foreground mt-1 italic">Tap to add. AI never auto-finalizes prescriptions.</p>
-          </ClinicalCard>
-        </motion.div>
-      )}
+      {/* Recommended Medications — top 5 with show more */}
+      {medications.length > 0 && (() => {
+        const unselectedMeds = medications.filter(rx => !selectedMedications.some(p => p.drug_name === rx.drug));
+        const visibleMeds = unselectedMeds.slice(0, showMoreMeds ? unselectedMeds.length : 5);
+        return (
+          <motion.div {...fadeIn}>
+            <ClinicalCard className="p-2.5 border-primary/10">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                <Pill className="h-3 w-3 text-chip-medication-text" /> Prescription Suggestions
+                <Badge variant="outline" className="text-[8px] ml-auto">{medications.length}</Badge>
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {visibleMeds.map((rx, i) => (
+                  <Chip key={i} variant="medication" size="sm" addable selected={selectedMedications.some(p => p.drug_name === rx.drug)} onClick={() => handleMedicationToggle(rx)}>
+                    {rx.drug} {rx.dose} {rx.freq}
+                  </Chip>
+                ))}
+              </div>
+              {unselectedMeds.length > 5 && (
+                <button onClick={() => setShowMoreMeds(p => !p)} className="text-[9px] text-primary font-medium hover:underline mt-1.5 flex items-center gap-0.5">
+                  {showMoreMeds ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
+                  {showMoreMeds ? "Show less" : `+${unselectedMeds.length - 5} more`}
+                </button>
+              )}
+              <p className="text-[8px] text-muted-foreground mt-1 italic">Tap to add. AI never auto-finalizes prescriptions.</p>
+            </ClinicalCard>
+          </motion.div>
+        );
+      })()}
 
       {/* Medication Intelligence Panel */}
       {medicationValidation && medicationValidation.warnings.length > 0 && (
