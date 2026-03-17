@@ -498,8 +498,9 @@ export default function CockpitPlayground() {
   const [snapshots, setSnapshots] = useState<PipelineSnapshot[]>([]);
   const [showComparison, setShowComparison] = useState(false);
 
-  // Context tree inline editing
   const [editingCategory, setEditingCategory] = useState<ContextCategory | null>(null);
+  const [expandedDx, setExpandedDx] = useState<Set<string>>(new Set());
+  const [showMoreDx, setShowMoreDx] = useState(false);
 
   // Command bar
   const [commandInput, setCommandInput] = useState("");

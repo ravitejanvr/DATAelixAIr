@@ -84,6 +84,9 @@ interface ClinicalCopilotProps {
   instructions: string[];
   selectedInstructions: string[];
   onToggleInstruction: (instruction: string) => void;
+  monitoring?: string[];
+  selectedMonitoring?: string[];
+  onToggleMonitoring?: (m: string) => void;
   hypotheses?: HypothesisEntry[];
   pipelineEvidence?: PipelineEvidence | null;
   pipelineCompliance?: PipelineCompliance | null;
