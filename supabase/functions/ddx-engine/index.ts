@@ -1081,17 +1081,23 @@ Deno.serve(async (req) => {
     const stage2Ms = Date.now() - stageStart2;
 
     // ═══════════════════════════════════════════════════
-    // STAGE 3: DANGEROUS DIAGNOSIS INJECTION
-    // Normalize trigger terms before matching
+    // STAGE 3: CONTEXT-GATED DANGEROUS DIAGNOSIS INJECTION (Phase 7)
+    // Only inject dangerous diagnoses when clinical context supports it:
+    //   - ≥2 matching trigger symptoms, OR
+    //   - 1 trigger symptom + abnormal vital sign, OR
+    //   - 1 trigger symptom + risk factors (age, history)
+    // Single-symptom presentations without red flags → awareness only
     // ═══════════════════════════════════════════════════
     const stageStart3 = Date.now();
     let dangerousInjected = 0;
     const dangerousDiagnosisDetails: any[] = [];
 
+    // Count how many dangerous trigger symptoms match for each diagnosis
+    const dangerousTriggerCounts = new Map<string, { count: number; triggers: string[]; rows: any[] }>();
+    
     for (const row of dangerousRes.data || []) {
       const triggerRaw = row.trigger_symptom.toLowerCase();
       const triggerNormalized = normalizeSymptom(triggerRaw);
-      // Match if any normalized input symptom matches the normalized trigger
       const matched = normalizedSymptoms.some((s: string) =>
         s === triggerNormalized || s.includes(triggerNormalized) || triggerNormalized.includes(s) ||
         s === triggerRaw || s.includes(triggerRaw) || triggerRaw.includes(s)
@@ -1101,36 +1107,57 @@ Deno.serve(async (req) => {
       const diagInfo = (row as any).diagnoses;
       if (!diagInfo) continue;
 
-      const existingIdx = bayesianScores.findIndex(d => d.diagnosis_id === diagInfo.id);
-      if (existingIdx >= 0) {
-        bayesianScores[existingIdx].must_not_miss = true;
-        bayesianScores[existingIdx].emergency_protocol = row.emergency_protocol;
-        bayesianScores[existingIdx].guideline_source = row.guideline_source;
-        bayesianScores[existingIdx].severity_level = row.severity_level;
-        if (bayesianScores[existingIdx].probability < 5) {
-          bayesianScores[existingIdx].probability = 5;
-        }
+      const existing = dangerousTriggerCounts.get(diagInfo.id);
+      if (existing) {
+        existing.count++;
+        existing.triggers.push(triggerRaw);
+        existing.rows.push(row);
       } else {
-        bayesianScores.push({
-          diagnosis_id: diagInfo.id,
-          diagnosis_name: diagInfo.diagnosis_name,
-          icd10_code: diagInfo.icd10_code,
-          category: diagInfo.category,
-          probability: 5,
-          posterior: 0,
-          prior: 0,
-          likelihood: 0,
-          symptom_coverage: 0,
-          supporting_symptoms: [row.trigger_symptom],
-          contradicting_factors: [],
-          must_not_miss: true,
-          emergency_protocol: row.emergency_protocol,
-          guideline_source: row.guideline_source,
-          severity_level: row.severity_level,
-        });
-        dangerousInjected++;
+        dangerousTriggerCounts.set(diagInfo.id, { count: 1, triggers: [triggerRaw], rows: [row] });
+      }
+    }
+
+    // Determine if vitals are abnormal (supporting evidence for danger)
+    const hasAbnormalVitals = (
+      (vitals.temperature && vitals.temperature > 38.5) ||
+      (vitals.pulse && vitals.pulse > 110) ||
+      (vitals.spo2 && vitals.spo2 < 93) ||
+      (vitals.bp_systolic && (vitals.bp_systolic > 180 || vitals.bp_systolic < 90))
+    );
+    const hasRiskAge = (age != null && age > 55) || (age != null && age < 2);
+
+    for (const [diagId, info] of dangerousTriggerCounts) {
+      const row = info.rows[0];
+      const diagInfo = (row as any).diagnoses;
+      if (!diagInfo) continue;
+
+      // Context gate: determine injection level
+      const triggerCount = info.count;
+      const hasMultipleTriggers = triggerCount >= 2;
+      const hasSupportingContext = hasAbnormalVitals || hasRiskAge || 
+        historyLower.some(h => diagInfo.diagnosis_name.toLowerCase().includes(h));
+      
+      // For incomplete presentations (≤2 symptoms), require stronger evidence
+      const requiresStrongEvidence = isIncomplete;
+      
+      let shouldInject: boolean;
+      let injectionProbability: number;
+      
+      if (hasMultipleTriggers) {
+        // ≥2 trigger symptoms → full injection
+        shouldInject = true;
+        injectionProbability = 5;
+      } else if (hasSupportingContext && !requiresStrongEvidence) {
+        // 1 trigger + abnormal vitals/risk age → inject with lower probability
+        shouldInject = true;
+        injectionProbability = 3;
+      } else {
+        // Single trigger, no supporting context → awareness only (add to dangerous list but don't inject into ranking)
+        shouldInject = false;
+        injectionProbability = 0;
       }
 
+      // Always add to dangerous_diagnoses details for awareness
       if (!dangerousDiagnosisDetails.find((d: any) => d.diagnosis_id === diagInfo.id)) {
         dangerousDiagnosisDetails.push({
           diagnosis_id: diagInfo.id,
@@ -1139,8 +1166,41 @@ Deno.serve(async (req) => {
           must_not_miss: true,
           emergency_protocol: row.emergency_protocol,
           guideline_source: row.guideline_source,
-          trigger_symptom: row.trigger_symptom,
+          trigger_symptom: info.triggers.join(", "),
+          injection_level: shouldInject ? (hasMultipleTriggers ? "full" : "contextual") : "awareness_only",
         });
+      }
+
+      if (!shouldInject) continue;
+
+      const existingIdx = bayesianScores.findIndex(d => d.diagnosis_id === diagInfo.id);
+      if (existingIdx >= 0) {
+        bayesianScores[existingIdx].must_not_miss = true;
+        bayesianScores[existingIdx].emergency_protocol = row.emergency_protocol;
+        bayesianScores[existingIdx].guideline_source = row.guideline_source;
+        bayesianScores[existingIdx].severity_level = row.severity_level;
+        if (bayesianScores[existingIdx].probability < injectionProbability) {
+          bayesianScores[existingIdx].probability = injectionProbability;
+        }
+      } else {
+        bayesianScores.push({
+          diagnosis_id: diagInfo.id,
+          diagnosis_name: diagInfo.diagnosis_name,
+          icd10_code: diagInfo.icd10_code,
+          category: diagInfo.category,
+          probability: injectionProbability,
+          posterior: 0,
+          prior: 0,
+          likelihood: 0,
+          symptom_coverage: 0,
+          supporting_symptoms: info.triggers,
+          contradicting_factors: [],
+          must_not_miss: true,
+          emergency_protocol: row.emergency_protocol,
+          guideline_source: row.guideline_source,
+          severity_level: row.severity_level,
+        });
+        dangerousInjected++;
       }
     }
 
@@ -1154,14 +1214,31 @@ Deno.serve(async (req) => {
       bayesianScores.sort((a, b) => b.probability - a.probability);
     }
 
-    // Final selection: top 6 by probability + up to 3 must-not-miss
+    // ── Phase 7: Common Condition Ranking Protection ──
+    // For incomplete presentations, ensure common conditions rank above injected dangerous ones
+    if (isIncomplete) {
+      // Find the highest-probability non-must-not-miss diagnosis
+      const topCommon = bayesianScores.find(d => !d.must_not_miss && d.probability > 0);
+      if (topCommon) {
+        // Ensure must-not-miss diagnoses don't outrank the top common condition
+        // unless they have genuine Bayesian evidence (posterior > 0)
+        for (const d of bayesianScores) {
+          if (d.must_not_miss && d.posterior === 0 && d.probability > topCommon.probability) {
+            d.probability = Math.max(1, topCommon.probability - 1);
+          }
+        }
+      }
+    }
+
+    // Final selection: top 6 by probability + up to 3 must-not-miss (only injected ones)
     const aboveThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability >= MIN_SCORE_THRESHOLD);
     const belowThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability < MIN_SCORE_THRESHOLD);
     const topByProb = aboveThreshold.slice(0, 6);
     while (topByProb.length < 5 && belowThreshold.length > 0) {
       topByProb.push(belowThreshold.shift()!);
     }
-    const mustNotMiss = bayesianScores.filter(d => d.must_not_miss).slice(0, 3);
+    // Only include must-not-miss that were actually injected (not awareness-only)
+    const mustNotMiss = bayesianScores.filter(d => d.must_not_miss && d.probability > 0).slice(0, 3);
     const finalDifferential = [...topByProb, ...mustNotMiss]
       .filter((d, i, arr) => arr.findIndex(x => x.diagnosis_id === d.diagnosis_id) === i) // dedup
       .sort((a, b) => b.probability - a.probability)
