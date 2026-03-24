@@ -595,6 +595,27 @@ Deno.serve(async (req) => {
       // History-adjusted
       if (historyLower.some(h => diagName.includes(h))) prior *= 1.5;
 
+      // ── COMMON CONDITION PRIOR BOOST (Phase 5 - Incomplete) ──
+      // For single/few-symptom cases, boost epidemiologically common diagnoses
+      if (isIncomplete) {
+        for (const sym of normalizedSymptoms) {
+          const commonDx = COMMON_CONDITION_BOOSTS[sym] || [];
+          if (commonDx.some(cd => diagName.includes(cd.toLowerCase()) || cd.toLowerCase().includes(diagName))) {
+            prior *= 3.0; // Strong boost for common conditions in incomplete presentations
+            break;
+          }
+        }
+      }
+
+      // ── PATTERN INFERENCE BOOST (Phase 5) ──
+      // Apply detected pattern boosts to matching diagnoses
+      let patternBoost = 1.0;
+      for (const pat of detectedPatterns) {
+        if (pat.boostDiagnoses.some(bd => diagName.includes(bd))) {
+          patternBoost *= pat.boost;
+        }
+      }
+
       // Σ P(Sᵢ|D) — ADDITIVE likelihood (rewards more matches)
       let likelihoodSum = 0;
       for (const [, score] of entry.symptom_scores) {
