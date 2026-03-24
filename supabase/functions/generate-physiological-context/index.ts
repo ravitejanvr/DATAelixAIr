@@ -238,12 +238,19 @@ Deno.serve(async (req) => {
 
     // Auth — accept both user tokens and service role key (for inter-function calls)
     const token = authHeader.replace("Bearer ", "").trim();
-    const isServiceKey = token === serviceKey;
-    console.log("Auth check:", { tokenLen: token.length, srkLen: serviceKey?.length, isServiceKey, tokenStart: token.substring(0, 10) });
-    if (!isServiceKey) {
+    // Check if this is a service_role JWT by decoding the payload
+    let isServiceRole = false;
+    try {
+      const payloadB64 = token.split(".")[1];
+      if (payloadB64) {
+        const payload = JSON.parse(atob(payloadB64));
+        isServiceRole = payload.role === "service_role";
+      }
+    } catch (_) { /* not a valid JWT, will fail user auth below */ }
+    
+    if (!isServiceRole) {
       const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
       const { data: { user }, error: authErr } = await anonClient.auth.getUser(token);
-      console.log("User auth result:", { user: !!user, error: authErr?.message });
       if (authErr || !user) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
