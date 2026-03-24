@@ -508,8 +508,169 @@ Deno.serve(async (req) => {
       // Score = prior × likelihoodSum × coverageBonus × modifiers
       const rawPosterior = prior * likelihoodSum * coverageBonus * vitalModifier * riskModifier;
 
-      // Contradicting factors
+      // ── NEGATIVE EVIDENCE MODELING (Phase 3) ──
+      // Penalize diagnoses when expected key symptoms are ABSENT
+      // Penalty is moderate (0.3–0.6 multiplier), never eliminates
       const contradicting: string[] = [];
+      let negativeEvidencePenalty = 1.0;
+
+      const symSet = new Set(normalizedSymptoms);
+      const hasFever = symSet.has("fever") || symSet.has("mild fever") || symSet.has("chills");
+      const hasChestPain = symSet.has("chest pain");
+      const hasDyspnea = symSet.has("dyspnea");
+      const hasHeadache = symSet.has("headache") || symSet.has("severe headache");
+      const hasAbdPain = symSet.has("abdominal pain") || symSet.has("epigastric pain");
+      const hasNausea = symSet.has("nausea") || symSet.has("vomiting");
+      const hasDiarrhea = symSet.has("diarrhea");
+      const hasCough = symSet.has("cough") || symSet.has("productive cough") || symSet.has("dry cough");
+      const hasRash = symSet.has("rash") || symSet.has("itching") || symSet.has("urticaria");
+      const hasWeakness = symSet.has("weakness") || symSet.has("fatigue");
+      const hasSyncope = symSet.has("syncope") || symSet.has("dizziness");
+      const hasNeckStiff = symSet.has("neck stiffness");
+      const hasPhotophobia = symSet.has("photophobia");
+      const hasDysuria = symSet.has("dysuria");
+      const hasJointPain = symSet.has("joint pain");
+      const hasDiaphoresis = symSet.has("diaphoresis");
+      const hasEdema = symSet.has("edema");
+      const hasWeightLoss = symSet.has("weight loss");
+      const hasPalpitations = symSet.has("palpitations");
+      const hasBlurredVision = symSet.has("blurred vision");
+      const highTemp = vitals.temperature && vitals.temperature > 38.5;
+      const normalTemp = vitals.temperature && vitals.temperature < 37.5;
+      const normalBP = vitals.bp_systolic && vitals.bp_systolic < 140;
+      const normalHR = vitals.pulse && vitals.pulse < 100;
+      const normalSpo2 = vitals.spo2 && vitals.spo2 > 95;
+
+      // ── Infection / Sepsis: expect fever ──
+      if ((diagName.includes("sepsis") || diagName.includes("meningitis") || diagName.includes("endocarditis") ||
+           diagName.includes("abscess") || diagName.includes("pyelonephritis") || diagName.includes("cellulitis") ||
+           diagName.includes("osteomyelitis")) && !hasFever && !highTemp) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no fever/chills — expected for infectious process");
+      }
+
+      // ── Pneumonia: expect fever + cough ──
+      if (diagName.includes("pneumonia") && !hasFever && !hasCough) {
+        negativeEvidencePenalty *= 0.4;
+        contradicting.push("no fever or cough — expected for pneumonia");
+      }
+
+      // ── MI/ACS: expect chest pain or diaphoresis ──
+      if ((diagName.includes("infarction") || diagName.includes("acute coronary")) && !hasChestPain && !hasDiaphoresis) {
+        negativeEvidencePenalty *= 0.4;
+        contradicting.push("no chest pain or diaphoresis — expected for ACS/MI");
+      }
+
+      // ── Cardiac ischemia: penalize if normal vitals + no exertional link ──
+      if ((diagName.includes("angina") || diagName.includes("ischemia")) && !hasChestPain) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no chest pain — expected for cardiac ischemia");
+      }
+
+      // ── PE: expect dyspnea or chest pain ──
+      if (diagName.includes("pulmonary embolism") && !hasDyspnea && !hasChestPain) {
+        negativeEvidencePenalty *= 0.4;
+        contradicting.push("no dyspnea or chest pain — expected for PE");
+      }
+
+      // ── Meningitis: expect neck stiffness or photophobia ──
+      if (diagName.includes("meningitis") && !hasNeckStiff && !hasPhotophobia) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no neck stiffness or photophobia — expected for meningitis");
+      }
+
+      // ── Heart failure: expect dyspnea or edema ──
+      if ((diagName.includes("heart failure") || diagName.includes("chf")) && !hasDyspnea && !hasEdema) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no dyspnea or edema — expected for heart failure");
+      }
+
+      // ── Appendicitis: expect abdominal pain ──
+      if (diagName.includes("appendicitis") && !hasAbdPain) {
+        negativeEvidencePenalty *= 0.4;
+        contradicting.push("no abdominal pain — expected for appendicitis");
+      }
+
+      // ── Cholecystitis: expect abdominal pain + nausea ──
+      if (diagName.includes("cholecystitis") && !hasAbdPain) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no abdominal pain — expected for cholecystitis");
+      }
+
+      // ── UTI: expect dysuria ──
+      if ((diagName.includes("urinary tract infection") || diagName.includes("cystitis")) && !hasDysuria) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no dysuria — expected for UTI");
+      }
+
+      // ── Gastroenteritis: expect diarrhea or vomiting ──
+      if (diagName.includes("gastroenteritis") && !hasDiarrhea && !hasNausea) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no diarrhea or vomiting — expected for gastroenteritis");
+      }
+
+      // ── Stroke: expect weakness or speech difficulty ──
+      if (diagName.includes("stroke") && !hasWeakness && !symSet.has("speech difficulty")) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no focal weakness or speech difficulty — expected for stroke");
+      }
+
+      // ── Hyperthyroidism: expect weight loss + palpitations ──
+      if (diagName.includes("hyperthyroid") && !hasWeightLoss && !hasPalpitations) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no weight loss or palpitations — expected for hyperthyroidism");
+      }
+
+      // ── Hypothyroidism: expect weight gain + fatigue ──
+      if (diagName.includes("hypothyroid") && !symSet.has("weight gain") && !hasWeakness) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no weight gain or fatigue — expected for hypothyroidism");
+      }
+
+      // ── Diabetes: expect polyuria/polydipsia ──
+      if (diagName.includes("diabetes") && !symSet.has("polyuria") && !symSet.has("polydipsia")) {
+        negativeEvidencePenalty *= 0.6;
+        contradicting.push("no polyuria/polydipsia — expected for diabetes");
+      }
+
+      // ── GERD: expect heartburn ──
+      if ((diagName.includes("gastroesophageal") || diagName.includes("gerd")) && !symSet.has("heartburn")) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no heartburn — expected for GERD");
+      }
+
+      // ── Migraine: expect headache ──
+      if (diagName.includes("migraine") && !hasHeadache) {
+        negativeEvidencePenalty *= 0.3;
+        contradicting.push("no headache — expected for migraine");
+      }
+
+      // ── Rheumatoid conditions: expect joint pain ──
+      if ((diagName.includes("rheumatoid") || diagName.includes("lupus") || diagName.includes("gout")) && !hasJointPain) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("no joint pain — expected for rheumatic condition");
+      }
+
+      // ── Vital-sign negative evidence ──
+      if (normalTemp && (diagName.includes("sepsis") || diagName.includes("malaria") || diagName.includes("dengue"))) {
+        negativeEvidencePenalty *= 0.5;
+        contradicting.push("normal temperature — argues against severe infection");
+      }
+      if (normalBP && diagName.includes("hypertensive")) {
+        negativeEvidencePenalty *= 0.3;
+        contradicting.push("normal blood pressure — argues against hypertensive crisis");
+      }
+      if (normalHR && normalSpo2 && (diagName.includes("embolism") || diagName.includes("sepsis"))) {
+        negativeEvidencePenalty *= 0.6;
+        contradicting.push("normal HR and SpO2 — lower probability of PE/sepsis");
+      }
+
+      // Clamp penalty floor at 0.15 (never fully eliminate)
+      negativeEvidencePenalty = Math.max(0.15, negativeEvidencePenalty);
+
+      // Apply penalty to posterior
+      const adjustedPosterior = rawPosterior * negativeEvidencePenalty;
+
       if (isPediatric && (diagName.includes("infarction") || diagName.includes("copd"))) contradicting.push("unlikely in pediatric age");
       if (sex === "male" && diagName.includes("ectopic")) contradicting.push("not applicable to male patients");
 
@@ -519,7 +680,7 @@ Deno.serve(async (req) => {
         icd10_code: d.icd10_code,
         category: d.category,
         probability: 0,
-        posterior: rawPosterior,
+        posterior: adjustedPosterior,
         prior,
         likelihood: likelihoodSum,
         symptom_coverage: coverage,
