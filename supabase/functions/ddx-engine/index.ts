@@ -1133,12 +1133,6 @@ Deno.serve(async (req) => {
     }
 
     // Determine if vitals are abnormal (supporting evidence for danger)
-    const hasAbnormalVitals = (
-      (vitals.temperature && vitals.temperature > 38.5) ||
-      (vitals.pulse && vitals.pulse > 110) ||
-      (vitals.spo2 && vitals.spo2 < 93) ||
-      (vitals.bp_systolic && (vitals.bp_systolic > 180 || vitals.bp_systolic < 90))
-    );
     const hasRiskAge = (age != null && age > 55) || (age != null && age < 2);
 
     for (const [diagId, info] of dangerousTriggerCounts) {
