@@ -237,11 +237,13 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // Auth — accept both user tokens and service role key (for inter-function calls)
-    const token = authHeader.replace("Bearer ", "");
+    const token = authHeader.replace("Bearer ", "").trim();
     const isServiceKey = token === serviceKey;
+    console.log("Auth check:", { tokenLen: token.length, srkLen: serviceKey?.length, isServiceKey, tokenStart: token.substring(0, 10) });
     if (!isServiceKey) {
       const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
       const { data: { user }, error: authErr } = await anonClient.auth.getUser(token);
+      console.log("User auth result:", { user: !!user, error: authErr?.message });
       if (authErr || !user) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
