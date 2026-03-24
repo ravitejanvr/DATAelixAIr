@@ -724,8 +724,8 @@ Deno.serve(async (req) => {
       // flank pain + hematuria + nausea → Nephrolithiasis
       if ((diagName.includes("nephrolithiasis") || diagName.includes("kidney stone") || diagName.includes("renal calc")) && symSet4.has("flank pain") && symSet4.has("hematuria")) combinationBoost *= 2.5;
 
-      // Score = prior × likelihoodSum × coverageBonus × modifiers × combinationBoost
-      const rawPosterior = prior * likelihoodSum * coverageBonus * vitalModifier * riskModifier * combinationBoost;
+      // Score = prior × likelihoodSum × coverageBonus × modifiers × combinationBoost × patternBoost
+      const rawPosterior = prior * likelihoodSum * coverageBonus * vitalModifier * riskModifier * combinationBoost * patternBoost;
 
       // ── NEGATIVE EVIDENCE MODELING (Phase 3) ──
       // Penalize diagnoses when expected key symptoms are ABSENT
