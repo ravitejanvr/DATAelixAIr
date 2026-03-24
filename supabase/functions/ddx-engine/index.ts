@@ -556,6 +556,12 @@ Deno.serve(async (req) => {
       "hematuria": ["nephrolithiasis", "urinary tract infection"],
     };
     const isIncomplete = totalSymptomCount <= 2;
+    const hasAbnormalVitals = (
+      (vitals.temperature && vitals.temperature > 38.5) ||
+      (vitals.pulse && vitals.pulse > 110) ||
+      (vitals.spo2 && vitals.spo2 < 93) ||
+      (vitals.bp_systolic && (vitals.bp_systolic > 180 || vitals.bp_systolic < 90))
+    );
 
     const bayesianScores: Array<{
       diagnosis_id: string;
