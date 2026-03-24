@@ -595,15 +595,24 @@ Deno.serve(async (req) => {
       // History-adjusted
       if (historyLower.some(h => diagName.includes(h))) prior *= 1.5;
 
-      // ── COMMON CONDITION PRIOR BOOST (Phase 5 - Incomplete) ──
-      // For single/few-symptom cases, boost epidemiologically common diagnoses
+      // ── COMMON CONDITION PRIOR BOOST (Phase 7 - Enhanced) ──
+      // For single/few-symptom cases, strongly boost epidemiologically common diagnoses
+      // and penalize rare/dangerous conditions that lack supporting evidence
       if (isIncomplete) {
+        let isCommonForSymptoms = false;
         for (const sym of normalizedSymptoms) {
           const commonDx = COMMON_CONDITION_BOOSTS[sym] || [];
           if (commonDx.some(cd => diagName.includes(cd.toLowerCase()) || cd.toLowerCase().includes(diagName))) {
-            prior *= 3.0; // Strong boost for common conditions in incomplete presentations
+            prior *= 5.0; // Very strong boost for common conditions in incomplete presentations
+            isCommonForSymptoms = true;
             break;
           }
+        }
+        // Penalize rare/dangerous conditions in incomplete presentations
+        // unless they have vital sign support
+        if (!isCommonForSymptoms && !hasAbnormalVitals) {
+          const isRareCategory = ["oncological", "hematologic", "autoimmune"].includes(category);
+          if (isRareCategory) prior *= 0.3;
         }
       }
 
