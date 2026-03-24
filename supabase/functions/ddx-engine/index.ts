@@ -435,6 +435,128 @@ Deno.serve(async (req) => {
     const isPediatric = age != null && age < 18;
     const isElderly = age != null && age > 65;
 
+    // ══════════════════════════════════════════════════════
+    // PATTERN INFERENCE LAYER (Phase 5)
+    // Detects clinical patterns from multi-signal evidence
+    // and assigns pattern-level boosts to matching diagnoses
+    // ══════════════════════════════════════════════════════
+    const symSetP = new Set(normalizedSymptoms);
+    const detectedPatterns: Array<{ pattern: string; confidence: number; boostDiagnoses: string[]; boost: number }> = [];
+
+    // Pattern 1: Cardiac ischemia pattern
+    const cardiacSignals = [symSetP.has("chest pain"), symSetP.has("diaphoresis"), symSetP.has("dyspnea"),
+      symSetP.has("palpitations"), symSetP.has("orthopnea"), symSetP.has("syncope"),
+      age != null && age > 50, vitals.pulse && vitals.pulse > 100].filter(Boolean).length;
+    if (cardiacSignals >= 3) {
+      detectedPatterns.push({ pattern: "cardiac_ischemia", confidence: Math.min(0.9, cardiacSignals * 0.15),
+        boostDiagnoses: ["infarction", "angina", "coronary", "heart failure"], boost: 1.8 + cardiacSignals * 0.15 });
+    }
+
+    // Pattern 2: Embolic event pattern
+    const embolicSignals = [symSetP.has("dyspnea"), symSetP.has("chest pain"), symSetP.has("hemoptysis"),
+      symSetP.has("tachycardia") || (vitals.pulse && vitals.pulse > 110),
+      vitals.spo2 && vitals.spo2 < 94, symSetP.has("leg swelling") || symSetP.has("calf pain")].filter(Boolean).length;
+    if (embolicSignals >= 3) {
+      detectedPatterns.push({ pattern: "embolic_event", confidence: Math.min(0.85, embolicSignals * 0.18),
+        boostDiagnoses: ["embolism", "thrombosis", "dvt"], boost: 2.0 });
+    }
+
+    // Pattern 3: Infection/Sepsis pattern
+    const infectionSignals = [(symSetP.has("fever") || symSetP.has("mild fever") || symSetP.has("chills")),
+      (vitals.temperature && vitals.temperature > 38.5), symSetP.has("confusion"),
+      (vitals.pulse && vitals.pulse > 100), (vitals.bp_systolic && vitals.bp_systolic < 100),
+      symSetP.has("fatigue") || symSetP.has("malaise")].filter(Boolean).length;
+    if (infectionSignals >= 3) {
+      detectedPatterns.push({ pattern: "systemic_infection", confidence: Math.min(0.9, infectionSignals * 0.17),
+        boostDiagnoses: ["sepsis", "pneumonia", "meningitis", "pyelonephritis", "endocarditis"], boost: 1.8 });
+    }
+
+    // Pattern 4: GI inflammation pattern
+    const giSignals = [symSetP.has("abdominal pain") || symSetP.has("epigastric pain"),
+      symSetP.has("nausea") || symSetP.has("vomiting"), symSetP.has("fever") || symSetP.has("mild fever"),
+      symSetP.has("loss of appetite"), symSetP.has("diarrhea") || symSetP.has("bloating")].filter(Boolean).length;
+    if (giSignals >= 3) {
+      detectedPatterns.push({ pattern: "gi_inflammation", confidence: Math.min(0.85, giSignals * 0.18),
+        boostDiagnoses: ["appendicitis", "cholecystitis", "pancreatitis", "gastroenteritis", "colitis", "diverticulitis"], boost: 1.6 });
+    }
+
+    // Pattern 5: Neurological deficit pattern
+    const neuroSignals = [symSetP.has("weakness"), symSetP.has("speech difficulty"),
+      symSetP.has("blurred vision") || symSetP.has("double vision"), symSetP.has("numbness"),
+      symSetP.has("confusion"), symSetP.has("headache") || symSetP.has("severe headache"),
+      vitals.bp_systolic && vitals.bp_systolic > 180].filter(Boolean).length;
+    if (neuroSignals >= 3) {
+      detectedPatterns.push({ pattern: "neurological_deficit", confidence: Math.min(0.85, neuroSignals * 0.17),
+        boostDiagnoses: ["stroke", "hemorrhage", "transient ischemic", "encephalitis"], boost: 2.0 });
+    }
+
+    // Pattern 6: Meningeal pattern
+    const meningealSignals = [symSetP.has("headache") || symSetP.has("severe headache"),
+      symSetP.has("neck stiffness"), symSetP.has("photophobia"),
+      symSetP.has("fever") || symSetP.has("mild fever"), symSetP.has("vomiting")].filter(Boolean).length;
+    if (meningealSignals >= 3) {
+      detectedPatterns.push({ pattern: "meningeal_irritation", confidence: Math.min(0.9, meningealSignals * 0.2),
+        boostDiagnoses: ["meningitis", "subarachnoid"], boost: 2.5 });
+    }
+
+    // Pattern 7: Endocrine metabolic pattern
+    const endoSignals = [symSetP.has("polyuria"), symSetP.has("polydipsia"),
+      symSetP.has("weight loss") || symSetP.has("weight gain"),
+      symSetP.has("fatigue"), symSetP.has("blurred vision")].filter(Boolean).length;
+    if (endoSignals >= 3) {
+      detectedPatterns.push({ pattern: "endocrine_metabolic", confidence: Math.min(0.85, endoSignals * 0.18),
+        boostDiagnoses: ["diabetes", "hypothyroid", "hyperthyroid", "ketoacidosis", "addison"], boost: 2.0 });
+    }
+
+    // Pattern 8: Tropical fever pattern (important for India market)
+    const tropicalSignals = [(symSetP.has("fever") || symSetP.has("mild fever")),
+      (vitals.temperature && vitals.temperature > 39.0),
+      symSetP.has("body aches") || symSetP.has("muscle pain"),
+      symSetP.has("headache"), symSetP.has("rash"),
+      symSetP.has("joint pain"), symSetP.has("chills")].filter(Boolean).length;
+    if (tropicalSignals >= 4) {
+      detectedPatterns.push({ pattern: "tropical_fever", confidence: Math.min(0.85, tropicalSignals * 0.15),
+        boostDiagnoses: ["dengue", "malaria", "typhoid", "chikungunya", "leptospirosis"], boost: 2.0 });
+    }
+
+    // ══════════════════════════════════════════════════════
+    // COMMON CONDITION PRIORS (Phase 5 - Incomplete fix)
+    // For single/few-symptom presentations, boost the most
+    // epidemiologically likely diagnoses
+    // ══════════════════════════════════════════════════════
+    const COMMON_CONDITION_BOOSTS: Record<string, string[]> = {
+      "headache": ["tension headache", "migraine"],
+      "severe headache": ["migraine", "tension headache"],
+      "fatigue": ["iron deficiency anemia", "hypothyroidism", "type 2 diabetes mellitus"],
+      "fever": ["viral upper respiratory infection", "influenza", "dengue fever", "malaria"],
+      "mild fever": ["viral upper respiratory infection", "urinary tract infection"],
+      "dry cough": ["acute bronchitis", "viral upper respiratory infection", "allergic rhinitis"],
+      "productive cough": ["acute bronchitis", "community acquired pneumonia"],
+      "cough": ["acute bronchitis", "viral upper respiratory infection"],
+      "abdominal pain": ["irritable bowel syndrome", "peptic ulcer disease", "acute gastroenteritis"],
+      "chest pain": ["costochondritis", "gastroesophageal reflux disease", "musculoskeletal chest pain"],
+      "back pain": ["lumbar strain", "sciatica", "musculoskeletal pain"],
+      "joint pain": ["osteoarthritis", "gout", "rheumatoid arthritis"],
+      "dizziness": ["benign positional vertigo", "vasovagal syncope", "anemia"],
+      "dyspnea": ["asthma exacerbation", "anxiety", "anemia"],
+      "nausea": ["acute gastroenteritis", "peptic ulcer disease"],
+      "diarrhea": ["acute gastroenteritis", "irritable bowel syndrome"],
+      "rash": ["allergic dermatitis", "viral exanthem", "urticaria"],
+      "dysuria": ["urinary tract infection", "cystitis"],
+      "syncope": ["vasovagal syncope", "cardiac syncope", "orthostatic hypotension"],
+      "palpitations": ["anxiety", "atrial fibrillation", "supraventricular tachycardia"],
+      "insomnia": ["generalized anxiety disorder", "major depressive disorder"],
+      "bloating": ["irritable bowel syndrome", "functional dyspepsia"],
+      "constipation": ["irritable bowel syndrome", "hypothyroidism"],
+      "runny nose": ["allergic rhinitis", "viral upper respiratory infection"],
+      "nasal congestion": ["allergic rhinitis", "acute sinusitis"],
+      "weight loss": ["hyperthyroidism", "type 2 diabetes mellitus", "tuberculosis"],
+      "weight gain": ["hypothyroidism", "cushings syndrome"],
+      "flank pain": ["nephrolithiasis", "pyelonephritis"],
+      "hematuria": ["nephrolithiasis", "urinary tract infection"],
+    };
+    const isIncomplete = totalSymptomCount <= 2;
+
     const bayesianScores: Array<{
       diagnosis_id: string;
       diagnosis_name: string;
@@ -472,6 +594,27 @@ Deno.serve(async (req) => {
 
       // History-adjusted
       if (historyLower.some(h => diagName.includes(h))) prior *= 1.5;
+
+      // ── COMMON CONDITION PRIOR BOOST (Phase 5 - Incomplete) ──
+      // For single/few-symptom cases, boost epidemiologically common diagnoses
+      if (isIncomplete) {
+        for (const sym of normalizedSymptoms) {
+          const commonDx = COMMON_CONDITION_BOOSTS[sym] || [];
+          if (commonDx.some(cd => diagName.includes(cd.toLowerCase()) || cd.toLowerCase().includes(diagName))) {
+            prior *= 3.0; // Strong boost for common conditions in incomplete presentations
+            break;
+          }
+        }
+      }
+
+      // ── PATTERN INFERENCE BOOST (Phase 5) ──
+      // Apply detected pattern boosts to matching diagnoses
+      let patternBoost = 1.0;
+      for (const pat of detectedPatterns) {
+        if (pat.boostDiagnoses.some(bd => diagName.includes(bd))) {
+          patternBoost *= pat.boost;
+        }
+      }
 
       // Σ P(Sᵢ|D) — ADDITIVE likelihood (rewards more matches)
       let likelihoodSum = 0;
@@ -581,8 +724,8 @@ Deno.serve(async (req) => {
       // flank pain + hematuria + nausea → Nephrolithiasis
       if ((diagName.includes("nephrolithiasis") || diagName.includes("kidney stone") || diagName.includes("renal calc")) && symSet4.has("flank pain") && symSet4.has("hematuria")) combinationBoost *= 2.5;
 
-      // Score = prior × likelihoodSum × coverageBonus × modifiers × combinationBoost
-      const rawPosterior = prior * likelihoodSum * coverageBonus * vitalModifier * riskModifier * combinationBoost;
+      // Score = prior × likelihoodSum × coverageBonus × modifiers × combinationBoost × patternBoost
+      const rawPosterior = prior * likelihoodSum * coverageBonus * vitalModifier * riskModifier * combinationBoost * patternBoost;
 
       // ── NEGATIVE EVIDENCE MODELING (Phase 3) ──
       // Penalize diagnoses when expected key symptoms are ABSENT
