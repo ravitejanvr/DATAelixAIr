@@ -47,9 +47,17 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     // Auth — accept both user tokens and service role key (for inter-function calls)
-    const token = authHeader.replace("Bearer ", "");
-    const isServiceKey = token === serviceKey;
-    if (!isServiceKey) {
+    const token = authHeader.replace("Bearer ", "").trim();
+    let isServiceRole = false;
+    try {
+      const payloadB64 = token.split(".")[1];
+      if (payloadB64) {
+        const payload = JSON.parse(atob(payloadB64));
+        isServiceRole = payload.role === "service_role";
+      }
+    } catch (_) { /* not a valid JWT */ }
+    
+    if (!isServiceRole) {
       const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
       const { data: { user }, error: authErr } = await anonClient.auth.getUser(token);
       if (authErr || !user) {
