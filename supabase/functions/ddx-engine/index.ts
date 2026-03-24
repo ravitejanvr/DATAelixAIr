@@ -397,6 +397,7 @@ Deno.serve(async (req) => {
       infectious: 0.25,
       respiratory: 0.20,
       gastrointestinal: 0.12,
+      gastroenterology: 0.10,
       cardiovascular: 0.08,
       neurological: 0.06,
       endocrine: 0.05,
@@ -407,7 +408,12 @@ Deno.serve(async (req) => {
       geriatric: 0.03,
       oncological: 0.02,
       hematological: 0.02,
+      hematologic: 0.02,
       autoimmune: 0.02,
+      rheumatological: 0.02,
+      gynecological: 0.03,
+      metabolic: 0.02,
+      environmental: 0.01,
     };
 
     const DEFAULT_PRIOR = 0.05;
