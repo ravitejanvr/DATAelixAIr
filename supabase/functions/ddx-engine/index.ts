@@ -909,62 +909,153 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Normalize posteriors to sum to ~100
+    // ══════════════════════════════════════════════════════
+    // PHASE 6: DIAGNOSTIC COMPETITION LAYER
+    // Apply suppression on RAW posteriors before normalization
+    // for maximum discriminative effect
+    // ══════════════════════════════════════════════════════
+
+    // 6A: DB-driven suppression rules (on raw posteriors)
+    const suppressionRules = suppressionRes.data || [];
+    if (suppressionRules.length > 0) {
+      const posteriorById: Record<string, any> = {};
+      for (const d of bayesianScores) posteriorById[d.diagnosis_id] = d;
+
+      for (const rule of suppressionRules) {
+        const dominant = posteriorById[rule.dominant_diagnosis_id];
+        const suppressed = posteriorById[rule.suppressed_diagnosis_id];
+        if (!dominant || !suppressed) continue;
+        // Activate if dominant has higher posterior than suppressed
+        if (dominant.posterior <= suppressed.posterior * 0.5) continue;
+
+        // Check if cancellation symptoms are present
+        const cancelSymptoms = (rule.requires_absence_of || []) as string[];
+        if (cancelSymptoms.length > 0) {
+          const matchedNamesLower = allMatchedSymptoms.map((s: any) => s.symptom_name.toLowerCase());
+          const normalizedLower = normalizedSymptoms.map(s => s.toLowerCase());
+          const allNames = [...matchedNamesLower, ...normalizedLower];
+          const hasCancelSymptom = cancelSymptoms.some((cs: string) =>
+            allNames.some((ns: string) => ns.includes(cs) || cs.includes(ns))
+          );
+          if (hasCancelSymptom) continue;
+        }
+
+        const factor = parseFloat(rule.suppression_factor) || 0.3;
+        suppressed.posterior *= factor;
+        suppressed.contradicting_factors.push(`suppressed by ${dominant.diagnosis_name} (competition rule)`);
+      }
+    }
+
+    // 6B: Inline diagnostic competition (name-based, for pairs not in DB)
+    // Each rule: [dominantPattern, suppressedPattern, factor, cancelSymptoms[]]
+    const INLINE_COMPETITIONS: Array<{
+      dominant: string; suppressed: string; factor: number;
+      cancelSymptoms: string[]; description: string;
+    }> = [
+      // Headache differentials
+      { dominant: "tension headache", suppressed: "subarachnoid", factor: 0.3,
+        cancelSymptoms: ["worst headache", "sudden onset", "thunderclap", "neck stiffness", "syncope"],
+        description: "Tension headache suppresses SAH without red flags" },
+      { dominant: "tension headache", suppressed: "brain tumor", factor: 0.25,
+        cancelSymptoms: ["seizure", "progressive", "morning headache", "papilledema", "weight loss"],
+        description: "Tension headache suppresses brain tumor without progression" },
+      // GI differentials
+      { dominant: "acute gastroenteritis", suppressed: "inflammatory bowel", factor: 0.35,
+        cancelSymptoms: ["bloody stool", "weight loss", "chronic", "joint pain"],
+        description: "Gastroenteritis suppresses IBD without alarm features" },
+      { dominant: "acute gastroenteritis", suppressed: "appendicitis", factor: 0.5,
+        cancelSymptoms: ["rebound tenderness", "right lower quadrant", "migration of pain", "loss of appetite"],
+        description: "Gastroenteritis suppresses appendicitis without localizing signs" },
+      { dominant: "irritable bowel syndrome", suppressed: "colorectal cancer", factor: 0.25,
+        cancelSymptoms: ["bloody stool", "weight loss", "anemia", "iron deficiency", "family history"],
+        description: "IBS suppresses CRC without alarm features" },
+      // Respiratory differentials
+      { dominant: "viral upper respiratory infection", suppressed: "pneumonia", factor: 0.4,
+        cancelSymptoms: ["high fever", "dyspnea", "hypoxia", "crackles", "chest pain"],
+        description: "Viral URI suppresses pneumonia without consolidation signs" },
+      { dominant: "allergic rhinitis", suppressed: "sinusitis", factor: 0.5,
+        cancelSymptoms: ["purulent", "facial pain", "persistent", "unilateral"],
+        description: "Allergic rhinitis suppresses sinusitis without purulent features" },
+      // Cardiac differentials  
+      { dominant: "costochondritis", suppressed: "myocardial infarction", factor: 0.3,
+        cancelSymptoms: ["diaphoresis", "radiation", "dyspnea", "nausea"],
+        description: "Costochondritis suppresses MI without cardiac red flags" },
+      { dominant: "anxiety", suppressed: "atrial fibrillation", factor: 0.4,
+        cancelSymptoms: ["irregular pulse", "age over 60", "syncope", "dyspnea on exertion"],
+        description: "Anxiety suppresses AFib without arrhythmia signs" },
+      // Musculoskeletal differentials
+      { dominant: "lumbar strain", suppressed: "cauda equina", factor: 0.2,
+        cancelSymptoms: ["urinary retention", "saddle anesthesia", "bilateral weakness", "bowel incontinence"],
+        description: "Lumbar strain suppresses cauda equina without neuro deficits" },
+      { dominant: "osteoarthritis", suppressed: "septic arthritis", factor: 0.35,
+        cancelSymptoms: ["fever", "acute onset", "erythema", "warmth", "single joint swelling"],
+        description: "OA suppresses septic arthritis without infection signs" },
+      // Endocrine
+      { dominant: "type 2 diabetes mellitus", suppressed: "diabetic ketoacidosis", factor: 0.3,
+        cancelSymptoms: ["vomiting", "confusion", "fruity breath", "tachypnea", "dehydration"],
+        description: "T2DM suppresses DKA without acute metabolic derangement" },
+      // Infectious  
+      { dominant: "dengue fever", suppressed: "malaria", factor: 0.5,
+        cancelSymptoms: ["cyclical fever", "rigors", "splenomegaly"],
+        description: "Dengue suppresses malaria without cyclical pattern" },
+      { dominant: "malaria", suppressed: "dengue fever", factor: 0.5,
+        cancelSymptoms: ["rash", "retroorbital pain", "thrombocytopenia"],
+        description: "Malaria suppresses dengue without rash/retroorbital pain" },
+    ];
+
+    const symSetComp = new Set(normalizedSymptoms);
+    for (const rule of INLINE_COMPETITIONS) {
+      // Find dominant and suppressed candidates
+      const dominantCandidates = bayesianScores.filter(d => d.diagnosis_name.toLowerCase().includes(rule.dominant));
+      const suppressedCandidates = bayesianScores.filter(d => d.diagnosis_name.toLowerCase().includes(rule.suppressed));
+      
+      if (dominantCandidates.length === 0 || suppressedCandidates.length === 0) continue;
+      
+      const dominant = dominantCandidates[0];
+      if (dominant.posterior <= 0) continue;
+
+      // Check cancel symptoms
+      const hasCancelSymptom = rule.cancelSymptoms.some(cs =>
+        normalizedSymptoms.some(ns => ns.includes(cs) || cs.includes(ns)) ||
+        historyLower.some(h => h.includes(cs) || cs.includes(h))
+      );
+      if (hasCancelSymptom) continue;
+
+      for (const suppressed of suppressedCandidates) {
+        if (suppressed.diagnosis_id === dominant.diagnosis_id) continue;
+        suppressed.posterior *= rule.factor;
+        suppressed.contradicting_factors.push(`suppressed by ${dominant.diagnosis_name}: ${rule.description}`);
+      }
+    }
+
+    // 6C: Proximity-based competition — when two similar diagnoses are close,
+    // boost the one with better symptom coverage
+    const sortedForProximity = [...bayesianScores].sort((a, b) => b.posterior - a.posterior);
+    for (let i = 0; i < sortedForProximity.length - 1; i++) {
+      const a = sortedForProximity[i];
+      const b = sortedForProximity[i + 1];
+      if (a.posterior <= 0 || b.posterior <= 0) continue;
+      const ratio = b.posterior / a.posterior;
+      // If within 30% of each other, apply coverage-based discrimination
+      if (ratio > 0.7 && ratio < 1.0) {
+        if (a.symptom_coverage > b.symptom_coverage * 1.3) {
+          // A explains significantly more symptoms → penalize B
+          b.posterior *= 0.7;
+          b.contradicting_factors.push(`lower symptom coverage vs ${a.diagnosis_name}`);
+        } else if (b.symptom_coverage > a.symptom_coverage * 1.3) {
+          a.posterior *= 0.7;
+          a.contradicting_factors.push(`lower symptom coverage vs ${b.diagnosis_name}`);
+        }
+      }
+    }
+
+    // Now normalize posteriors to sum to ~100
     const totalPosterior = bayesianScores.reduce((s, d) => s + d.posterior, 0) || 1;
     for (const d of bayesianScores) {
       d.probability = Math.round((d.posterior / totalPosterior) * 100);
     }
 
     // ── Organ System Bonus ──
-    const symptomSystemCounts: Record<string, number> = {};
-    for (const sym of normalizedSymptoms) {
-      for (const [system, keywords] of Object.entries(ORGAN_SYSTEM_MAP)) {
-        if (keywords.some(k => sym.includes(k) || k.includes(sym))) {
-          symptomSystemCounts[system] = (symptomSystemCounts[system] || 0) + 1;
-        }
-      }
-    }
-    const activeSystems = Object.entries(symptomSystemCounts)
-      .filter(([, count]) => count >= 2)
-      .map(([sys]) => sys);
-
-    if (activeSystems.length > 0) {
-      for (const d of bayesianScores) {
-        const cat = (d.category || "").toLowerCase();
-        if (activeSystems.includes(cat)) {
-          d.probability = Math.min(100, Math.round(d.probability * 1.25));
-        }
-      }
-    }
-
-    // ── Hypothesis Competition: Apply suppression rules ──
-    const suppressionRules = suppressionRes.data || [];
-    if (suppressionRules.length > 0) {
-      const probById: Record<string, any> = {};
-      for (const d of bayesianScores) probById[d.diagnosis_id] = d;
-
-      for (const rule of suppressionRules) {
-        const dominant = probById[rule.dominant_diagnosis_id];
-        const suppressed = probById[rule.suppressed_diagnosis_id];
-        if (!dominant || !suppressed) continue;
-        if (dominant.probability < 15) continue;
-
-        // Check if cancellation symptoms are present
-        const cancelSymptoms = (rule.requires_absence_of || []) as string[];
-        if (cancelSymptoms.length > 0) {
-          const matchedNames = allMatchedSymptoms.map((s: any) => s.symptom_name.toLowerCase());
-          const hasCancelSymptom = cancelSymptoms.some((cs: string) =>
-            matchedNames.some((ns: string) => ns.includes(cs) || cs.includes(ns))
-          );
-          if (hasCancelSymptom) continue;
-        }
-
-        const factor = parseFloat(rule.suppression_factor) || 0.3;
-        suppressed.probability = Math.round(suppressed.probability * factor);
-      }
-    }
-
-    bayesianScores.sort((a, b) => b.probability - a.probability);
     const stage2Ms = Date.now() - stageStart2;
 
     // ═══════════════════════════════════════════════════
