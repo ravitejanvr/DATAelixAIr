@@ -1166,8 +1166,8 @@ Deno.serve(async (req) => {
         injectionProbability = 0;
       }
 
-      // Always add to dangerous_diagnoses details for awareness
-      if (!dangerousDiagnosisDetails.find((d: any) => d.diagnosis_id === diagInfo.id)) {
+      // Only add to dangerous_diagnoses output if actually injected
+      if (shouldInject && !dangerousDiagnosisDetails.find((d: any) => d.diagnosis_id === diagInfo.id)) {
         dangerousDiagnosisDetails.push({
           diagnosis_id: diagInfo.id,
           diagnosis_name: row.diagnosis_name || diagInfo.diagnosis_name,
@@ -1176,7 +1176,7 @@ Deno.serve(async (req) => {
           emergency_protocol: row.emergency_protocol,
           guideline_source: row.guideline_source,
           trigger_symptom: info.triggers.join(", "),
-          injection_level: shouldInject ? (hasMultipleTriggers ? "full" : "contextual") : "awareness_only",
+          injection_level: hasMultipleTriggers ? "full" : "contextual",
         });
       }
 
