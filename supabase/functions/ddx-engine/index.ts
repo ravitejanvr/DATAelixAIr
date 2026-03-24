@@ -680,7 +680,7 @@ Deno.serve(async (req) => {
         icd10_code: d.icd10_code,
         category: d.category,
         probability: 0,
-        posterior: rawPosterior,
+        posterior: adjustedPosterior,
         prior,
         likelihood: likelihoodSum,
         symptom_coverage: coverage,
