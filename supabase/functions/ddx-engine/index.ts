@@ -505,8 +505,84 @@ Deno.serve(async (req) => {
         if (diagName.includes(rf.toLowerCase())) riskModifier *= 1.3;
       }
 
-      // Score = prior × likelihoodSum × coverageBonus × modifiers
-      const rawPosterior = prior * likelihoodSum * coverageBonus * vitalModifier * riskModifier;
+      // ── CONDITIONAL LIKELIHOOD: SYMPTOM COMBINATION BOOSTERS (Phase 4) ──
+      // High-value multi-symptom patterns that boost specific diagnoses
+      // Only 25 carefully selected combinations to avoid overfitting
+      let combinationBoost = 1.0;
+      const symSet4 = new Set(normalizedSymptoms);
+
+      // --- Cardiac ---
+      // chest pain + diaphoresis + age>50 → MI
+      if (diagName.includes("infarction") && symSet4.has("chest pain") && symSet4.has("diaphoresis") && age && age > 50) combinationBoost *= 2.5;
+      // chest pain + diaphoresis (any age) → MI
+      if (diagName.includes("infarction") && symSet4.has("chest pain") && symSet4.has("diaphoresis") && combinationBoost < 2.0) combinationBoost *= 2.0;
+      // chest pain + dyspnea + fatigue + age>55 → angina
+      if ((diagName.includes("angina") || diagName.includes("ischemia")) && symSet4.has("chest pain") && symSet4.has("dyspnea") && age && age > 55) combinationBoost *= 2.0;
+      // dyspnea + edema + orthopnea → CHF
+      if (diagName.includes("heart failure") && symSet4.has("dyspnea") && symSet4.has("edema")) combinationBoost *= 2.2;
+      // palpitations + dizziness + dyspnea → AFib
+      if ((diagName.includes("fibrillation") || diagName.includes("afib")) && symSet4.has("palpitations") && symSet4.has("dizziness")) combinationBoost *= 2.5;
+
+      // --- Pulmonary ---
+      // dyspnea + chest pain + tachycardia/hemoptysis → PE
+      if (diagName.includes("pulmonary embolism") && symSet4.has("dyspnea") && (symSet4.has("chest pain") || symSet4.has("hemoptysis"))) combinationBoost *= 2.0;
+      // dyspnea + wheezing + chest tightness → Asthma
+      if ((diagName.includes("asthma") || diagName.includes("bronchospasm")) && symSet4.has("dyspnea") && symSet4.has("wheezing")) combinationBoost *= 2.2;
+      // dyspnea + cough + fatigue → COPD
+      if ((diagName.includes("copd") || diagName.includes("chronic obstructive")) && symSet4.has("dyspnea") && (symSet4.has("dry cough") || symSet4.has("productive cough"))) combinationBoost *= 2.0;
+      // fever + cough + dyspnea → Pneumonia
+      if (diagName.includes("pneumonia") && (symSet4.has("fever") || symSet4.has("mild fever")) && (symSet4.has("productive cough") || symSet4.has("dry cough"))) combinationBoost *= 2.2;
+
+      // --- Neuro ---
+      // headache + neck stiffness + fever → Meningitis
+      if (diagName.includes("meningitis") && symSet4.has("headache") && symSet4.has("neck stiffness") && (symSet4.has("fever") || symSet4.has("mild fever"))) combinationBoost *= 3.0;
+      // headache + photophobia + nausea → Migraine
+      if (diagName.includes("migraine") && (symSet4.has("headache") || symSet4.has("severe headache")) && symSet4.has("photophobia")) combinationBoost *= 2.5;
+      // weakness + speech difficulty → Stroke
+      if (diagName.includes("stroke") && symSet4.has("weakness") && symSet4.has("speech difficulty")) combinationBoost *= 2.5;
+
+      // --- GI ---
+      // abdominal pain + nausea + loss of appetite → Appendicitis
+      if (diagName.includes("appendicitis") && symSet4.has("abdominal pain") && symSet4.has("nausea") && symSet4.has("loss of appetite")) combinationBoost *= 2.0;
+      // abdominal pain + nausea + fever → Cholecystitis
+      if (diagName.includes("cholecystitis") && symSet4.has("abdominal pain") && symSet4.has("nausea") && (symSet4.has("fever") || symSet4.has("mild fever"))) combinationBoost *= 2.2;
+      // epigastric pain + vomiting + back pain → Pancreatitis
+      if (diagName.includes("pancreatitis") && symSet4.has("epigastric pain") && symSet4.has("vomiting")) combinationBoost *= 2.5;
+      // diarrhea + vomiting + abdominal cramps → Gastroenteritis
+      if (diagName.includes("gastroenteritis") && symSet4.has("diarrhea") && (symSet4.has("vomiting") || symSet4.has("nausea"))) combinationBoost *= 2.2;
+      // heartburn + bloating + chest pain → GERD
+      if ((diagName.includes("gastroesophageal") || diagName.includes("gerd") || diagName.includes("reflux")) && symSet4.has("heartburn")) combinationBoost *= 2.5;
+      // bloating + diarrhea + weight loss → Celiac
+      if (diagName.includes("celiac") && symSet4.has("bloating") && symSet4.has("diarrhea")) combinationBoost *= 2.5;
+
+      // --- Infectious ---
+      // fever + headache + body aches + rash → Dengue
+      if (diagName.includes("dengue") && (symSet4.has("fever") || symSet4.has("mild fever")) && symSet4.has("body aches") && symSet4.has("rash")) combinationBoost *= 2.5;
+      // fever + chills + headache + body aches → Malaria
+      if (diagName.includes("malaria") && (symSet4.has("fever") || symSet4.has("mild fever")) && symSet4.has("chills") && symSet4.has("body aches")) combinationBoost *= 2.5;
+      // fever + abdominal pain + diarrhea + headache → Typhoid
+      if (diagName.includes("typhoid") && (symSet4.has("fever") || symSet4.has("mild fever")) && symSet4.has("abdominal pain") && symSet4.has("diarrhea")) combinationBoost *= 2.5;
+      // productive cough + night sweats + weight loss → TB
+      if (diagName.includes("tuberculosis") && symSet4.has("productive cough") && symSet4.has("night sweats") && symSet4.has("weight loss")) combinationBoost *= 3.0;
+      // fever + confusion + tachycardia → Sepsis
+      if (diagName.includes("sepsis") && (symSet4.has("fever") || symSet4.has("mild fever")) && symSet4.has("confusion")) combinationBoost *= 2.5;
+
+      // --- Endocrine ---
+      // polyuria + polydipsia + weight loss → Diabetes
+      if (diagName.includes("diabetes") && symSet4.has("polyuria") && symSet4.has("polydipsia")) combinationBoost *= 2.5;
+      // weight loss + palpitations + tremor → Hyperthyroidism
+      if (diagName.includes("hyperthyroid") && symSet4.has("weight loss") && symSet4.has("palpitations")) combinationBoost *= 2.5;
+      // fatigue + weight gain + constipation → Hypothyroidism
+      if (diagName.includes("hypothyroid") && symSet4.has("fatigue") && symSet4.has("weight gain")) combinationBoost *= 2.5;
+
+      // --- Musculoskeletal/Other ---
+      // dysuria + polyuria + fever → UTI/Pyelonephritis
+      if ((diagName.includes("urinary tract") || diagName.includes("cystitis") || diagName.includes("pyelonephritis")) && symSet4.has("dysuria") && symSet4.has("polyuria")) combinationBoost *= 2.0;
+      // flank pain + hematuria + nausea → Nephrolithiasis
+      if ((diagName.includes("nephrolithiasis") || diagName.includes("kidney stone") || diagName.includes("renal calc")) && symSet4.has("flank pain") && symSet4.has("hematuria")) combinationBoost *= 2.5;
+
+      // Score = prior × likelihoodSum × coverageBonus × modifiers × combinationBoost
+      const rawPosterior = prior * likelihoodSum * coverageBonus * vitalModifier * riskModifier * combinationBoost;
 
       // ── NEGATIVE EVIDENCE MODELING (Phase 3) ──
       // Penalize diagnoses when expected key symptoms are ABSENT
