@@ -1056,6 +1056,28 @@ Deno.serve(async (req) => {
     }
 
     // ── Organ System Bonus ──
+    const symptomSystemCounts: Record<string, number> = {};
+    for (const sym of normalizedSymptoms) {
+      for (const [system, keywords] of Object.entries(ORGAN_SYSTEM_MAP)) {
+        if (keywords.some(k => sym.includes(k) || k.includes(sym))) {
+          symptomSystemCounts[system] = (symptomSystemCounts[system] || 0) + 1;
+        }
+      }
+    }
+    const activeSystems = Object.entries(symptomSystemCounts)
+      .filter(([, count]) => count >= 2)
+      .map(([sys]) => sys);
+
+    if (activeSystems.length > 0) {
+      for (const d of bayesianScores) {
+        const cat = (d.category || "").toLowerCase();
+        if (activeSystems.includes(cat)) {
+          d.probability = Math.min(100, Math.round(d.probability * 1.25));
+        }
+      }
+    }
+
+    bayesianScores.sort((a, b) => b.probability - a.probability);
     const stage2Ms = Date.now() - stageStart2;
 
     // ═══════════════════════════════════════════════════
