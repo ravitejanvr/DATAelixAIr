@@ -353,6 +353,137 @@ export type Database = {
         }
         Relationships: []
       }
+      benchmark_suite_results: {
+        Row: {
+          candidate_recall: boolean
+          case_id: string
+          case_name: string
+          clinical_acceptability: number
+          created_at: string
+          failure_reasons: string[]
+          gold_rank: number | null
+          id: string
+          latency_ms: number
+          layer: string
+          predicted_top5: Json
+          run_id: string
+          safety_alerts: Json
+          safety_correct: boolean
+          safety_expected: boolean
+          safety_triggered: boolean
+          score_breakdown: Json
+          top1_match: boolean
+          top3_match: boolean
+          top5_match: boolean
+        }
+        Insert: {
+          candidate_recall?: boolean
+          case_id: string
+          case_name: string
+          clinical_acceptability?: number
+          created_at?: string
+          failure_reasons?: string[]
+          gold_rank?: number | null
+          id?: string
+          latency_ms?: number
+          layer: string
+          predicted_top5?: Json
+          run_id: string
+          safety_alerts?: Json
+          safety_correct?: boolean
+          safety_expected?: boolean
+          safety_triggered?: boolean
+          score_breakdown?: Json
+          top1_match?: boolean
+          top3_match?: boolean
+          top5_match?: boolean
+        }
+        Update: {
+          candidate_recall?: boolean
+          case_id?: string
+          case_name?: string
+          clinical_acceptability?: number
+          created_at?: string
+          failure_reasons?: string[]
+          gold_rank?: number | null
+          id?: string
+          latency_ms?: number
+          layer?: string
+          predicted_top5?: Json
+          run_id?: string
+          safety_alerts?: Json
+          safety_correct?: boolean
+          safety_expected?: boolean
+          safety_triggered?: boolean
+          score_breakdown?: Json
+          top1_match?: boolean
+          top3_match?: boolean
+          top5_match?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "benchmark_suite_results_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "benchmark_suite_runs"
+            referencedColumns: ["run_id"]
+          },
+        ]
+      }
+      benchmark_suite_runs: {
+        Row: {
+          benchmark_version: string
+          comparison_summary: Json | null
+          created_at: string
+          failed: number
+          id: string
+          improvement_count: number
+          layer_metrics: Json
+          locked: boolean
+          metrics_summary: Json
+          passed: number
+          pipeline_mode: string
+          pipeline_phase: string
+          regression_count: number
+          run_id: string
+          total_cases: number
+        }
+        Insert: {
+          benchmark_version?: string
+          comparison_summary?: Json | null
+          created_at?: string
+          failed?: number
+          id?: string
+          improvement_count?: number
+          layer_metrics?: Json
+          locked?: boolean
+          metrics_summary?: Json
+          passed?: number
+          pipeline_mode: string
+          pipeline_phase: string
+          regression_count?: number
+          run_id: string
+          total_cases?: number
+        }
+        Update: {
+          benchmark_version?: string
+          comparison_summary?: Json | null
+          created_at?: string
+          failed?: number
+          id?: string
+          improvement_count?: number
+          layer_metrics?: Json
+          locked?: boolean
+          metrics_summary?: Json
+          passed?: number
+          pipeline_mode?: string
+          pipeline_phase?: string
+          regression_count?: number
+          run_id?: string
+          total_cases?: number
+        }
+        Relationships: []
+      }
       bias_metrics: {
         Row: {
           acceptance_rate: number | null
