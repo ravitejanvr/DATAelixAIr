@@ -9,9 +9,11 @@ import {
 import {
   Play, Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Brain,
   Activity, Shield, ChevronDown, ChevronUp, Zap, Target, ArrowRight,
+  GitCompare, Lock, BarChart3,
 } from "lucide-react";
-import { runBenchmarkSuite, BENCHMARK_SUITE } from "@/services/benchmark_v9";
-import type { BenchmarkResult, BenchmarkSuiteResult } from "@/services/benchmark_v9/types";
+import { runBenchmarkSuite, BENCHMARK_SUITE, comparePhases } from "@/services/benchmark_v9";
+import type { BenchmarkResult, BenchmarkSuiteResult, PhaseComparisonReport } from "@/services/benchmark_v9/types";
+import type { PipelineMode } from "@/services/benchmark_v9/runner";
 import SEO from "@/components/SEO";
 
 // ── Helpers ──
@@ -89,7 +91,6 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
 
   return (
     <div className="space-y-2 mt-2">
-      {/* Normalization */}
       <StageRow name="1. Normalization" ok={result.normalization.normalized_tokens.length > 0} latency={result.stage_latencies.find(s => s.stage === "Input Normalization")?.latency_ms || 0} expanded={expandedStage === "norm"} onToggle={() => toggle("norm")}>
         <div className="space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
@@ -104,7 +105,6 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
         </div>
       </StageRow>
 
-      {/* Physiology */}
       <StageRow name="2. Physiology" ok={result.physiology.states_activated.length > 0} latency={result.stage_latencies.find(s => s.stage === "Physiology Inference")?.latency_ms || 0} expanded={expandedStage === "physio"} onToggle={() => toggle("physio")}>
         <div className="space-y-1">
           {result.physiology.states_activated.length > 0
@@ -121,7 +121,6 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
         </div>
       </StageRow>
 
-      {/* DDX */}
       <StageRow name="3. DDX Candidates" ok={result.candidate_generation.gold_in_candidates} latency={result.stage_latencies.find(s => s.stage === "Candidate Generation (DDX)")?.latency_ms || 0} expanded={expandedStage === "ddx"} onToggle={() => toggle("ddx")}>
         <div className="space-y-2">
           <div className="flex flex-wrap gap-1">
@@ -141,7 +140,6 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
         </div>
       </StageRow>
 
-      {/* Bayesian */}
       <StageRow name="4. Bayesian" ok={result.bayesian.ranked_diagnoses.length > 0} latency={result.stage_latencies.find(s => s.stage === "Bayesian Ranking")?.latency_ms || 0} expanded={expandedStage === "bayes"} onToggle={() => toggle("bayes")}>
         <div className="space-y-1">
           {result.bayesian.ranked_diagnoses.slice(0, 5).map((d, i) => (
@@ -155,7 +153,6 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
         </div>
       </StageRow>
 
-      {/* Cognitive */}
       <StageRow name="5. Cognitive Pruning" ok={!result.cognitive_pruning.gold_pruned} latency={result.stage_latencies.find(s => s.stage === "Cognitive Pruning")?.latency_ms || 0} expanded={expandedStage === "cog"} onToggle={() => toggle("cog")}>
         <div className="flex gap-4 text-xs">
           <span>Kept: <span className="font-bold text-emerald-600">{result.cognitive_pruning.kept}</span></span>
@@ -164,19 +161,29 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
         </div>
       </StageRow>
 
-      {/* Safety */}
       <StageRow name="6. Safety" ok={result.safety.correct} latency={0} expanded={expandedStage === "safety"} onToggle={() => toggle("safety")}>
         <div className="space-y-1 text-xs">
           <div className="flex gap-4">
             <span>Expected: {result.safety.expected_danger ? "Yes" : "No"}</span>
             <span>Detected: {result.safety.danger_detected ? "Yes" : "No"}</span>
           </div>
+          {result.safety.alert_entries && result.safety.alert_entries.length > 0 && (
+            <div className="mt-1 space-y-0.5">
+              <p className="font-medium text-primary">Alert Channel:</p>
+              {result.safety.alert_entries.map((a, i) => (
+                <div key={i} className="flex items-center gap-2 text-[10px]">
+                  <Badge variant="destructive" className="text-[8px]">{a.severity}</Badge>
+                  <span>{a.condition}</span>
+                  <Badge variant="outline" className="text-[8px]">{a.source}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="text-muted-foreground">{result.safety.detection_details}</div>
           {result.safety.dangerous_diagnoses.length > 0 && <div>Flagged: {result.safety.dangerous_diagnoses.join(", ")}</div>}
         </div>
       </StageRow>
 
-      {/* Final */}
       <StageRow name="7. Final Ranking" ok={result.final_ranking.top3_match} latency={0} expanded={expandedStage === "final"} onToggle={() => toggle("final")}>
         <div className="space-y-1">
           {result.final_ranking.ranking.slice(0, 5).map((d, i) => (
@@ -184,7 +191,7 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
               <span className="w-6 text-right text-muted-foreground">#{d.rank}</span>
               <span className={d.rank === result.final_ranking.gold_rank ? "font-bold text-emerald-600" : ""}>{d.diagnosis}</span>
               <span className="text-muted-foreground">({probDisplay(d.probability)}%)</span>
-              <Badge variant="outline" className="text-[8px] px-1">{"ranking_source" in d ? (d as any).ranking_source : "ddx"}</Badge>
+              <Badge variant="outline" className="text-[8px] px-1">{d.ranking_source}</Badge>
             </div>
           ))}
           <p className="text-[10px] text-muted-foreground mt-1">
@@ -196,7 +203,6 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
         </div>
       </StageRow>
 
-      {/* Failures */}
       {result.failure_reasons.length > 0 && (
         <div className="px-3 py-2 bg-destructive/5 rounded text-xs">
           <p className="font-medium text-destructive mb-1">Failures</p>
@@ -207,23 +213,176 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
   );
 }
 
+// ── Comparison Table ──
+
+function ComparisonPanel({ report }: { report: PhaseComparisonReport }) {
+  const d = report.deltas;
+  const deltaColor = (v: number) => v > 0 ? "text-emerald-600" : v < 0 ? "text-destructive" : "text-muted-foreground";
+  const deltaSign = (v: number) => v > 0 ? `+${v}` : `${v}`;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Badge variant={report.verdict === "READY" ? "default" : "destructive"} className="text-xs">
+          {report.verdict}
+        </Badge>
+        {report.verdict_reasons.map((r, i) => (
+          <span key={i} className="text-[10px] text-muted-foreground">• {r}</span>
+        ))}
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-xs">Metric</TableHead>
+            <TableHead className="text-xs text-right">Phase 8</TableHead>
+            <TableHead className="text-xs text-right">Phase 9</TableHead>
+            <TableHead className="text-xs text-right">Delta</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {[
+            ["Top-1 Accuracy", report.phase8_metrics.top1_accuracy, report.phase9_metrics.top1_accuracy, d.top1_delta],
+            ["Top-3 Accuracy", report.phase8_metrics.top3_accuracy, report.phase9_metrics.top3_accuracy, d.top3_delta],
+            ["Top-5 Accuracy", report.phase8_metrics.top5_accuracy, report.phase9_metrics.top5_accuracy, d.top5_delta],
+            ["Candidate Recall", report.phase8_metrics.candidate_recall, report.phase9_metrics.candidate_recall, d.recall_delta],
+            ["Safety Sensitivity", report.phase8_metrics.safety_sensitivity, report.phase9_metrics.safety_sensitivity, d.safety_sensitivity_delta],
+            ["Safety Specificity", report.phase8_metrics.safety_specificity, report.phase9_metrics.safety_specificity, d.safety_specificity_delta],
+          ].map(([label, p8, p9, delta]) => (
+            <TableRow key={label as string}>
+              <TableCell className="text-xs font-medium">{label as string}</TableCell>
+              <TableCell className="text-xs text-right font-mono">{p8}%</TableCell>
+              <TableCell className="text-xs text-right font-mono">{p9}%</TableCell>
+              <TableCell className={`text-xs text-right font-mono font-bold ${deltaColor(delta as number)}`}>
+                {deltaSign(delta as number)}pp
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {/* Phase 9 Alert Metrics */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5 text-primary" /> Phase 9 Alert Channel Metrics
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-4 gap-3 text-center">
+            <div>
+              <p className="text-lg font-bold text-foreground">{report.phase9_metrics.alert_precision}%</p>
+              <p className="text-[10px] text-muted-foreground">Alert Precision</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-foreground">{report.phase9_metrics.alert_recall}%</p>
+              <p className="text-[10px] text-muted-foreground">Alert Recall</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-foreground">{report.phase9_metrics.alert_to_ranking_overlap}%</p>
+              <p className="text-[10px] text-muted-foreground">Alert↔Ranking Overlap</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-foreground">{report.phase9_metrics.safety_detection_rate}%</p>
+              <p className="text-[10px] text-muted-foreground">Combined Detection</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Per-scenario diffs */}
+      {report.regressions.length > 0 && (
+        <Card className="border-destructive/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs text-destructive flex items-center gap-1.5">
+              <XCircle className="h-3.5 w-3.5" /> Regressions ({report.regressions.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {report.regressions.map((r, i) => (
+              <div key={i} className="flex items-center justify-between text-xs py-1 border-b last:border-b-0">
+                <span className="font-medium">{r.scenario_name}</span>
+                <span className="text-destructive">{r.reason}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {report.improvements.length > 0 && (
+        <Card className="border-emerald-300/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs text-emerald-600 flex items-center gap-1.5">
+              <CheckCircle className="h-3.5 w-3.5" /> Improvements ({report.improvements.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {report.improvements.map((r, i) => (
+              <div key={i} className="flex items-center justify-between text-xs py-1 border-b last:border-b-0">
+                <span className="font-medium">{r.scenario_name}</span>
+                <span className="text-emerald-600">{r.reason}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ── Main Dashboard ──
 
 export default function GPBenchmarkDashboard() {
   const [suiteResult, setSuiteResult] = useState<BenchmarkSuiteResult | null>(null);
+  const [baseline, setBaseline] = useState<BenchmarkSuiteResult | null>(null);
+  const [comparison, setComparison] = useState<PhaseComparisonReport | null>(null);
   const [running, setRunning] = useState(false);
+  const [runMode, setRunMode] = useState<"phase9" | "phase8" | "compare">("phase9");
   const [progress, setProgress] = useState<string>("");
   const [expandedScenario, setExpandedScenario] = useState<string | null>(null);
 
-  const runBenchmark = useCallback(async () => {
+  const runBenchmark = useCallback(async (mode: PipelineMode) => {
     setRunning(true);
     setSuiteResult(null);
+    setComparison(null);
     setExpandedScenario(null);
+    setRunMode(mode);
     try {
       const result = await runBenchmarkSuite((name, idx, total) => {
-        setProgress(`${idx + 1}/${total}: ${name}`);
-      });
+        setProgress(`[${mode.toUpperCase()}] ${idx + 1}/${total}: ${name}`);
+      }, mode);
       setSuiteResult(result);
+      if (mode === "phase8") setBaseline(result);
+    } finally {
+      setRunning(false);
+      setProgress("");
+    }
+  }, []);
+
+  const runComparison = useCallback(async () => {
+    setRunning(true);
+    setSuiteResult(null);
+    setComparison(null);
+    setExpandedScenario(null);
+    setRunMode("compare");
+    try {
+      // Phase 8 baseline
+      setProgress("[PHASE 8 BASELINE] Starting...");
+      const p8 = await runBenchmarkSuite((name, idx, total) => {
+        setProgress(`[PHASE 8] ${idx + 1}/${total}: ${name}`);
+      }, "phase8");
+      setBaseline(p8);
+
+      // Phase 9 experimental
+      setProgress("[PHASE 9] Starting...");
+      const p9 = await runBenchmarkSuite((name, idx, total) => {
+        setProgress(`[PHASE 9] ${idx + 1}/${total}: ${name}`);
+      }, "phase9");
+      setSuiteResult(p9);
+
+      // Compare
+      const report = comparePhases(p8, p9);
+      setComparison(report);
     } finally {
       setRunning(false);
       setProgress("");
@@ -240,19 +399,46 @@ export default function GPBenchmarkDashboard() {
         <div>
           <h1 className="text-xl font-bold text-foreground">Clinical Reasoning Benchmark</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            30 controlled scenarios · Core diagnostic pipeline validation
+            30 controlled scenarios · Dual-mode Phase 8/9 evaluation
           </p>
         </div>
-        <Button size="sm" onClick={runBenchmark} disabled={running}>
-          {running
-            ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />{progress || "Running..."}</>
-            : <><Play className="h-3.5 w-3.5 mr-1" /> Run All 30 Scenarios</>
-          }
-        </Button>
+        <div className="flex items-center gap-2">
+          {baseline && (
+            <Badge variant="outline" className="text-[9px] flex items-center gap-1">
+              <Lock className="h-2.5 w-2.5" /> Baseline locked
+            </Badge>
+          )}
+          <Button size="sm" variant="outline" onClick={() => runBenchmark("phase8")} disabled={running}>
+            <Shield className="h-3.5 w-3.5 mr-1" /> Phase 8
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => runBenchmark("phase9")} disabled={running}>
+            <Brain className="h-3.5 w-3.5 mr-1" /> Phase 9
+          </Button>
+          <Button size="sm" onClick={runComparison} disabled={running}>
+            {running
+              ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />{progress || "Running..."}</>
+              : <><GitCompare className="h-3.5 w-3.5 mr-1" /> Compare P8 vs P9</>
+            }
+          </Button>
+        </div>
       </div>
 
+      {/* Comparison Report */}
+      {comparison && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              <BarChart3 className="h-4 w-4 text-primary" /> Phase 8 vs Phase 9 Comparison
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ComparisonPanel report={comparison} />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Scenario List (pre-run) */}
-      {!sr && !running && (
+      {!sr && !running && !comparison && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-1.5">
@@ -281,7 +467,7 @@ export default function GPBenchmarkDashboard() {
               </TableBody>
             </Table>
             <div className="mt-4 text-center">
-              <Button size="sm" onClick={runBenchmark}><Play className="h-3.5 w-3.5 mr-1" /> Run Benchmark</Button>
+              <Button size="sm" onClick={runComparison}><GitCompare className="h-3.5 w-3.5 mr-1" /> Run Full Comparison</Button>
             </div>
           </CardContent>
         </Card>
@@ -293,7 +479,9 @@ export default function GPBenchmarkDashboard() {
           <CardContent className="py-10 text-center">
             <Loader2 className="h-8 w-8 text-primary mx-auto mb-3 animate-spin" />
             <p className="text-sm font-medium">{progress || "Initializing..."}</p>
-            <p className="text-xs text-muted-foreground mt-1">Running 30 scenarios through the diagnostic pipeline</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {runMode === "compare" ? "Running Phase 8 → Phase 9 → Comparison" : `Running 30 scenarios (${runMode})`}
+            </p>
           </CardContent>
         </Card>
       )}
@@ -301,50 +489,41 @@ export default function GPBenchmarkDashboard() {
       {/* Results */}
       {sr && (
         <>
-          {/* Aggregate Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <MetricCard
-              label="Top-1 Accuracy"
-              value={pct(sr.top1_accuracy)}
-              icon={Target}
-              variant={sr.top1_accuracy >= 60 ? "success" : sr.top1_accuracy >= 40 ? "warning" : "danger"}
-              detail="Target: ≥60%"
-            />
-            <MetricCard
-              label="Top-3 Accuracy"
-              value={pct(sr.top3_accuracy)}
-              icon={Target}
-              variant={sr.top3_accuracy >= 80 ? "success" : sr.top3_accuracy >= 60 ? "warning" : "danger"}
-              detail="Target: ≥80%"
-            />
-            <MetricCard
-              label="Candidate Recall"
-              value={pct(sr.candidate_recall)}
-              icon={Brain}
-              variant={sr.candidate_recall >= 90 ? "success" : sr.candidate_recall >= 70 ? "warning" : "danger"}
-              detail="Target: ≥90%"
-            />
-            <MetricCard
-              label="Safety Detection"
-              value={pct(sr.safety_detection_rate)}
-              icon={Shield}
-              variant={sr.safety_detection_rate === 100 ? "success" : "danger"}
-              detail="Target: 100%"
-            />
-            <MetricCard
-              label="Avg Latency"
-              value={`${(sr.avg_latency_ms / 1000).toFixed(1)}s`}
-              icon={Clock}
-              variant={sr.avg_latency_ms <= 5000 ? "success" : "warning"}
-              detail={`Min: ${(sr.min_latency_ms / 1000).toFixed(1)}s · Max: ${(sr.max_latency_ms / 1000).toFixed(1)}s`}
-            />
+          <div className="flex items-center gap-2 mb-2">
+            <Badge variant="outline" className="text-[9px]">{sr.pipeline_mode.toUpperCase()}</Badge>
+            <span className="text-xs text-muted-foreground">{sr.timestamp}</span>
           </div>
 
-          {/* Pass/Fail summary */}
-          <div className="grid grid-cols-3 gap-3">
-            <MetricCard label="Passed" value={`${sr.passed}/${sr.total_scenarios}`} icon={CheckCircle} variant={sr.passed === sr.total_scenarios ? "success" : "warning"} />
-            <MetricCard label="Failed" value={`${sr.failed}`} icon={XCircle} variant={sr.failed === 0 ? "success" : "danger"} />
-            <MetricCard label="Top-5 Accuracy" value={pct(sr.top5_accuracy)} icon={Activity} variant={sr.top5_accuracy >= 85 ? "success" : "warning"} detail="Target: ≥85%" />
+          {/* Aggregate Metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <MetricCard label="Top-1 Accuracy" value={pct(sr.top1_accuracy)} icon={Target}
+              variant={sr.top1_accuracy >= 60 ? "success" : sr.top1_accuracy >= 40 ? "warning" : "danger"}
+              detail="Target: ≥60%" />
+            <MetricCard label="Top-3 Accuracy" value={pct(sr.top3_accuracy)} icon={Target}
+              variant={sr.top3_accuracy >= 80 ? "success" : sr.top3_accuracy >= 60 ? "warning" : "danger"}
+              detail="Target: ≥80%" />
+            <MetricCard label="Candidate Recall" value={pct(sr.candidate_recall)} icon={Brain}
+              variant={sr.candidate_recall >= 90 ? "success" : sr.candidate_recall >= 70 ? "warning" : "danger"}
+              detail="Target: ≥90%" />
+            <MetricCard label="Safety Sensitivity" value={pct(sr.safety_sensitivity)} icon={Shield}
+              variant={sr.safety_sensitivity >= 85 ? "success" : sr.safety_sensitivity >= 70 ? "warning" : "danger"}
+              detail={`Specificity: ${sr.safety_specificity}%`} />
+            <MetricCard label="Avg Latency" value={`${(sr.avg_latency_ms / 1000).toFixed(1)}s`} icon={Clock}
+              variant={sr.avg_latency_ms <= 5000 ? "success" : "warning"}
+              detail={`Min: ${(sr.min_latency_ms / 1000).toFixed(1)}s · Max: ${(sr.max_latency_ms / 1000).toFixed(1)}s`} />
+          </div>
+
+          {/* Pass/Fail + Alert metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <MetricCard label="Passed" value={`${sr.passed}/${sr.total_scenarios}`} icon={CheckCircle}
+              variant={sr.passed === sr.total_scenarios ? "success" : "warning"} />
+            <MetricCard label="Failed" value={`${sr.failed}`} icon={XCircle}
+              variant={sr.failed === 0 ? "success" : "danger"} />
+            <MetricCard label="Alert Precision" value={pct(sr.alert_precision)} icon={Shield}
+              variant={sr.alert_precision >= 70 ? "success" : "warning"}
+              detail={`Recall: ${sr.alert_recall}%`} />
+            <MetricCard label="Top-5 Accuracy" value={pct(sr.top5_accuracy)} icon={Activity}
+              variant={sr.top5_accuracy >= 85 ? "success" : "warning"} detail="Target: ≥85%" />
           </div>
 
           {/* Per-Scenario Results */}
@@ -365,12 +544,15 @@ export default function GPBenchmarkDashboard() {
                         <StatusIcon ok={r.passed} />
                         <span className="font-medium">{r.scenario_name}</span>
                         {r.final_ranking.gold_rank && (
-                          <Badge variant="outline" className="text-[9px]">
-                            Gold #{r.final_ranking.gold_rank}
-                          </Badge>
+                          <Badge variant="outline" className="text-[9px]">Gold #{r.final_ranking.gold_rank}</Badge>
                         )}
                         {!r.metrics.candidate_recall && (
                           <Badge variant="destructive" className="text-[9px]">No Recall</Badge>
+                        )}
+                        {(r.safety.alert_entries?.length ?? 0) > 0 && (
+                          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-[9px]">
+                            {r.safety.alert_entries!.length} alerts
+                          </Badge>
                         )}
                       </span>
                       <span className="flex items-center gap-3 text-muted-foreground">
