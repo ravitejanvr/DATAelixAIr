@@ -691,36 +691,28 @@ export default function Clinical() {
 
         // Dynamic import of O1 pipeline to avoid bundle bloat when disabled
         const { runUnifiedClinicalPipeline } = await import("@/services/clinical_pipeline/orchestrator");
-        const { buildClinicalContext } = await import("@/lib/clinical-context");
 
-        // Build ClinicalContext from current UI state
-        const pipelineContext = buildClinicalContext(
+        // Build ClinicalContext from current UI state using canonical builder
+        const baseContext = buildClinicalContext(
           { age: selectedPatient?.age ?? null, gender: selectedPatient?.gender ?? null, medical_history: selectedPatient?.medical_history, allergies: selectedPatient?.allergies, current_medications: selectedPatient?.current_medications },
           patientVitals,
           intakeData as any,
         );
-        // Override chief complaint from chip selection if available
-        if (chiefComplaint) (pipelineContext as any).chief_complaint = chiefComplaint;
-        if (selectedSymptoms.length > 0) (pipelineContext as any).symptoms = selectedSymptoms;
-        if (selectedOnset) (pipelineContext as any).onset_pattern = selectedOnset;
-        if (selectedSeverity) (pipelineContext as any).severity = selectedSeverity;
-        if (selectedBodyLocation) (pipelineContext as any).body_location = selectedBodyLocation;
-        if (selectedRiskFactors.length > 0) (pipelineContext as any).risk_factors = selectedRiskFactors;
-        if (selectedFamilyHistory.length > 0) (pipelineContext as any).family_history = selectedFamilyHistory;
-        if (selectedExamFindings.length > 0) {
-          // Exam findings feed as additional symptoms for reasoning (e.g., "neck stiffness" maps to meningitis cluster)
-          const existingSymptoms = (pipelineContext as any).symptoms || [];
-          (pipelineContext as any).symptoms = [...new Set([...existingSymptoms, ...selectedExamFindings])];
-          (pipelineContext as any).exam_findings = selectedExamFindings;
-        }
-        if (patientVitals?.blood_sugar) (pipelineContext as any).blood_sugar = patientVitals.blood_sugar;
-        if (selectedDuration) (pipelineContext as any).symptom_duration = selectedDuration;
-        if (selectedMedicalHistory.length > 0) {
-          (pipelineContext as any).medical_history = [
-            ...(pipelineContext.medical_history || []),
-            ...selectedMedicalHistory.filter(mh => !(pipelineContext.medical_history || []).includes(mh)),
-          ];
-        }
+
+        // Apply UI overrides via typed builder — NO monkey-patching
+        const pipelineContext = buildFullClinicalContext(baseContext, {
+          chiefComplaint: chiefComplaint || undefined,
+          symptoms: selectedSymptoms.length > 0 ? selectedSymptoms : undefined,
+          duration: selectedDuration || undefined,
+          onset_pattern: selectedOnset || undefined,
+          severity: selectedSeverity || undefined,
+          body_location: selectedBodyLocation || undefined,
+          risk_factors: selectedRiskFactors.length > 0 ? selectedRiskFactors : undefined,
+          family_history: selectedFamilyHistory.length > 0 ? selectedFamilyHistory : undefined,
+          exam_findings: selectedExamFindings.length > 0 ? selectedExamFindings : undefined,
+          medical_history: selectedMedicalHistory.length > 0 ? selectedMedicalHistory : undefined,
+          blood_sugar: patientVitals?.blood_sugar ?? undefined,
+        });
 
         const o1Result = await runUnifiedClinicalPipeline(
           {
