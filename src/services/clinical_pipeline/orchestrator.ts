@@ -1541,6 +1541,48 @@ export async function runUnifiedClinicalPipeline(
 
   waveLat.wave4_safety = Math.round(performance.now() - w4Start);
   lineageTracker.recordEngineResult("safety", !!oversight);
+
+  // ── FIX 4: Context-Aware Safety Enhancement ──
+  // Augment risk flags with comorbidity/age/medication-aware detections
+  const contextSafety = detectContextAwareSafetyFlags(
+    {
+      symptoms,
+      chief_complaint: ctx.chief_complaint || "",
+      vitals: {
+        temperature: vitals.temperature,
+        pulse: vitals.pulse,
+        bp_systolic: vitals.bp_systolic,
+        bp_diastolic: vitals.bp_diastolic,
+        spo2: vitals.spo2,
+        respiratory_rate: vitals.respiratory_rate,
+        blood_sugar: vitals.blood_sugar,
+      },
+      age: ctx.patient_age,
+      sex: ctx.patient_sex,
+      medical_history: ctx.medical_history,
+      current_medications: ctx.current_medications,
+      risk_factors: ctx.risk_factors,
+      allergies: ctx.allergies,
+    },
+    (ctx.risk_flags || []).map((f: any) => typeof f === 'string' ? {
+      flag_id: f,
+      condition: f,
+      severity: "moderate" as const,
+      trigger_symptoms: [],
+      action: "",
+      matched_at: new Date().toISOString(),
+    } : f),
+  );
+  if (contextSafety.context_triggers.length > 0) {
+    recordOversightEvent({
+      event_type: "context_aware_safety",
+      severity: "warning",
+      stage: "safety_enhancement",
+      message: `Context-aware safety detected ${contextSafety.context_triggers.length} additional risk signals`,
+      metadata: { triggers: contextSafety.context_triggers },
+    });
+  }
+
   lineageTracker.captureSnapshot("Wave 4 (Safety)", "safety", {
     chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
     symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
