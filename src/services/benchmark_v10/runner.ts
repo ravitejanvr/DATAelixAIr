@@ -483,7 +483,7 @@ export async function runV10Suite(
     run_id: runId,
     timestamp,
     benchmark_version: "v10",
-    pipeline_phase: mode === "phase9" ? "phase9" : "phase8",
+    pipeline_phase: mode,
     total_cases: total,
     passed,
     failed: total - passed,
