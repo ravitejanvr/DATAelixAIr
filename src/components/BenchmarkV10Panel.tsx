@@ -536,7 +536,7 @@ export default function BenchmarkV10Panel() {
       )}
 
       {/* Comparison Report */}
-      {comparison && (
+      {comparison && !threeWay && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-1.5">
@@ -545,6 +545,35 @@ export default function BenchmarkV10Panel() {
           </CardHeader>
           <CardContent>
             <V10ComparisonPanel comparison={comparison} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 3-Way Comparison Report */}
+      {threeWay && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              <BarChart3 className="h-4 w-4 text-primary" /> 3-Way Comparison: P8 → P9 → P10 (v10)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={comparisonTab} onValueChange={setComparisonTab}>
+              <TabsList className="mb-3">
+                <TabsTrigger value="p9_vs_p10" className="text-xs">P9 vs P10 (Primary)</TabsTrigger>
+                <TabsTrigger value="p8_vs_p9" className="text-xs">P8 vs P9</TabsTrigger>
+                <TabsTrigger value="p8_vs_p10" className="text-xs">P8 vs P10</TabsTrigger>
+              </TabsList>
+              <TabsContent value="p9_vs_p10">
+                <V10ComparisonPanel comparison={threeWay.p9_vs_p10} />
+              </TabsContent>
+              <TabsContent value="p8_vs_p9">
+                <V10ComparisonPanel comparison={threeWay.p8_vs_p9} />
+              </TabsContent>
+              <TabsContent value="p8_vs_p10">
+                <V10ComparisonPanel comparison={threeWay.p8_vs_p10} />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       )}
