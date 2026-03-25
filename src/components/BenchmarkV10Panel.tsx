@@ -20,7 +20,7 @@ import {
   Activity, Shield, ChevronDown, ChevronUp, Zap, Target,
   GitCompare, Lock, BarChart3, Layers, FileText,
 } from "lucide-react";
-import { runV10Suite, compareV10Runs, ALL_NEW_CASES, generateAuditReport } from "@/services/benchmark_v10";
+import { runV10Suite, compareV10Runs, compareV10ThreeWay, ALL_NEW_CASES, generateAuditReport } from "@/services/benchmark_v10";
 import type {
   SuiteRunResult, SuiteComparison, CaseResult, LayerMetrics, BenchmarkLayer,
 } from "@/services/benchmark_v10/types";
@@ -384,12 +384,15 @@ function CaseResultsTable({ results, expandedCase, onToggle }: {
 export default function BenchmarkV10Panel() {
   const [suiteResult, setSuiteResult] = useState<SuiteRunResult | null>(null);
   const [phase8Baseline, setPhase8Baseline] = useState<SuiteRunResult | null>(null);
+  const [phase9Baseline, setPhase9Baseline] = useState<SuiteRunResult | null>(null);
   const [comparison, setComparison] = useState<SuiteComparison | null>(null);
+  const [threeWay, setThreeWay] = useState<{ p8_vs_p9: SuiteComparison; p9_vs_p10: SuiteComparison; p8_vs_p10: SuiteComparison } | null>(null);
   const [running, setRunning] = useState(false);
   const [runMode, setRunMode] = useState<string>("");
   const [progress, setProgress] = useState<V10RunProgress | null>(null);
   const [expandedCase, setExpandedCase] = useState<string | null>(null);
   const [activeLayer, setActiveLayer] = useState<string>("all");
+  const [comparisonTab, setComparisonTab] = useState<string>("p9_vs_p10");
 
   const handleProgress = useCallback((p: V10RunProgress) => setProgress(p), []);
 
@@ -397,11 +400,13 @@ export default function BenchmarkV10Panel() {
     setRunning(true);
     setSuiteResult(null);
     setComparison(null);
+    setThreeWay(null);
     setRunMode(mode);
     try {
       const result = await runV10Suite(mode, handleProgress);
       setSuiteResult(result);
       if (mode === "phase8") setPhase8Baseline(result);
+      if (mode === "phase9") setPhase9Baseline(result);
     } finally {
       setRunning(false);
       setProgress(null);
@@ -412,6 +417,7 @@ export default function BenchmarkV10Panel() {
     setRunning(true);
     setSuiteResult(null);
     setComparison(null);
+    setThreeWay(null);
     setRunMode("compare");
     try {
       setRunMode("phase8");
@@ -420,11 +426,40 @@ export default function BenchmarkV10Panel() {
 
       setRunMode("phase9");
       const p9 = await runV10Suite("phase9", handleProgress);
+      setPhase9Baseline(p9);
       setSuiteResult(p9);
 
       const comp = compareV10Runs(p8, p9);
       setComparison(comp);
       setRunMode("compare");
+    } finally {
+      setRunning(false);
+      setProgress(null);
+    }
+  }, [handleProgress]);
+
+  const runThreeWayComparison = useCallback(async () => {
+    setRunning(true);
+    setSuiteResult(null);
+    setComparison(null);
+    setThreeWay(null);
+    setRunMode("3-way");
+    try {
+      setRunMode("phase8");
+      const p8 = await runV10Suite("phase8", handleProgress);
+      setPhase8Baseline(p8);
+
+      setRunMode("phase9");
+      const p9 = await runV10Suite("phase9", handleProgress);
+      setPhase9Baseline(p9);
+
+      setRunMode("phase10");
+      const p10 = await runV10Suite("phase10", handleProgress);
+      setSuiteResult(p10);
+
+      const tw = compareV10ThreeWay(p8, p9, p10);
+      setThreeWay(tw);
+      setRunMode("3-way");
     } finally {
       setRunning(false);
       setProgress(null);
@@ -459,12 +494,18 @@ export default function BenchmarkV10Panel() {
           <Button size="sm" variant="outline" onClick={() => runSingle("phase9")} disabled={running}>
             <Brain className="h-3.5 w-3.5 mr-1" /> Phase 9
           </Button>
-          <Button size="sm" onClick={runComparison} disabled={running}>
+          <Button size="sm" variant="outline" onClick={() => runSingle("phase10")} disabled={running}>
+            <Zap className="h-3.5 w-3.5 mr-1" /> Phase 10
+          </Button>
+          <Button size="sm" variant="outline" onClick={runComparison} disabled={running}>
+            <GitCompare className="h-3.5 w-3.5 mr-1" /> P8 vs P9
+          </Button>
+          <Button size="sm" onClick={runThreeWayComparison} disabled={running}>
             {running
               ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                   {progress ? `[${runMode.toUpperCase()}] ${progress.index + 1}/${progress.total}` : "Starting..."}
                 </>
-              : <><GitCompare className="h-3.5 w-3.5 mr-1" /> Compare P8 vs P9</>
+              : <><GitCompare className="h-3.5 w-3.5 mr-1" /> 3-Way Compare</>
             }
           </Button>
         </div>
@@ -495,7 +536,7 @@ export default function BenchmarkV10Panel() {
       )}
 
       {/* Comparison Report */}
-      {comparison && (
+      {comparison && !threeWay && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-1.5">
@@ -504,6 +545,35 @@ export default function BenchmarkV10Panel() {
           </CardHeader>
           <CardContent>
             <V10ComparisonPanel comparison={comparison} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 3-Way Comparison Report */}
+      {threeWay && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              <BarChart3 className="h-4 w-4 text-primary" /> 3-Way Comparison: P8 → P9 → P10 (v10)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={comparisonTab} onValueChange={setComparisonTab}>
+              <TabsList className="mb-3">
+                <TabsTrigger value="p9_vs_p10" className="text-xs">P9 vs P10 (Primary)</TabsTrigger>
+                <TabsTrigger value="p8_vs_p9" className="text-xs">P8 vs P9</TabsTrigger>
+                <TabsTrigger value="p8_vs_p10" className="text-xs">P8 vs P10</TabsTrigger>
+              </TabsList>
+              <TabsContent value="p9_vs_p10">
+                <V10ComparisonPanel comparison={threeWay.p9_vs_p10} />
+              </TabsContent>
+              <TabsContent value="p8_vs_p9">
+                <V10ComparisonPanel comparison={threeWay.p8_vs_p9} />
+              </TabsContent>
+              <TabsContent value="p8_vs_p10">
+                <V10ComparisonPanel comparison={threeWay.p8_vs_p10} />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       )}
@@ -538,9 +608,12 @@ export default function BenchmarkV10Panel() {
                   </div>
                 ))}
               </div>
-              <div className="mt-3 text-center">
-                <Button size="sm" onClick={runComparison}>
-                  <GitCompare className="h-3.5 w-3.5 mr-1" /> Run Full Comparison
+              <div className="mt-3 text-center flex gap-2 justify-center">
+                <Button size="sm" variant="outline" onClick={runComparison}>
+                  <GitCompare className="h-3.5 w-3.5 mr-1" /> P8 vs P9
+                </Button>
+                <Button size="sm" onClick={runThreeWayComparison}>
+                  <GitCompare className="h-3.5 w-3.5 mr-1" /> Full 3-Way Comparison (P8 · P9 · P10)
                 </Button>
               </div>
             </CardContent>

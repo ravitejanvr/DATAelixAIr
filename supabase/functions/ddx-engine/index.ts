@@ -261,6 +261,7 @@ Deno.serve(async (req) => {
       cco_id = null,
       physiological_context = null,
       phase9 = false,
+      phase10_augment = false,
     } = body;
 
     const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
@@ -1197,11 +1198,16 @@ Deno.serve(async (req) => {
     // STAGE 3: CONTEXT-GATED DANGEROUS DIAGNOSIS INJECTION (Phase 7)
     // Phase 9: When enabled, dangerous diagnoses go to safety_alerts[]
     // instead of being injected into ranking.
+    // Phase 10: When enabled alongside Phase 9, safety-detected conditions
+    // are soft-injected into the candidate set with probability=0,
+    // preserving ranking purity while ensuring candidate completeness.
     // ═══════════════════════════════════════════════════
     const stageStart3 = Date.now();
     let dangerousInjected = 0;
+    let safetyAugmentedCount = 0;
     const dangerousDiagnosisDetails: any[] = [];
     const safetyAlerts: any[] = [];
+    const safetyCandidates: any[] = [];
 
     // Count how many dangerous trigger symptoms match for each diagnosis
     const dangerousTriggerCounts = new Map<string, { count: number; triggers: string[]; rows: any[] }>();
@@ -1296,7 +1302,43 @@ Deno.serve(async (req) => {
       if (!shouldInject) continue;
 
       // Phase 9: DO NOT inject into ranking — safety_alerts[] handles it
-      if (phase9) continue;
+      // Phase 10: Soft-inject into candidate set with probability=0 for completeness
+      if (phase9) {
+        if (phase10_augment && safetyAugmentedCount < 3) {
+          // INVARIANT-5: Deduplicate by diagnosis ID
+          const existingIdx = bayesianScores.findIndex(d => d.diagnosis_id === diagInfo.id);
+          if (existingIdx < 0) {
+            // INVARIANT-1: Zero probability — no ranking contamination
+            const augmentedCandidate = {
+              diagnosis_id: diagInfo.id,
+              diagnosis_name: diagInfo.diagnosis_name,
+              icd10_code: diagInfo.icd10_code,
+              category: diagInfo.category,
+              probability: 0,
+              posterior: 0,
+              prior: 0,
+              likelihood: 0,
+              symptom_coverage: 0,
+              supporting_symptoms: info.triggers,
+              contradicting_factors: [],
+              must_not_miss: true,
+              emergency_protocol: row.emergency_protocol,
+              guideline_source: row.guideline_source,
+              severity_level: row.severity_level,
+              injection_source: "safety_augmentation",
+            };
+            safetyCandidates.push(augmentedCandidate);
+            safetyAugmentedCount++;
+            console.log(`[DDX-Phase10] Soft-injected: ${diagInfo.diagnosis_name} (triggers: ${info.triggers.join(", ")})`);
+          } else {
+            // INVARIANT-7: Tag existing but do NOT modify probability
+            bayesianScores[existingIdx].must_not_miss = true;
+            bayesianScores[existingIdx].emergency_protocol = row.emergency_protocol;
+            bayesianScores[existingIdx].severity_level = row.severity_level;
+          }
+        }
+        continue;
+      }
 
       // Legacy (Phase 8): inject into bayesianScores for ranking
       const existingIdx = bayesianScores.findIndex(d => d.diagnosis_id === diagInfo.id);
@@ -1446,10 +1488,34 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Final selection (S7): Phase 9 uses pure probability ranking without must-not-miss slot reservation
+    // ═══════════════════════════════════════════════════
+    // PHASE 10: CANDIDATE COMPLETENESS MERGE LAYER
+    // Soft-inject safety candidates AFTER Bayesian scoring,
+    // BEFORE final selection. Zero probability — no ranking influence.
+    // ═══════════════════════════════════════════════════
+    if (phase9 && phase10_augment && safetyCandidates.length > 0) {
+      // INVARIANT-3: Hard cap total candidates at 15
+      const maxAugment = Math.min(safetyCandidates.length, 15 - bayesianScores.length);
+      // INVARIANT-2: Safety candidates must not exceed 30% of total
+      const maxByRatio = Math.max(1, Math.floor(bayesianScores.length * 0.43)); // 30% of final = 0.3/(1-0.3) ≈ 0.43 of current
+      const augmentCount = Math.min(maxAugment, maxByRatio);
+
+      for (let ai = 0; ai < augmentCount; ai++) {
+        const sc = safetyCandidates[ai];
+        // INVARIANT-5: Final dedup check
+        if (!bayesianScores.some(d => d.diagnosis_id === sc.diagnosis_id)) {
+          bayesianScores.push(sc);
+          dangerousInjected++;
+        }
+      }
+      console.log(`[DDX-Phase10] Merged ${Math.min(augmentCount, safetyCandidates.length)} safety candidates (total pool: ${bayesianScores.length})`);
+    }
+
+    // Final selection (S7): Phase 9/10 uses pure probability ranking without must-not-miss slot reservation
     let finalDifferential;
     if (phase9) {
-      // Phase 9: Pure probability-based selection, no must-not-miss slots
+      // Phase 9/10: Pure probability-based selection, no must-not-miss slots
+      // Safety-augmented candidates with probability=0 naturally sort to bottom
       finalDifferential = bayesianScores
         .sort((a, b) => b.probability - a.probability)
         .slice(0, 10);
@@ -1721,7 +1787,10 @@ Deno.serve(async (req) => {
       },
       bayesian_model: true,
       phase9_active: phase9,
-      source: phase9 ? "ddx_engine_v5_phase9" : "ddx_engine_v5_terminology_fix",
+      phase10_active: phase10_augment,
+      safety_augmented_count: safetyAugmentedCount,
+      safety_candidates_available: safetyCandidates.length,
+      source: phase10_augment ? "ddx_engine_v5_phase10" : phase9 ? "ddx_engine_v5_phase9" : "ddx_engine_v5_terminology_fix",
       graph_miss: false,
     });
   } catch (err: any) {

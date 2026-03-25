@@ -82,7 +82,7 @@ function diagMatch(a: string, b: string): boolean {
 
 // ── Map v10 case to DDX engine input ──
 
-function mapCaseToDDXInput(c: BenchmarkCaseV10, phase9: boolean) {
+function mapCaseToDDXInput(c: BenchmarkCaseV10, mode: V10PipelineMode) {
   const symptoms = [
     ...c.input.symptoms,
     ...(c.input.associated_symptoms || []),
@@ -106,13 +106,14 @@ function mapCaseToDDXInput(c: BenchmarkCaseV10, phase9: boolean) {
     risk_factors: c.input.risk_factors || [],
     visit_id: `bench-v10-${c.case_id}`,
     clinic_id: "bench-clinic-001",
-    phase9,
+    phase9: mode === "phase9" || mode === "phase10",
+    phase10_augment: mode === "phase10",
   };
 }
 
 // ── Run single v10 case ──
 
-export type V10PipelineMode = "phase8" | "phase9";
+export type V10PipelineMode = "phase8" | "phase9" | "phase10";
 
 async function runSingleV10Case(
   c: BenchmarkCaseV10,
@@ -123,7 +124,7 @@ async function runSingleV10Case(
 
   let ddxResult: DDXResult | null = null;
   try {
-    ddxResult = await runDDXEngine(mapCaseToDDXInput(c, mode === "phase9"));
+    ddxResult = await runDDXEngine(mapCaseToDDXInput(c, mode));
   } catch (e) {
     failures.push(`DDX engine error: ${e}`);
   }
@@ -344,7 +345,7 @@ async function persistRun(runResult: SuiteRunResult): Promise<void> {
     run_id: runResult.run_id,
     benchmark_version: runResult.benchmark_version,
     pipeline_phase: runResult.pipeline_phase,
-    pipeline_mode: runResult.pipeline_phase.includes("9") ? "phase9" : "phase8",
+    pipeline_mode: runResult.pipeline_phase.includes("10") ? "phase10" : runResult.pipeline_phase.includes("9") ? "phase9" : "phase8",
     total_cases: runResult.total_cases,
     passed: runResult.passed,
     failed: runResult.failed,
@@ -482,7 +483,7 @@ export async function runV10Suite(
     run_id: runId,
     timestamp,
     benchmark_version: "v10",
-    pipeline_phase: mode === "phase9" ? "phase9" : "phase8",
+    pipeline_phase: mode,
     total_cases: total,
     passed,
     failed: total - passed,

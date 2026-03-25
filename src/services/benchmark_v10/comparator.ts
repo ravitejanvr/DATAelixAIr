@@ -1,7 +1,7 @@
 /**
  * Benchmark v10 — Phase Comparator
  *
- * Compares Phase 8 vs Phase 9 results from v10 suite runs.
+ * Compares Phase 8 vs Phase 9 vs Phase 10 results from v10 suite runs.
  * Produces structured comparison summary with per-layer deltas,
  * regressions, improvements, and a verdict.
  */
@@ -225,5 +225,18 @@ export function compareV10Runs(
     improvements,
     verdict,
     verdict_reasons: verdictReasons,
+  };
+}
+
+/** Compare 3 runs: Phase 8 baseline, Phase 9 decoupled, Phase 10 candidate completeness */
+export function compareV10ThreeWay(
+  phase8Run: SuiteRunResult,
+  phase9Run: SuiteRunResult,
+  phase10Run: SuiteRunResult,
+): { p8_vs_p9: SuiteComparison; p9_vs_p10: SuiteComparison; p8_vs_p10: SuiteComparison } {
+  return {
+    p8_vs_p9: compareV10Runs(phase8Run, phase9Run),
+    p9_vs_p10: compareV10Runs(phase9Run, phase10Run),
+    p8_vs_p10: compareV10Runs(phase8Run, phase10Run),
   };
 }
