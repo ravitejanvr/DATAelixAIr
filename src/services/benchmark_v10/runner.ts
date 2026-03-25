@@ -1,8 +1,10 @@
 /**
- * Benchmark v10 — Multi-Layer Runner
+ * Benchmark v10 — Multi-Layer Runner (Orchestrator-Aligned)
  *
- * Executes all v10 cases (noisy, ambiguous, adversarial) through the
- * DDX engine pipeline, captures predictions, safety alerts, and latency.
+ * Executes all v10 cases through the PRODUCTION orchestrator pipeline,
+ * ensuring benchmarks exercise the same code path as real consultations:
+ *
+ *   Case → ClinicalContext → runUnifiedClinicalPipeline → PipelineResult → Metrics
  *
  * Supports dual-mode execution: phase8 (legacy) and phase9 (decoupled safety).
  * Results are persisted to benchmark_suite_runs / benchmark_suite_results tables.
@@ -13,105 +15,12 @@ import type {
   BenchmarkCaseV10, BenchmarkLayer, CaseResult,
   LayerMetrics, SuiteRunResult,
 } from "./types";
-import { runDDXEngine, type DDXResult } from "@/services/ddx_engine/client";
+import { runUnifiedClinicalPipeline, type PipelineResult } from "@/services/clinical_pipeline/orchestrator";
+import { v10CaseToPipelineInput } from "@/services/benchmark_shared/case_to_context";
+import { diagMatch } from "@/services/benchmark_shared/diagnosis_matching";
 import { supabase } from "@/integrations/supabase/client";
 
-// ── Diagnosis matching (synonym-aware) ──
-
-const SYNONYM_MAP: Record<string, string[]> = {
-  pneumonia: ["communityacquiredpneumonia", "cap", "lobarpneumonia", "bronchopneumonia"],
-  communityacquiredpneumonia: ["pneumonia", "cap"],
-  gastroenteritis: ["acutegastroenteritis", "stomachflu"],
-  acutegastroenteritis: ["gastroenteritis"],
-  appendicitis: ["acuteappendicitis"],
-  acuteappendicitis: ["appendicitis"],
-  urinarytractinfection: ["uti", "cystitis"],
-  uti: ["urinarytractinfection"],
-  acutecoronarysyndrome: ["acs", "myocardialinfarction", "heartattack", "unstableangina"],
-  myocardialinfarction: ["acutecoronarysyndrome", "heartattack", "mi", "stemi", "nstemi"],
-  diabeticketoacidosis: ["dka"],
-  dka: ["diabeticketoacidosis"],
-  pulmonaryembolism: ["pe", "lungclot"],
-  pe: ["pulmonaryembolism"],
-  asthma: ["asthmaexacerbation", "acuteasthma", "bronchialasthma"],
-  asthmaexacerbation: ["asthma"],
-  sepsis: ["septicemia", "systemicinfection"],
-  migraine: ["migraineheadache"],
-  copdexacerbation: ["copd", "chronicobstructivepulmonarydisease"],
-  copd: ["copdexacerbation"],
-  pancreatitis: ["acutepancreatitis"],
-  acutepancreatitis: ["pancreatitis"],
-  heartfailure: ["congestiveheartfailure", "chf"],
-  congestiveheartfailure: ["heartfailure", "chf"],
-  meningitis: ["bacterialmeningitis", "viralmeningitis"],
-  stroke: ["cerebrovascularaccident", "cva", "ischemicstroke"],
-  deepveinthrombosis: ["dvt"],
-  dvt: ["deepveinthrombosis"],
-  anaphylaxis: ["anaphylacticshock"],
-  gerd: ["gastroesophagealrefluxdisease", "acidreflux"],
-  cholecystitis: ["acutecholecystitis"],
-  acutecholecystitis: ["cholecystitis"],
-  pneumothorax: ["collapsedlung", "tensionpneumothorax"],
-  pericarditis: ["acutepericarditis"],
-  renalcolic: ["kidneystone", "nephrolithiasis", "ureterolithiasis"],
-  kidneystone: ["renalcolic", "nephrolithiasis"],
-  thyroidstorm: ["thyrotoxiccrisis", "thyrotoxicosis"],
-  aorticdissection: ["thoracicaorticdissection"],
-  rupturedaaa: ["abdominalaorticaneurysm", "rupturedabdominalaorticaneurysm"],
-  tensionpneumothorax: ["pneumothorax"],
-  ectopicpregnancy: ["rupturedectopicpregnancy"],
-  epiduralabscess: ["spinalepidurarabscess"],
-  caudaequinasyndrome: ["caudaequina"],
-  acuteglaucoma: ["angleclosureglaucoma", "acuteangleclosureglaucoma"],
-  subarachnoidhemorrhage: ["sah"],
-  statusepilepticus: ["prolongedseizure"],
-  addisonianccrisis: ["adrenalcrisis", "adrenalinsufficiency"],
-};
-
-function norm(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function diagMatch(a: string, b: string): boolean {
-  const na = norm(a), nb = norm(b);
-  if (na === nb || na.includes(nb) || nb.includes(na)) return true;
-  const aSyn = SYNONYM_MAP[na] || [];
-  const bSyn = SYNONYM_MAP[nb] || [];
-  return aSyn.includes(nb) || bSyn.includes(na);
-}
-
-// ── Map v10 case to DDX engine input ──
-
-function mapCaseToDDXInput(c: BenchmarkCaseV10, mode: V10PipelineMode) {
-  const symptoms = [
-    ...c.input.symptoms,
-    ...(c.input.associated_symptoms || []),
-  ];
-
-  const vitals: Record<string, any> = {};
-  if (c.input.vitals.temperature) vitals.temperature = c.input.vitals.temperature;
-  if (c.input.vitals.spo2) vitals.spo2 = c.input.vitals.spo2;
-  if (c.input.vitals.pulse) vitals.pulse = c.input.vitals.pulse;
-  if (c.input.vitals.bp_systolic && c.input.vitals.bp_diastolic) {
-    vitals.bp = `${c.input.vitals.bp_systolic}/${c.input.vitals.bp_diastolic}`;
-  }
-  if (c.input.vitals.respiratory_rate) vitals.respiratory_rate = c.input.vitals.respiratory_rate;
-
-  return {
-    symptoms,
-    vitals: Object.keys(vitals).length > 0 ? vitals : undefined,
-    medical_history: c.input.history || [],
-    current_medications: c.input.medications || [],
-    allergies: c.input.allergies || [],
-    risk_factors: c.input.risk_factors || [],
-    visit_id: `bench-v10-${c.case_id}`,
-    clinic_id: "bench-clinic-001",
-    phase9: mode === "phase9" || mode === "phase10",
-    phase10_augment: mode === "phase10",
-  };
-}
-
-// ── Run single v10 case ──
+// ── Run single v10 case through orchestrator ──
 
 export type V10PipelineMode = "phase8" | "phase9" | "phase10";
 
@@ -122,14 +31,21 @@ async function runSingleV10Case(
   const t0 = performance.now();
   const failures: string[] = [];
 
-  let ddxResult: DDXResult | null = null;
+  // Convert case → canonical PipelineInput
+  const pipelineInput = v10CaseToPipelineInput(c);
+
+  // Run through PRODUCTION orchestrator
+  let pipelineResult: PipelineResult | null = null;
   try {
-    ddxResult = await runDDXEngine(mapCaseToDDXInput(c, mode));
+    pipelineResult = await runUnifiedClinicalPipeline(pipelineInput);
   } catch (e) {
-    failures.push(`DDX engine error: ${e}`);
+    failures.push(`Pipeline error: ${e}`);
   }
 
   const latency_ms = Math.round(performance.now() - t0);
+
+  // Extract DDX results from pipeline output
+  const ddxResult = pipelineResult?.ddx ?? null;
 
   // Extract top 5 predictions
   const predicted_top5: Array<{ diagnosis: string; probability: number }> = [];
@@ -204,12 +120,27 @@ async function runSingleV10Case(
     }
   }
 
+  // From oversight engine (production safety layer)
+  if (pipelineResult?.oversight?.events) {
+    for (const ev of pipelineResult.oversight.events) {
+      if (ev.event_type === "dangerous_diagnosis_injected" || ev.severity === "critical") {
+        const condition = (ev as any).metadata?.diagnosis_name || ev.message || "";
+        if (condition && !safety_alerts.some(a => diagMatch(a.condition, condition))) {
+          safety_alerts.push({
+            condition,
+            severity: ev.severity || "high",
+            source: "oversight_engine",
+          });
+        }
+      }
+    }
+  }
+
   safety_triggered = safety_alerts.length > 0;
 
   // Safety correctness
   let safety_correct: boolean;
   if (c.evaluation.safety_expected) {
-    // Must detect at least one must_not_miss condition
     const mustNotMiss = c.ground_truth.must_not_miss;
     const detected = mustNotMiss.some(mnm =>
       safety_alerts.some(a => diagMatch(a.condition, mnm)) ||
@@ -220,7 +151,6 @@ async function runSingleV10Case(
       failures.push(`Must-not-miss not detected: ${mustNotMiss.join(", ")}`);
     }
   } else {
-    // No safety expected — any alert is technically a false positive but not a failure
     safety_correct = true;
   }
 
@@ -288,13 +218,10 @@ function computeLayerMetrics(results: CaseResult[], layer: BenchmarkLayer): Laye
   const top5 = layerResults.filter(r => r.top5_match).length;
   const recall = layerResults.filter(r => r.candidate_recall).length;
 
-  // Safety metrics
   const safetyCases = layerResults.filter(r => r.safety_expected);
   const noSafetyCases = layerResults.filter(r => !r.safety_expected);
   const tp = safetyCases.filter(r => r.safety_triggered).length;
-  const fn = safetyCases.filter(r => !r.safety_triggered).length;
   const tn = noSafetyCases.filter(r => !r.safety_triggered).length;
-  const fp = noSafetyCases.filter(r => r.safety_triggered).length;
 
   const sensitivity = safetyCases.length > 0 ? Math.round((tp / safetyCases.length) * 100) : 100;
   const specificity = noSafetyCases.length > 0 ? Math.round((tn / noSafetyCases.length) * 100) : 100;
@@ -308,13 +235,8 @@ function computeLayerMetrics(results: CaseResult[], layer: BenchmarkLayer): Laye
   const latencies = layerResults.map(r => r.latency_ms);
   const cas = layerResults.reduce((sum, r) => sum + r.clinical_acceptability, 0) / n;
 
-  // Noise robustness: how well does the system handle noisy cases?
   const noiseRobustness = layer === "noisy" ? Math.round((top3 / n) * 100) : Math.round((top1 / n) * 100);
-
-  // Ambiguity resolution: top-3 capture rate in ambiguous cases
   const ambiguityResolution = layer === "ambiguous" ? Math.round((top3 / n) * 100) : Math.round((top1 / n) * 100);
-
-  // Ranking stability: % of cases where gold is in top-5
   const rankingStability = Math.round((top5 / n) * 100);
 
   return {
@@ -340,7 +262,6 @@ function computeLayerMetrics(results: CaseResult[], layer: BenchmarkLayer): Laye
 // ── Persist results to database ──
 
 async function persistRun(runResult: SuiteRunResult): Promise<void> {
-  // Insert run metadata
   const { error: runError } = await supabase.from("benchmark_suite_runs").insert({
     run_id: runResult.run_id,
     benchmark_version: runResult.benchmark_version,
@@ -361,7 +282,6 @@ async function persistRun(runResult: SuiteRunResult): Promise<void> {
     return;
   }
 
-  // Insert per-case results in batches
   const batchSize = 20;
   for (let i = 0; i < runResult.results.length; i += batchSize) {
     const batch = runResult.results.slice(i, i + batchSize).map(r => ({
@@ -448,7 +368,6 @@ export async function runV10Suite(
       });
     }
 
-    // Throttle
     if (caseDelay > 0 && i < cases.length - 1) {
       await new Promise(r => setTimeout(r, caseDelay));
     }
