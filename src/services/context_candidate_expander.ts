@@ -1,57 +1,55 @@
 /**
- * Phase 5 — Context-Assisted Candidate Generation
+ * Phase 5 — Context-Assisted Candidate Generation (KG-Native)
  *
  * Runs BEFORE DDX to expand the candidate pool using:
- *   1. KG synonym expansion — ensures normalized symptoms reach the KG
- *   2. Phenotype inference — infers latent conditions from context signals
- *   3. Rare condition mapping — pattern-matches rare presentations
- *   4. Context-driven candidate hints — pre-seeds DDX with likely diagnoses
+ *   1. Phenotype inference → cluster activation
+ *   2. Rare condition matching → cluster activation
  *
- * Output: An enriched symptom list + candidate hints injected into DDX input.
- * Feature-flagged via `enable_phase5_context_candidates`.
+ * KG-NATIVE: This module activates cluster NODES, not diagnoses.
+ * The KG expander resolves nodes → diagnoses.
  *
  * Invariants:
- *   - Does NOT modify ClinicalContext (pure function)
- *   - All expansions are tagged for traceability
- *   - Max 8 candidate hints (DDX still ranks them)
+ *   - Does NOT mutate ClinicalContext (pure function)
+ *   - All activations are tagged for traceability
+ *   - Max 8 cluster activations
  */
 
 import type { ClinicalContext } from "@/lib/clinical-context";
 import { normalizeSymptom } from "@/services/context_engine/terminology_normalizer";
+import { createEmptyActivation, activateNode, type KGActivation } from "@/services/kg/kg_activation";
 
 // ── Types ──
 
+/** Legacy type preserved for backward compatibility */
 export interface CandidateHint {
   diagnosis_name: string;
   source: "phenotype_inference" | "rare_pattern" | "context_signal" | "symptom_cluster";
-  confidence: number; // 0-1
+  confidence: number;
   reasoning: string;
 }
 
 export interface ExpansionResult {
+  /** KG activation (cluster nodes) */
+  activation: KGActivation;
   /** Original + expanded symptom set (deduplicated, normalized) */
   expanded_symptoms: string[];
   /** New symptoms added by expansion */
   added_symptoms: string[];
-  /** Pre-seeded candidate hints for DDX */
-  candidate_hints: CandidateHint[];
   /** Debug: which expansion rules fired */
   expansion_trace: string[];
 }
 
 // ── Phenotype Inference Rules ──
-// Maps context signal combinations → inferred symptoms/candidates
 
 interface PhenotypeRule {
   id: string;
-  /** Conditions to check (ALL must match) */
   conditions: {
     age_range?: [number, number];
     sex?: string;
-    history_keywords?: string[];     // any match in medical_history
-    risk_keywords?: string[];        // any match in risk_factors
-    medication_keywords?: string[];  // any match in current_medications
-    symptom_keywords?: string[];     // any match in symptoms (min 1)
+    history_keywords?: string[];
+    risk_keywords?: string[];
+    medication_keywords?: string[];
+    symptom_keywords?: string[];
     vital_conditions?: {
       temperature_above?: number;
       pulse_above?: number;
@@ -59,16 +57,13 @@ interface PhenotypeRule {
       spo2_below?: number;
     };
   };
-  /** Min conditions that must match (excluding symptom_keywords which always required if present) */
   min_context_signals: number;
-  /** Symptoms to add to the pool */
   inferred_symptoms?: string[];
-  /** Candidate diagnoses to hint */
-  candidate_hints: CandidateHint[];
+  /** Cluster node to activate + weight */
+  activate: { node: string; weight: number };
 }
 
 const PHENOTYPE_RULES: PhenotypeRule[] = [
-  // ── Diabetic patient with infection signs ──
   {
     id: "diabetic_infection",
     conditions: {
@@ -78,12 +73,8 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
     },
     min_context_signals: 2,
     inferred_symptoms: ["diabetic foot infection risk"],
-    candidate_hints: [
-      { diagnosis_name: "Diabetic Foot Infection", source: "phenotype_inference", confidence: 0.6, reasoning: "Diabetic patient with infection signs" },
-      { diagnosis_name: "Osteomyelitis", source: "phenotype_inference", confidence: 0.4, reasoning: "Diabetic with possible deep infection" },
-    ],
+    activate: { node: "diabetic", weight: 0.6 },
   },
-  // ── Elderly + confusion + fever → delirium/UTI/sepsis ──
   {
     id: "elderly_confusion",
     conditions: {
@@ -91,12 +82,8 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
       symptom_keywords: ["confusion", "altered mental status", "disorientation"],
     },
     min_context_signals: 1,
-    candidate_hints: [
-      { diagnosis_name: "Urinary Tract Infection", source: "phenotype_inference", confidence: 0.5, reasoning: "Elderly patient with confusion — UTI is common cause" },
-      { diagnosis_name: "Delirium", source: "phenotype_inference", confidence: 0.6, reasoning: "Confusion in elderly suggests delirium workup" },
-    ],
+    activate: { node: "elderly_confusion", weight: 0.6 },
   },
-  // ── Young female + abdominal pain → ectopic/ovarian torsion ──
   {
     id: "young_female_abdominal",
     conditions: {
@@ -105,12 +92,8 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
       symptom_keywords: ["abdominal pain", "pelvic pain", "lower abdominal pain"],
     },
     min_context_signals: 2,
-    candidate_hints: [
-      { diagnosis_name: "Ectopic Pregnancy", source: "phenotype_inference", confidence: 0.5, reasoning: "Reproductive-age female with abdominal pain" },
-      { diagnosis_name: "Ovarian Torsion", source: "phenotype_inference", confidence: 0.4, reasoning: "Acute lower abdominal pain in young female" },
-    ],
+    activate: { node: "obstetric", weight: 0.5 },
   },
-  // ── Smoker + respiratory symptoms → COPD/Lung cancer ──
   {
     id: "smoker_respiratory",
     conditions: {
@@ -118,12 +101,8 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
       symptom_keywords: ["cough", "dyspnea", "hemoptysis", "shortness of breath", "productive cough"],
     },
     min_context_signals: 1,
-    candidate_hints: [
-      { diagnosis_name: "COPD Exacerbation", source: "phenotype_inference", confidence: 0.5, reasoning: "Smoker with respiratory symptoms" },
-      { diagnosis_name: "Lung Cancer", source: "phenotype_inference", confidence: 0.3, reasoning: "Smoker with persistent respiratory symptoms" },
-    ],
+    activate: { node: "respiratory", weight: 0.5 },
   },
-  // ── Hypertensive + headache + visual disturbance → hypertensive emergency ──
   {
     id: "hypertensive_emergency",
     conditions: {
@@ -132,11 +111,8 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
       vital_conditions: { bp_systolic_above: 180 },
     },
     min_context_signals: 2,
-    candidate_hints: [
-      { diagnosis_name: "Hypertensive Emergency", source: "phenotype_inference", confidence: 0.7, reasoning: "Known hypertensive with acute symptoms and elevated BP" },
-    ],
+    activate: { node: "vascular", weight: 0.7 },
   },
-  // ── Immunosuppressed + fever → opportunistic infection ──
   {
     id: "immunosuppressed_fever",
     conditions: {
@@ -145,12 +121,8 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
       symptom_keywords: ["fever", "weight loss", "night sweats"],
     },
     min_context_signals: 2,
-    candidate_hints: [
-      { diagnosis_name: "Opportunistic Infection", source: "phenotype_inference", confidence: 0.5, reasoning: "Immunosuppressed patient with systemic symptoms" },
-      { diagnosis_name: "Tuberculosis", source: "phenotype_inference", confidence: 0.4, reasoning: "Immunocompromised with constitutional symptoms" },
-    ],
+    activate: { node: "sepsis", weight: 0.5 },
   },
-  // ── Child with rash + fever → Kawasaki/measles ──
   {
     id: "pediatric_rash_fever",
     conditions: {
@@ -158,12 +130,8 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
       symptom_keywords: ["rash", "fever"],
     },
     min_context_signals: 1,
-    candidate_hints: [
-      { diagnosis_name: "Kawasaki Disease", source: "phenotype_inference", confidence: 0.4, reasoning: "Pediatric patient with fever and rash" },
-      { diagnosis_name: "Measles", source: "phenotype_inference", confidence: 0.3, reasoning: "Child with rash and fever" },
-    ],
+    activate: { node: "pediatric_ophtho", weight: 0.4 },
   },
-  // ── Post-surgical patient with fever ──
   {
     id: "post_surgical_fever",
     conditions: {
@@ -171,12 +139,8 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
       symptom_keywords: ["fever", "wound", "pain"],
     },
     min_context_signals: 1,
-    candidate_hints: [
-      { diagnosis_name: "Surgical Site Infection", source: "phenotype_inference", confidence: 0.5, reasoning: "Post-surgical patient with fever" },
-      { diagnosis_name: "Deep Vein Thrombosis", source: "phenotype_inference", confidence: 0.4, reasoning: "Post-surgical patient — DVT risk elevated" },
-    ],
+    activate: { node: "vascular", weight: 0.5 },
   },
-  // ── Pregnant + headache + high BP → pre-eclampsia ──
   {
     id: "pregnancy_preeclampsia",
     conditions: {
@@ -185,12 +149,8 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
       vital_conditions: { bp_systolic_above: 140 },
     },
     min_context_signals: 2,
-    candidate_hints: [
-      { diagnosis_name: "Pre-eclampsia", source: "phenotype_inference", confidence: 0.7, reasoning: "Pregnant patient with hypertension and neurological symptoms" },
-      { diagnosis_name: "HELLP Syndrome", source: "phenotype_inference", confidence: 0.4, reasoning: "Possible severe pre-eclampsia variant" },
-    ],
+    activate: { node: "obstetric", weight: 0.7 },
   },
-  // ── Alcoholic + abdominal pain ──
   {
     id: "alcoholic_abdominal",
     conditions: {
@@ -198,10 +158,7 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
       symptom_keywords: ["abdominal pain", "nausea", "vomiting", "jaundice"],
     },
     min_context_signals: 1,
-    candidate_hints: [
-      { diagnosis_name: "Alcoholic Hepatitis", source: "phenotype_inference", confidence: 0.5, reasoning: "History of alcohol use with abdominal/GI symptoms" },
-      { diagnosis_name: "Acute Pancreatitis", source: "phenotype_inference", confidence: 0.5, reasoning: "Alcohol is leading cause of pancreatitis" },
-    ],
+    activate: { node: "abdominal", weight: 0.5 },
   },
 ];
 
@@ -209,64 +166,62 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
 
 interface RarePatternRule {
   id: string;
-  /** ALL of these symptom keywords must be present */
   required_symptoms: string[];
-  /** Additional context signals (any match) */
   supporting_signals?: {
     age_range?: [number, number];
     history_keywords?: string[];
     vital_conditions?: { temperature_above?: number; pulse_above?: number };
   };
-  candidate: CandidateHint;
+  activate: { node: string; weight: number };
 }
 
 const RARE_PATTERN_RULES: RarePatternRule[] = [
   {
     id: "addisons",
     required_symptoms: ["fatigue", "weight loss", "hyperpigmentation"],
-    candidate: { diagnosis_name: "Adrenal Insufficiency", source: "rare_pattern", confidence: 0.5, reasoning: "Triad: fatigue + weight loss + hyperpigmentation" },
+    activate: { node: "endocrine", weight: 0.5 },
   },
   {
     id: "pheochromocytoma",
     required_symptoms: ["headache", "palpitations", "diaphoresis"],
     supporting_signals: { vital_conditions: { pulse_above: 100 } },
-    candidate: { diagnosis_name: "Pheochromocytoma", source: "rare_pattern", confidence: 0.4, reasoning: "Classic triad: episodic headache + palpitations + sweating" },
+    activate: { node: "pheochromocytoma", weight: 0.4 },
   },
   {
     id: "temporal_arteritis",
     required_symptoms: ["headache", "jaw claudication"],
     supporting_signals: { age_range: [50, 120] },
-    candidate: { diagnosis_name: "Giant Cell Arteritis", source: "rare_pattern", confidence: 0.6, reasoning: "Headache + jaw claudication in elderly" },
+    activate: { node: "atypical_neuro", weight: 0.6 },
   },
   {
     id: "guillain_barre",
     required_symptoms: ["ascending weakness", "areflexia"],
-    candidate: { diagnosis_name: "Guillain-Barré Syndrome", source: "rare_pattern", confidence: 0.5, reasoning: "Ascending weakness + areflexia pattern" },
+    activate: { node: "atypical_neuro", weight: 0.5 },
   },
   {
     id: "nph",
     required_symptoms: ["gait disturbance", "urinary incontinence", "cognitive decline"],
     supporting_signals: { age_range: [60, 120] },
-    candidate: { diagnosis_name: "Normal Pressure Hydrocephalus", source: "rare_pattern", confidence: 0.6, reasoning: "Classic Hakim triad in elderly" },
+    activate: { node: "atypical_neuro", weight: 0.6 },
   },
   {
     id: "cushings",
     required_symptoms: ["weight gain", "moon face"],
-    candidate: { diagnosis_name: "Cushing Syndrome", source: "rare_pattern", confidence: 0.4, reasoning: "Weight gain + moon facies" },
+    activate: { node: "endocrine", weight: 0.4 },
   },
   {
     id: "myasthenia",
     required_symptoms: ["ptosis", "diplopia", "fatigue"],
-    candidate: { diagnosis_name: "Myasthenia Gravis", source: "rare_pattern", confidence: 0.5, reasoning: "Fluctuating weakness + ptosis + diplopia" },
+    activate: { node: "atypical_neuro", weight: 0.5 },
   },
   {
     id: "peritonsillar_abscess",
     required_symptoms: ["sore throat", "trismus", "muffled voice"],
-    candidate: { diagnosis_name: "Peritonsillar Abscess", source: "rare_pattern", confidence: 0.6, reasoning: "Severe sore throat + trismus + hot potato voice" },
+    activate: { node: "rare_infectious", weight: 0.6 },
   },
 ];
 
-const MAX_CANDIDATE_HINTS = 8;
+const MAX_ACTIVATIONS = 8;
 
 // ── Helper Functions ──
 
@@ -309,13 +264,12 @@ function matchesVitals(
 
 /**
  * Expand candidate pool using clinical context intelligence.
- * Runs BEFORE DDX engine — enriches symptoms and pre-seeds candidate hints.
+ * Returns KG cluster activations (NOT diagnosis candidates).
  */
 export function expandCandidatesFromContext(ctx: ClinicalContext): ExpansionResult {
   const trace: string[] = [];
   const addedSymptoms: string[] = [];
-  const hints: CandidateHint[] = [];
-  const seenHints = new Set<string>();
+  const activation = createEmptyActivation();
 
   // Collect all input symptoms (normalized)
   const rawSymptoms: string[] = [];
@@ -326,47 +280,41 @@ export function expandCandidatesFromContext(ctx: ClinicalContext): ExpansionResu
   const normalizedSymptoms = [...new Set(rawSymptoms.map(s => normalizeSymptom(s)))];
   const symptomSet = new Set(normalizedSymptoms.map(s => s.toLowerCase()));
 
-  // 1. Phenotype Inference
+  // 1. Phenotype Inference → cluster activation
   for (const rule of PHENOTYPE_RULES) {
+    if (activation.nodes.size >= MAX_ACTIVATIONS) break;
     const c = rule.conditions;
     let signalCount = 0;
 
-    // Check age
     if (c.age_range && ctx.patient_age != null) {
       if (ctx.patient_age >= c.age_range[0] && ctx.patient_age <= c.age_range[1]) signalCount++;
     }
-    // Check sex
     if (c.sex && ctx.patient_sex) {
       if (ctx.patient_sex.toLowerCase().startsWith(c.sex.toLowerCase())) signalCount++;
     }
-    // Check history
     if (c.history_keywords) {
       if (matchesKeywords(ctx.medical_history || [], c.history_keywords)) signalCount++;
     }
-    // Check risk factors
     if (c.risk_keywords) {
       if (matchesKeywords(ctx.risk_factors || [], c.risk_keywords)) signalCount++;
     }
-    // Check medications
     if (c.medication_keywords) {
       if (matchesKeywords(ctx.current_medications || [], c.medication_keywords)) signalCount++;
     }
-    // Check vitals
     if (c.vital_conditions) {
       if (matchesVitals(ctx, c.vital_conditions)) signalCount++;
     }
-    // Check symptoms (REQUIRED if present in rule)
     if (c.symptom_keywords) {
       const hasSymptom = c.symptom_keywords.some(k =>
         [...symptomSet].some(s => s.includes(k.toLowerCase()) || k.toLowerCase().includes(s))
       );
-      if (!hasSymptom) continue; // Symptoms are mandatory when specified
+      if (!hasSymptom) continue;
     }
 
     if (signalCount >= rule.min_context_signals) {
       trace.push(`phenotype:${rule.id} (signals=${signalCount})`);
+      activateNode(activation, rule.activate.node, rule.activate.weight, rule.id, "phenotype");
 
-      // Add inferred symptoms
       if (rule.inferred_symptoms) {
         for (const s of rule.inferred_symptoms) {
           const norm = normalizeSymptom(s);
@@ -376,26 +324,18 @@ export function expandCandidatesFromContext(ctx: ClinicalContext): ExpansionResu
           }
         }
       }
-
-      // Add candidate hints
-      for (const h of rule.candidate_hints) {
-        const key = h.diagnosis_name.toLowerCase();
-        if (!seenHints.has(key) && hints.length < MAX_CANDIDATE_HINTS) {
-          seenHints.add(key);
-          hints.push(h);
-        }
-      }
     }
   }
 
-  // 2. Rare Condition Pattern Matching
+  // 2. Rare Condition Pattern Matching → cluster activation
   for (const rule of RARE_PATTERN_RULES) {
+    if (activation.nodes.size >= MAX_ACTIVATIONS) break;
+
     const allRequired = rule.required_symptoms.every(rs =>
       [...symptomSet].some(s => s.includes(rs.toLowerCase()) || rs.toLowerCase().includes(s))
     );
     if (!allRequired) continue;
 
-    // Check supporting signals
     let supportMatch = true;
     if (rule.supporting_signals) {
       if (rule.supporting_signals.age_range && ctx.patient_age != null) {
@@ -411,16 +351,11 @@ export function expandCandidatesFromContext(ctx: ClinicalContext): ExpansionResu
     }
 
     if (supportMatch) {
-      const key = rule.candidate.diagnosis_name.toLowerCase();
-      if (!seenHints.has(key) && hints.length < MAX_CANDIDATE_HINTS) {
-        seenHints.add(key);
-        hints.push(rule.candidate);
-        trace.push(`rare:${rule.id}`);
-      }
+      activateNode(activation, rule.activate.node, rule.activate.weight, rule.id, "rare_pattern");
+      trace.push(`rare:${rule.id}`);
     }
   }
 
-  // 3. Build expanded symptom list
   const expandedSymptoms = [
     ...normalizedSymptoms,
     ...addedSymptoms.filter(s => !normalizedSymptoms.includes(s)),
@@ -429,15 +364,15 @@ export function expandCandidatesFromContext(ctx: ClinicalContext): ExpansionResu
   if (trace.length > 0) {
     console.log(
       `[ContextExpander] Fired ${trace.length} rules. ` +
-      `Added ${addedSymptoms.length} symptoms, ${hints.length} candidate hints. ` +
+      `Activated ${activation.nodes.size} clusters, added ${addedSymptoms.length} symptoms. ` +
       `Rules: [${trace.join(", ")}]`
     );
   }
 
   return {
+    activation,
     expanded_symptoms: expandedSymptoms,
     added_symptoms: addedSymptoms,
-    candidate_hints: hints,
     expansion_trace: trace,
   };
 }
