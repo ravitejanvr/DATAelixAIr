@@ -117,7 +117,7 @@ export function fromEnrichedContext(ecc: EnrichedClinicalContext): UnifiedClinic
     patient_sex: core.patient_sex ?? null,
     patient_name: null,
     chief_complaint: core.chief_complaint || "",
-    symptoms: (core as any).symptoms || [core.chief_complaint].filter(Boolean),
+    symptoms: core.symptoms || [core.chief_complaint].filter(Boolean),
     symptom_duration: core.symptom_duration || "",
     associated_symptoms: [],
     medical_history: core.medical_history || [],
