@@ -22,7 +22,7 @@ import type { SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_SOAP } from "@/layers/ai-agents/api";
 import type { SafetyResults } from "@/layers/safety/api";
 import { AI_DRAFT_LABEL } from "@/layers/safety/api";
-import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext } from "@/lib/clinical-context";
+import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext, buildFullClinicalContext } from "@/lib/clinical-context";
 
 // ── Presets ──
 const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain", "Dizziness", "Back pain", "Dysuria", "Rash", "Joint pain", "Palpitations", "Neck stiffness", "Syncope", "Sweating", "Nausea", "Photophobia"];
@@ -618,30 +618,25 @@ export default function CockpitPlayground() {
     try {
       const { runUnifiedClinicalPipeline } = await import("@/services/clinical_pipeline/orchestrator");
 
-      const pipelineContext = buildClinicalContext(
+      const baseContext = buildClinicalContext(
         { age: mockPatient?.age ?? 30, gender: mockPatient?.gender ?? "Unknown", medical_history: selectedMedicalHistory, allergies: mockPatient?.allergies || [], current_medications: [] },
         patientVitals, null,
       );
-      if (chiefComplaint) (pipelineContext as any).chief_complaint = chiefComplaint;
-      (pipelineContext as any).symptoms = selectedSymptoms;
-      if (selectedOnset) (pipelineContext as any).onset_pattern = selectedOnset;
-      if (selectedSeverity) (pipelineContext as any).severity = selectedSeverity;
-      if (selectedBodyLocation) (pipelineContext as any).body_location = selectedBodyLocation;
-      if (selectedRiskFactors.length > 0) (pipelineContext as any).risk_factors = selectedRiskFactors;
-      if (selectedFamilyHistory.length > 0) (pipelineContext as any).family_history = selectedFamilyHistory;
-      if (selectedDuration) (pipelineContext as any).symptom_duration = selectedDuration;
-      if (selectedMedicalHistory.length > 0) {
-        (pipelineContext as any).medical_history = [
-          ...(pipelineContext.medical_history || []),
-          ...selectedMedicalHistory.filter(mh => !(pipelineContext.medical_history || []).includes(mh)),
-        ];
-      }
-      if (selectedExamFindings.length > 0) {
-        const existingSymptoms = (pipelineContext as any).symptoms || [];
-        (pipelineContext as any).symptoms = [...new Set([...existingSymptoms, ...selectedExamFindings])];
-        (pipelineContext as any).exam_findings = selectedExamFindings;
-      }
-      if (patientVitals?.blood_sugar) (pipelineContext as any).blood_sugar = patientVitals.blood_sugar;
+
+      // Apply UI overrides via typed builder — NO monkey-patching
+      const pipelineContext = buildFullClinicalContext(baseContext, {
+        chiefComplaint: chiefComplaint || undefined,
+        symptoms: selectedSymptoms.length > 0 ? selectedSymptoms : undefined,
+        duration: selectedDuration || undefined,
+        onset_pattern: selectedOnset || undefined,
+        severity: selectedSeverity || undefined,
+        body_location: selectedBodyLocation || undefined,
+        risk_factors: selectedRiskFactors.length > 0 ? selectedRiskFactors : undefined,
+        family_history: selectedFamilyHistory.length > 0 ? selectedFamilyHistory : undefined,
+        exam_findings: selectedExamFindings.length > 0 ? selectedExamFindings : undefined,
+        medical_history: selectedMedicalHistory.length > 0 ? selectedMedicalHistory : undefined,
+        blood_sugar: patientVitals?.blood_sugar ?? undefined,
+      });
 
       const result = await runUnifiedClinicalPipeline(
         {
