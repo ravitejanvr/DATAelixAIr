@@ -608,9 +608,12 @@ export default function BenchmarkV10Panel() {
                   </div>
                 ))}
               </div>
-              <div className="mt-3 text-center">
-                <Button size="sm" onClick={runComparison}>
-                  <GitCompare className="h-3.5 w-3.5 mr-1" /> Run Full Comparison
+              <div className="mt-3 text-center flex gap-2 justify-center">
+                <Button size="sm" variant="outline" onClick={runComparison}>
+                  <GitCompare className="h-3.5 w-3.5 mr-1" /> P8 vs P9
+                </Button>
+                <Button size="sm" onClick={runThreeWayComparison}>
+                  <GitCompare className="h-3.5 w-3.5 mr-1" /> Full 3-Way Comparison (P8 · P9 · P10)
                 </Button>
               </div>
             </CardContent>
