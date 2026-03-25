@@ -1488,10 +1488,34 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Final selection (S7): Phase 9 uses pure probability ranking without must-not-miss slot reservation
+    // ═══════════════════════════════════════════════════
+    // PHASE 10: CANDIDATE COMPLETENESS MERGE LAYER
+    // Soft-inject safety candidates AFTER Bayesian scoring,
+    // BEFORE final selection. Zero probability — no ranking influence.
+    // ═══════════════════════════════════════════════════
+    if (phase9 && phase10_augment && safetyCandidates.length > 0) {
+      // INVARIANT-3: Hard cap total candidates at 15
+      const maxAugment = Math.min(safetyCandidates.length, 15 - bayesianScores.length);
+      // INVARIANT-2: Safety candidates must not exceed 30% of total
+      const maxByRatio = Math.max(1, Math.floor(bayesianScores.length * 0.43)); // 30% of final = 0.3/(1-0.3) ≈ 0.43 of current
+      const augmentCount = Math.min(maxAugment, maxByRatio);
+
+      for (let ai = 0; ai < augmentCount; ai++) {
+        const sc = safetyCandidates[ai];
+        // INVARIANT-5: Final dedup check
+        if (!bayesianScores.some(d => d.diagnosis_id === sc.diagnosis_id)) {
+          bayesianScores.push(sc);
+          dangerousInjected++;
+        }
+      }
+      console.log(`[DDX-Phase10] Merged ${Math.min(augmentCount, safetyCandidates.length)} safety candidates (total pool: ${bayesianScores.length})`);
+    }
+
+    // Final selection (S7): Phase 9/10 uses pure probability ranking without must-not-miss slot reservation
     let finalDifferential;
     if (phase9) {
-      // Phase 9: Pure probability-based selection, no must-not-miss slots
+      // Phase 9/10: Pure probability-based selection, no must-not-miss slots
+      // Safety-augmented candidates with probability=0 naturally sort to bottom
       finalDifferential = bayesianScores
         .sort((a, b) => b.probability - a.probability)
         .slice(0, 10);
