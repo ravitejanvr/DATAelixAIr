@@ -13,6 +13,7 @@ export interface FeatureFlags {
   enable_bias_monitoring: boolean;
   enable_meta_learning: boolean;
   enable_population_intelligence: boolean;
+  enable_phase9_safety_decoupling: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
