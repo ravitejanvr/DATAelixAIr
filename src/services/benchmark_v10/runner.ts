@@ -345,7 +345,7 @@ async function persistRun(runResult: SuiteRunResult): Promise<void> {
     run_id: runResult.run_id,
     benchmark_version: runResult.benchmark_version,
     pipeline_phase: runResult.pipeline_phase,
-    pipeline_mode: runResult.pipeline_phase.includes("9") ? "phase9" : "phase8",
+    pipeline_mode: runResult.pipeline_phase.includes("10") ? "phase10" : runResult.pipeline_phase.includes("9") ? "phase9" : "phase8",
     total_cases: runResult.total_cases,
     passed: runResult.passed,
     failed: runResult.failed,
