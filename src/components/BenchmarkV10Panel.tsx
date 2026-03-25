@@ -403,7 +403,7 @@ export default function BenchmarkV10Panel() {
     setThreeWay(null);
     setRunMode(mode);
     try {
-      const result = await runV10Suite(mode, handleProgress);
+      const result = await runV10Suite(mode, handleProgress, { executionMode: "benchmark", parallelCases: 5 });
       setSuiteResult(result);
       if (mode === "phase8") setPhase8Baseline(result);
       if (mode === "phase9") setPhase9Baseline(result);
@@ -421,11 +421,11 @@ export default function BenchmarkV10Panel() {
     setRunMode("compare");
     try {
       setRunMode("phase8");
-      const p8 = await runV10Suite("phase8", handleProgress);
+      const p8 = await runV10Suite("phase8", handleProgress, { executionMode: "benchmark", parallelCases: 5 });
       setPhase8Baseline(p8);
 
       setRunMode("phase9");
-      const p9 = await runV10Suite("phase9", handleProgress);
+      const p9 = await runV10Suite("phase9", handleProgress, { executionMode: "benchmark", parallelCases: 5 });
       setPhase9Baseline(p9);
       setSuiteResult(p9);
 
@@ -446,15 +446,15 @@ export default function BenchmarkV10Panel() {
     setRunMode("3-way");
     try {
       setRunMode("phase8");
-      const p8 = await runV10Suite("phase8", handleProgress);
+      const p8 = await runV10Suite("phase8", handleProgress, { executionMode: "benchmark", parallelCases: 5 });
       setPhase8Baseline(p8);
 
       setRunMode("phase9");
-      const p9 = await runV10Suite("phase9", handleProgress);
+      const p9 = await runV10Suite("phase9", handleProgress, { executionMode: "benchmark", parallelCases: 5 });
       setPhase9Baseline(p9);
 
       setRunMode("phase10");
-      const p10 = await runV10Suite("phase10", handleProgress);
+      const p10 = await runV10Suite("phase10", handleProgress, { executionMode: "benchmark", parallelCases: 5 });
       setSuiteResult(p10);
 
       const tw = compareV10ThreeWay(p8, p9, p10);
