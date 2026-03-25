@@ -30,6 +30,7 @@ export type V10ExecutionMode = "production" | "benchmark";
 async function runSingleV10Case(
   c: BenchmarkCaseV10,
   mode: V10PipelineMode,
+  executionMode: V10ExecutionMode = "benchmark",
 ): Promise<CaseResult> {
   const t0 = performance.now();
   const failures: string[] = [];
