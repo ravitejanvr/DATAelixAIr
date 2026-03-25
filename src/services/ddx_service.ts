@@ -8,7 +8,7 @@
 import { runDDXEngine as invokeDDX, type DDXInput, type DDXResult, type ReasoningTrace } from "@/services/ddx_engine/client";
 import type { MergedContextObject } from "@/services/context_service";
 
-export type { DDXResult, DDXDiagnosis, DDXLabRecommendation, DDXMedication, DDXGuideline, ReasoningTrace } from "@/services/ddx_engine/client";
+export type { DDXResult, DDXDiagnosis, DDXLabRecommendation, DDXMedication, DDXGuideline, ReasoningTrace, SafetyAlert } from "@/services/ddx_engine/client";
 
 export interface DDXOutput {
   diagnoses: Array<{

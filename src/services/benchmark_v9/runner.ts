@@ -153,6 +153,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
           allergies: sc.context.allergies || [],
           visit_id: sc.context.visit_id,
           clinic_id: sc.context.clinic_id,
+          phase9: true,
         });
       } catch (e) {
         console.warn(`[Benchmark:${sc.id}] DDX failed:`, e);
@@ -344,7 +345,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     failures.push("Gold diagnosis was incorrectly pruned by cognitive controller");
   }
 
-  // ── STAGE 6: Safety Evaluation (DDX flags + independent symptom cluster detection) ──
+  // ── STAGE 6: Safety Evaluation (DDX flags + safety_alerts channel + independent cluster detection) ──
   const dangerousList: string[] = [];
   for (const d of ddxDiagnoses) {
     if (d.must_not_miss) {
@@ -355,6 +356,15 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     for (const d of ddxResult.dangerous_diagnoses) {
       const name = typeof d === "string" ? d : (d.diagnosis_name || String(d));
       if (name) dangerousList.push(name.trim());
+    }
+  }
+  // Phase 9: Also count safety_alerts from the decoupled channel
+  if (ddxResult?.safety_alerts) {
+    for (const alert of ddxResult.safety_alerts) {
+      const name = alert.diagnosis_name || "";
+      if (name && !dangerousList.some(d => diagMatch(d, name))) {
+        dangerousList.push(name.trim());
+      }
     }
   }
 
@@ -410,7 +420,6 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
       allInputLower.some(s => s.includes(cs) || cs.includes(s))
     );
     if (matched.length >= cluster.required) {
-      // Check if already in candidates
       const inCandidates = candidates.some((c: any) => diagMatch(c.name, cluster.condition));
       if (inCandidates && !dangerousList.some(d => diagMatch(d, cluster.condition))) {
         dangerousList.push(cluster.condition);

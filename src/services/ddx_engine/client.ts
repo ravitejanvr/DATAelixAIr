@@ -68,6 +68,26 @@ export interface ReasoningTrace {
   confidence: number;
 }
 
+export interface SafetyAlert {
+  diagnosis_id: string | null;
+  diagnosis_name: string;
+  severity_level: string;
+  must_not_miss: boolean;
+  emergency_protocol: string;
+  guideline_source: string;
+  trigger_symptoms: string[];
+  trigger_count: number;
+  context_gate_passed: boolean;
+  injection_level: string;
+  supporting_context: {
+    abnormal_vitals?: boolean;
+    risk_age?: boolean;
+    history_match?: boolean;
+    symptom_signals?: number;
+    vital_signals?: number;
+  };
+}
+
 export interface DDXResult {
   differential_diagnoses: DDXDiagnosis[];
   recommended_labs: DDXLabRecommendation[];
@@ -81,10 +101,12 @@ export interface DDXResult {
     emergency_protocol: string;
     trigger_symptom: string;
   }>;
+  safety_alerts: SafetyAlert[];
   matched_symptoms: string[];
   unmatched_symptoms: string[];
   dangerous_diagnoses_injected: number;
   must_not_miss_count: number;
+  safety_alerts_count: number;
   organ_systems_active: string[];
   reasoning_traces: ReasoningTrace[];
   score_threshold_applied: number;
@@ -96,6 +118,7 @@ export interface DDXResult {
     enrichment: number;
   };
   bayesian_model: boolean;
+  phase9_active: boolean;
   source: string;
   graph_miss: boolean;
 }
@@ -124,6 +147,7 @@ export interface DDXInput {
   body_location?: string | null;
   duration?: string | null;
   family_history?: string[];
+  phase9?: boolean;
 }
 
 /**
