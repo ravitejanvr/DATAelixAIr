@@ -499,26 +499,16 @@ export async function runUnifiedClinicalPipeline(
       );
       if (pcieRow) {
         unifiedContext = fromPCIEContext(pcieRow);
-        const cc = input.clinical_context;
-        if (!cc.chief_complaint && unifiedContext.chief_complaint) {
-          cc.chief_complaint = unifiedContext.chief_complaint;
-        }
-        if ((!cc.medical_history || cc.medical_history.length === 0) && unifiedContext.medical_history.length > 0) {
-          cc.medical_history = unifiedContext.medical_history;
-        }
-        if ((!cc.allergies || cc.allergies.length === 0) && unifiedContext.allergies.length > 0) {
-          cc.allergies = unifiedContext.allergies;
-        }
-        if ((!cc.current_medications || cc.current_medications.length === 0) && unifiedContext.current_medications.length > 0) {
-          cc.current_medications = unifiedContext.current_medications;
-        }
-        // Propagate additional fields from PCIE if missing
-        if ((!ctx.risk_factors || ctx.risk_factors.length === 0) && unifiedContext.risk_factors.length > 0) {
-          cc.risk_factors = unifiedContext.risk_factors;
-        }
-        if (!ctx.family_history && unifiedContext.family_history.length > 0) {
-          cc.family_history = unifiedContext.family_history;
-        }
+        // Merge PCIE data into local context copy (immutable update)
+        ctx = {
+          ...ctx,
+          chief_complaint: ctx.chief_complaint || unifiedContext.chief_complaint || ctx.chief_complaint,
+          medical_history: (ctx.medical_history?.length) ? ctx.medical_history : unifiedContext.medical_history,
+          allergies: (ctx.allergies?.length) ? ctx.allergies : unifiedContext.allergies,
+          current_medications: (ctx.current_medications?.length) ? ctx.current_medications : unifiedContext.current_medications,
+          risk_factors: (ctx.risk_factors?.length) ? ctx.risk_factors : unifiedContext.risk_factors,
+          family_history: ctx.family_history?.length ? ctx.family_history : unifiedContext.family_history,
+        };
         console.log(`[Pipeline] Wave 0: PCIE context loaded (confidence=${unifiedContext.context_confidence})`);
       } else {
         console.warn("[Pipeline] Wave 0: PCIE returned null — building minimal context from input");
@@ -688,20 +678,20 @@ export async function runUnifiedClinicalPipeline(
       `${episodicMemoryResult.cross_patient?.recent_symptom_clusters.length || 0} clusters`
     );
 
-    // Inject epidemiological and recurrence signals as risk flags
+    // Inject epidemiological and recurrence signals as risk flags (immutable)
+    const episodicRiskFlags: string[] = [];
     if (episodicMemoryResult.patient_memory?.longitudinal_risk_signals.length) {
-      const existing = ctx.risk_flags || [];
-      ctx.risk_flags = [
-        ...existing,
+      episodicRiskFlags.push(
         ...episodicMemoryResult.patient_memory.longitudinal_risk_signals.map(s => `[Episodic] ${s}`),
-      ];
+      );
     }
     if (episodicMemoryResult.cross_patient?.seasonal_alerts.length) {
-      const existing = ctx.risk_flags || [];
-      ctx.risk_flags = [
-        ...existing,
+      episodicRiskFlags.push(
         ...episodicMemoryResult.cross_patient.seasonal_alerts.map(s => `[Seasonal] ${s}`),
-      ];
+      );
+    }
+    if (episodicRiskFlags.length > 0) {
+      ctx = { ...ctx, risk_flags: [...(ctx.risk_flags || []), ...episodicRiskFlags] };
     }
     // Outbreak alert → oversight event
     const outbreakClusters = episodicMemoryResult.cross_patient?.recent_symptom_clusters.filter(
