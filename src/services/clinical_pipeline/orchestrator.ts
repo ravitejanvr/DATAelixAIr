@@ -65,6 +65,7 @@ import { runCognitiveLayer, type CognitiveLayerResult } from "@/services/cogniti
 import { applyCandidateFallback, type FallbackMeta } from "@/services/ddx_engine/candidate_fallback";
 import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_engine/candidate_fallback_v2";
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
+import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 
@@ -846,7 +847,19 @@ export async function runUnifiedClinicalPipeline(
 
   // ── Phase 5: Context-Assisted Candidate Generation + Fallback ──
   if (isPhase5ContextCandidatesEnabled()) {
-    // Run context expander BEFORE fallback
+    // Phase 5.1-5.2: Failure-derived rules (runs BEFORE context expander)
+    const failureResult = applyFailureDerivedRules(ctx);
+    if (failureResult.rules_fired.length > 0) {
+      recordOversightEvent({
+        event_type: "phase5_context_expansion",
+        severity: "info",
+        stage: "failure_derived_rules",
+        message: `Failure-derived rules fired ${failureResult.rules_fired.length} rules, injected ${failureResult.total_injected} candidates`,
+        metadata: { rules: failureResult.rules_fired, candidates: failureResult.candidate_hints.map(h => h.diagnosis_name) } as any,
+      });
+    }
+
+    // Phase 5.0: Context expander (phenotype + rare patterns)
     const expansion = expandCandidatesFromContext(ctx);
     if (expansion.expansion_trace.length > 0) {
       recordOversightEvent({
@@ -858,9 +871,12 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
-    // Use fallback v2 with context hints
+    // Merge all candidate hints (failure-derived first, then context expander)
+    const allHints = [...failureResult.candidate_hints, ...expansion.candidate_hints];
+
+    // Use fallback v2 with merged hints
     const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallbackV2(
-      ddxResult, symptoms, expansion.candidate_hints,
+      ddxResult, symptoms, allHints,
       { medical_history: ctx.medical_history, risk_factors: ctx.risk_factors, age: ctx.patient_age, medications: ctx.current_medications },
     );
     ddxResult = ddxAfterFallback;
