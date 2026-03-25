@@ -37,6 +37,9 @@ import {
   type OversightReport,
 } from "@/services/oversight_engine";
 import { applyCandidateFallback } from "@/services/ddx_engine/candidate_fallback";
+import { applyCandidateFallbackV2 } from "@/services/ddx_engine/candidate_fallback_v2";
+import { expandCandidatesFromContext } from "@/services/context_candidate_expander";
+import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
