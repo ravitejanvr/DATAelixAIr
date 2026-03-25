@@ -300,20 +300,38 @@ export async function runBenchmarkPipeline(
     };
   }
 
-  // FIX 3: Candidate fallback
-  const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallback(
-    ddxResult, symptoms,
-    { medical_history: ctx.medical_history, risk_factors: ctx.risk_factors, age: ctx.patient_age, medications: ctx.current_medications },
-  );
-  ddxResult = ddxAfterFallback;
-  if (fallbackMeta.triggered) {
-    recordOversightEvent({
-      event_type: "candidate_fallback_triggered",
-      severity: "info",
-      stage: "ddx_engine",
-      message: `Fallback injected ${fallbackMeta.fallback_count} candidates`,
-      metadata: fallbackMeta as any,
-    });
+  // Phase 5: Context-Assisted Candidate Generation + Fallback
+  if (isPhase5ContextCandidatesEnabled()) {
+    const expansion = expandCandidatesFromContext(ctx);
+    const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallbackV2(
+      ddxResult, symptoms, expansion.candidate_hints,
+      { medical_history: ctx.medical_history, risk_factors: ctx.risk_factors, age: ctx.patient_age, medications: ctx.current_medications },
+    );
+    ddxResult = ddxAfterFallback;
+    if (fallbackMeta.triggered) {
+      recordOversightEvent({
+        event_type: "candidate_fallback_v2_triggered",
+        severity: "info",
+        stage: "ddx_engine",
+        message: `Fallback v2 injected ${fallbackMeta.total_injected} candidates`,
+        metadata: fallbackMeta as any,
+      });
+    }
+  } else {
+    const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallback(
+      ddxResult, symptoms,
+      { medical_history: ctx.medical_history, risk_factors: ctx.risk_factors, age: ctx.patient_age, medications: ctx.current_medications },
+    );
+    ddxResult = ddxAfterFallback;
+    if (fallbackMeta.triggered) {
+      recordOversightEvent({
+        event_type: "candidate_fallback_triggered",
+        severity: "info",
+        stage: "ddx_engine",
+        message: `Fallback injected ${fallbackMeta.fallback_count} candidates`,
+        metadata: fallbackMeta as any,
+      });
+    }
   }
 
   waveLat.wave2_analysis = Math.round(performance.now() - w2Start);
