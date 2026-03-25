@@ -1787,7 +1787,10 @@ Deno.serve(async (req) => {
       },
       bayesian_model: true,
       phase9_active: phase9,
-      source: phase9 ? "ddx_engine_v5_phase9" : "ddx_engine_v5_terminology_fix",
+      phase10_active: phase10_augment,
+      safety_augmented_count: safetyAugmentedCount,
+      safety_candidates_available: safetyCandidates.length,
+      source: phase10_augment ? "ddx_engine_v5_phase10" : phase9 ? "ddx_engine_v5_phase9" : "ddx_engine_v5_terminology_fix",
       graph_miss: false,
     });
   } catch (err: any) {
