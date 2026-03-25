@@ -41,7 +41,11 @@ async function runSingleV10Case(
   // Run through PRODUCTION orchestrator
   let pipelineResult: PipelineResult | null = null;
   try {
-    pipelineResult = await runUnifiedClinicalPipeline(pipelineInput);
+    if (executionMode === "benchmark") {
+      pipelineResult = await runBenchmarkPipeline(pipelineInput);
+    } else {
+      pipelineResult = await runUnifiedClinicalPipeline(pipelineInput);
+    }
   } catch (e) {
     failures.push(`Pipeline error: ${e}`);
   }
