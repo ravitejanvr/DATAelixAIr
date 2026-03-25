@@ -846,36 +846,48 @@ export async function runUnifiedClinicalPipeline(
     ddxResult = applyOrganSystemWeighting(ddxResult, dominantSystem);
   }
 
-  // ── Phase 5: Context-Assisted Candidate Generation + Fallback ──
+  // ── Phase 5: KG-Native Context-Assisted Candidate Generation ──
   if (isPhase5ContextCandidatesEnabled()) {
-    // Phase 5.1-5.2: Failure-derived rules (runs BEFORE context expander)
+    // Phase 5.1-5.2: Failure-derived rules → cluster activations
     const failureResult = applyFailureDerivedRules(ctx);
     if (failureResult.rules_fired.length > 0) {
       recordOversightEvent({
         event_type: "phase5_context_expansion",
         severity: "info",
         stage: "failure_derived_rules",
-        message: `Failure-derived rules fired ${failureResult.rules_fired.length} rules, injected ${failureResult.total_injected} candidates`,
-        metadata: { rules: failureResult.rules_fired, candidates: failureResult.candidate_hints.map(h => h.diagnosis_name) } as any,
+        message: `Failure-derived rules fired ${failureResult.rules_fired.length} rules, activated ${failureResult.total_activations} clusters`,
+        metadata: { rules: failureResult.rules_fired, clusters: [...failureResult.activation.nodes] } as any,
       });
     }
 
-    // Phase 5.0: Context expander (phenotype + rare patterns)
+    // Phase 5.0: Context expander → cluster activations
     const expansion = expandCandidatesFromContext(ctx);
     if (expansion.expansion_trace.length > 0) {
       recordOversightEvent({
         event_type: "phase5_context_expansion",
         severity: "info",
         stage: "context_candidate_expander",
-        message: `Context expander fired ${expansion.expansion_trace.length} rules, added ${expansion.added_symptoms.length} symptoms and ${expansion.candidate_hints.length} hints`,
-        metadata: { trace: expansion.expansion_trace, hints: expansion.candidate_hints.map(h => h.diagnosis_name) } as any,
+        message: `Context expander fired ${expansion.expansion_trace.length} rules, activated ${expansion.activation.nodes.size} clusters, added ${expansion.added_symptoms.length} symptoms`,
+        metadata: { trace: expansion.expansion_trace, clusters: [...expansion.activation.nodes] } as any,
       });
     }
 
-    // Merge all candidate hints (failure-derived first, then context expander)
-    const allHints = [...failureResult.candidate_hints, ...expansion.candidate_hints];
+    // KG-Native: Merge activations → expand via KG clusters → candidate hints
+    const mergedActivation = mergeActivations(failureResult.activation, expansion.activation);
+    const kgExpansion = expandKG(mergedActivation);
+    const allHints = kgExpansion.candidates;
 
-    // Use fallback v2 with merged hints
+    if (kgExpansion.clusters_resolved.length > 0) {
+      recordOversightEvent({
+        event_type: "phase5_context_expansion",
+        severity: "info",
+        stage: "kg_expander",
+        message: `KG expanded ${kgExpansion.clusters_resolved.length} clusters → ${allHints.length} candidates`,
+        metadata: { clusters: kgExpansion.clusters_resolved, detail: kgExpansion.expansion_detail } as any,
+      });
+    }
+
+    // Use fallback v2 with KG-resolved hints
     const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallbackV2(
       ddxResult, symptoms, allHints,
       { medical_history: ctx.medical_history, risk_factors: ctx.risk_factors, age: ctx.patient_age, medications: ctx.current_medications },
