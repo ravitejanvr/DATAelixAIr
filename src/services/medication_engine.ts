@@ -1,9 +1,9 @@
 /**
- * Medication Engine Service — Canonical Interface
+ * @deprecated DO NOT USE — replaced by medication_intelligence/client.ts
+ * This file is a legacy medication engine. Use `validateMedications` from `@/services/medication_intelligence/client` directly.
+ * Scheduled for removal in next cleanup phase.
  *
- * Generates drug suggestions and dose recommendations for
- * candidate diagnoses, considering patient allergies, medications,
- * age, and weight.
+ * Medication Engine Service — LEGACY
  */
 
 import {
