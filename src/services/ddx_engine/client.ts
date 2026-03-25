@@ -119,6 +119,8 @@ export interface DDXResult {
   };
   bayesian_model: boolean;
   phase9_active: boolean;
+  phase10_active?: boolean;
+  safety_augmented_count?: number;
   source: string;
   graph_miss: boolean;
 }
@@ -148,6 +150,7 @@ export interface DDXInput {
   duration?: string | null;
   family_history?: string[];
   phase9?: boolean;
+  phase10_augment?: boolean;
 }
 
 /**
