@@ -450,7 +450,8 @@ export async function runUnifiedClinicalPipeline(
   });
   const symptoms = extractSymptoms(input.clinical_context);
   const vitals = buildVitals(input.clinical_context);
-  const ctx = input.clinical_context;
+  // Immutable local copy — pipeline enrichments do NOT mutate caller's object
+  let ctx: ClinicalContext = { ...input.clinical_context };
 
   // Hydrate PCIE Core from input context
   pcieCore.hydrateFromClinicalContext(ctx);
@@ -462,7 +463,7 @@ export async function runUnifiedClinicalPipeline(
     associated_symptoms: ctx.associated_symptoms,
     symptom_duration: ctx.symptom_duration,
     medical_history: ctx.medical_history,
-    family_history: (ctx as any).family_history || [],
+    family_history: ctx.family_history || [],
     risk_factors: ctx.risk_factors || [],
     current_medications: ctx.current_medications,
     allergies: ctx.allergies,
@@ -498,26 +499,16 @@ export async function runUnifiedClinicalPipeline(
       );
       if (pcieRow) {
         unifiedContext = fromPCIEContext(pcieRow);
-        const cc = input.clinical_context;
-        if (!cc.chief_complaint && unifiedContext.chief_complaint) {
-          (cc as any).chief_complaint = unifiedContext.chief_complaint;
-        }
-        if ((!cc.medical_history || cc.medical_history.length === 0) && unifiedContext.medical_history.length > 0) {
-          (cc as any).medical_history = unifiedContext.medical_history;
-        }
-        if ((!cc.allergies || cc.allergies.length === 0) && unifiedContext.allergies.length > 0) {
-          (cc as any).allergies = unifiedContext.allergies;
-        }
-        if ((!cc.current_medications || cc.current_medications.length === 0) && unifiedContext.current_medications.length > 0) {
-          (cc as any).current_medications = unifiedContext.current_medications;
-        }
-        // Propagate additional fields from PCIE if missing
-        if ((!ctx.risk_factors || ctx.risk_factors.length === 0) && unifiedContext.risk_factors.length > 0) {
-          (cc as any).risk_factors = unifiedContext.risk_factors;
-        }
-        if (!(ctx as any).family_history && unifiedContext.family_history.length > 0) {
-          (cc as any).family_history = unifiedContext.family_history;
-        }
+        // Merge PCIE data into local context copy (immutable update)
+        ctx = {
+          ...ctx,
+          chief_complaint: ctx.chief_complaint || unifiedContext.chief_complaint || ctx.chief_complaint,
+          medical_history: (ctx.medical_history?.length) ? ctx.medical_history : unifiedContext.medical_history,
+          allergies: (ctx.allergies?.length) ? ctx.allergies : unifiedContext.allergies,
+          current_medications: (ctx.current_medications?.length) ? ctx.current_medications : unifiedContext.current_medications,
+          risk_factors: (ctx.risk_factors?.length) ? ctx.risk_factors : unifiedContext.risk_factors,
+          family_history: ctx.family_history?.length ? ctx.family_history : unifiedContext.family_history,
+        };
         console.log(`[Pipeline] Wave 0: PCIE context loaded (confidence=${unifiedContext.context_confidence})`);
       } else {
         console.warn("[Pipeline] Wave 0: PCIE returned null — building minimal context from input");
@@ -566,8 +557,8 @@ export async function runUnifiedClinicalPipeline(
   // ── Prefetch episodic memory (non-blocking, resolves before Wave 2 DDX) ──
   let episodicMemoryResult: EpisodicMemoryResult | null = null;
   const episodicPromise = queryEpisodicMemory({
-    patient_id: (ctx as any).patient_id || undefined,
-    doctor_id: (ctx as any).doctor_id || undefined,
+    patient_id: ctx.patient_id || undefined,
+    doctor_id: ctx.doctor_id || undefined,
     clinic_id: input.clinic_id || undefined,
     symptoms,
     chief_complaint: ctx.chief_complaint,
@@ -609,7 +600,7 @@ export async function runUnifiedClinicalPipeline(
     associated_symptoms: ctx.associated_symptoms || [],
     symptom_duration: ctx.symptom_duration,
     medical_history: ctx.medical_history,
-    family_history: (ctx as any).family_history || [],
+    family_history: ctx.family_history || [],
     risk_factors: ctx.risk_factors || [],
     current_medications: ctx.current_medications,
     allergies: ctx.allergies,
@@ -687,20 +678,20 @@ export async function runUnifiedClinicalPipeline(
       `${episodicMemoryResult.cross_patient?.recent_symptom_clusters.length || 0} clusters`
     );
 
-    // Inject epidemiological and recurrence signals as risk flags
+    // Inject epidemiological and recurrence signals as risk flags (immutable)
+    const episodicRiskFlags: string[] = [];
     if (episodicMemoryResult.patient_memory?.longitudinal_risk_signals.length) {
-      const existing = ctx.risk_flags || [];
-      (ctx as any).risk_flags = [
-        ...existing,
+      episodicRiskFlags.push(
         ...episodicMemoryResult.patient_memory.longitudinal_risk_signals.map(s => `[Episodic] ${s}`),
-      ];
+      );
     }
     if (episodicMemoryResult.cross_patient?.seasonal_alerts.length) {
-      const existing = ctx.risk_flags || [];
-      (ctx as any).risk_flags = [
-        ...existing,
+      episodicRiskFlags.push(
         ...episodicMemoryResult.cross_patient.seasonal_alerts.map(s => `[Seasonal] ${s}`),
-      ];
+      );
+    }
+    if (episodicRiskFlags.length > 0) {
+      ctx = { ...ctx, risk_flags: [...(ctx.risk_flags || []), ...episodicRiskFlags] };
     }
     // Outbreak alert → oversight event
     const outbreakClusters = episodicMemoryResult.cross_patient?.recent_symptom_clusters.filter(
@@ -789,12 +780,12 @@ export async function runUnifiedClinicalPipeline(
               clinic_id: input.clinic_id,
               physiological_context: physioPayload,
               // Clinical modifiers for multi-signal candidate retrieval
-              onset_pattern: (ctx as any).onset_pattern || null,
-              severity: (ctx as any).severity || null,
-              body_location: (ctx as any).body_location || null,
+              onset_pattern: ctx.onset_pattern || null,
+              severity: ctx.severity || null,
+              body_location: ctx.body_location || null,
               risk_factors: ctx.risk_factors || [],
               duration: ctx.symptom_duration || null,
-              family_history: (ctx as any).family_history || [],
+              family_history: ctx.family_history || [],
             }),
           ),
           TIMEOUT.DDX,
@@ -857,7 +848,7 @@ export async function runUnifiedClinicalPipeline(
     associated_symptoms: ctx.associated_symptoms || [],
     symptom_duration: ctx.symptom_duration,
     medical_history: ctx.medical_history,
-    family_history: (ctx as any).family_history || [],
+    family_history: ctx.family_history || [],
     risk_factors: ctx.risk_factors || [],
     current_medications: ctx.current_medications,
     allergies: ctx.allergies,
@@ -1129,9 +1120,9 @@ export async function runUnifiedClinicalPipeline(
               respiratory_rate: vitals.respiratory_rate,
             },
             duration: ctx.symptom_duration || null,
-            onset_pattern: (ctx as any).onset_pattern || null,
-            severity: (ctx as any).severity || null,
-            body_location: (ctx as any).body_location || null,
+            onset_pattern: ctx.onset_pattern || null,
+            severity: ctx.severity || null,
+            body_location: ctx.body_location || null,
           }),
           TIMEOUT.BAYESIAN,
           "bayesian_engine",
@@ -1293,7 +1284,7 @@ export async function runUnifiedClinicalPipeline(
   lineageTracker.captureSnapshot("Wave 3 (Reasoning)", "bayesian", {
     chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
     symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
-    family_history: (ctx as any).family_history || [], risk_factors: ctx.risk_factors || [],
+    family_history: ctx.family_history || [], risk_factors: ctx.risk_factors || [],
     current_medications: ctx.current_medications, allergies: ctx.allergies,
     vitals: { bp_systolic: vitals.bp_systolic, bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null, pulse: vitals.pulse, temperature: vitals.temperature, spo2: vitals.spo2, respiratory_rate: ctx.respiratory_rate, weight_kg: ctx.weight, height_cm: ctx.height },
     lab_results: [], risk_flags: ctx.risk_flags || [], patient_age: ctx.patient_age, patient_sex: ctx.patient_sex, context_confidence: 0,
@@ -1528,7 +1519,7 @@ export async function runUnifiedClinicalPipeline(
   lineageTracker.captureSnapshot("Wave 4 (Safety)", "safety", {
     chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
     symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
-    family_history: (ctx as any).family_history || [], risk_factors: ctx.risk_factors || [],
+    family_history: ctx.family_history || [], risk_factors: ctx.risk_factors || [],
     current_medications: ctx.current_medications, allergies: ctx.allergies,
     vitals: { bp_systolic: vitals.bp_systolic, bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null, pulse: vitals.pulse, temperature: vitals.temperature, spo2: vitals.spo2, respiratory_rate: ctx.respiratory_rate, weight_kg: ctx.weight, height_cm: ctx.height },
     lab_results: [], risk_flags: ctx.risk_flags || [], patient_age: ctx.patient_age, patient_sex: ctx.patient_sex, context_confidence: 0,
@@ -1639,7 +1630,7 @@ export async function runUnifiedClinicalPipeline(
   lineageTracker.captureSnapshot("Wave 5 (Output)", "soap", {
     chief_complaint: ctx.chief_complaint, symptoms, associated_symptoms: ctx.associated_symptoms || [],
     symptom_duration: ctx.symptom_duration, medical_history: ctx.medical_history,
-    family_history: (ctx as any).family_history || [], risk_factors: ctx.risk_factors || [],
+    family_history: ctx.family_history || [], risk_factors: ctx.risk_factors || [],
     current_medications: ctx.current_medications, allergies: ctx.allergies,
     vitals: { bp_systolic: vitals.bp_systolic, bp_diastolic: ctx.blood_pressure ? parseInt(ctx.blood_pressure.split("/")[1]) : null, pulse: vitals.pulse, temperature: vitals.temperature, spo2: vitals.spo2, respiratory_rate: ctx.respiratory_rate, weight_kg: ctx.weight, height_cm: ctx.height },
     lab_results: [], risk_flags: ctx.risk_flags || [], patient_age: ctx.patient_age, patient_sex: ctx.patient_sex, context_confidence: uncertaintyResult?.confidence_score ?? 0,
@@ -1743,7 +1734,7 @@ export async function runUnifiedClinicalPipeline(
         symptom_duration: ctx.symptom_duration || "",
         associated_symptoms: ctx.associated_symptoms || [],
         medical_history: ctx.medical_history || [],
-        family_history: (ctx as any).family_history || [],
+        family_history: ctx.family_history || [],
         risk_factors: ctx.risk_factors || [],
         medications: ctx.current_medications || [],
         allergies: ctx.allergies || [],
@@ -1819,7 +1810,7 @@ export async function runUnifiedClinicalPipeline(
     associated_symptoms: ctx.associated_symptoms || [],
     symptom_duration: ctx.symptom_duration,
     medical_history: ctx.medical_history,
-    family_history: (ctx as any).family_history || [],
+    family_history: ctx.family_history || [],
     risk_factors: ctx.risk_factors || [],
     current_medications: ctx.current_medications,
     allergies: ctx.allergies,
@@ -1947,9 +1938,9 @@ export async function runUnifiedClinicalPipeline(
     runCognitiveLayer({
       case: {
         visit_id: input.visit_id || undefined,
-        patient_id: (input.clinical_context as any).patient_id || "",
+        patient_id: input.clinical_context.patient_id || "",
         clinic_id: input.clinic_id,
-        doctor_id: (input.clinical_context as any).doctor_id || "",
+        doctor_id: input.clinical_context.doctor_id || "",
         symptom_vector: symptoms,
         chief_complaint: ctx.chief_complaint,
         final_diagnosis: topDiagnosis?.diagnosis_name,
