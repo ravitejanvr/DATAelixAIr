@@ -1,9 +1,10 @@
 /**
  * Benchmark v10 — Phase Comparator
  *
- * Compares Phase 8 vs Phase 9 results from v10 suite runs.
+ * Compares Phase 8 vs Phase 9 vs Phase 10 results from v10 suite runs.
  * Produces structured comparison summary with per-layer deltas,
  * regressions, improvements, and a verdict.
+ */
  */
 
 import type {
