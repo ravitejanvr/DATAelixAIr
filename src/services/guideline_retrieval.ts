@@ -1,10 +1,11 @@
 /**
- * Guideline Engine Service — Canonical Interface
+ * @deprecated DO NOT USE — replaced by guideline_engine/client.ts
+ * This file is a legacy guideline retrieval module. Use the guideline engine from `@/services/guideline_engine` directly.
+ * Scheduled for removal in next cleanup phase.
  *
- * Retrieves clinical guidelines via relational traversal:
- * diagnosis_id → guideline_rules → guideline_authorities
+ * Guideline Engine Service — LEGACY
  *
- * Falls back to guideline_registry keyword matching if no rules found.
+ * Retrieves clinical guidelines via relational traversal.
  */
 
 import { supabase } from "@/integrations/supabase/client";

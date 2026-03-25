@@ -1,8 +1,9 @@
 /**
- * Uncertainty Engine Service — Canonical Interface
+ * @deprecated DO NOT USE — replaced by uncertainty_engine/client.ts
+ * This file is a legacy adapter. Use `runUncertaintyEngine` from `@/services/uncertainty_engine/client` directly.
+ * Scheduled for removal in next cleanup phase.
  *
- * Computes diagnostic confidence using context completeness,
- * symptom match, guideline support, and conflicting evidence.
+ * Uncertainty Engine Service — Legacy Adapter
  */
 
 import { runUncertaintyEngine as invokeUncertainty, type UncertaintyInput, type UncertaintyResult } from "@/services/uncertainty_engine/client";

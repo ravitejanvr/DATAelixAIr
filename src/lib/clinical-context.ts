@@ -143,3 +143,59 @@ export function buildClinicalContext(
     allergies: Array.from(allergySet),
   };
 }
+
+// ── UI State Interface for Full Context Builder ──
+
+export interface UIContextOverrides {
+  chiefComplaint?: string;
+  symptoms?: string[];
+  duration?: string;
+  onset_pattern?: string;
+  severity?: string;
+  body_location?: string;
+  risk_factors?: string[];
+  family_history?: string[];
+  exam_findings?: string[];
+  medical_history?: string[];
+  blood_sugar?: number | null;
+}
+
+/**
+ * Build a complete ClinicalContext from base context + UI overrides.
+ * This is the CANONICAL way to produce a ClinicalContext for the pipeline,
+ * eliminating all monkey-patching via `as any`.
+ */
+export function buildFullClinicalContext(
+  base: ClinicalContext,
+  overrides: UIContextOverrides,
+): ClinicalContext {
+  const ctx = { ...base };
+
+  if (overrides.chiefComplaint) ctx.chief_complaint = overrides.chiefComplaint;
+  if (overrides.duration) ctx.symptom_duration = overrides.duration;
+  if (overrides.symptoms && overrides.symptoms.length > 0) ctx.symptoms = overrides.symptoms;
+  if (overrides.onset_pattern) ctx.onset_pattern = overrides.onset_pattern;
+  if (overrides.severity) ctx.severity = overrides.severity;
+  if (overrides.body_location) ctx.body_location = overrides.body_location;
+  if (overrides.risk_factors && overrides.risk_factors.length > 0) ctx.risk_factors = overrides.risk_factors;
+  if (overrides.family_history && overrides.family_history.length > 0) ctx.family_history = overrides.family_history;
+  if (overrides.blood_sugar != null) ctx.blood_sugar = overrides.blood_sugar;
+
+  // Exam findings merge into symptoms (for reasoning) and into exam_findings
+  if (overrides.exam_findings && overrides.exam_findings.length > 0) {
+    const existingSymptoms = ctx.symptoms || [];
+    ctx.symptoms = [...new Set([...existingSymptoms, ...overrides.exam_findings])];
+    ctx.exam_findings = overrides.exam_findings;
+  }
+
+  // Medical history merge (deduplicated)
+  if (overrides.medical_history && overrides.medical_history.length > 0) {
+    const existing = ctx.medical_history || [];
+    ctx.medical_history = [
+      ...existing,
+      ...overrides.medical_history.filter(mh => !existing.includes(mh)),
+    ];
+  }
+
+  return ctx;
+}
