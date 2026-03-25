@@ -1,8 +1,12 @@
 /**
- * Benchmark v9 — Optimized Multi-Scenario Runner
+ * Benchmark v9 — Dual-Mode Runner (Phase 8 / Phase 9)
  *
  * Runs 30 controlled scenarios through the core diagnostic pipeline:
  *   Normalization → Physiology‖DDX → Bayesian → Cognitive → Safety → Ranking
+ *
+ * Supports two modes:
+ *   - phase8 (legacy): DDX with phase9=false, safety via ranking
+ *   - phase9 (decoupled): DDX with phase9=true, safety via alerts channel
  *
  * 3 edge function calls per scenario (Physiology + DDX parallel, then Bayesian).
  * No LLM calls. No guideline/evidence retrieval. Pure diagnostic validation.
@@ -13,6 +17,7 @@ import type {
   BenchmarkResult, BenchmarkSuiteResult, NormalizationTrace,
   PhysiologyTrace, CandidateGenerationTrace, BayesianTrace,
   CognitivePruningTrace, SafetyTrace, FinalRankingTrace, StageLatency,
+  SafetyAlertEntry,
 } from "./types";
 import { normalizeWithTrace } from "@/services/context_engine/terminology_normalizer";
 import { runCognitiveController } from "@/services/cognitive/clinical_cognitive_controller";
@@ -86,9 +91,27 @@ function diagMatch(a: string, b: string): boolean {
   return aSyn.includes(nb) || bSyn.includes(na);
 }
 
+// ── Safety cluster definitions (for independent detection) ──
+
+const SAFETY_CLUSTERS: Array<{ condition: string; required: number; symptoms: string[] }> = [
+  { condition: "Sepsis", required: 3, symptoms: ["fever", "tachycardia", "hypotension", "confusion", "rapid breathing", "tachypnea", "chills", "altered mental status"] },
+  { condition: "Stroke", required: 2, symptoms: ["sudden weakness", "facial droop", "speech difficulty", "slurred speech", "numbness", "hemiparesis", "vision loss"] },
+  { condition: "Pulmonary Embolism", required: 2, symptoms: ["sudden dyspnea", "chest pain", "tachycardia", "hemoptysis", "pleuritic chest pain", "shortness of breath", "leg swelling"] },
+  { condition: "Acute Coronary Syndrome", required: 2, symptoms: ["chest pain", "radiating arm pain", "jaw pain", "diaphoresis", "nausea", "crushing chest pressure", "shortness of breath"] },
+  { condition: "Meningitis", required: 2, symptoms: ["neck stiffness", "fever", "headache", "photophobia", "confusion", "altered mental status", "rash"] },
+  { condition: "Pneumothorax", required: 2, symptoms: ["sudden chest pain", "chest pain", "dyspnea", "shortness of breath", "decreased breath sounds", "pleuritic pain"] },
+  { condition: "Diabetic Ketoacidosis", required: 2, symptoms: ["nausea", "vomiting", "abdominal pain", "fruity breath", "polyuria", "polydipsia", "confusion", "rapid breathing"] },
+  { condition: "Anaphylaxis", required: 2, symptoms: ["urticaria", "angioedema", "dyspnea", "hypotension", "wheezing", "throat swelling", "rash"] },
+];
+
 // ── Run single scenario ──
 
-export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkResult> {
+export type PipelineMode = "phase8" | "phase9";
+
+export async function runSingleScenario(
+  sc: BenchmarkCase,
+  mode: PipelineMode = "phase9",
+): Promise<BenchmarkResult> {
   const stages: StageLatency[] = [];
   const failures: string[] = [];
   const recommendations: string[] = [];
@@ -153,7 +176,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
           allergies: sc.context.allergies || [],
           visit_id: sc.context.visit_id,
           clinic_id: sc.context.clinic_id,
-          phase9: true,
+          phase9: mode === "phase9",
         });
       } catch (e) {
         console.warn(`[Benchmark:${sc.id}] DDX failed:`, e);
@@ -274,7 +297,6 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   const s4ms = Math.round(performance.now() - s4);
   const bayRawDiagnoses = (bayesianResult as any)?.diagnoses || [];
 
-  // Build a diagnosis_id → posterior lookup from the Bayesian engine output
   const bayesianIdLookup = new Map<string, number>();
   for (const bd of bayRawDiagnoses) {
     if (bd.diagnosis_id) {
@@ -282,7 +304,6 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     }
   }
 
-  // Resolve Bayesian output to human-readable names using DDX candidates
   const ddxNameLookup = new Map<string, string>();
   for (const d of ddxDiagnoses) {
     if (d.diagnosis_id) ddxNameLookup.set(d.diagnosis_id, (d.diagnosis_name || "").trim());
@@ -308,10 +329,8 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     gold_rank_after_bayesian: bayGoldIdx >= 0 ? bayGoldIdx + 1 : null,
   };
 
-  // ── STAGE 5: Cognitive Pruning (in-memory, using BAYESIAN posteriors) ──
+  // ── STAGE 5: Cognitive Pruning ──
   const s5 = performance.now();
-
-  // Use Bayesian posteriors for pruning decisions (not stale DDX probabilities)
   const cogInput = ddxDiagnoses.map((d: any) => {
     const bayPost = bayesianIdLookup.get(d.diagnosis_id);
     const probability = bayPost != null ? bayPost * 100 : (d.probability || 0);
@@ -345,75 +364,42 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     failures.push("Gold diagnosis was incorrectly pruned by cognitive controller");
   }
 
-  // ── STAGE 6: Safety Evaluation (DDX flags + safety_alerts channel + independent cluster detection) ──
-  const dangerousList: string[] = [];
+  // ── STAGE 6: Safety Evaluation (dual-channel) ──
+  const alertEntries: SafetyAlertEntry[] = [];
+
+  // Channel 1: DDX ranking-based detection (legacy)
+  const rankingDangerous: string[] = [];
   for (const d of ddxDiagnoses) {
-    if (d.must_not_miss) {
-      dangerousList.push((d.diagnosis_name || "").trim());
-    }
+    if (d.must_not_miss) rankingDangerous.push((d.diagnosis_name || "").trim());
   }
   if (ddxResult?.dangerous_diagnoses) {
     for (const d of ddxResult.dangerous_diagnoses) {
       const name = typeof d === "string" ? d : (d.diagnosis_name || String(d));
-      if (name) dangerousList.push(name.trim());
+      if (name) rankingDangerous.push(name.trim());
     }
   }
-  // Phase 9: Also count safety_alerts from the decoupled channel
+
+  // Channel 2: Safety alerts from DDX engine (Phase 9 decoupled channel)
+  const alertDangerous: string[] = [];
   if (ddxResult?.safety_alerts) {
     for (const alert of ddxResult.safety_alerts) {
       const name = alert.diagnosis_name || "";
-      if (name && !dangerousList.some(d => diagMatch(d, name))) {
-        dangerousList.push(name.trim());
+      if (name) {
+        alertDangerous.push(name.trim());
+        alertEntries.push({
+          condition: name.trim(),
+          severity: alert.severity_level || "high",
+          source: "ddx_engine",
+          trigger_symptoms: alert.trigger_symptoms || [],
+          context_gate_passed: alert.context_gate_passed || false,
+        });
       }
     }
   }
 
-  // ── Independent symptom cluster detection ──
+  // Channel 3: Independent cluster detection (always active)
   const symptomsLower = symptoms.map(s => s.toLowerCase());
   const allInputLower = [...symptomsLower, ...(sc.context.chief_complaint ? [sc.context.chief_complaint.toLowerCase()] : [])];
-
-  const SAFETY_CLUSTERS: Array<{ condition: string; required: number; symptoms: string[] }> = [
-    {
-      condition: "Sepsis",
-      required: 3,
-      symptoms: ["fever", "tachycardia", "hypotension", "confusion", "rapid breathing", "tachypnea", "chills", "altered mental status"],
-    },
-    {
-      condition: "Stroke",
-      required: 2,
-      symptoms: ["sudden weakness", "facial droop", "speech difficulty", "slurred speech", "numbness", "hemiparesis", "vision loss"],
-    },
-    {
-      condition: "Pulmonary Embolism",
-      required: 2,
-      symptoms: ["sudden dyspnea", "chest pain", "tachycardia", "hemoptysis", "pleuritic chest pain", "shortness of breath", "leg swelling"],
-    },
-    {
-      condition: "Acute Coronary Syndrome",
-      required: 2,
-      symptoms: ["chest pain", "radiating arm pain", "jaw pain", "diaphoresis", "nausea", "crushing chest pressure", "shortness of breath"],
-    },
-    {
-      condition: "Meningitis",
-      required: 2,
-      symptoms: ["neck stiffness", "fever", "headache", "photophobia", "confusion", "altered mental status", "rash"],
-    },
-    {
-      condition: "Pneumothorax",
-      required: 2,
-      symptoms: ["sudden chest pain", "chest pain", "dyspnea", "shortness of breath", "decreased breath sounds", "pleuritic pain"],
-    },
-    {
-      condition: "Diabetic Ketoacidosis",
-      required: 2,
-      symptoms: ["nausea", "vomiting", "abdominal pain", "fruity breath", "polyuria", "polydipsia", "confusion", "rapid breathing"],
-    },
-    {
-      condition: "Anaphylaxis",
-      required: 2,
-      symptoms: ["urticaria", "angioedema", "dyspnea", "hypotension", "wheezing", "throat swelling", "rash"],
-    },
-  ];
 
   for (const cluster of SAFETY_CLUSTERS) {
     const matched = cluster.symptoms.filter(cs =>
@@ -421,31 +407,48 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     );
     if (matched.length >= cluster.required) {
       const inCandidates = candidates.some((c: any) => diagMatch(c.name, cluster.condition));
-      if (inCandidates && !dangerousList.some(d => diagMatch(d, cluster.condition))) {
-        dangerousList.push(cluster.condition);
+      if (inCandidates) {
+        const alreadyInAlerts = alertDangerous.some(d => diagMatch(d, cluster.condition));
+        if (!alreadyInAlerts) {
+          alertDangerous.push(cluster.condition);
+          alertEntries.push({
+            condition: cluster.condition,
+            severity: "high",
+            source: "cluster_detector",
+            trigger_symptoms: matched,
+            context_gate_passed: true,
+          });
+        }
       }
     }
   }
 
-  const uniqueDangerous = [...new Set(dangerousList.filter(Boolean))];
-  const dangerDetected = uniqueDangerous.length > 0 ||
-    (ddxResult?.dangerous_diagnoses_injected && ddxResult.dangerous_diagnoses_injected > 0);
+  // Merge channels for combined detection
+  const allDangerous = [...new Set([...rankingDangerous, ...alertDangerous].filter(Boolean))];
+  const rankingChannelDetected = rankingDangerous.length > 0 ||
+    (ddxResult?.dangerous_diagnoses_injected != null && ddxResult.dangerous_diagnoses_injected > 0);
+  const alertChannelDetected = alertDangerous.length > 0;
+  const dangerDetected = allDangerous.length > 0 || rankingChannelDetected || alertChannelDetected;
 
   const expectedDangerous = sc.ground_truth.expected_dangerous_diagnoses || [];
   const dangerousInCandidates = expectedDangerous.filter(exp =>
     candidates.some((c: any) => diagMatch(c.name, exp))
   );
 
+  // Phase 9 safety evaluation: danger is detected if present in EITHER channel
   let safetyCorrect: boolean;
   let detectionDetails: string;
 
   if (sc.ground_truth.danger_flag) {
     if (!dangerDetected) {
       safetyCorrect = false;
-      detectionDetails = "Expected danger but none detected";
+      detectionDetails = "Expected danger but none detected in any channel";
     } else {
       safetyCorrect = true;
-      detectionDetails = `Danger correctly detected. ${dangerousInCandidates.length}/${expectedDangerous.length} expected dangerous Dx in candidates. ${uniqueDangerous.length} total flagged.`;
+      const channels: string[] = [];
+      if (rankingChannelDetected) channels.push("ranking");
+      if (alertChannelDetected) channels.push("alerts");
+      detectionDetails = `Danger detected via [${channels.join(", ")}]. ${dangerousInCandidates.length}/${expectedDangerous.length} expected in candidates. ${allDangerous.length} total flagged.`;
     }
   } else {
     safetyCorrect = !dangerDetected;
@@ -457,39 +460,21 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
   const safety: SafetyTrace = {
     danger_detected: !!dangerDetected,
     expected_danger: sc.ground_truth.danger_flag,
-    safety_alerts: uniqueDangerous.length,
+    safety_alerts: allDangerous.length,
     safety_score: safetyCorrect ? 100 : 0,
-    dangerous_diagnoses: uniqueDangerous,
+    dangerous_diagnoses: allDangerous,
     expected_dangerous_diagnoses: expectedDangerous,
     dangerous_diagnoses_in_candidates: dangerousInCandidates,
     correct: safetyCorrect,
     detection_details: detectionDetails,
+    alert_entries: alertEntries,
+    alert_channel_detected: alertChannelDetected,
+    ranking_channel_detected: rankingChannelDetected,
   };
 
-  // ── STAGE 7: Final Ranked Diagnoses (Bayesian-authoritative + safety override) ──
-
-  // Known dangerous condition names for safety override
-  const KNOWN_DANGEROUS_FOR_RANKING = new Set([
-    "sepsis", "stroke", "meningitis", "pulmonary embolism",
-    "acute coronary syndrome", "myocardial infarction",
-    "aortic dissection", "pneumothorax", "diabetic ketoacidosis",
-    "anaphylaxis", "subarachnoid hemorrhage",
-  ]);
-
-  function isDangerousForRanking(name: string): boolean {
-    const lower = name.toLowerCase().trim();
-    for (const dc of KNOWN_DANGEROUS_FOR_RANKING) {
-      if (lower.includes(dc) || dc.includes(lower)) return true;
-    }
-    return false;
-  }
-
-  // Assign each DDX candidate its Bayesian posterior (or fallback 0.001)
+  // ── STAGE 7: Final Ranked Diagnoses (pure Bayesian, no safety override) ──
   const rankedCandidates = candidates.slice(0, 15).map((c: any) => {
-    // Primary: match by diagnosis_id (reliable, UUID-based)
     let bayProb: number | null = bayesianIdLookup.get(c.diagnosis_id) ?? null;
-
-    // Fallback: name-based match against resolved Bayesian names
     if (bayProb === null) {
       const nName = norm(c.name);
       for (const bd of bayDiagnoses) {
@@ -499,23 +484,16 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
         }
       }
     }
-
     const hasBayesian = bayProb !== null && bayProb > 0;
     return {
       diagnosis: c.name,
       diagnosis_id: c.diagnosis_id,
       probability: hasBayesian ? bayProb! : 0.001,
       ranking_source: (hasBayesian ? "bayesian" : "fallback_ddx") as "bayesian" | "fallback_ddx",
-      must_not_miss: c.must_not_miss || isDangerousForRanking(c.name),
     };
   });
 
-  // Sort by Bayesian posterior descending
   rankedCandidates.sort((a, b) => b.probability - a.probability);
-
-  // Safety awareness: dangerous diagnoses are flagged in the safety trace (Stage 6)
-  // but do NOT override Bayesian ranking — ranking must remain probability-authoritative.
-  // Safety alerts are surfaced separately to the clinician.
 
   const finalRanking = rankedCandidates.slice(0, 10).map((c, i) => ({
     rank: i + 1,
@@ -546,6 +524,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     top1_accuracy: finalGoldRank === 0,
     top3_accuracy: finalGoldRank >= 0 && finalGoldRank < 3,
     safety_correct: safety.correct,
+    safety_detected_combined: dangerDetected && sc.ground_truth.danger_flag || !dangerDetected && !sc.ground_truth.danger_flag,
     physiology_activated: physioStates.length > 0,
     normalization_applied: normResult.mappings.some(m => m.changed),
     soap_generated: false,
@@ -567,6 +546,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
     scenario_name: sc.name,
     timestamp: new Date().toISOString(),
     passed,
+    pipeline_mode: mode,
     normalization,
     physiology,
     candidate_generation,
@@ -582,50 +562,65 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
       ddx_diagnoses_count: ddxDiagnoses.length,
       bayesian_diagnoses_count: bayDiagnoses.length,
       physiology_states_count: physioStates.length,
-      dangerous_count: uniqueDangerous.length,
+      dangerous_count: allDangerous.length,
+      alert_entries_count: alertEntries.length,
       edge_function_calls: 3,
     },
   };
 }
 
-// ── Run full suite ──
+// ── Compute alert-aware suite metrics ──
 
-export async function runBenchmarkSuite(
-  onProgress?: (scenarioName: string, index: number, total: number) => void,
-): Promise<BenchmarkSuiteResult> {
-  const results: BenchmarkResult[] = [];
-  const suite = BENCHMARK_SUITE;
-
-  for (let i = 0; i < suite.length; i++) {
-    onProgress?.(suite[i].name, i, suite.length);
-    try {
-      const result = await runSingleScenario(suite[i]);
-      results.push(result);
-    } catch (e) {
-      console.error(`[Benchmark] Scenario ${suite[i].id} crashed:`, e);
-      results.push(buildErrorResult(suite[i], e));
-    }
-  }
-
+function computeSuiteMetrics(results: BenchmarkResult[], mode: PipelineMode): BenchmarkSuiteResult {
   const total = results.length;
   const passed = results.filter(r => r.passed).length;
   const top1Count = results.filter(r => r.metrics.top1_accuracy).length;
   const top3Count = results.filter(r => r.metrics.top3_accuracy).length;
   const top5Count = results.filter(r => r.final_ranking.top5_match).length;
   const recallCount = results.filter(r => r.metrics.candidate_recall).length;
-  const safetyCount = results.filter(r => r.metrics.safety_correct).length;
   const latencies = results.map(r => r.metrics.total_latency_ms);
+
+  // Safety metrics — compute sensitivity / specificity
+  const dangerCases = results.filter(r => r.safety.expected_danger);
+  const noDangerCases = results.filter(r => !r.safety.expected_danger);
+
+  const truePositives = dangerCases.filter(r => r.safety.danger_detected).length;
+  const falseNegatives = dangerCases.filter(r => !r.safety.danger_detected).length;
+  const trueNegatives = noDangerCases.filter(r => !r.safety.danger_detected).length;
+  const falsePositives = noDangerCases.filter(r => r.safety.danger_detected).length;
+
+  const sensitivity = dangerCases.length > 0 ? Math.round((truePositives / dangerCases.length) * 100) : 100;
+  const specificity = noDangerCases.length > 0 ? Math.round((trueNegatives / noDangerCases.length) * 100) : 100;
+
+  // Alert-specific metrics
+  const casesWithAlerts = results.filter(r => (r.safety.alert_entries?.length ?? 0) > 0);
+  const alertTP = casesWithAlerts.filter(r => r.safety.expected_danger).length;
+  const alertFP = casesWithAlerts.filter(r => !r.safety.expected_danger).length;
+  const alertPrecision = casesWithAlerts.length > 0 ? Math.round((alertTP / casesWithAlerts.length) * 100) : 100;
+  const alertRecall = dangerCases.length > 0
+    ? Math.round((dangerCases.filter(r => r.safety.alert_channel_detected).length / dangerCases.length) * 100) : 100;
+
+  // Overlap: cases where BOTH ranking and alert channel detected danger
+  const bothChannels = results.filter(r => r.safety.ranking_channel_detected && r.safety.alert_channel_detected).length;
+  const eitherChannel = results.filter(r => r.safety.ranking_channel_detected || r.safety.alert_channel_detected).length;
+  const overlap = eitherChannel > 0 ? Math.round((bothChannels / eitherChannel) * 100) : 0;
 
   return {
     timestamp: new Date().toISOString(),
     total_scenarios: total,
     passed,
     failed: total - passed,
+    pipeline_mode: mode,
     top1_accuracy: Math.round((top1Count / total) * 100),
     top3_accuracy: Math.round((top3Count / total) * 100),
     top5_accuracy: Math.round((top5Count / total) * 100),
     candidate_recall: Math.round((recallCount / total) * 100),
-    safety_detection_rate: Math.round((safetyCount / total) * 100),
+    safety_detection_rate: Math.round((results.filter(r => r.metrics.safety_correct).length / total) * 100),
+    safety_sensitivity: sensitivity,
+    safety_specificity: specificity,
+    alert_precision: alertPrecision,
+    alert_recall: alertRecall,
+    alert_to_ranking_overlap: overlap,
     avg_latency_ms: Math.round(latencies.reduce((a, b) => a + b, 0) / total),
     max_latency_ms: Math.max(...latencies),
     min_latency_ms: Math.min(...latencies),
@@ -636,15 +631,39 @@ export async function runBenchmarkSuite(
   };
 }
 
+// ── Run full suite ──
+
+export async function runBenchmarkSuite(
+  onProgress?: (scenarioName: string, index: number, total: number) => void,
+  mode: PipelineMode = "phase9",
+): Promise<BenchmarkSuiteResult> {
+  const results: BenchmarkResult[] = [];
+  const suite = BENCHMARK_SUITE;
+
+  for (let i = 0; i < suite.length; i++) {
+    onProgress?.(suite[i].name, i, suite.length);
+    try {
+      const result = await runSingleScenario(suite[i], mode);
+      results.push(result);
+    } catch (e) {
+      console.error(`[Benchmark] Scenario ${suite[i].id} crashed:`, e);
+      results.push(buildErrorResult(suite[i], e, mode));
+    }
+  }
+
+  return computeSuiteMetrics(results, mode);
+}
+
 // ── Backwards-compatible single-scenario runner ──
 export async function runControlledBenchmark(): Promise<BenchmarkResult> {
   return runSingleScenario(BENCHMARK_SUITE[0]);
 }
 
-function buildErrorResult(sc: BenchmarkCase, error: unknown): BenchmarkResult {
+function buildErrorResult(sc: BenchmarkCase, error: unknown, mode: PipelineMode): BenchmarkResult {
   const empty = { states_activated: [], affected_organ_systems: [], candidate_diagnosis_ids: [], expected_state_match_rate: 0, expected_system_match: false };
   return {
     scenario_id: sc.id, scenario_name: sc.name, timestamp: new Date().toISOString(), passed: false,
+    pipeline_mode: mode,
     normalization: { raw_tokens: sc.context.symptoms, normalized_tokens: [], mappings: [], expected_match_rate: 0 },
     physiology: empty,
     candidate_generation: { candidates: [], candidate_count: 0, gold_in_candidates: false, gold_candidate_rank: null, gold_candidate_probability: null },
@@ -652,7 +671,7 @@ function buildErrorResult(sc: BenchmarkCase, error: unknown): BenchmarkResult {
     cognitive_pruning: { total_evaluated: 0, kept: 0, pruned: 0, escalated: 0, pruned_names: [], gold_pruned: false, quality_score: 0 },
     safety: { danger_detected: false, expected_danger: sc.ground_truth.danger_flag, safety_alerts: 0, safety_score: 0, dangerous_diagnoses: [], expected_dangerous_diagnoses: sc.ground_truth.expected_dangerous_diagnoses || [], dangerous_diagnoses_in_candidates: [], correct: false, detection_details: `Pipeline crashed: ${error}` },
     final_ranking: { ranking: [], gold_rank: null, top1_match: false, top3_match: false, top5_match: false },
-    metrics: { candidate_recall: false, top1_accuracy: false, top3_accuracy: false, safety_correct: false, physiology_activated: false, normalization_applied: false, soap_generated: false, total_latency_ms: 0, latency_under_5s: true },
+    metrics: { candidate_recall: false, top1_accuracy: false, top3_accuracy: false, safety_correct: false, safety_detected_combined: false, physiology_activated: false, normalization_applied: false, soap_generated: false, total_latency_ms: 0, latency_under_5s: true },
     stage_latencies: [],
     failure_reasons: [`Pipeline crash: ${error}`],
     recommendations: ["Fix pipeline execution errors"],
