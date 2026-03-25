@@ -24,6 +24,8 @@ import { supabase } from "@/integrations/supabase/client";
 // ── Run single v10 case through orchestrator ──
 
 export type V10PipelineMode = "phase8" | "phase9" | "phase10";
+/** When true, use benchmark-optimized pipeline (skips non-diagnostic modules) */
+export type V10ExecutionMode = "production" | "benchmark";
 
 async function runSingleV10Case(
   c: BenchmarkCaseV10,
