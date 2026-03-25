@@ -1,19 +1,22 @@
 /**
- * Phase 5.2 — Failure-Derived Rule Engine
+ * Phase 5.2 — Failure-Derived Rule Engine (KG-Native)
  *
  * Every rule traces back to specific v10 benchmark failure cases.
  * Rules are organized by failure cluster with strict trigger conditions.
  *
+ * KG-NATIVE: Rules activate cluster NODES, not diagnoses directly.
+ * The KG expander resolves nodes → diagnoses.
+ *
  * Invariants:
  *   - Pure function — does NOT mutate ClinicalContext
- *   - Max 3 candidates injected per rule
- *   - Max 6 total injected across all rules per case
- *   - All injections tagged source = "failure_derived"
+ *   - Rules are pattern detectors ONLY (no diagnosis injection)
+ *   - Max 6 cluster activations from failure rules
+ *   - Max 3 cluster activations from must-not-miss rules
  *   - Feature-flagged via enable_phase5_context_candidates
  */
 
 import type { ClinicalContext } from "@/lib/clinical-context";
-import type { CandidateHint } from "@/services/context_candidate_expander";
+import { createEmptyActivation, activateNode, type KGActivation } from "@/services/kg/kg_activation";
 
 // ── Types ──
 
@@ -24,19 +27,20 @@ export interface FailureRule {
   derived_from: string[];
   /** ALL conditions must be met */
   trigger: (ctx: ClinicalContext, symptoms: Set<string>) => boolean;
-  /** Candidates to inject */
-  inject: CandidateHint[];
+  /** Cluster node to activate + weight */
+  activate: { node: string; weight: number };
   /** Human-readable explanation */
   explanation: string;
 }
 
 export interface FailureRuleResult {
-  candidate_hints: CandidateHint[];
+  /** KG activation (cluster nodes, not diagnoses) */
+  activation: KGActivation;
   rules_fired: string[];
-  total_injected: number;
+  total_activations: number;
 }
 
-const MAX_TOTAL_INJECTED = 6;
+const MAX_FAILURE_ACTIVATIONS = 6;
 
 // ── Helper ──
 
@@ -81,13 +85,12 @@ function bpSystolicAbove(ctx: ClinicalContext, threshold: number): boolean {
 }
 
 // ═══════════════════════════════════════════════════════
-// FAILURE-DERIVED RULES — Organized by Cluster
+// FAILURE-DERIVED RULES — Activate clusters, NOT diagnoses
 // ═══════════════════════════════════════════════════════
 
 const FAILURE_RULES: FailureRule[] = [
 
-  // ── CLUSTER 1: Atypical Cardiac (adv-001, adv-003, adv-004, adv-006, noisy-021) ──
-
+  // ── CLUSTER 1: Atypical Cardiac ──
   {
     id: "fc1_silent_mi",
     cluster: "atypical_cardiac",
@@ -96,9 +99,7 @@ const FAILURE_RULES: FailureRule[] = [
       hasHistory(ctx, "diabetes", "diabetic") &&
       (has(sym, "fatigue", "nausea", "malaise", "diaphoresis") || has(sym, "epigastric", "indigestion")) &&
       !has(sym, "chest pain"),
-    inject: [
-      { diagnosis_name: "Myocardial Infarction", source: "context_signal", confidence: 0.7, reasoning: "Diabetic with vague symptoms — silent MI pattern (adv-001)" },
-    ],
+    activate: { node: "atypical_cardiac", weight: 0.7 },
     explanation: "Diabetic patients presenting without chest pain but with fatigue/nausea/diaphoresis",
   },
   {
@@ -109,9 +110,7 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "dyspnea", "breathless", "presyncope", "muffled") &&
       (bpSystolicBelow(ctx, 95) || vitalAbove(ctx, "pulse", 110)) &&
       (hasHistory(ctx, "viral", "pericarditis") || has(sym, "jugular", "jvd")),
-    inject: [
-      { diagnosis_name: "Cardiac Tamponade", source: "context_signal", confidence: 0.7, reasoning: "Hypotension + dyspnea + recent viral illness → Beck's triad (adv-003)" },
-    ],
+    activate: { node: "atypical_cardiac", weight: 0.7 },
     explanation: "Post-viral dyspnea with hemodynamic compromise",
   },
   {
@@ -122,9 +121,7 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "syncope", "faint") &&
       vitalBelow(ctx, "pulse", 50) &&
       (hasHistory(ctx, "mi", "cardiac", "heart") || ageInRange(ctx, 60, 120)),
-    inject: [
-      { diagnosis_name: "Complete Heart Block", source: "context_signal", confidence: 0.7, reasoning: "Severe bradycardia + syncope + cardiac history (adv-006)" },
-    ],
+    activate: { node: "atypical_cardiac", weight: 0.7 },
     explanation: "Syncope with severe bradycardia in elderly/cardiac history",
   },
   {
@@ -135,15 +132,11 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "tachycardia", "palpitations", "heart racing") &&
       has(sym, "intermittent", "episodic", "episode") &&
       ageInRange(ctx, 15, 40),
-    inject: [
-      { diagnosis_name: "WPW Syndrome", source: "context_signal", confidence: 0.5, reasoning: "Young patient with episodic tachycardia (adv-004)" },
-      { diagnosis_name: "SVT", source: "context_signal", confidence: 0.5, reasoning: "Paroxysmal SVT in young adult" },
-    ],
+    activate: { node: "atypical_cardiac", weight: 0.5 },
     explanation: "Episodic tachycardia in young adult",
   },
 
-  // ── CLUSTER 2: Rare Infectious / Airway (adv-013, adv-015, adv-016, noisy-049) ──
-
+  // ── CLUSTER 2: Rare Infectious / Airway ──
   {
     id: "fc2_nec_fasc",
     cluster: "rare_infectious",
@@ -151,9 +144,7 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "pain out of proportion", "rapidly spreading", "rapid progression", "crepitus", "blistering") &&
       (vitalAbove(ctx, "pulse", 110) || vitalAbove(ctx, "temperature", 38.5)),
-    inject: [
-      { diagnosis_name: "Necrotizing Fasciitis", source: "context_signal", confidence: 0.8, reasoning: "Pain out of proportion + rapid spread + systemic toxicity (adv-013)" },
-    ],
+    activate: { node: "rare_infectious", weight: 0.8 },
     explanation: "Rapidly progressive soft tissue infection with disproportionate pain",
   },
   {
@@ -163,9 +154,7 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "drooling", "stridor", "muffled voice", "dysphagia") &&
       has(sym, "sore throat", "throat"),
-    inject: [
-      { diagnosis_name: "Epiglottitis", source: "context_signal", confidence: 0.7, reasoning: "Drooling + stridor + severe sore throat (adv-016)" },
-    ],
+    activate: { node: "rare_infectious", weight: 0.7 },
     explanation: "Severe throat with airway compromise signs",
   },
   {
@@ -176,14 +165,11 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "petechial", "purpur", "rash") &&
       has(sym, "fever", "high fever") &&
       (bpSystolicBelow(ctx, 100) || vitalAbove(ctx, "pulse", 120)),
-    inject: [
-      { diagnosis_name: "Meningococcal Septicemia", source: "context_signal", confidence: 0.8, reasoning: "Petechial rash + high fever + hemodynamic compromise (adv-015)" },
-    ],
+    activate: { node: "rare_infectious", weight: 0.8 },
     explanation: "Petechial rash with fever and shock signs",
   },
 
-  // ── CLUSTER 3: Context-Dependent (History-Triggered) (adv-010, adv-017, adv-020, adv-024) ──
-
+  // ── CLUSTER 3: Context-Dependent ──
   {
     id: "fc3_spinal_mets",
     cluster: "context_dependent",
@@ -191,9 +177,7 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       hasHistory(ctx, "cancer", "malignancy", "prostate", "breast", "lung") &&
       has(sym, "back pain", "weakness", "urinary", "bladder"),
-    inject: [
-      { diagnosis_name: "Metastatic Spinal Cord Compression", source: "context_signal", confidence: 0.7, reasoning: "Cancer history + progressive back pain + neurological signs (adv-010)" },
-    ],
+    activate: { node: "context_dependent", weight: 0.7 },
     explanation: "Known cancer with new back pain and neurological symptoms",
   },
   {
@@ -203,9 +187,7 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       hasHistory(ctx, "cancer", "breast cancer", "lung cancer", "myeloma") &&
       has(sym, "confusion", "polydipsia", "constipation", "polyuria"),
-    inject: [
-      { diagnosis_name: "Hypercalcemia of Malignancy", source: "context_signal", confidence: 0.7, reasoning: "Cancer history + bones/stones/groans/moans pattern (adv-017)" },
-    ],
+    activate: { node: "context_dependent", weight: 0.7 },
     explanation: "Known malignancy with confusion + polyuria + constipation",
   },
   {
@@ -215,10 +197,7 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "jaundice", "overdose") &&
       (hasHistory(ctx, "overdose", "paracetamol", "acetaminophen") || has(sym, "paracetamol", "acetaminophen")),
-    inject: [
-      { diagnosis_name: "Paracetamol Hepatotoxicity", source: "context_signal", confidence: 0.8, reasoning: "Overdose history + delayed jaundice (adv-020)" },
-      { diagnosis_name: "Acute Liver Failure", source: "context_signal", confidence: 0.6, reasoning: "Paracetamol OD → hepatotoxicity risk" },
-    ],
+    activate: { node: "context_dependent", weight: 0.8 },
     explanation: "Paracetamol overdose history with delayed hepatic signs",
   },
   {
@@ -228,14 +207,11 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "arm swelling", "arm pain") &&
       hasHistory(ctx, "central line", "catheter", "cancer", "line"),
-    inject: [
-      { diagnosis_name: "Upper Extremity DVT", source: "context_signal", confidence: 0.7, reasoning: "Post-catheter arm swelling in cancer patient (adv-024)" },
-    ],
+    activate: { node: "context_dependent", weight: 0.7 },
     explanation: "Arm swelling with central line/cancer history",
   },
 
-  // ── CLUSTER 4: Hemodynamic Instability (adv-005, adv-022, adv-025, noisy-037) ──
-
+  // ── CLUSTER 4: Hemodynamic Instability ──
   {
     id: "fc4_ruptured_aaa",
     cluster: "hemodynamic_instability",
@@ -244,9 +220,7 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "back pain", "syncope", "abdominal pain", "near syncope") &&
       bpSystolicBelow(ctx, 95) &&
       (hasHistory(ctx, "aaa", "aneurysm") || ageInRange(ctx, 60, 120)),
-    inject: [
-      { diagnosis_name: "Ruptured AAA", source: "context_signal", confidence: 0.8, reasoning: "Sudden pain + hypotension + known AAA/elderly (adv-005)" },
-    ],
+    activate: { node: "hemodynamic_instability", weight: 0.8 },
     explanation: "Acute pain with hemodynamic compromise in elderly/known AAA",
   },
   {
@@ -257,9 +231,7 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "syncope", "faint", "collapse") &&
       (bpSystolicBelow(ctx, 95) || vitalAbove(ctx, "pulse", 115)) &&
       (hasHistory(ctx, "surgery", "immobil", "post-op", "postoperative") || has(sym, "dyspnea")),
-    inject: [
-      { diagnosis_name: "Massive Pulmonary Embolism", source: "context_signal", confidence: 0.7, reasoning: "Syncope + shock + immobilization/surgical risk (adv-022)" },
-    ],
+    activate: { node: "hemodynamic_instability", weight: 0.7 },
     explanation: "Syncope with hemodynamic collapse post-surgery",
   },
   {
@@ -270,9 +242,7 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "abdominal pain", "lower abdominal", "dizziness", "faint", "shoulder tip") &&
       bpSystolicBelow(ctx, 95) &&
       (hasHistory(ctx, "ectopic", "iud", "pregnancy") || has(sym, "vaginal", "spotting", "missed period")),
-    inject: [
-      { diagnosis_name: "Ruptured Ectopic Pregnancy", source: "context_signal", confidence: 0.8, reasoning: "Acute abdomen + hypotension + reproductive risk (adv-025)" },
-    ],
+    activate: { node: "hemodynamic_instability", weight: 0.8 },
     explanation: "Reproductive-age female with acute abdomen and shock",
   },
   {
@@ -282,14 +252,11 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "collapse", "hypotension", "hyperpigmentation", "fatigue") &&
       (hasHistory(ctx, "steroid", "autoimmune", "addison") || hasMed(ctx, "prednis", "hydrocortisone", "dexameth")),
-    inject: [
-      { diagnosis_name: "Adrenal Crisis", source: "context_signal", confidence: 0.8, reasoning: "Collapse + hypotension + steroid dependency history (noisy-037)" },
-    ],
+    activate: { node: "hemodynamic_instability", weight: 0.8 },
     explanation: "Hemodynamic collapse in patient on/recently stopped steroids",
   },
 
-  // ── CLUSTER 5: Atypical Neuro (adv-007, adv-008, adv-009, ambig-008) ──
-
+  // ── CLUSTER 5: Atypical Neuro ──
   {
     id: "fc5_posterior_stroke",
     cluster: "atypical_neuro",
@@ -298,9 +265,7 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "vertigo", "ataxia", "spinning") &&
       has(sym, "dysarthria", "nystagmus", "vomiting") &&
       (hasHistory(ctx, "hypertension", "diabetes") || ageInRange(ctx, 55, 120)),
-    inject: [
-      { diagnosis_name: "Posterior Circulation Stroke", source: "context_signal", confidence: 0.7, reasoning: "Vertigo + ataxia + dysarthria + vascular risks (adv-007)" },
-    ],
+    activate: { node: "atypical_neuro", weight: 0.7 },
     explanation: "Vertigo with cerebellar signs and vascular risk factors",
   },
   {
@@ -310,9 +275,7 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "headache", "drowsiness", "drowsy", "vomiting") &&
       (hasHistory(ctx, "head trauma", "head injury", "trauma") || has(sym, "pupil dilation", "hemiparesis")),
-    inject: [
-      { diagnosis_name: "Epidural Hematoma", source: "context_signal", confidence: 0.7, reasoning: "Post-trauma deterioration with neurological signs (adv-008)" },
-    ],
+    activate: { node: "atypical_neuro", weight: 0.7 },
     explanation: "Head trauma followed by lucid interval then deterioration",
   },
   {
@@ -322,9 +285,7 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "altered consciousness", "automatisms", "unresponsive", "confusion") &&
       hasHistory(ctx, "epilepsy", "seizure"),
-    inject: [
-      { diagnosis_name: "Non-Convulsive Status Epilepticus", source: "context_signal", confidence: 0.7, reasoning: "Ongoing altered consciousness in known epileptic (adv-009)" },
-    ],
+    activate: { node: "atypical_neuro", weight: 0.7 },
     explanation: "Persistent confusion in patient with seizure history",
   },
   {
@@ -335,14 +296,11 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "headache", "diplopia", "visual") &&
       has(sym, "progressive") &&
       (hasHistory(ctx, "obesity", "overweight") || (ctx.patient_sex?.toLowerCase().startsWith("f") && ageInRange(ctx, 18, 45))),
-    inject: [
-      { diagnosis_name: "Idiopathic Intracranial Hypertension", source: "context_signal", confidence: 0.6, reasoning: "Progressive headache + diplopia in young overweight female (ambig-008)" },
-    ],
+    activate: { node: "atypical_neuro", weight: 0.6 },
     explanation: "Progressive headache with visual symptoms in young obese female",
   },
 
-  // ── CLUSTER 6: Pediatric/Surgical Emergencies (adv-027, adv-029, adv-034, noisy-050) ──
-
+  // ── CLUSTER 6: Pediatric/Surgical ──
   {
     id: "fc6_strangulated_hernia",
     cluster: "pediatric_surgical",
@@ -350,9 +308,7 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "groin lump", "irreducible", "hernia") &&
       has(sym, "vomiting", "constipation", "distension"),
-    inject: [
-      { diagnosis_name: "Strangulated Inguinal Hernia", source: "context_signal", confidence: 0.8, reasoning: "Irreducible hernia + obstruction signs (adv-027)" },
-    ],
+    activate: { node: "pediatric_surgical", weight: 0.8 },
     explanation: "Known hernia with obstructive symptoms",
   },
   {
@@ -363,9 +319,7 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "projectile vomiting", "projectile") &&
       has(sym, "hunger", "weight loss") &&
       ageInRange(ctx, 0, 0.25),
-    inject: [
-      { diagnosis_name: "Pyloric Stenosis", source: "context_signal", confidence: 0.7, reasoning: "Projectile vomiting in neonate (adv-029)" },
-    ],
+    activate: { node: "pediatric_surgical", weight: 0.7 },
     explanation: "Projectile vomiting with post-feed hunger in neonate",
   },
   {
@@ -375,9 +329,7 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "colicky", "intermittent", "red jelly", "redcurrant", "bloody stool") &&
       ageInRange(ctx, 0, 3),
-    inject: [
-      { diagnosis_name: "Intussusception", source: "context_signal", confidence: 0.7, reasoning: "Intermittent colicky pain + bloody stool in infant (ambig-034)" },
-    ],
+    activate: { node: "pediatric_surgical", weight: 0.7 },
     explanation: "Colicky pain with red-currant jelly stool in infant",
   },
   {
@@ -387,14 +339,11 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "increasing pain", "pain with passive stretch", "tense swelling", "numbness") &&
       hasHistory(ctx, "fracture", "cast", "trauma"),
-    inject: [
-      { diagnosis_name: "Compartment Syndrome", source: "context_signal", confidence: 0.7, reasoning: "Increasing pain post-fracture/cast + 5 P's signs (noisy-050)" },
-    ],
+    activate: { node: "pediatric_surgical", weight: 0.7 },
     explanation: "Post-fracture/cast pain out of proportion with neurovascular compromise",
   },
 
-  // ── CLUSTER 7: Chronic/Subacute Presentations (noisy-021, ambig-012, ambig-017, ambig-025) ──
-
+  // ── CLUSTER 7: Chronic/Subacute ──
   {
     id: "fc7_endocarditis",
     cluster: "chronic_subacute",
@@ -403,9 +352,7 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "intermittent fever", "fever") &&
       has(sym, "murmur", "arthralgia", "night sweats") &&
       (hasHistory(ctx, "dental", "valve", "mitral", "prosthetic") || has(sym, "splinter", "janeway", "osler")),
-    inject: [
-      { diagnosis_name: "Infective Endocarditis", source: "context_signal", confidence: 0.7, reasoning: "Prolonged fever + murmur + dental/valve history (noisy-021)" },
-    ],
+    activate: { node: "atypical_cardiac", weight: 0.7 },
     explanation: "Subacute fever with cardiac and embolic features",
   },
   {
@@ -416,14 +363,11 @@ const FAILURE_RULES: FailureRule[] = [
       has(sym, "post-prandial", "postprandial", "after eating", "after meal", "food avoidance") &&
       has(sym, "weight loss") &&
       (hasHistory(ctx, "vascular", "atrial fibrillation", "pvd", "peripheral vascular") || ageInRange(ctx, 60, 120)),
-    inject: [
-      { diagnosis_name: "Chronic Mesenteric Ischemia", source: "context_signal", confidence: 0.6, reasoning: "Postprandial pain + weight loss + vascular history (ambig-012)" },
-    ],
+    activate: { node: "chronic_subacute", weight: 0.6 },
     explanation: "Food fear with weight loss in patient with vascular disease",
   },
 
-  // ── CLUSTER 8: Toxicological Presentations (adv-018, adv-019) ──
-
+  // ── CLUSTER 8: Toxicological ──
   {
     id: "fc8_co_poisoning",
     cluster: "toxicological",
@@ -431,9 +375,7 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "headache", "nausea", "dizziness") &&
       (has(sym, "worse indoors", "better outside", "multiple family") || hasHistory(ctx, "gas heater", "winter", "old heater")),
-    inject: [
-      { diagnosis_name: "Carbon Monoxide Poisoning", source: "context_signal", confidence: 0.8, reasoning: "Family headache + better outdoors + gas heater (adv-018)" },
-    ],
+    activate: { node: "toxicological", weight: 0.8 },
     explanation: "Multiple household members with headache improving outdoors",
   },
   {
@@ -443,88 +385,87 @@ const FAILURE_RULES: FailureRule[] = [
     trigger: (ctx, sym) =>
       has(sym, "salivation", "lacrimation", "miosis", "bradycardia", "wheezing") &&
       (hasHistory(ctx, "farm", "pesticide") || has(sym, "diaphoresis", "diarrhea")),
-    inject: [
-      { diagnosis_name: "Organophosphate Poisoning", source: "context_signal", confidence: 0.8, reasoning: "SLUDGE syndrome + occupational exposure (adv-019)" },
-    ],
+    activate: { node: "toxicological", weight: 0.8 },
     explanation: "Cholinergic excess syndrome with agricultural exposure",
   },
 ];
 
 // ═══════════════════════════════════════════════════════
-// Phase 5.3 — Must-Not-Miss Safety Layer
+// Phase 5.3 — Must-Not-Miss Safety Layer (KG-Native)
 // ═══════════════════════════════════════════════════════
 
 interface MustNotMissRule {
   id: string;
-  condition: string;
+  /** Cluster node to activate */
+  activateNode: string;
   trigger: (ctx: ClinicalContext, symptoms: Set<string>) => boolean;
-  confidence: number;
+  weight: number;
   explanation: string;
 }
 
 const MUST_NOT_MISS_RULES: MustNotMissRule[] = [
   {
     id: "mnm_pe",
-    condition: "Pulmonary Embolism",
+    activateNode: "respiratory",
     trigger: (ctx, sym) =>
       has(sym, "dyspnea", "breathless", "pleuritic") &&
       (vitalAbove(ctx, "pulse", 100) || vitalBelow(ctx, "oxygen_saturation", 95)) &&
-      !has(sym, "wheez") && // not clearly asthma
+      !has(sym, "wheez") &&
       (hasHistory(ctx, "surgery", "immobil", "contraceptive", "dvt", "cancer") || has(sym, "leg swelling", "calf pain")),
-    confidence: 0.6,
+    weight: 0.6,
     explanation: "Unexplained dyspnea + tachycardia + VTE risk factors",
   },
   {
     id: "mnm_mi",
-    condition: "Myocardial Infarction",
+    activateNode: "atypical_cardiac",
     trigger: (ctx, sym) =>
       (has(sym, "diaphoresis", "chest pain", "chest pressure", "epigastric") || has(sym, "jaw pain", "arm pain")) &&
       (vitalAbove(ctx, "pulse", 100) || bpSystolicAbove(ctx, 160) || bpSystolicBelow(ctx, 90)) &&
       (hasHistory(ctx, "diabetes", "hypertension", "smoking", "cardiac") || ageInRange(ctx, 45, 120)),
-    confidence: 0.6,
+    weight: 0.6,
     explanation: "Chest/arm/jaw symptoms + hemodynamic change + cardiac risk factors",
   },
   {
     id: "mnm_stroke",
-    condition: "Stroke",
+    activateNode: "atypical_neuro",
     trigger: (ctx, sym) =>
       (has(sym, "weakness", "facial droop", "slurred speech", "hemiparesis", "visual field deficit") ||
        (has(sym, "confusion") && has(sym, "acute"))) &&
       (hasHistory(ctx, "hypertension", "atrial fibrillation", "diabetes") || ageInRange(ctx, 55, 120)),
-    confidence: 0.7,
+    weight: 0.7,
     explanation: "Focal neurological deficit + vascular risk factors",
   },
   {
     id: "mnm_sepsis",
-    condition: "Sepsis",
+    activateNode: "sepsis",
     trigger: (ctx, sym) =>
       (vitalAbove(ctx, "temperature", 38.5) || vitalBelow(ctx, "temperature", 36.0)) &&
       (vitalAbove(ctx, "pulse", 100) || bpSystolicBelow(ctx, 100)) &&
       has(sym, "confusion", "tachycardia", "fever", "hypothermia", "mottled"),
-    confidence: 0.7,
+    weight: 0.7,
     explanation: "Temperature derangement + hemodynamic compromise + altered mentation",
   },
   {
     id: "mnm_aortic_dissection",
-    condition: "Aortic Dissection",
+    activateNode: "vascular",
     trigger: (ctx, sym) =>
       has(sym, "tearing", "sudden", "inter-scapular", "back pain") &&
       (has(sym, "sharp", "sudden onset") || bpSystolicAbove(ctx, 170)) &&
       (hasHistory(ctx, "marfan", "hypertension", "connective tissue") || ageInRange(ctx, 40, 120)),
-    confidence: 0.7,
+    weight: 0.7,
     explanation: "Sudden tearing pain + hypertension/connective tissue risk",
   },
 ];
 
-const MAX_MNM_INJECTED = 3;
+const MAX_MNM_ACTIVATIONS = 3;
 
 // ═══════════════════════════════════════════════════════
 // Main Execution Function
 // ═══════════════════════════════════════════════════════
 
 /**
- * Apply failure-derived rules and must-not-miss safety injection.
- * Runs BEFORE DDX engine — enriches the candidate pool.
+ * Apply failure-derived rules and must-not-miss safety rules.
+ * Returns KG cluster activations (NOT diagnosis candidates).
  */
 export function applyFailureDerivedRules(ctx: ClinicalContext): FailureRuleResult {
   const rawSymptoms: string[] = [];
@@ -533,49 +474,33 @@ export function applyFailureDerivedRules(ctx: ClinicalContext): FailureRuleResul
   if (ctx.associated_symptoms?.length) rawSymptoms.push(...ctx.associated_symptoms);
 
   const symptomSet = new Set(rawSymptoms.map(s => s.toLowerCase().trim()));
-
-  const hints: CandidateHint[] = [];
+  const activation = createEmptyActivation();
   const rulesFired: string[] = [];
-  const seenDiagnoses = new Set<string>();
+  let failureCount = 0;
 
-  // 1. Apply failure-derived rules
+  // 1. Apply failure-derived rules (cluster activation)
   for (const rule of FAILURE_RULES) {
-    if (hints.length >= MAX_TOTAL_INJECTED) break;
+    if (failureCount >= MAX_FAILURE_ACTIVATIONS) break;
 
     try {
       if (rule.trigger(ctx, symptomSet)) {
         rulesFired.push(rule.id);
-        for (const candidate of rule.inject) {
-          const key = candidate.diagnosis_name.toLowerCase();
-          if (seenDiagnoses.has(key)) continue;
-          if (hints.length >= MAX_TOTAL_INJECTED) break;
-          seenDiagnoses.add(key);
-          hints.push(candidate);
-        }
+        activateNode(activation, rule.activate.node, rule.activate.weight, rule.id, "failure_derived");
+        failureCount++;
       }
     } catch (e) {
       console.warn(`[FailureRules] Rule ${rule.id} threw:`, e);
     }
   }
 
-  // 2. Apply must-not-miss safety rules (stricter, max 3 additional)
+  // 2. Apply must-not-miss safety rules (cluster activation with MNM flag)
   let mnmCount = 0;
   for (const rule of MUST_NOT_MISS_RULES) {
-    if (mnmCount >= MAX_MNM_INJECTED) break;
-    if (hints.length >= MAX_TOTAL_INJECTED + MAX_MNM_INJECTED) break;
-
-    const key = rule.condition.toLowerCase();
-    if (seenDiagnoses.has(key)) continue;
+    if (mnmCount >= MAX_MNM_ACTIVATIONS) break;
 
     try {
       if (rule.trigger(ctx, symptomSet)) {
-        seenDiagnoses.add(key);
-        hints.push({
-          diagnosis_name: rule.condition,
-          source: "context_signal",
-          confidence: rule.confidence,
-          reasoning: `Must-not-miss: ${rule.explanation}`,
-        });
+        activateNode(activation, rule.activateNode, rule.weight, rule.id, "must_not_miss", true);
         rulesFired.push(rule.id);
         mnmCount++;
       }
@@ -586,15 +511,15 @@ export function applyFailureDerivedRules(ctx: ClinicalContext): FailureRuleResul
 
   if (rulesFired.length > 0) {
     console.log(
-      `[FailureDerivedRules] Fired ${rulesFired.length} rules, injected ${hints.length} candidates. ` +
+      `[FailureDerivedRules] Fired ${rulesFired.length} rules, activated ${activation.nodes.size} clusters. ` +
       `Rules: [${rulesFired.join(", ")}]`
     );
   }
 
   return {
-    candidate_hints: hints,
+    activation,
     rules_fired: rulesFired,
-    total_injected: hints.length,
+    total_activations: activation.nodes.size,
   };
 }
 
