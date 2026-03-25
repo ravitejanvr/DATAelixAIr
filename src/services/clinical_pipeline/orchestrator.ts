@@ -450,7 +450,8 @@ export async function runUnifiedClinicalPipeline(
   });
   const symptoms = extractSymptoms(input.clinical_context);
   const vitals = buildVitals(input.clinical_context);
-  const ctx = input.clinical_context;
+  // Immutable local copy — pipeline enrichments do NOT mutate caller's object
+  let ctx: ClinicalContext = { ...input.clinical_context };
 
   // Hydrate PCIE Core from input context
   pcieCore.hydrateFromClinicalContext(ctx);
