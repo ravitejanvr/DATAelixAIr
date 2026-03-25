@@ -841,6 +841,29 @@ export async function runUnifiedClinicalPipeline(
     ddxResult = applyOrganSystemWeighting(ddxResult, dominantSystem);
   }
 
+  // ── FIX 3: Candidate Generation Fallback ──
+  // If DDX returned sparse/empty results, augment with heuristic-based candidates
+  const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallback(
+    ddxResult,
+    symptoms,
+    {
+      medical_history: ctx.medical_history,
+      risk_factors: ctx.risk_factors,
+      age: ctx.patient_age,
+      medications: ctx.current_medications,
+    },
+  );
+  ddxResult = ddxAfterFallback;
+  if (fallbackMeta.triggered) {
+    recordOversightEvent({
+      event_type: "candidate_fallback_triggered",
+      severity: "info",
+      stage: "ddx_engine",
+      message: `Fallback injected ${fallbackMeta.fallback_count} candidates (organic: ${fallbackMeta.organic_count}). Rules: ${fallbackMeta.rules_matched.join(", ")}`,
+      metadata: fallbackMeta as any,
+    });
+  }
+
   waveLat.wave2_analysis = Math.round(performance.now() - w2Start);
   lineageTracker.recordEngineResult("ddx", !!ddxResult);
   lineageTracker.recordEngineResult("physiology", !!physiologicalContext);
