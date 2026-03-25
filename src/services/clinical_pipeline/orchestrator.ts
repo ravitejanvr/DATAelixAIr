@@ -1434,9 +1434,10 @@ export async function runUnifiedClinicalPipeline(
       const prunedCount = ddxResult.differential_diagnoses.length - prunedDiagnoses.length;
       console.log(`[Pipeline] Wave 3.6: Pruned ${prunedCount} weak candidates, ${prunedDiagnoses.length} remaining.`);
 
-      // Re-run Hypothesis Testing with pruned set
+      // Re-run Hypothesis Testing with pruned set (guard: skip if empty)
       const [loopHypoTest, loopBayesian] = await Promise.all([
         (async (): Promise<HypothesisTestResult | null> => {
+          if (prunedDiagnoses.length === 0) return null;
           try {
             return await withTimeout(
               testHypotheses({
