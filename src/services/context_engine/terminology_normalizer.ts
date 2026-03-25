@@ -239,6 +239,85 @@ const SYNONYM_MAP: Record<string, string> = {
   "worrying too much": "excessive worry",
   "constant worry": "excessive worry",
   "muscle tightness": "muscle tension",
+
+  // Pediatric
+  "barking cough": "barking cough",
+  "stridor": "stridor",
+  "projectile vomiting": "projectile vomiting",
+  "white pupil": "leukocoria",
+  "white eye reflex": "leukocoria",
+  "squint": "strabismus",
+  "drawing legs up": "leg drawing",
+
+  // Surgical / MSK
+  "pain out of proportion": "pain out of proportion",
+  "crepitus": "crepitus",
+  "gas in tissue": "crepitus",
+  "irreducible lump": "irreducible hernia",
+  "groin lump": "inguinal mass",
+  "saddle numbness": "saddle anesthesia",
+  "saddle area numbness": "saddle anesthesia",
+  "pain with stretch": "pain with passive stretch",
+
+  // Ophthalmological
+  "halos around lights": "halos",
+  "white glow in eye": "leukocoria",
+  "eye redness": "red eye",
+  "red eye": "red eye",
+  "mid dilated pupil": "mid-dilated pupil",
+
+  // Toxicological
+  "cherry red skin": "cherry red discoloration",
+  "fruity smell breath": "fruity breath odor",
+  "symptoms worse indoors": "environmental exposure",
+  "drooling": "sialorrhea",
+  "excessive saliva": "sialorrhea",
+
+  // ENT / Airway
+  "trismus": "trismus",
+  "can't open mouth": "trismus",
+  "jaw lock": "trismus",
+  "muffled voice": "muffled voice",
+  "hot potato voice": "muffled voice",
+  "odynophagia": "painful swallowing",
+  "painful swallowing": "odynophagia",
+
+  // Constitutional / Systemic
+  "cyclical fever": "cyclical fever",
+  "step ladder fever": "step-ladder fever",
+  "rigors": "rigors",
+  "relative bradycardia": "relative bradycardia",
+  "coated tongue": "coated tongue",
+  "conjunctival suffusion": "conjunctival suffusion",
+  "mottled skin": "mottled skin",
+  "skin mottling": "mottled skin",
+  "hyperpigmentation": "hyperpigmentation",
+  "dark skin patches": "hyperpigmentation",
+  "salt craving": "salt craving",
+
+  // Cardiac additional
+  "jaw claudication": "jaw claudication",
+  "scalp tenderness": "scalp tenderness",
+  "absent pulses": "absent pulses",
+  "pulse deficit": "pulse deficit",
+  "board like abdomen": "abdominal rigidity",
+  "abdominal rigidity": "abdominal rigidity",
+
+  // Neurological additional
+  "thunderclap headache": "thunderclap headache",
+  "worst headache of life": "thunderclap headache",
+  "ascending weakness": "ascending weakness",
+  "bilateral weakness": "bilateral leg weakness",
+  "lucid interval": "lucid interval",
+  "automatisms": "automatisms",
+  "eye deviation": "eye deviation",
+  "lhermittes sign": "Lhermitte sign",
+  "electric down spine": "Lhermitte sign",
+  "gait disturbance": "gait disturbance",
+  "shuffling gait": "gait disturbance",
+  "urinary incontinence": "urinary incontinence",
+  "cognitive decline": "cognitive decline",
+  "memory loss": "cognitive decline",
 };
 
 /**
