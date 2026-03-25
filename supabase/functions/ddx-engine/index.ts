@@ -598,25 +598,122 @@ Deno.serve(async (req) => {
       if (sex === "male" && diagName.includes("ectopic pregnancy")) prior = 0;
       if (sex === "female" && diagName.includes("prostate")) prior = 0;
 
-      // History-adjusted
-      if (historyLower.some(h => diagName.includes(h))) prior *= 1.5;
+      // ══════════════════════════════════════════════════════
+      // PHASE 8: HISTORY-AWARE PRIOR BOOSTING
+      // Medical history creates strong priors for related conditions
+      // e.g., history of "asthma" → boost asthma exacerbation 4x
+      // ══════════════════════════════════════════════════════
+      const HISTORY_DIAGNOSIS_MAP: Record<string, string[]> = {
+        "asthma": ["asthma", "bronchospasm", "status asthmaticus"],
+        "copd": ["copd", "chronic obstructive", "emphysema"],
+        "diabetes": ["diabetes", "diabetic", "ketoacidosis", "hypoglycemia", "hyperglycemia"],
+        "type 1 diabetes": ["diabetic ketoacidosis", "hypoglycemia", "type 1 diabetes"],
+        "type 2 diabetes": ["type 2 diabetes", "hypoglycemia", "hyperglycemia"],
+        "hypertension": ["hypertensive", "heart failure", "stroke", "infarction", "aortic"],
+        "heart failure": ["heart failure", "congestive", "pulmonary edema"],
+        "atrial fibrillation": ["atrial fibrillation", "stroke", "embolism"],
+        "previous mi": ["infarction", "coronary", "heart failure", "angina"],
+        "coronary artery disease": ["infarction", "angina", "coronary", "heart failure"],
+        "dvt": ["deep vein", "thrombosis", "embolism"],
+        "pulmonary embolism": ["embolism", "thrombosis"],
+        "gallstones": ["cholecystitis", "cholelithiasis", "pancreatitis", "biliary"],
+        "peptic ulcer": ["peptic ulcer", "gastritis", "perforation"],
+        "ibd": ["crohn", "colitis", "inflammatory bowel"],
+        "crohn": ["crohn", "inflammatory bowel"],
+        "ulcerative colitis": ["colitis", "inflammatory bowel"],
+        "gerd": ["gastroesophageal", "gerd", "reflux", "esophagitis"],
+        "migraine": ["migraine"],
+        "epilepsy": ["seizure", "epilepsy"],
+        "hyperthyroidism": ["hyperthyroid", "thyroid storm", "thyrotoxicosis", "graves"],
+        "hypothyroidism": ["hypothyroid", "myxedema"],
+        "smoking": ["copd", "pneumonia", "lung cancer", "pneumothorax"],
+        "alcohol use": ["pancreatitis", "cirrhosis", "hepatitis", "withdrawal"],
+        "kidney disease": ["renal", "nephrolithiasis", "pyelonephritis"],
+        "recent surgery": ["embolism", "thrombosis", "dvt", "wound infection"],
+        "immobilization": ["embolism", "thrombosis", "dvt"],
+        "recent viral illness": ["pericarditis", "myocarditis", "post-viral"],
+      };
 
-      // ── COMMON CONDITION PRIOR BOOST (Phase 7 - Enhanced) ──
+      let historyBoost = 1.0;
+      for (const h of historyLower) {
+        // Direct match: history term appears in diagnosis name
+        if (diagName.includes(h)) {
+          historyBoost *= 3.0;
+          continue;
+        }
+        // Mapped match: history maps to related diagnoses
+        for (const [historyKey, relatedDx] of Object.entries(HISTORY_DIAGNOSIS_MAP)) {
+          if (h.includes(historyKey) || historyKey.includes(h)) {
+            if (relatedDx.some(rd => diagName.includes(rd))) {
+              historyBoost *= 2.5;
+              break;
+            }
+          }
+        }
+      }
+      prior *= historyBoost;
+
+      // ── PHASE 8: MEDICATION-INFORMED PRIORS ──
+      // Current medications suggest underlying conditions
+      const MEDICATION_DIAGNOSIS_MAP: Record<string, string[]> = {
+        "metformin": ["diabetes", "diabetic", "hypoglycemia"],
+        "glimepiride": ["diabetes", "diabetic", "hypoglycemia"],
+        "glyburide": ["diabetes", "diabetic", "hypoglycemia"],
+        "insulin": ["diabetes", "diabetic", "ketoacidosis", "hypoglycemia"],
+        "salbutamol": ["asthma", "bronchospasm", "copd"],
+        "albuterol": ["asthma", "bronchospasm", "copd"],
+        "inhaler": ["asthma", "copd"],
+        "warfarin": ["embolism", "thrombosis", "stroke", "fibrillation"],
+        "heparin": ["embolism", "thrombosis"],
+        "omeprazole": ["gastroesophageal", "peptic ulcer", "gastritis", "gerd"],
+        "pantoprazole": ["gastroesophageal", "peptic ulcer", "gastritis"],
+        "ibuprofen": ["peptic ulcer", "gastritis", "renal"],
+        "aspirin": ["peptic ulcer", "gastritis"],
+        "levothyroxine": ["hypothyroid"],
+        "carbimazole": ["hyperthyroid", "thyroid storm"],
+        "methimazole": ["hyperthyroid", "thyroid storm"],
+        "amlodipine": ["hypertensive"],
+        "losartan": ["hypertensive", "heart failure"],
+        "enalapril": ["hypertensive", "heart failure"],
+        "atorvastatin": ["coronary", "infarction"],
+        "prednisone": ["asthma", "copd", "autoimmune"],
+      };
+
+      const medsLower = (current_medications || []).map((m: any) => String(m || "").toLowerCase()).filter(Boolean);
+      let medBoost = 1.0;
+      for (const med of medsLower) {
+        for (const [medKey, relatedDx] of Object.entries(MEDICATION_DIAGNOSIS_MAP)) {
+          if (med.includes(medKey) || medKey.includes(med)) {
+            if (relatedDx.some(rd => diagName.includes(rd))) {
+              medBoost *= 2.0;
+              break;
+            }
+          }
+        }
+      }
+      prior *= medBoost;
+
+      // ── COMMON CONDITION PRIOR BOOST (Phase 7+8 - Enhanced) ──
       // For single/few-symptom cases, strongly boost epidemiologically common diagnoses
       // and penalize rare/dangerous conditions that lack supporting evidence
       if (isIncomplete) {
         let isCommonForSymptoms = false;
         for (const sym of normalizedSymptoms) {
           const commonDx = COMMON_CONDITION_BOOSTS[sym] || [];
-          if (commonDx.some(cd => diagName.includes(cd.toLowerCase()) || cd.toLowerCase().includes(diagName))) {
-            prior *= 5.0; // Very strong boost for common conditions in incomplete presentations
+          if (commonDx.some(cd => {
+            const cdLower = cd.toLowerCase();
+            return diagName.includes(cdLower) || cdLower.includes(diagName) ||
+              // Also match partial words for better coverage
+              cdLower.split(" ").every(w => diagName.includes(w));
+          })) {
+            prior *= 5.0;
             isCommonForSymptoms = true;
             break;
           }
         }
         // Penalize rare/dangerous conditions in incomplete presentations
-        // unless they have vital sign support
-        if (!isCommonForSymptoms && !hasAbnormalVitals) {
+        // unless they have vital sign support or history support
+        if (!isCommonForSymptoms && !hasAbnormalVitals && historyBoost <= 1.0) {
           const isRareCategory = ["oncological", "hematologic", "autoimmune"].includes(category);
           if (isRareCategory) prior *= 0.3;
         }
