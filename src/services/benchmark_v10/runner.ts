@@ -82,7 +82,7 @@ function diagMatch(a: string, b: string): boolean {
 
 // ── Map v10 case to DDX engine input ──
 
-function mapCaseToDDXInput(c: BenchmarkCaseV10, phase9: boolean) {
+function mapCaseToDDXInput(c: BenchmarkCaseV10, mode: V10PipelineMode) {
   const symptoms = [
     ...c.input.symptoms,
     ...(c.input.associated_symptoms || []),
@@ -106,7 +106,8 @@ function mapCaseToDDXInput(c: BenchmarkCaseV10, phase9: boolean) {
     risk_factors: c.input.risk_factors || [],
     visit_id: `bench-v10-${c.case_id}`,
     clinic_id: "bench-clinic-001",
-    phase9,
+    phase9: mode === "phase9" || mode === "phase10",
+    phase10_augment: mode === "phase10",
   };
 }
 
