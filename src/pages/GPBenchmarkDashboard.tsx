@@ -3,17 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
   Play, Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Brain,
   Activity, Shield, ChevronDown, ChevronUp, Zap, Target, ArrowRight,
-  GitCompare, Lock, BarChart3,
+  GitCompare, Lock, BarChart3, Layers,
 } from "lucide-react";
 import { runBenchmarkSuite, BENCHMARK_SUITE, comparePhases } from "@/services/benchmark_v9";
 import type { BenchmarkResult, BenchmarkSuiteResult, PhaseComparisonReport } from "@/services/benchmark_v9/types";
 import type { PipelineMode } from "@/services/benchmark_v9/runner";
+import BenchmarkV10Panel from "@/components/BenchmarkV10Panel";
 import SEO from "@/components/SEO";
 
 // ── Helpers ──
