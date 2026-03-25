@@ -39,6 +39,7 @@ import {
 import { applyCandidateFallback } from "@/services/ddx_engine/candidate_fallback";
 import { applyCandidateFallbackV2 } from "@/services/ddx_engine/candidate_fallback_v2";
 import { expandCandidatesFromContext } from "@/services/context_candidate_expander";
+import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
@@ -300,11 +301,19 @@ export async function runBenchmarkPipeline(
     };
   }
 
-  // Phase 5: Context-Assisted Candidate Generation + Fallback
+  // Phase 5: Failure-Derived Rules + Context Expansion + Fallback V2
   if (isPhase5ContextCandidatesEnabled()) {
+    // Phase 5.1-5.2: Failure-derived rules
+    const failureResult = applyFailureDerivedRules(ctx);
+
+    // Phase 5.0: Context expander
     const expansion = expandCandidatesFromContext(ctx);
+
+    // Merge hints (failure-derived first for priority)
+    const allHints = [...failureResult.candidate_hints, ...expansion.candidate_hints];
+
     const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallbackV2(
-      ddxResult, symptoms, expansion.candidate_hints,
+      ddxResult, symptoms, allHints,
       { medical_history: ctx.medical_history, risk_factors: ctx.risk_factors, age: ctx.patient_age, medications: ctx.current_medications },
     );
     ddxResult = ddxAfterFallback;
@@ -313,8 +322,8 @@ export async function runBenchmarkPipeline(
         event_type: "candidate_fallback_v2_triggered",
         severity: "info",
         stage: "ddx_engine",
-        message: `Fallback v2 injected ${fallbackMeta.total_injected} candidates`,
-        metadata: fallbackMeta as any,
+        message: `Fallback v2 injected ${fallbackMeta.total_injected} candidates (${failureResult.rules_fired.length} failure rules)`,
+        metadata: { ...fallbackMeta, failure_rules: failureResult.rules_fired } as any,
       });
     }
   } else {
