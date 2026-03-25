@@ -16,6 +16,7 @@ import type {
   LayerMetrics, SuiteRunResult,
 } from "./types";
 import { runUnifiedClinicalPipeline, type PipelineResult } from "@/services/clinical_pipeline/orchestrator";
+import { runBenchmarkPipeline } from "@/services/clinical_pipeline/benchmark_mode";
 import { v10CaseToPipelineInput } from "@/services/benchmark_shared/case_to_context";
 import { diagMatch } from "@/services/benchmark_shared/diagnosis_matching";
 import { supabase } from "@/integrations/supabase/client";
