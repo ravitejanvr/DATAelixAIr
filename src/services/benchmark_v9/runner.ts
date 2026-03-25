@@ -153,6 +153,7 @@ export async function runSingleScenario(sc: BenchmarkCase): Promise<BenchmarkRes
           allergies: sc.context.allergies || [],
           visit_id: sc.context.visit_id,
           clinic_id: sc.context.clinic_id,
+          phase9: true,
         });
       } catch (e) {
         console.warn(`[Benchmark:${sc.id}] DDX failed:`, e);
