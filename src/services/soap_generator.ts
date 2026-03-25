@@ -6,11 +6,58 @@
  */
 
 import type { MergedContextObject } from "@/services/context_service";
-import type { DDXOutput } from "@/services/ddx_service";
-import type { GuidelineResult } from "@/services/guideline_retrieval";
-import type { MedicationEngineResult } from "@/services/medication_engine";
-import type { SafetyEngineResult } from "@/services/safety_engine";
-import type { UncertaintyOutput } from "@/services/uncertainty_service";
+
+// ── Inlined types (previously from deprecated services) ──
+
+interface DDXOutput {
+  diagnoses: Array<{
+    diagnosis: string;
+    probability_score: number;
+    supporting_symptoms?: string[];
+    must_not_miss?: boolean;
+  }>;
+  recommended_labs: Array<{ test_name: string; priority: string; differentiates: string[] }>;
+}
+
+interface GuidelineResult {
+  recommendations: Array<{
+    recommendation: string;
+    organization: string;
+  }>;
+  sources_used: string[];
+  compliance_score: number;
+}
+
+interface MedicationEngineResult {
+  suggestions: Array<{
+    generic_name: string;
+    dose: string;
+    frequency: string;
+    safe: boolean;
+  }>;
+  safety_score: number;
+  critical_warnings: number;
+}
+
+interface SafetyEngineResult {
+  alerts: Array<{
+    severity: string;
+    description: string;
+  }>;
+  safety_score: number;
+  critical_count: number;
+  high_count: number;
+  passed: boolean;
+}
+
+interface UncertaintyOutput {
+  confidence_score: number;
+  confidence_label: string;
+  missing_evidence: string[];
+  follow_up_questions: string[];
+}
+
+// ── Public types ──
 
 export interface SOAPNote {
   subjective: string;
