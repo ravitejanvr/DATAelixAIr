@@ -24,6 +24,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_bias_monitoring: true,
   enable_meta_learning: true,
   enable_population_intelligence: true,
+  enable_phase9_safety_decoupling: false,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
