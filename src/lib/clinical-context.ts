@@ -33,6 +33,9 @@ export interface ClinicalContext {
   blood_sugar?: number | null;
   family_history?: string[];
   exam_findings?: string[];
+  // Identity fields — used by episodic memory and pipeline tracing
+  patient_id?: string | null;
+  doctor_id?: string | null;
 }
 
 export const EMPTY_CLINICAL_CONTEXT: ClinicalContext = {
