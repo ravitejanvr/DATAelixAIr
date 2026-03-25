@@ -16,6 +16,7 @@ import type {
   LayerMetrics, SuiteRunResult,
 } from "./types";
 import { runUnifiedClinicalPipeline, type PipelineResult } from "@/services/clinical_pipeline/orchestrator";
+import { runBenchmarkPipeline } from "@/services/clinical_pipeline/benchmark_mode";
 import { v10CaseToPipelineInput } from "@/services/benchmark_shared/case_to_context";
 import { diagMatch } from "@/services/benchmark_shared/diagnosis_matching";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,10 +24,13 @@ import { supabase } from "@/integrations/supabase/client";
 // ── Run single v10 case through orchestrator ──
 
 export type V10PipelineMode = "phase8" | "phase9" | "phase10";
+/** When true, use benchmark-optimized pipeline (skips non-diagnostic modules) */
+export type V10ExecutionMode = "production" | "benchmark";
 
 async function runSingleV10Case(
   c: BenchmarkCaseV10,
   mode: V10PipelineMode,
+  executionMode: V10ExecutionMode = "benchmark",
 ): Promise<CaseResult> {
   const t0 = performance.now();
   const failures: string[] = [];
@@ -37,7 +41,11 @@ async function runSingleV10Case(
   // Run through PRODUCTION orchestrator
   let pipelineResult: PipelineResult | null = null;
   try {
-    pipelineResult = await runUnifiedClinicalPipeline(pipelineInput);
+    if (executionMode === "benchmark") {
+      pipelineResult = await runBenchmarkPipeline(pipelineInput);
+    } else {
+      pipelineResult = await runUnifiedClinicalPipeline(pipelineInput);
+    }
   } catch (e) {
     failures.push(`Pipeline error: ${e}`);
   }
@@ -328,50 +336,73 @@ export async function runV10Suite(
     batchSize?: number;
     batchDelayMs?: number;
     caseDelayMs?: number;
+    executionMode?: V10ExecutionMode;
+    parallelCases?: number;
   },
 ): Promise<SuiteRunResult> {
   const cases = ALL_NEW_CASES;
   const results: CaseResult[] = [];
-  const batchSize = options?.batchSize ?? 5;
-  const batchDelay = options?.batchDelayMs ?? 3000;
-  const caseDelay = options?.caseDelayMs ?? 500;
+  const executionMode = options?.executionMode ?? "benchmark";
+  const parallelCases = options?.parallelCases ?? (executionMode === "benchmark" ? 5 : 1);
+  const batchDelay = options?.batchDelayMs ?? (executionMode === "benchmark" ? 1000 : 3000);
+  const caseDelay = options?.caseDelayMs ?? (executionMode === "benchmark" ? 0 : 500);
 
   const runId = `v10_${mode}_${Date.now()}`;
   const timestamp = new Date().toISOString();
 
-  for (let i = 0; i < cases.length; i++) {
-    const c = cases[i];
-    onProgress?.({ case_name: c.name, index: i, total: cases.length, layer: c.layer });
+  console.log(
+    `[BenchmarkV10] Starting suite: ${cases.length} cases, ` +
+    `execution=${executionMode}, parallel=${parallelCases}, ` +
+    `batchDelay=${batchDelay}ms, caseDelay=${caseDelay}ms`
+  );
 
-    try {
-      const result = await runSingleV10Case(c, mode);
-      results.push(result);
-    } catch (e) {
-      console.error(`[BenchmarkV10] Case ${c.case_id} crashed:`, e);
-      results.push({
-        case_id: c.case_id,
-        layer: c.layer,
-        name: c.name,
-        predicted_top5: [],
-        gold_rank: null,
-        top1_match: false,
-        top3_match: false,
-        top5_match: false,
-        candidate_recall: false,
-        safety_triggered: false,
-        safety_alerts: [],
-        safety_expected: c.evaluation.safety_expected,
-        safety_correct: false,
-        clinical_acceptability: 0,
-        latency_ms: 0,
-        failure_reasons: [`Pipeline crash: ${e}`],
+  // Process cases in parallel batches
+  for (let i = 0; i < cases.length; i += parallelCases) {
+    const batch = cases.slice(i, i + parallelCases);
+
+    // Report progress for each case in batch
+    for (let j = 0; j < batch.length; j++) {
+      onProgress?.({
+        case_name: batch[j].name,
+        index: i + j,
+        total: cases.length,
+        layer: batch[j].layer,
       });
     }
 
-    if (caseDelay > 0 && i < cases.length - 1) {
-      await new Promise(r => setTimeout(r, caseDelay));
-    }
-    if ((i + 1) % batchSize === 0 && i < cases.length - 1) {
+    // Execute batch in parallel
+    const batchResults = await Promise.all(
+      batch.map(async (c) => {
+        try {
+          return await runSingleV10Case(c, mode, executionMode);
+        } catch (e) {
+          console.error(`[BenchmarkV10] Case ${c.case_id} crashed:`, e);
+          return {
+            case_id: c.case_id,
+            layer: c.layer,
+            name: c.name,
+            predicted_top5: [],
+            gold_rank: null,
+            top1_match: false,
+            top3_match: false,
+            top5_match: false,
+            candidate_recall: false,
+            safety_triggered: false,
+            safety_alerts: [],
+            safety_expected: c.evaluation.safety_expected,
+            safety_correct: false,
+            clinical_acceptability: 0,
+            latency_ms: 0,
+            failure_reasons: [`Pipeline crash: ${e}`],
+          } as CaseResult;
+        }
+      }),
+    );
+
+    results.push(...batchResults);
+
+    // Delay between batches to avoid rate limiting
+    if (i + parallelCases < cases.length && batchDelay > 0) {
       await new Promise(r => setTimeout(r, batchDelay));
     }
   }

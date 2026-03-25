@@ -7,7 +7,7 @@ export type { BenchmarkCaseV10, BenchmarkLayer, CaseResult, LayerMetrics, SuiteR
 export { NOISY_CASES } from "./cases_noisy";
 export { AMBIGUOUS_CASES } from "./cases_ambiguous";
 export { ADVERSARIAL_CASES } from "./cases_adversarial";
-export { runV10Suite, type V10PipelineMode, type V10RunProgress } from "./runner";
+export { runV10Suite, type V10PipelineMode, type V10RunProgress, type V10ExecutionMode } from "./runner";
 export { compareV10Runs, compareV10ThreeWay } from "./comparator";
 
 import { NOISY_CASES } from "./cases_noisy";
