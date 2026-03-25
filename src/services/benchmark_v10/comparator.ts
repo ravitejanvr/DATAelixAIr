@@ -5,7 +5,6 @@
  * Produces structured comparison summary with per-layer deltas,
  * regressions, improvements, and a verdict.
  */
- */
 
 import type {
   SuiteRunResult, BenchmarkLayer, CaseResult,
