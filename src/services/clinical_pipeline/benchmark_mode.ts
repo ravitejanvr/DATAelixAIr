@@ -41,6 +41,7 @@ import { applyCandidateFallbackV2 } from "@/services/ddx_engine/candidate_fallba
 import { expandCandidatesFromContext } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
+import { mergeActivations, expandKG } from "@/services/kg";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
@@ -301,16 +302,15 @@ export async function runBenchmarkPipeline(
     };
   }
 
-  // Phase 5: Failure-Derived Rules + Context Expansion + Fallback V2
+  // Phase 5: KG-Native Candidate Generation
   if (isPhase5ContextCandidatesEnabled()) {
-    // Phase 5.1-5.2: Failure-derived rules
     const failureResult = applyFailureDerivedRules(ctx);
-
-    // Phase 5.0: Context expander
     const expansion = expandCandidatesFromContext(ctx);
 
-    // Merge hints (failure-derived first for priority)
-    const allHints = [...failureResult.candidate_hints, ...expansion.candidate_hints];
+    // KG-Native: Merge activations → expand via KG
+    const mergedActivation = mergeActivations(failureResult.activation, expansion.activation);
+    const kgExpansion = expandKG(mergedActivation);
+    const allHints = kgExpansion.candidates;
 
     const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallbackV2(
       ddxResult, symptoms, allHints,
@@ -322,8 +322,8 @@ export async function runBenchmarkPipeline(
         event_type: "candidate_fallback_v2_triggered",
         severity: "info",
         stage: "ddx_engine",
-        message: `Fallback v2 injected ${fallbackMeta.total_injected} candidates (${failureResult.rules_fired.length} failure rules)`,
-        metadata: { ...fallbackMeta, failure_rules: failureResult.rules_fired } as any,
+        message: `Fallback v2 injected ${fallbackMeta.total_injected} candidates (${failureResult.rules_fired.length} failure rules, ${kgExpansion.clusters_resolved.length} KG clusters)`,
+        metadata: { ...fallbackMeta, failure_rules: failureResult.rules_fired, kg_clusters: kgExpansion.clusters_resolved } as any,
       });
     }
   } else {
