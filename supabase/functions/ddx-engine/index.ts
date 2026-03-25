@@ -261,6 +261,7 @@ Deno.serve(async (req) => {
       cco_id = null,
       physiological_context = null,
       phase9 = false,
+      phase10_augment = false,
     } = body;
 
     const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
@@ -1197,11 +1198,16 @@ Deno.serve(async (req) => {
     // STAGE 3: CONTEXT-GATED DANGEROUS DIAGNOSIS INJECTION (Phase 7)
     // Phase 9: When enabled, dangerous diagnoses go to safety_alerts[]
     // instead of being injected into ranking.
+    // Phase 10: When enabled alongside Phase 9, safety-detected conditions
+    // are soft-injected into the candidate set with probability=0,
+    // preserving ranking purity while ensuring candidate completeness.
     // ═══════════════════════════════════════════════════
     const stageStart3 = Date.now();
     let dangerousInjected = 0;
+    let safetyAugmentedCount = 0;
     const dangerousDiagnosisDetails: any[] = [];
     const safetyAlerts: any[] = [];
+    const safetyCandidates: any[] = [];
 
     // Count how many dangerous trigger symptoms match for each diagnosis
     const dangerousTriggerCounts = new Map<string, { count: number; triggers: string[]; rows: any[] }>();
@@ -1296,7 +1302,43 @@ Deno.serve(async (req) => {
       if (!shouldInject) continue;
 
       // Phase 9: DO NOT inject into ranking — safety_alerts[] handles it
-      if (phase9) continue;
+      // Phase 10: Soft-inject into candidate set with probability=0 for completeness
+      if (phase9) {
+        if (phase10_augment && safetyAugmentedCount < 3) {
+          // INVARIANT-5: Deduplicate by diagnosis ID
+          const existingIdx = bayesianScores.findIndex(d => d.diagnosis_id === diagInfo.id);
+          if (existingIdx < 0) {
+            // INVARIANT-1: Zero probability — no ranking contamination
+            const augmentedCandidate = {
+              diagnosis_id: diagInfo.id,
+              diagnosis_name: diagInfo.diagnosis_name,
+              icd10_code: diagInfo.icd10_code,
+              category: diagInfo.category,
+              probability: 0,
+              posterior: 0,
+              prior: 0,
+              likelihood: 0,
+              symptom_coverage: 0,
+              supporting_symptoms: info.triggers,
+              contradicting_factors: [],
+              must_not_miss: true,
+              emergency_protocol: row.emergency_protocol,
+              guideline_source: row.guideline_source,
+              severity_level: row.severity_level,
+              injection_source: "safety_augmentation",
+            };
+            safetyCandidates.push(augmentedCandidate);
+            safetyAugmentedCount++;
+            console.log(`[DDX-Phase10] Soft-injected: ${diagInfo.diagnosis_name} (triggers: ${info.triggers.join(", ")})`);
+          } else {
+            // INVARIANT-7: Tag existing but do NOT modify probability
+            bayesianScores[existingIdx].must_not_miss = true;
+            bayesianScores[existingIdx].emergency_protocol = row.emergency_protocol;
+            bayesianScores[existingIdx].severity_level = row.severity_level;
+          }
+        }
+        continue;
+      }
 
       // Legacy (Phase 8): inject into bayesianScores for ranking
       const existingIdx = bayesianScores.findIndex(d => d.diagnosis_id === diagInfo.id);
