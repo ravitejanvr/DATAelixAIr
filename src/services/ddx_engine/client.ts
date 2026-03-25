@@ -147,6 +147,7 @@ export interface DDXInput {
   body_location?: string | null;
   duration?: string | null;
   family_history?: string[];
+  phase9?: boolean;
 }
 
 /**
