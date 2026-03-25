@@ -3,17 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
   Play, Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Brain,
   Activity, Shield, ChevronDown, ChevronUp, Zap, Target, ArrowRight,
-  GitCompare, Lock, BarChart3,
+  GitCompare, Lock, BarChart3, Layers,
 } from "lucide-react";
 import { runBenchmarkSuite, BENCHMARK_SUITE, comparePhases } from "@/services/benchmark_v9";
 import type { BenchmarkResult, BenchmarkSuiteResult, PhaseComparisonReport } from "@/services/benchmark_v9/types";
 import type { PipelineMode } from "@/services/benchmark_v9/runner";
+import BenchmarkV10Panel from "@/components/BenchmarkV10Panel";
 import SEO from "@/components/SEO";
 
 // ── Helpers ──
@@ -393,239 +395,259 @@ export default function GPBenchmarkDashboard() {
 
   return (
     <div className="space-y-6">
-      <SEO title="Clinical Reasoning Benchmark" description="30-scenario diagnostic engine validation" />
+      <SEO title="Clinical Reasoning Benchmark" description="Multi-layer diagnostic engine validation" />
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Clinical Reasoning Benchmark</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            30 controlled scenarios · Dual-mode Phase 8/9 evaluation
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {baseline && (
-            <Badge variant="outline" className="text-[9px] flex items-center gap-1">
-              <Lock className="h-2.5 w-2.5" /> Baseline locked
-            </Badge>
-          )}
-          <Button size="sm" variant="outline" onClick={() => runBenchmark("phase8")} disabled={running}>
-            <Shield className="h-3.5 w-3.5 mr-1" /> Phase 8
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => runBenchmark("phase9")} disabled={running}>
-            <Brain className="h-3.5 w-3.5 mr-1" /> Phase 9
-          </Button>
-          <Button size="sm" onClick={runComparison} disabled={running}>
-            {running
-              ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />{progress || "Running..."}</>
-              : <><GitCompare className="h-3.5 w-3.5 mr-1" /> Compare P8 vs P9</>
-            }
-          </Button>
-        </div>
-      </div>
+      <Tabs defaultValue="v10" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="v10" className="flex items-center gap-1.5">
+            <Layers className="h-3.5 w-3.5" /> Benchmark v10 (Multi-Layer)
+          </TabsTrigger>
+          <TabsTrigger value="v9" className="flex items-center gap-1.5">
+            <Target className="h-3.5 w-3.5" /> Benchmark v9 (Control)
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Comparison Report */}
-      {comparison && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-1.5">
-              <BarChart3 className="h-4 w-4 text-primary" /> Phase 8 vs Phase 9 Comparison
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ComparisonPanel report={comparison} />
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="v10">
+          <BenchmarkV10Panel />
+        </TabsContent>
 
-      {/* Scenario List (pre-run) */}
-      {!sr && !running && !comparison && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-1.5">
-              <Target className="h-4 w-4 text-primary" /> Benchmark Suite — 30 Scenarios
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader><TableRow>
-                <TableHead className="text-xs">#</TableHead>
-                <TableHead className="text-xs">Scenario</TableHead>
-                <TableHead className="text-xs">Organ System</TableHead>
-                <TableHead className="text-xs">Danger</TableHead>
-                <TableHead className="text-xs">Symptoms</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {BENCHMARK_SUITE.map((sc, i) => (
-                  <TableRow key={sc.id}>
-                    <TableCell className="text-xs font-mono">{i + 1}</TableCell>
-                    <TableCell className="text-xs font-medium">{sc.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{sc.ground_truth.expected_organ_systems.join(", ")}</TableCell>
-                    <TableCell>{sc.ground_truth.danger_flag ? <Badge variant="destructive" className="text-[9px]">Yes</Badge> : <Badge variant="outline" className="text-[9px]">No</Badge>}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{sc.context.symptoms.length} symptoms</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <div className="mt-4 text-center">
-              <Button size="sm" onClick={runComparison}><GitCompare className="h-3.5 w-3.5 mr-1" /> Run Full Comparison</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Running indicator */}
-      {running && (
-        <Card>
-          <CardContent className="py-10 text-center">
-            <Loader2 className="h-8 w-8 text-primary mx-auto mb-3 animate-spin" />
-            <p className="text-sm font-medium">{progress || "Initializing..."}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {runMode === "compare" ? "Running Phase 8 → Phase 9 → Comparison" : `Running 30 scenarios (${runMode})`}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Results */}
-      {sr && (
-        <>
-          <div className="flex items-center gap-2 mb-2">
-            <Badge variant="outline" className="text-[9px]">{sr.pipeline_mode.toUpperCase()}</Badge>
-            <span className="text-xs text-muted-foreground">{sr.timestamp}</span>
-          </div>
-
-          {/* Aggregate Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <MetricCard label="Top-1 Accuracy" value={pct(sr.top1_accuracy)} icon={Target}
-              variant={sr.top1_accuracy >= 60 ? "success" : sr.top1_accuracy >= 40 ? "warning" : "danger"}
-              detail="Target: ≥60%" />
-            <MetricCard label="Top-3 Accuracy" value={pct(sr.top3_accuracy)} icon={Target}
-              variant={sr.top3_accuracy >= 80 ? "success" : sr.top3_accuracy >= 60 ? "warning" : "danger"}
-              detail="Target: ≥80%" />
-            <MetricCard label="Candidate Recall" value={pct(sr.candidate_recall)} icon={Brain}
-              variant={sr.candidate_recall >= 90 ? "success" : sr.candidate_recall >= 70 ? "warning" : "danger"}
-              detail="Target: ≥90%" />
-            <MetricCard label="Safety Sensitivity" value={pct(sr.safety_sensitivity)} icon={Shield}
-              variant={sr.safety_sensitivity >= 85 ? "success" : sr.safety_sensitivity >= 70 ? "warning" : "danger"}
-              detail={`Specificity: ${sr.safety_specificity}%`} />
-            <MetricCard label="Avg Latency" value={`${(sr.avg_latency_ms / 1000).toFixed(1)}s`} icon={Clock}
-              variant={sr.avg_latency_ms <= 5000 ? "success" : "warning"}
-              detail={`Min: ${(sr.min_latency_ms / 1000).toFixed(1)}s · Max: ${(sr.max_latency_ms / 1000).toFixed(1)}s`} />
-          </div>
-
-          {/* Pass/Fail + Alert metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <MetricCard label="Passed" value={`${sr.passed}/${sr.total_scenarios}`} icon={CheckCircle}
-              variant={sr.passed === sr.total_scenarios ? "success" : "warning"} />
-            <MetricCard label="Failed" value={`${sr.failed}`} icon={XCircle}
-              variant={sr.failed === 0 ? "success" : "danger"} />
-            <MetricCard label="Alert Precision" value={pct(sr.alert_precision)} icon={Shield}
-              variant={sr.alert_precision >= 70 ? "success" : "warning"}
-              detail={`Recall: ${sr.alert_recall}%`} />
-            <MetricCard label="Top-5 Accuracy" value={pct(sr.top5_accuracy)} icon={Activity}
-              variant={sr.top5_accuracy >= 85 ? "success" : "warning"} detail="Target: ≥85%" />
-          </div>
-
-          {/* Per-Scenario Results */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Per-Scenario Results</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-0">
-              {sr.results.map((r) => {
-                const isExpanded = expandedScenario === r.scenario_id;
-                return (
-                  <div key={r.scenario_id} className={`border-b last:border-b-0 ${r.passed ? "" : "bg-destructive/5"}`}>
-                    <button
-                      onClick={() => setExpandedScenario(isExpanded ? null : r.scenario_id)}
-                      className="w-full flex items-center justify-between p-3 text-xs font-medium hover:bg-muted/50"
-                    >
-                      <span className="flex items-center gap-2">
-                        <StatusIcon ok={r.passed} />
-                        <span className="font-medium">{r.scenario_name}</span>
-                        {r.final_ranking.gold_rank && (
-                          <Badge variant="outline" className="text-[9px]">Gold #{r.final_ranking.gold_rank}</Badge>
-                        )}
-                        {!r.metrics.candidate_recall && (
-                          <Badge variant="destructive" className="text-[9px]">No Recall</Badge>
-                        )}
-                        {(r.safety.alert_entries?.length ?? 0) > 0 && (
-                          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-[9px]">
-                            {r.safety.alert_entries!.length} alerts
-                          </Badge>
-                        )}
-                      </span>
-                      <span className="flex items-center gap-3 text-muted-foreground">
-                        <span className="flex gap-1">
-                          <span title="Top-1">{r.metrics.top1_accuracy ? "🎯" : "·"}</span>
-                          <span title="Top-3">{r.metrics.top3_accuracy ? "✓" : "·"}</span>
-                          <span title="Safety">{r.metrics.safety_correct ? "🛡" : "⚠"}</span>
-                        </span>
-                        <span className="font-mono w-14 text-right">{(r.metrics.total_latency_ms / 1000).toFixed(1)}s</span>
-                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                      </span>
-                    </button>
-                    {isExpanded && (
-                      <div className="px-3 pb-3">
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {BENCHMARK_SUITE.find(s => s.id === r.scenario_id)?.context.symptoms.map((s, i) => (
-                            <Badge key={i} variant="outline" className="text-[9px]">{s}</Badge>
-                          ))}
-                        </div>
-                        <ScenarioTrace result={r} />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-
-          {/* Failure Summary */}
-          {sr.failure_summary.length > 0 && (
-            <Card className="border-amber-200 dark:border-amber-800">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-1.5">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" /> Failure Analysis
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {sr.failure_summary.map((f, i) => (
-                  <div key={i}>
-                    <p className="text-xs font-medium text-destructive">{f.scenario}</p>
-                    {f.reasons.map((r, j) => <p key={j} className="text-xs text-muted-foreground ml-3">• {r}</p>)}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Latency Distribution */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-1.5">
-                <Zap className="h-4 w-4 text-primary" /> Latency Distribution
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
-                {sr.results.map((r) => (
-                  <div key={r.scenario_id} className="flex items-center gap-2 text-xs">
-                    <span className="w-48 truncate">{r.scenario_name}</span>
-                    <Progress
-                      value={Math.min(100, (r.metrics.total_latency_ms / Math.max(1, sr.max_latency_ms)) * 100)}
-                      className="flex-1 h-2"
-                    />
-                    <span className={`w-14 text-right font-mono ${r.metrics.total_latency_ms <= 5000 ? "text-emerald-600" : "text-amber-600"}`}>
-                      {(r.metrics.total_latency_ms / 1000).toFixed(1)}s
-                    </span>
-                  </div>
-                ))}
+        <TabsContent value="v9">
+          {/* V9 Control Suite (original 30 scenarios) */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-foreground">Benchmark v9 — Control Suite</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  30 controlled scenarios · Dual-mode Phase 8/9 evaluation
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        </>
-      )}
+              <div className="flex items-center gap-2">
+                {baseline && (
+                  <Badge variant="outline" className="text-[9px] flex items-center gap-1">
+                    <Lock className="h-2.5 w-2.5" /> Baseline locked
+                  </Badge>
+                )}
+                <Button size="sm" variant="outline" onClick={() => runBenchmark("phase8")} disabled={running}>
+                  <Shield className="h-3.5 w-3.5 mr-1" /> Phase 8
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => runBenchmark("phase9")} disabled={running}>
+                  <Brain className="h-3.5 w-3.5 mr-1" /> Phase 9
+                </Button>
+                <Button size="sm" onClick={runComparison} disabled={running}>
+                  {running
+                    ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />{progress || "Running..."}</>
+                    : <><GitCompare className="h-3.5 w-3.5 mr-1" /> Compare P8 vs P9</>
+                  }
+                </Button>
+              </div>
+            </div>
+
+            {/* Comparison Report */}
+            {comparison && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-1.5">
+                    <BarChart3 className="h-4 w-4 text-primary" /> Phase 8 vs Phase 9 Comparison
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ComparisonPanel report={comparison} />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Scenario List (pre-run) */}
+            {!sr && !running && !comparison && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-1.5">
+                    <Target className="h-4 w-4 text-primary" /> Benchmark Suite — 30 Scenarios
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead className="text-xs">#</TableHead>
+                      <TableHead className="text-xs">Scenario</TableHead>
+                      <TableHead className="text-xs">Organ System</TableHead>
+                      <TableHead className="text-xs">Danger</TableHead>
+                      <TableHead className="text-xs">Symptoms</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {BENCHMARK_SUITE.map((sc, i) => (
+                        <TableRow key={sc.id}>
+                          <TableCell className="text-xs font-mono">{i + 1}</TableCell>
+                          <TableCell className="text-xs font-medium">{sc.name}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{sc.ground_truth.expected_organ_systems.join(", ")}</TableCell>
+                          <TableCell>{sc.ground_truth.danger_flag ? <Badge variant="destructive" className="text-[9px]">Yes</Badge> : <Badge variant="outline" className="text-[9px]">No</Badge>}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{sc.context.symptoms.length} symptoms</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <div className="mt-4 text-center">
+                    <Button size="sm" onClick={runComparison}><GitCompare className="h-3.5 w-3.5 mr-1" /> Run Full Comparison</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Running indicator */}
+            {running && (
+              <Card>
+                <CardContent className="py-10 text-center">
+                  <Loader2 className="h-8 w-8 text-primary mx-auto mb-3 animate-spin" />
+                  <p className="text-sm font-medium">{progress || "Initializing..."}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {runMode === "compare" ? "Running Phase 8 → Phase 9 → Comparison" : `Running 30 scenarios (${runMode})`}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Results */}
+            {sr && (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="outline" className="text-[9px]">{sr.pipeline_mode.toUpperCase()}</Badge>
+                  <span className="text-xs text-muted-foreground">{sr.timestamp}</span>
+                </div>
+
+                {/* Aggregate Metrics */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <MetricCard label="Top-1 Accuracy" value={pct(sr.top1_accuracy)} icon={Target}
+                    variant={sr.top1_accuracy >= 60 ? "success" : sr.top1_accuracy >= 40 ? "warning" : "danger"}
+                    detail="Target: ≥60%" />
+                  <MetricCard label="Top-3 Accuracy" value={pct(sr.top3_accuracy)} icon={Target}
+                    variant={sr.top3_accuracy >= 80 ? "success" : sr.top3_accuracy >= 60 ? "warning" : "danger"}
+                    detail="Target: ≥80%" />
+                  <MetricCard label="Candidate Recall" value={pct(sr.candidate_recall)} icon={Brain}
+                    variant={sr.candidate_recall >= 90 ? "success" : sr.candidate_recall >= 70 ? "warning" : "danger"}
+                    detail="Target: ≥90%" />
+                  <MetricCard label="Safety Sensitivity" value={pct(sr.safety_sensitivity)} icon={Shield}
+                    variant={sr.safety_sensitivity >= 85 ? "success" : sr.safety_sensitivity >= 70 ? "warning" : "danger"}
+                    detail={`Specificity: ${sr.safety_specificity}%`} />
+                  <MetricCard label="Avg Latency" value={`${(sr.avg_latency_ms / 1000).toFixed(1)}s`} icon={Clock}
+                    variant={sr.avg_latency_ms <= 5000 ? "success" : "warning"}
+                    detail={`Min: ${(sr.min_latency_ms / 1000).toFixed(1)}s · Max: ${(sr.max_latency_ms / 1000).toFixed(1)}s`} />
+                </div>
+
+                {/* Pass/Fail + Alert metrics */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <MetricCard label="Passed" value={`${sr.passed}/${sr.total_scenarios}`} icon={CheckCircle}
+                    variant={sr.passed === sr.total_scenarios ? "success" : "warning"} />
+                  <MetricCard label="Failed" value={`${sr.failed}`} icon={XCircle}
+                    variant={sr.failed === 0 ? "success" : "danger"} />
+                  <MetricCard label="Alert Precision" value={pct(sr.alert_precision)} icon={Shield}
+                    variant={sr.alert_precision >= 70 ? "success" : "warning"}
+                    detail={`Recall: ${sr.alert_recall}%`} />
+                  <MetricCard label="Top-5 Accuracy" value={pct(sr.top5_accuracy)} icon={Activity}
+                    variant={sr.top5_accuracy >= 85 ? "success" : "warning"} detail="Target: ≥85%" />
+                </div>
+
+                {/* Per-Scenario Results */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Per-Scenario Results</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-0">
+                    {sr.results.map((r) => {
+                      const isExpanded = expandedScenario === r.scenario_id;
+                      return (
+                        <div key={r.scenario_id} className={`border-b last:border-b-0 ${r.passed ? "" : "bg-destructive/5"}`}>
+                          <button
+                            onClick={() => setExpandedScenario(isExpanded ? null : r.scenario_id)}
+                            className="w-full flex items-center justify-between p-3 text-xs font-medium hover:bg-muted/50"
+                          >
+                            <span className="flex items-center gap-2">
+                              <StatusIcon ok={r.passed} />
+                              <span className="font-medium">{r.scenario_name}</span>
+                              {r.final_ranking.gold_rank && (
+                                <Badge variant="outline" className="text-[9px]">Gold #{r.final_ranking.gold_rank}</Badge>
+                              )}
+                              {!r.metrics.candidate_recall && (
+                                <Badge variant="destructive" className="text-[9px]">No Recall</Badge>
+                              )}
+                              {(r.safety.alert_entries?.length ?? 0) > 0 && (
+                                <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-[9px]">
+                                  {r.safety.alert_entries!.length} alerts
+                                </Badge>
+                              )}
+                            </span>
+                            <span className="flex items-center gap-3 text-muted-foreground">
+                              <span className="flex gap-1">
+                                <span title="Top-1">{r.metrics.top1_accuracy ? "🎯" : "·"}</span>
+                                <span title="Top-3">{r.metrics.top3_accuracy ? "✓" : "·"}</span>
+                                <span title="Safety">{r.metrics.safety_correct ? "🛡" : "⚠"}</span>
+                              </span>
+                              <span className="font-mono w-14 text-right">{(r.metrics.total_latency_ms / 1000).toFixed(1)}s</span>
+                              {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                            </span>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-3 pb-3">
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {BENCHMARK_SUITE.find(s => s.id === r.scenario_id)?.context.symptoms.map((s, i) => (
+                                  <Badge key={i} variant="outline" className="text-[9px]">{s}</Badge>
+                                ))}
+                              </div>
+                              <ScenarioTrace result={r} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+
+                {/* Failure Summary */}
+                {sr.failure_summary.length > 0 && (
+                  <Card className="border-amber-200 dark:border-amber-800">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-1.5">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" /> Failure Analysis
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {sr.failure_summary.map((f, i) => (
+                        <div key={i}>
+                          <p className="text-xs font-medium text-destructive">{f.scenario}</p>
+                          {f.reasons.map((r, j) => <p key={j} className="text-xs text-muted-foreground ml-3">• {r}</p>)}
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Latency Distribution */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-1.5">
+                      <Zap className="h-4 w-4 text-primary" /> Latency Distribution
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-1">
+                      {sr.results.map((r) => (
+                        <div key={r.scenario_id} className="flex items-center gap-2 text-xs">
+                          <span className="w-48 truncate">{r.scenario_name}</span>
+                          <Progress
+                            value={Math.min(100, (r.metrics.total_latency_ms / Math.max(1, sr.max_latency_ms)) * 100)}
+                            className="flex-1 h-2"
+                          />
+                          <span className={`w-14 text-right font-mono ${r.metrics.total_latency_ms <= 5000 ? "text-emerald-600" : "text-amber-600"}`}>
+                            {(r.metrics.total_latency_ms / 1000).toFixed(1)}s
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
