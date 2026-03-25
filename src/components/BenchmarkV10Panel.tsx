@@ -421,11 +421,11 @@ export default function BenchmarkV10Panel() {
     setRunMode("compare");
     try {
       setRunMode("phase8");
-      const p8 = await runV10Suite("phase8", handleProgress);
+      const p8 = await runV10Suite("phase8", handleProgress, { executionMode: "benchmark", parallelCases: 5 });
       setPhase8Baseline(p8);
 
       setRunMode("phase9");
-      const p9 = await runV10Suite("phase9", handleProgress);
+      const p9 = await runV10Suite("phase9", handleProgress, { executionMode: "benchmark", parallelCases: 5 });
       setPhase9Baseline(p9);
       setSuiteResult(p9);
 
