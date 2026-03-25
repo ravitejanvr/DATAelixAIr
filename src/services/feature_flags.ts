@@ -15,6 +15,7 @@ export interface FeatureFlags {
   enable_population_intelligence: boolean;
   enable_phase9_safety_decoupling: boolean;
   enable_phase10_candidate_completeness: boolean;
+  enable_phase5_context_candidates: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -27,6 +28,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_population_intelligence: true,
   enable_phase9_safety_decoupling: false,
   enable_phase10_candidate_completeness: false,
+  enable_phase5_context_candidates: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -77,4 +79,8 @@ export function isPhase9SafetyDecouplingEnabled(): boolean {
 
 export function isPhase10CandidateCompletenessEnabled(): boolean {
   return currentFlags.enable_phase10_candidate_completeness;
+}
+
+export function isPhase5ContextCandidatesEnabled(): boolean {
+  return currentFlags.enable_phase5_context_candidates;
 }
