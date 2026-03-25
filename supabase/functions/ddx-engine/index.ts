@@ -1168,7 +1168,7 @@ Deno.serve(async (req) => {
       d.probability = Math.round((d.posterior / totalPosterior) * 100);
     }
 
-    // ── Organ System Bonus ──
+    // ── Organ System Bonus (S14) — SKIP in Phase 9 ──
     const symptomSystemCounts: Record<string, number> = {};
     for (const sym of normalizedSymptoms) {
       for (const [system, keywords] of Object.entries(ORGAN_SYSTEM_MAP)) {
@@ -1181,7 +1181,7 @@ Deno.serve(async (req) => {
       .filter(([, count]) => count >= 2)
       .map(([sys]) => sys);
 
-    if (activeSystems.length > 0) {
+    if (!phase9 && activeSystems.length > 0) {
       for (const d of bayesianScores) {
         const cat = (d.category || "").toLowerCase();
         if (activeSystems.includes(cat)) {
