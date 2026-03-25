@@ -403,7 +403,7 @@ export default function BenchmarkV10Panel() {
     setThreeWay(null);
     setRunMode(mode);
     try {
-      const result = await runV10Suite(mode, handleProgress);
+      const result = await runV10Suite(mode, handleProgress, { executionMode: "benchmark", parallelCases: 5 });
       setSuiteResult(result);
       if (mode === "phase8") setPhase8Baseline(result);
       if (mode === "phase9") setPhase9Baseline(result);
