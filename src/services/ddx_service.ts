@@ -1,8 +1,9 @@
 /**
- * DDX Engine Service — Canonical Interface
+ * @deprecated DO NOT USE — replaced by ddx_engine/client.ts
+ * This file is a legacy adapter. Use `runDDXEngine` from `@/services/ddx_engine/client` directly.
+ * Scheduled for removal in next cleanup phase.
  *
- * Reads from the Clinical Context Object and produces
- * ranked differential diagnoses via the DDX edge function.
+ * DDX Engine Service — Legacy Adapter
  */
 
 import { runDDXEngine as invokeDDX, type DDXInput, type DDXResult, type ReasoningTrace } from "@/services/ddx_engine/client";

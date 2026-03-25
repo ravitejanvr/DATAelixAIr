@@ -1,13 +1,10 @@
 /**
- * Clinical Pipeline Orchestrator — O2 Delegation Adapter
+ * @deprecated DO NOT USE — replaced by clinical_pipeline/orchestrator.ts (O1)
+ * This file is the legacy O2 delegation adapter, preserved only for benchmark_v5.
+ * All new code should use `runUnifiedClinicalPipeline` from `@/services/clinical_pipeline/orchestrator`.
+ * Scheduled for removal once benchmark_v5 is migrated.
  *
- * This file previously contained the 3-wave canonical pipeline.
- * It now delegates to the v4 Wave Orchestrator (O1) while
- * preserving the existing API surface for benchmark_v5.ts
- * and any other consumers.
- *
- * Legacy types (MergedContextObject → ClinicalPipelineResult) are
- * preserved and adapted from O1's PipelineResult.
+ * Clinical Pipeline Orchestrator — O2 Delegation Adapter (LEGACY)
  */
 
 import type { MergedContextObject } from "@/services/context_service";

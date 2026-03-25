@@ -1,8 +1,9 @@
 /**
- * Knowledge Retrieval Service
+ * @deprecated DO NOT USE — replaced by knowledge_ingestion/client.ts (queryEvidence)
+ * This file is a legacy knowledge retrieval module. Use `queryEvidence` from `@/services/knowledge_ingestion` directly.
+ * Scheduled for removal in next cleanup phase.
  *
- * Retrieves medical evidence, research references, and clinical summaries
- * using PubMed search and evidence agents.
+ * Knowledge Retrieval Service — LEGACY
  */
 
 import { supabase } from "@/integrations/supabase/client";

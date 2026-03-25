@@ -1,8 +1,9 @@
 /**
- * Safety Engine Service — Canonical Interface
+ * @deprecated DO NOT USE — replaced by src/layers/safety/api.ts (SafetyResults) and global-safety-engine edge function.
+ * This is a legacy client-side safety engine. The canonical safety system is in src/layers/safety/api.ts.
+ * Scheduled for removal in next cleanup phase.
  *
- * Validates drug interactions, allergy conflicts, duplicate medications,
- * dose safety, and contraindications across the pipeline output.
+ * Safety Engine Service — LEGACY (client-side)
  */
 
 import { supabase } from "@/integrations/supabase/client";
