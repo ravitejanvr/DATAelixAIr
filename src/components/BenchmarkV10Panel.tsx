@@ -494,12 +494,18 @@ export default function BenchmarkV10Panel() {
           <Button size="sm" variant="outline" onClick={() => runSingle("phase9")} disabled={running}>
             <Brain className="h-3.5 w-3.5 mr-1" /> Phase 9
           </Button>
-          <Button size="sm" onClick={runComparison} disabled={running}>
+          <Button size="sm" variant="outline" onClick={() => runSingle("phase10")} disabled={running}>
+            <Zap className="h-3.5 w-3.5 mr-1" /> Phase 10
+          </Button>
+          <Button size="sm" variant="outline" onClick={runComparison} disabled={running}>
+            <GitCompare className="h-3.5 w-3.5 mr-1" /> P8 vs P9
+          </Button>
+          <Button size="sm" onClick={runThreeWayComparison} disabled={running}>
             {running
               ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                   {progress ? `[${runMode.toUpperCase()}] ${progress.index + 1}/${progress.total}` : "Starting..."}
                 </>
-              : <><GitCompare className="h-3.5 w-3.5 mr-1" /> Compare P8 vs P9</>
+              : <><GitCompare className="h-3.5 w-3.5 mr-1" /> 3-Way Compare</>
             }
           </Button>
         </div>
