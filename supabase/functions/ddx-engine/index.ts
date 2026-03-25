@@ -1195,15 +1195,13 @@ Deno.serve(async (req) => {
 
     // ═══════════════════════════════════════════════════
     // STAGE 3: CONTEXT-GATED DANGEROUS DIAGNOSIS INJECTION (Phase 7)
-    // Only inject dangerous diagnoses when clinical context supports it:
-    //   - ≥2 matching trigger symptoms, OR
-    //   - 1 trigger symptom + abnormal vital sign, OR
-    //   - 1 trigger symptom + risk factors (age, history)
-    // Single-symptom presentations without red flags → awareness only
+    // Phase 9: When enabled, dangerous diagnoses go to safety_alerts[]
+    // instead of being injected into ranking.
     // ═══════════════════════════════════════════════════
     const stageStart3 = Date.now();
     let dangerousInjected = 0;
     const dangerousDiagnosisDetails: any[] = [];
+    const safetyAlerts: any[] = [];
 
     // Count how many dangerous trigger symptoms match for each diagnosis
     const dangerousTriggerCounts = new Map<string, { count: number; triggers: string[]; rows: any[] }>();
@@ -1251,18 +1249,35 @@ Deno.serve(async (req) => {
       let injectionProbability: number;
       
       if (hasMultipleTriggers) {
-        // ≥2 trigger symptoms → full injection
         shouldInject = true;
         injectionProbability = 5;
       } else if (hasSupportingContext && !requiresStrongEvidence) {
-        // 1 trigger + abnormal vitals/risk age → inject with lower probability
         shouldInject = true;
         injectionProbability = 3;
       } else {
-        // Single trigger, no supporting context → awareness only (add to dangerous list but don't inject into ranking)
         shouldInject = false;
         injectionProbability = 0;
       }
+
+      // Always add to safety_alerts[] (Phase 9 independent safety channel)
+      const alertEntry = {
+        diagnosis_id: diagInfo.id,
+        diagnosis_name: row.diagnosis_name || diagInfo.diagnosis_name,
+        severity_level: row.severity_level,
+        must_not_miss: true,
+        emergency_protocol: row.emergency_protocol,
+        guideline_source: row.guideline_source,
+        trigger_symptoms: info.triggers,
+        trigger_count: triggerCount,
+        context_gate_passed: shouldInject,
+        injection_level: hasMultipleTriggers ? "full" : hasSupportingContext ? "contextual" : "awareness",
+        supporting_context: {
+          abnormal_vitals: hasAbnormalVitals,
+          risk_age: hasRiskAge,
+          history_match: historyLower.some(h => diagInfo.diagnosis_name.toLowerCase().includes(h)),
+        },
+      };
+      safetyAlerts.push(alertEntry);
 
       // Only add to dangerous_diagnoses output if actually injected
       if (shouldInject && !dangerousDiagnosisDetails.find((d: any) => d.diagnosis_id === diagInfo.id)) {
@@ -1280,6 +1295,10 @@ Deno.serve(async (req) => {
 
       if (!shouldInject) continue;
 
+      // Phase 9: DO NOT inject into ranking — safety_alerts[] handles it
+      if (phase9) continue;
+
+      // Legacy (Phase 8): inject into bayesianScores for ranking
       const existingIdx = bayesianScores.findIndex(d => d.diagnosis_id === diagInfo.id);
       if (existingIdx >= 0) {
         bayesianScores[existingIdx].must_not_miss = true;
@@ -1311,6 +1330,100 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ═══════════════════════════════════════════════════
+    // PARALLEL SAFETY DETECTION ENGINE (Phase 9)
+    // Pattern-based cluster detection independent of ranking
+    // ═══════════════════════════════════════════════════
+    const SAFETY_CLUSTER_PATTERNS: Array<{
+      condition: string; required: number; symptoms: string[];
+      vital_triggers?: Array<{ key: string; op: string; value: number }>;
+      severity: string; protocol: string;
+    }> = [
+      {
+        condition: "Sepsis", required: 3, severity: "critical",
+        protocol: "Initiate sepsis bundle: blood cultures, lactate, broad-spectrum antibiotics within 1 hour",
+        symptoms: ["fever", "chills", "confusion", "tachycardia", "hypotension", "rapid breathing", "malaise", "fatigue"],
+        vital_triggers: [{ key: "pulse", op: ">", value: 100 }, { key: "temperature", op: ">", value: 38.5 }, { key: "bp_systolic", op: "<", value: 90 }],
+      },
+      {
+        condition: "Acute Coronary Syndrome", required: 2, severity: "critical",
+        protocol: "12-lead ECG within 10 minutes, troponin, aspirin 325mg, cardiology consult",
+        symptoms: ["chest pain", "diaphoresis", "dyspnea", "palpitations", "syncope", "nausea", "jaw pain"],
+        vital_triggers: [{ key: "pulse", op: ">", value: 110 }],
+      },
+      {
+        condition: "Stroke", required: 2, severity: "critical",
+        protocol: "Activate stroke code, CT head STAT, check onset time for thrombolysis window",
+        symptoms: ["weakness", "speech difficulty", "confusion", "blurred vision", "numbness", "headache", "dizziness"],
+        vital_triggers: [{ key: "bp_systolic", op: ">", value: 180 }],
+      },
+      {
+        condition: "Pulmonary Embolism", required: 2, severity: "critical",
+        protocol: "CT pulmonary angiography, D-dimer, anticoagulation if high clinical suspicion",
+        symptoms: ["dyspnea", "chest pain", "hemoptysis", "tachycardia", "leg swelling", "calf pain"],
+        vital_triggers: [{ key: "spo2", op: "<", value: 93 }, { key: "pulse", op: ">", value: 110 }],
+      },
+      {
+        condition: "Meningitis", required: 2, severity: "critical",
+        protocol: "Blood cultures + LP before antibiotics if no delay, empiric ceftriaxone + vancomycin",
+        symptoms: ["headache", "severe headache", "neck stiffness", "photophobia", "fever", "confusion", "vomiting", "rash"],
+      },
+      {
+        condition: "Diabetic Ketoacidosis", required: 2, severity: "critical",
+        protocol: "Check blood glucose, ABG, electrolytes. IV fluids + insulin drip protocol",
+        symptoms: ["nausea", "vomiting", "abdominal pain", "polyuria", "polydipsia", "confusion", "fatigue", "dehydration"],
+      },
+      {
+        condition: "Anaphylaxis", required: 2, severity: "critical",
+        protocol: "IM epinephrine 0.3mg, IV access, airway management, monitor for biphasic reaction",
+        symptoms: ["rash", "urticaria", "dyspnea", "wheezing", "edema", "dizziness", "syncope"],
+      },
+      {
+        condition: "Pneumothorax", required: 2, severity: "high",
+        protocol: "Chest X-ray STAT, needle decompression if tension, chest tube placement",
+        symptoms: ["chest pain", "dyspnea", "tachycardia"],
+        vital_triggers: [{ key: "spo2", op: "<", value: 93 }],
+      },
+    ];
+
+    for (const cluster of SAFETY_CLUSTER_PATTERNS) {
+      const symMatches = cluster.symptoms.filter(cs =>
+        normalizedSymptoms.some(ns => ns.includes(cs) || cs.includes(ns))
+      );
+      let vitalMatches = 0;
+      if (cluster.vital_triggers) {
+        for (const vt of cluster.vital_triggers) {
+          const val = vitals[vt.key];
+          if (val == null) continue;
+          if (vt.op === ">" && val > vt.value) vitalMatches++;
+          if (vt.op === "<" && val < vt.value) vitalMatches++;
+        }
+      }
+      const totalSignals = symMatches.length + vitalMatches;
+      if (totalSignals >= cluster.required) {
+        // Check if already in safety_alerts from S1
+        if (!safetyAlerts.some(a => a.diagnosis_name?.toLowerCase().includes(cluster.condition.toLowerCase()))) {
+          safetyAlerts.push({
+            diagnosis_id: null,
+            diagnosis_name: cluster.condition,
+            severity_level: cluster.severity,
+            must_not_miss: true,
+            emergency_protocol: cluster.protocol,
+            guideline_source: "symptom_cluster_detection",
+            trigger_symptoms: symMatches,
+            trigger_count: totalSignals,
+            context_gate_passed: true,
+            injection_level: "cluster_detected",
+            supporting_context: {
+              symptom_signals: symMatches.length,
+              vital_signals: vitalMatches,
+              abnormal_vitals: hasAbnormalVitals,
+            },
+          });
+        }
+      }
+    }
+
     // Physiology context boost
     if (physioFilter.length > 0) {
       for (const d of bayesianScores) {
@@ -1321,14 +1434,10 @@ Deno.serve(async (req) => {
       bayesianScores.sort((a, b) => b.probability - a.probability);
     }
 
-    // ── Phase 7: Common Condition Ranking Protection ──
-    // For incomplete presentations, ensure common conditions rank above injected dangerous ones
-    if (isIncomplete) {
-      // Find the highest-probability non-must-not-miss diagnosis
+    // ── Phase 7: Common Condition Ranking Protection (S6) — SKIP in Phase 9 ──
+    if (!phase9 && isIncomplete) {
       const topCommon = bayesianScores.find(d => !d.must_not_miss && d.probability > 0);
       if (topCommon) {
-        // Ensure must-not-miss diagnoses don't outrank the top common condition
-        // unless they have genuine Bayesian evidence (posterior > 0)
         for (const d of bayesianScores) {
           if (d.must_not_miss && d.posterior === 0 && d.probability > topCommon.probability) {
             d.probability = Math.max(1, topCommon.probability - 1);
@@ -1337,19 +1446,27 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Final selection: top 6 by probability + up to 3 must-not-miss (only injected ones)
-    const aboveThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability >= MIN_SCORE_THRESHOLD);
-    const belowThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability < MIN_SCORE_THRESHOLD);
-    const topByProb = aboveThreshold.slice(0, 6);
-    while (topByProb.length < 5 && belowThreshold.length > 0) {
-      topByProb.push(belowThreshold.shift()!);
+    // Final selection (S7): Phase 9 uses pure probability ranking without must-not-miss slot reservation
+    let finalDifferential;
+    if (phase9) {
+      // Phase 9: Pure probability-based selection, no must-not-miss slots
+      finalDifferential = bayesianScores
+        .sort((a, b) => b.probability - a.probability)
+        .slice(0, 10);
+    } else {
+      // Legacy: top 6 by probability + up to 3 must-not-miss (slot reservation)
+      const aboveThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability >= MIN_SCORE_THRESHOLD);
+      const belowThreshold = bayesianScores.filter(d => !d.must_not_miss && d.probability < MIN_SCORE_THRESHOLD);
+      const topByProb = aboveThreshold.slice(0, 6);
+      while (topByProb.length < 5 && belowThreshold.length > 0) {
+        topByProb.push(belowThreshold.shift()!);
+      }
+      const mustNotMiss = bayesianScores.filter(d => d.must_not_miss && d.probability > 0).slice(0, 3);
+      finalDifferential = [...topByProb, ...mustNotMiss]
+        .filter((d, i, arr) => arr.findIndex(x => x.diagnosis_id === d.diagnosis_id) === i)
+        .sort((a, b) => b.probability - a.probability)
+        .slice(0, 10);
     }
-    // Only include must-not-miss that were actually injected (not awareness-only)
-    const mustNotMiss = bayesianScores.filter(d => d.must_not_miss && d.probability > 0).slice(0, 3);
-    const finalDifferential = [...topByProb, ...mustNotMiss]
-      .filter((d, i, arr) => arr.findIndex(x => x.diagnosis_id === d.diagnosis_id) === i) // dedup
-      .sort((a, b) => b.probability - a.probability)
-      .slice(0, 10);
 
     const diagnosisIds = finalDifferential.map(d => d.diagnosis_id);
     const stage3Ms = Date.now() - stageStart3;
