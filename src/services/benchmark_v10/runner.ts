@@ -113,7 +113,7 @@ function mapCaseToDDXInput(c: BenchmarkCaseV10, mode: V10PipelineMode) {
 
 // ── Run single v10 case ──
 
-export type V10PipelineMode = "phase8" | "phase9";
+export type V10PipelineMode = "phase8" | "phase9" | "phase10";
 
 async function runSingleV10Case(
   c: BenchmarkCaseV10,
@@ -124,7 +124,7 @@ async function runSingleV10Case(
 
   let ddxResult: DDXResult | null = null;
   try {
-    ddxResult = await runDDXEngine(mapCaseToDDXInput(c, mode === "phase9"));
+    ddxResult = await runDDXEngine(mapCaseToDDXInput(c, mode));
   } catch (e) {
     failures.push(`DDX engine error: ${e}`);
   }
