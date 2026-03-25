@@ -62,6 +62,8 @@ import { runCausalReasoning, type CausalReasoningResult } from "@/services/causa
 import { getCalibrationFactors, buildCalibrationMap, type CalibrationResult } from "@/services/learning_system/calibration_client";
 import { queryEpisodicMemory, buildEpisodicPriors, type EpisodicMemoryResult } from "@/services/episodic_memory/client";
 import { runCognitiveLayer, type CognitiveLayerResult } from "@/services/cognitive";
+import { applyCandidateFallback, type FallbackMeta } from "@/services/ddx_engine/candidate_fallback";
+import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 
 // ── Public Types ──
 
