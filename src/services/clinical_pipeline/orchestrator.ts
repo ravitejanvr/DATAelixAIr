@@ -63,6 +63,9 @@ import { getCalibrationFactors, buildCalibrationMap, type CalibrationResult } fr
 import { queryEpisodicMemory, buildEpisodicPriors, type EpisodicMemoryResult } from "@/services/episodic_memory/client";
 import { runCognitiveLayer, type CognitiveLayerResult } from "@/services/cognitive";
 import { applyCandidateFallback, type FallbackMeta } from "@/services/ddx_engine/candidate_fallback";
+import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_engine/candidate_fallback_v2";
+import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
+import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 
 // ── Public Types ──
@@ -841,27 +844,51 @@ export async function runUnifiedClinicalPipeline(
     ddxResult = applyOrganSystemWeighting(ddxResult, dominantSystem);
   }
 
-  // ── FIX 3: Candidate Generation Fallback ──
-  // If DDX returned sparse/empty results, augment with heuristic-based candidates
-  const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallback(
-    ddxResult,
-    symptoms,
-    {
-      medical_history: ctx.medical_history,
-      risk_factors: ctx.risk_factors,
-      age: ctx.patient_age,
-      medications: ctx.current_medications,
-    },
-  );
-  ddxResult = ddxAfterFallback;
-  if (fallbackMeta.triggered) {
-    recordOversightEvent({
-      event_type: "candidate_fallback_triggered",
-      severity: "info",
-      stage: "ddx_engine",
-      message: `Fallback injected ${fallbackMeta.fallback_count} candidates (organic: ${fallbackMeta.organic_count}). Rules: ${fallbackMeta.rules_matched.join(", ")}`,
-      metadata: fallbackMeta as any,
-    });
+  // ── Phase 5: Context-Assisted Candidate Generation + Fallback ──
+  if (isPhase5ContextCandidatesEnabled()) {
+    // Run context expander BEFORE fallback
+    const expansion = expandCandidatesFromContext(ctx);
+    if (expansion.expansion_trace.length > 0) {
+      recordOversightEvent({
+        event_type: "phase5_context_expansion",
+        severity: "info",
+        stage: "context_candidate_expander",
+        message: `Context expander fired ${expansion.expansion_trace.length} rules, added ${expansion.added_symptoms.length} symptoms and ${expansion.candidate_hints.length} hints`,
+        metadata: { trace: expansion.expansion_trace, hints: expansion.candidate_hints.map(h => h.diagnosis_name) } as any,
+      });
+    }
+
+    // Use fallback v2 with context hints
+    const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallbackV2(
+      ddxResult, symptoms, expansion.candidate_hints,
+      { medical_history: ctx.medical_history, risk_factors: ctx.risk_factors, age: ctx.patient_age, medications: ctx.current_medications },
+    );
+    ddxResult = ddxAfterFallback;
+    if (fallbackMeta.triggered) {
+      recordOversightEvent({
+        event_type: "candidate_fallback_v2_triggered",
+        severity: "info",
+        stage: "ddx_engine",
+        message: `Fallback v2 injected ${fallbackMeta.total_injected} candidates (${fallbackMeta.hint_count} hints, ${fallbackMeta.fallback_count} rules). Rules: ${fallbackMeta.rules_matched.join(", ")}`,
+        metadata: fallbackMeta as any,
+      });
+    }
+  } else {
+    // Legacy fallback (Phase 4 behavior)
+    const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallback(
+      ddxResult, symptoms,
+      { medical_history: ctx.medical_history, risk_factors: ctx.risk_factors, age: ctx.patient_age, medications: ctx.current_medications },
+    );
+    ddxResult = ddxAfterFallback;
+    if (fallbackMeta.triggered) {
+      recordOversightEvent({
+        event_type: "candidate_fallback_triggered",
+        severity: "info",
+        stage: "ddx_engine",
+        message: `Fallback injected ${fallbackMeta.fallback_count} candidates (organic: ${fallbackMeta.organic_count}). Rules: ${fallbackMeta.rules_matched.join(", ")}`,
+        metadata: fallbackMeta as any,
+      });
+    }
   }
 
   waveLat.wave2_analysis = Math.round(performance.now() - w2Start);
