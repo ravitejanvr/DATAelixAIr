@@ -20,7 +20,7 @@ import {
   Activity, Shield, ChevronDown, ChevronUp, Zap, Target,
   GitCompare, Lock, BarChart3, Layers, FileText,
 } from "lucide-react";
-import { runV10Suite, compareV10Runs, ALL_NEW_CASES, generateAuditReport } from "@/services/benchmark_v10";
+import { runV10Suite, compareV10Runs, compareV10ThreeWay, ALL_NEW_CASES, generateAuditReport } from "@/services/benchmark_v10";
 import type {
   SuiteRunResult, SuiteComparison, CaseResult, LayerMetrics, BenchmarkLayer,
 } from "@/services/benchmark_v10/types";
@@ -384,12 +384,15 @@ function CaseResultsTable({ results, expandedCase, onToggle }: {
 export default function BenchmarkV10Panel() {
   const [suiteResult, setSuiteResult] = useState<SuiteRunResult | null>(null);
   const [phase8Baseline, setPhase8Baseline] = useState<SuiteRunResult | null>(null);
+  const [phase9Baseline, setPhase9Baseline] = useState<SuiteRunResult | null>(null);
   const [comparison, setComparison] = useState<SuiteComparison | null>(null);
+  const [threeWay, setThreeWay] = useState<{ p8_vs_p9: SuiteComparison; p9_vs_p10: SuiteComparison; p8_vs_p10: SuiteComparison } | null>(null);
   const [running, setRunning] = useState(false);
   const [runMode, setRunMode] = useState<string>("");
   const [progress, setProgress] = useState<V10RunProgress | null>(null);
   const [expandedCase, setExpandedCase] = useState<string | null>(null);
   const [activeLayer, setActiveLayer] = useState<string>("all");
+  const [comparisonTab, setComparisonTab] = useState<string>("p9_vs_p10");
 
   const handleProgress = useCallback((p: V10RunProgress) => setProgress(p), []);
 
@@ -397,11 +400,13 @@ export default function BenchmarkV10Panel() {
     setRunning(true);
     setSuiteResult(null);
     setComparison(null);
+    setThreeWay(null);
     setRunMode(mode);
     try {
       const result = await runV10Suite(mode, handleProgress);
       setSuiteResult(result);
       if (mode === "phase8") setPhase8Baseline(result);
+      if (mode === "phase9") setPhase9Baseline(result);
     } finally {
       setRunning(false);
       setProgress(null);
@@ -412,6 +417,7 @@ export default function BenchmarkV10Panel() {
     setRunning(true);
     setSuiteResult(null);
     setComparison(null);
+    setThreeWay(null);
     setRunMode("compare");
     try {
       setRunMode("phase8");
@@ -420,11 +426,40 @@ export default function BenchmarkV10Panel() {
 
       setRunMode("phase9");
       const p9 = await runV10Suite("phase9", handleProgress);
+      setPhase9Baseline(p9);
       setSuiteResult(p9);
 
       const comp = compareV10Runs(p8, p9);
       setComparison(comp);
       setRunMode("compare");
+    } finally {
+      setRunning(false);
+      setProgress(null);
+    }
+  }, [handleProgress]);
+
+  const runThreeWayComparison = useCallback(async () => {
+    setRunning(true);
+    setSuiteResult(null);
+    setComparison(null);
+    setThreeWay(null);
+    setRunMode("3-way");
+    try {
+      setRunMode("phase8");
+      const p8 = await runV10Suite("phase8", handleProgress);
+      setPhase8Baseline(p8);
+
+      setRunMode("phase9");
+      const p9 = await runV10Suite("phase9", handleProgress);
+      setPhase9Baseline(p9);
+
+      setRunMode("phase10");
+      const p10 = await runV10Suite("phase10", handleProgress);
+      setSuiteResult(p10);
+
+      const tw = compareV10ThreeWay(p8, p9, p10);
+      setThreeWay(tw);
+      setRunMode("3-way");
     } finally {
       setRunning(false);
       setProgress(null);
