@@ -9,6 +9,11 @@
  *   5. Cognitive pruning
  *   6. Safety evaluation
  *   7. Final ranked diagnoses
+ *
+ * Phase 9 additions:
+ *   - SafetyAlertEntry for decoupled safety_alerts[] channel
+ *   - Alert-aware safety metrics
+ *   - Dual-mode comparison types
  */
 
 export interface NormalizationTrace {
@@ -49,6 +54,15 @@ export interface CognitivePruningTrace {
   quality_score: number;
 }
 
+/** Individual safety alert from the Phase 9 decoupled channel */
+export interface SafetyAlertEntry {
+  condition: string;
+  severity: string;
+  source: "ddx_engine" | "cluster_detector" | "vital_trigger";
+  trigger_symptoms: string[];
+  context_gate_passed: boolean;
+}
+
 export interface SafetyTrace {
   danger_detected: boolean;
   expected_danger: boolean;
@@ -59,6 +73,13 @@ export interface SafetyTrace {
   dangerous_diagnoses_in_candidates: string[];
   correct: boolean;
   detection_details: string;
+
+  /** Phase 9: individual alert entries from decoupled channel */
+  alert_entries?: SafetyAlertEntry[];
+  /** Phase 9: safety detected via alerts channel (not ranking) */
+  alert_channel_detected?: boolean;
+  /** Phase 9: safety detected via ranking presence */
+  ranking_channel_detected?: boolean;
 }
 
 export interface FinalRankingTrace {
@@ -82,6 +103,9 @@ export interface BenchmarkResult {
   timestamp: string;
   passed: boolean;
 
+  /** Which mode was used for this run */
+  pipeline_mode: "phase8" | "phase9";
+
   // Full pipeline trace
   normalization: NormalizationTrace;
   physiology: PhysiologyTrace;
@@ -97,6 +121,8 @@ export interface BenchmarkResult {
     top1_accuracy: boolean;
     top3_accuracy: boolean;
     safety_correct: boolean;
+    /** Phase 9: safety detected via alert channel OR ranking */
+    safety_detected_combined: boolean;
     physiology_activated: boolean;
     normalization_applied: boolean;
     soap_generated: boolean;
@@ -121,12 +147,24 @@ export interface BenchmarkSuiteResult {
   passed: number;
   failed: number;
 
+  /** Which mode produced this result */
+  pipeline_mode: "phase8" | "phase9";
+
   // Accuracy metrics (percentage 0-100)
   top1_accuracy: number;
   top3_accuracy: number;
   top5_accuracy: number;
   candidate_recall: number;
+
+  // Legacy safety metric (ranking-only)
   safety_detection_rate: number;
+
+  // Phase 9 alert-aware safety metrics
+  safety_sensitivity: number;
+  safety_specificity: number;
+  alert_precision: number;
+  alert_recall: number;
+  alert_to_ranking_overlap: number;
 
   // Latency
   avg_latency_ms: number;
@@ -141,4 +179,42 @@ export interface BenchmarkSuiteResult {
     scenario: string;
     reasons: string[];
   }>;
+}
+
+/** Per-scenario comparison between Phase 8 and Phase 9 */
+export interface ScenarioDiff {
+  scenario_id: string;
+  scenario_name: string;
+  phase8_top1: string | null;
+  phase9_top1: string | null;
+  top1_changed: boolean;
+  phase8_gold_rank: number | null;
+  phase9_gold_rank: number | null;
+  ranking_improved: boolean;
+  ranking_degraded: boolean;
+  phase8_safety_correct: boolean;
+  phase9_safety_correct: boolean;
+  safety_changed: boolean;
+  acceptable: boolean;
+  reason: string;
+}
+
+/** Full comparison report */
+export interface PhaseComparisonReport {
+  timestamp: string;
+  phase8_metrics: Omit<BenchmarkSuiteResult, "results" | "failure_summary">;
+  phase9_metrics: Omit<BenchmarkSuiteResult, "results" | "failure_summary">;
+  deltas: {
+    top1_delta: number;
+    top3_delta: number;
+    top5_delta: number;
+    recall_delta: number;
+    safety_sensitivity_delta: number;
+    safety_specificity_delta: number;
+  };
+  scenario_diffs: ScenarioDiff[];
+  regressions: ScenarioDiff[];
+  improvements: ScenarioDiff[];
+  verdict: "READY" | "NOT_READY";
+  verdict_reasons: string[];
 }
