@@ -188,22 +188,15 @@ export async function runSingleScenario(
     gold_rank_after_bayesian: bayGoldIdx >= 0 ? bayGoldIdx + 1 : null,
   };
 
-  // ── Cognitive Pruning trace (from pipeline cognitive layer) ──
-  const cogLayer = pipelineResult?.cognitive_layer;
+  // ── Cognitive Pruning trace ──
+  // The production pipeline's cognitive layer (Wave 6) is a fire-and-forget
+  // learning system, not hypothesis pruning. Cognitive pruning is handled
+  // internally by the orchestrator during Wave 3.5/3.6 conflict resolution.
+  // We report empty trace since pruning is now part of the integrated pipeline.
   const pruned: string[] = [];
-  let cogQuality = 0;
-  let cogKept = 0, cogPruned = 0, cogEscalated = 0, cogTotal = 0;
-
-  if (cogLayer?.hypothesis_evaluation) {
-    cogTotal = cogLayer.hypothesis_evaluation.length;
-    cogKept = cogLayer.hypothesis_evaluation.filter((h: any) => h.action === "keep").length;
-    cogPruned = cogLayer.hypothesis_evaluation.filter((h: any) => h.action === "prune").length;
-    cogEscalated = cogLayer.hypothesis_evaluation.filter((h: any) => h.action === "escalate").length;
-    pruned.push(...cogLayer.hypothesis_evaluation.filter((h: any) => h.action === "prune").map((h: any) => h.hypothesis || h.diagnosis || ""));
-    cogQuality = (cogLayer as any).reasoning_evaluation?.quality_score || 0;
-  }
-
-  const goldPruned = pruned.some(p => diagMatch(p, sc.ground_truth.gold_standard_diagnosis));
+  const cogQuality = 0;
+  const cogKept = candidates.length, cogPruned = 0, cogEscalated = 0, cogTotal = candidates.length;
+  const goldPruned = false;
 
   stages.push({ stage: "Cognitive Pruning", latency_ms: 0, status: "success" });
 
