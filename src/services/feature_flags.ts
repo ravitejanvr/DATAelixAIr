@@ -68,3 +68,7 @@ export function isMetaLearningEnabled(): boolean {
 export function isPopulationIntelligenceEnabled(): boolean {
   return currentFlags.enable_population_intelligence;
 }
+
+export function isPhase9SafetyDecouplingEnabled(): boolean {
+  return currentFlags.enable_phase9_safety_decoupling;
+}
