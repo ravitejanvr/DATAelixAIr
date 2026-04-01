@@ -898,10 +898,25 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
+    // Phase 6.9: Pattern Recognition — multi-symptom clinical pattern detection
+    const patternResult = recognizeClinicalPatterns(ctxForRules);
+    if (patternResult.pattern_count > 0) {
+      recordOversightEvent({
+        event_type: "phase5_context_expansion" as any,
+        severity: "info",
+        stage: "pattern_recognizer",
+        message: `Pattern recognizer matched ${patternResult.pattern_count} patterns, injecting ${patternResult.injected_candidates.length} MNM candidates`,
+        metadata: { patterns: patternResult.patterns_matched.map(p => p.pattern_id) } as any,
+      });
+    }
+
     // KG-Native: Merge ALL activations → expand via KG clusters → candidate hints
     const mergedActivation = mergeActivations(
-      mergeActivations(failureResult.activation, expansion.activation),
-      suspicion.activation,
+      mergeActivations(
+        mergeActivations(failureResult.activation, expansion.activation),
+        suspicion.activation,
+      ),
+      patternResult.activation,
     );
 
     // Phase 6.6: SafetyNet — ensure critical domains are explored
