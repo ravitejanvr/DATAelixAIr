@@ -385,6 +385,20 @@ export async function runBenchmarkPipeline(
           metadata: { recovery } as any,
         });
       }
+
+      // Phase 7: Clinical Intelligence Ranking
+      if (isPhase7ClinicalRankerEnabled() && icResult.candidate_count > 0) {
+        const phase7 = applyPhase7Ranking({ icResult, context: ctx });
+        if (phase7.phase7_reordered) {
+          recordOversightEvent({
+            event_type: "phase6_intelligence_core" as any,
+            severity: "info",
+            stage: "phase7_ranking",
+            message: `Phase 7: ${phase7.reorder_summary} (${phase7.execution_ms}ms)`,
+            metadata: { top3: phase7.ranked.slice(0, 3).map(r => ({ dx: r.diagnosis, p7: r.phase7_score, pattern: r.phase7.pattern_label })) } as any,
+          });
+        }
+      }
     }
 
     const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallbackV2(

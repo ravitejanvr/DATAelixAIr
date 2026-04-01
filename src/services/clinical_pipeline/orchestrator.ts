@@ -990,6 +990,20 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
+    // Phase 7: Clinical Intelligence Ranking (pattern matching, epi priors, competition)
+    if (isPhase7ClinicalRankerEnabled() && intelligenceCoreResult && intelligenceCoreResult.candidate_count > 0) {
+      const phase7 = applyPhase7Ranking({ icResult: intelligenceCoreResult, context: ctx });
+      if (phase7.phase7_reordered) {
+        recordOversightEvent({
+          event_type: "phase6_intelligence_core" as any,
+          severity: "info",
+          stage: "phase7_ranking",
+          message: `Phase 7: ${phase7.reorder_summary} (${phase7.execution_ms}ms)`,
+          metadata: { top3: phase7.ranked.slice(0, 3).map(r => ({ dx: r.diagnosis, p7: r.phase7_score, pattern: r.phase7.pattern_label })) } as any,
+        });
+      }
+    }
+
     // Use fallback v2 with KG-resolved hints
     const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallbackV2(
       ddxResult, symptoms, allHints,
