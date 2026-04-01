@@ -899,10 +899,23 @@ export async function runUnifiedClinicalPipeline(
       suspicion.activation,
     );
 
+    // Phase 6.6: SafetyNet — ensure critical domains are explored
+    const safetyNet = safetyNetActivation(ctx, mergedActivation);
+    const postSafetyNetActivation = safetyNet.activation;
+    if (safetyNet.safetynet_count > 0) {
+      recordOversightEvent({
+        event_type: "phase6_safetynet",
+        severity: "info",
+        stage: "safety_net_activation",
+        message: `SafetyNet activated ${safetyNet.safetynet_count} domain(s): [${safetyNet.activated_domains.join(", ")}]`,
+        metadata: { reasons: safetyNet.activation_reasons, domains: safetyNet.activated_domains } as any,
+      });
+    }
+
     // Phase 6: Deep KG traversal (multi-hop) if Intelligence Core enabled
     const expandedActivation = isPhase6IntelligenceCoreEnabled()
-      ? expandKGDeep(mergedActivation, 2, 0.5)
-      : mergedActivation;
+      ? expandKGDeep(postSafetyNetActivation, 2, 0.5)
+      : postSafetyNetActivation;
 
     const kgExpansion = expandKG(expandedActivation);
     const allHints = kgExpansion.candidates;
