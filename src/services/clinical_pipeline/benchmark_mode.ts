@@ -48,6 +48,7 @@ import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/r
 import { normalizeSignals } from "@/services/signal_normalizer";
 import { generateSuspicionSignals } from "@/services/suspicion_engine";
 import { safetyNetActivation } from "@/services/reasoning/safety_net_activation";
+import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_activation";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
 // ── Timeout constants (tighter for benchmark) ──
@@ -335,7 +336,22 @@ export async function runBenchmarkPipeline(
       : postSafetyNetActivation;
 
     const kgExpansion = expandKG(expandedActivation);
-    const allHints = kgExpansion.candidates;
+    let allHints = kgExpansion.candidates;
+
+    // Phase 6.7: Weak Signal Diagnosis Activation
+    if (isPhase6IntelligenceCoreEnabled()) {
+      const wsaResult = weakSignalDiagnosisActivation(ctx, allHints, expandedActivation);
+      allHints = wsaResult.candidates;
+      if (wsaResult.boosts_applied.length > 0) {
+        recordOversightEvent({
+          event_type: "phase6_safetynet" as any,
+          severity: "info",
+          stage: "weak_signal_activation",
+          message: `Phase 6.7: ${wsaResult.boosts_applied.length} weak signal boosts`,
+          metadata: { boosts: wsaResult.boosts_applied } as any,
+        });
+      }
+    }
 
     // Phase 6: Intelligence Core ranking
     if (isPhase6IntelligenceCoreEnabled() && allHints.length > 0) {
