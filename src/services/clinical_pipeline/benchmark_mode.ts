@@ -656,16 +656,13 @@ export async function runBenchmarkPipeline(
       })),
       ddxResult.recommended_labs?.map(l => l.test_name) || [],
     );
-    const prunedByController = cogOutput.hypothesis_evaluation
-      .filter(h => h.action === "prune")
-      .map(h => h.hypothesis.toLowerCase());
-    if (prunedByController.length > 0) {
-      ddxResult = {
-        ...ddxResult,
-        differential_diagnoses: ddxResult.differential_diagnoses.filter(
-          d => !prunedByController.includes(d.diagnosis_name.toLowerCase())
-        ),
-      };
+    // HIGH-RECALL: Cognitive controller is advisory only — no candidates are removed
+    // Candidates flagged as low_confidence are kept for ranking/truncation
+    const flaggedByController = cogOutput.hypothesis_evaluation
+      .filter(h => h.reason.includes("flagged low_confidence"))
+      .map(h => h.hypothesis);
+    if (flaggedByController.length > 0) {
+      console.log(`[BenchPipeline] Wave 3.5: ${flaggedByController.length} candidates flagged low_confidence (preserved)`);
     }
   }
 
