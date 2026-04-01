@@ -276,6 +276,7 @@ function detectWeakSignal(
   }
 
   return noResult;
+}
 
 // ── Core Function ──
 
