@@ -16,7 +16,7 @@ import type { CandidateHint } from "../context_candidate_expander";
 
 const SPARSE_THRESHOLD = 3;
 const MAX_FALLBACK_CANDIDATES = 5;
-const MAX_TOTAL_INJECTED = 8; // fallback + hints combined cap
+const MAX_TOTAL_INJECTED = 20; // Must accommodate all KG candidates (cap=18) + fallback
 
 // ── Weighted Fallback Rules ──
 
@@ -220,7 +220,9 @@ export function applyCandidateFallbackV2(
   const rulesMatched: string[] = [];
 
   // 1. Inject context-expander hints first (higher priority)
-  for (const hint of candidateHints) {
+  // Sort by confidence desc so highest-value candidates get injected first
+  const sortedHints = [...candidateHints].sort((a, b) => b.confidence - a.confidence);
+  for (const hint of sortedHints) {
     const nameKey = hint.diagnosis_name.toLowerCase().trim();
     if (existingNames.has(nameKey)) continue;
     if (fallbackCandidates.some(f => f.diagnosis_name.toLowerCase() === nameKey)) continue;
