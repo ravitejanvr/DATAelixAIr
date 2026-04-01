@@ -348,6 +348,14 @@ export async function runBenchmarkPipeline(
     const kgExpansion = expandKG(expandedActivation);
     let allHints = kgExpansion.candidates;
 
+    // Inject pattern-detected MNM candidates (deduped)
+    for (const pc of patternResult.injected_candidates) {
+      const exists = allHints.some(h => h.diagnosis_name.toLowerCase() === pc.diagnosis_name.toLowerCase());
+      if (!exists) {
+        allHints.push(pc);
+      }
+    }
+
     // Phase 6.7: Weak Signal Diagnosis Activation
     if (isPhase6IntelligenceCoreEnabled()) {
       const wsaResult = weakSignalDiagnosisActivation(ctx, allHints, expandedActivation);
