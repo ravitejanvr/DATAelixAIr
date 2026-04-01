@@ -78,6 +78,7 @@ import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_
 import { applyPhase7Ranking, type Phase7Result } from "@/services/reasoning/phase7_clinical_ranker";
 import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
 import { domainCoverageGuarantee } from "@/services/reasoning/domain_coverage_guarantee";
+import { recognizeClinicalPatterns } from "@/services/reasoning/pattern_recognizer";
 
 // ── Public Types ──
 
