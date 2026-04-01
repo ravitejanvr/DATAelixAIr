@@ -225,7 +225,7 @@ export function weakSignalDiagnosisActivation(
   const medicalHistory = ctx.medical_history || [];
   const riskFactors = ctx.risk_factors || [];
   const isVague = symptoms.length <= 3 || (ctx as any).is_vague_presentation === true;
-  const systemsInvolved = new Set(activation.nodes.map(n => n.split("_")[0])).size;
+  const systemsInvolved = new Set(Array.from(activation.nodes).map(n => n.split("_")[0])).size;
 
   const boosts: WeakSignalBoost[] = [];
   let totalScanned = 0;
