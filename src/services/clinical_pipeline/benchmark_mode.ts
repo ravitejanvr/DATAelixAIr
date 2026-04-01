@@ -41,8 +41,10 @@ import { applyCandidateFallbackV2 } from "@/services/ddx_engine/candidate_fallba
 import { expandCandidatesFromContext } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
-import { mergeActivations, expandKG } from "@/services/kg";
+import { mergeActivations, expandKG, expandKGDeep } from "@/services/kg";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
+import { rankCandidates, type IntelligenceCoreResult } from "@/services/reasoning/intelligence_core";
+import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/recall_recovery";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
 // ── Timeout constants (tighter for benchmark) ──
