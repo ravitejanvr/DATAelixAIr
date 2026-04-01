@@ -919,7 +919,22 @@ export async function runUnifiedClinicalPipeline(
       : postSafetyNetActivation;
 
     const kgExpansion = expandKG(expandedActivation);
-    const allHints = kgExpansion.candidates;
+    let allHints = kgExpansion.candidates;
+
+    // Phase 6.7: Weak Signal Diagnosis Activation — recover missed diagnoses within active clusters
+    if (isPhase6IntelligenceCoreEnabled()) {
+      const wsaResult = weakSignalDiagnosisActivation(ctx, allHints, expandedActivation);
+      allHints = wsaResult.candidates;
+      if (wsaResult.boosts_applied.length > 0) {
+        recordOversightEvent({
+          event_type: "phase6_safetynet" as any,
+          severity: "info",
+          stage: "weak_signal_activation",
+          message: `Phase 6.7: ${wsaResult.boosts_applied.length} weak signal boosts (${wsaResult.total_scanned} scanned)`,
+          metadata: { boosts: wsaResult.boosts_applied } as any,
+        });
+      }
+    }
 
     if (kgExpansion.clusters_resolved.length > 0) {
       recordOversightEvent({
