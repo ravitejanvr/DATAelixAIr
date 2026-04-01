@@ -13,7 +13,7 @@
  * produced by the SAME edge functions as production.
  */
 
-import { isNewPipelineEnabled } from "@/services/feature_flags";
+import { isNewPipelineEnabled, isPhase6IntelligenceCoreEnabled } from "@/services/feature_flags";
 import { clearPipelineLogs, getPipelineLogs } from "@/services/pipeline_logger";
 import {
   buildEnrichedContext,
