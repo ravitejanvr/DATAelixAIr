@@ -16,8 +16,8 @@ import type { KGActivation } from "./kg_activation";
 import { getClusterDiagnoses, type ClusterDiagnosis } from "./kg_clusters";
 import type { CandidateHint } from "@/services/context_candidate_expander";
 
-const MAX_KG_CANDIDATES = 12;
-const RELEVANCE_THRESHOLD = 0.25; // Minimum effective score to include
+const MAX_KG_CANDIDATES = 18;
+const RELEVANCE_THRESHOLD = 0.15; // Lowered from 0.25 to prevent filtering valid candidates
 
 export interface KGExpansionResult {
   /** Resolved candidate hints for injection into DDX/fallback */
