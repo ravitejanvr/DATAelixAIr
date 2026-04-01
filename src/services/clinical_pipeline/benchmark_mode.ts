@@ -356,6 +356,13 @@ export async function runBenchmarkPipeline(
       }
     }
 
+    // Domain Coverage Guarantee
+    const domainCoverage = domainCoverageGuarantee(allHints);
+    allHints = domainCoverage.candidates;
+    if (domainCoverage.injected_count > 0) {
+      console.log(`[Benchmark] Domain coverage: +${domainCoverage.injected_count} reps, filled: [${domainCoverage.domains_filled.join(", ")}]`);
+    }
+
     // Phase 6: Intelligence Core ranking
     if (isPhase6IntelligenceCoreEnabled() && allHints.length > 0) {
       let icResult = rankCandidates({
