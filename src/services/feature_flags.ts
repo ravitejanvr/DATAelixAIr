@@ -86,3 +86,7 @@ export function isPhase10CandidateCompletenessEnabled(): boolean {
 export function isPhase5ContextCandidatesEnabled(): boolean {
   return currentFlags.enable_phase5_context_candidates;
 }
+
+export function isPhase6IntelligenceCoreEnabled(): boolean {
+  return currentFlags.enable_phase6_intelligence_core;
+}
