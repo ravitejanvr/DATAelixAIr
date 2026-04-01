@@ -87,7 +87,7 @@ const SYNONYM_MAP: Record<string, string[]> = {
   cardiacTamponade: ["pericardialeffusionwithtamponade", "becktrtiad"],
   pericardialtamponade: ["cardiactamponade"],
   cardiactamponade: ["pericardialtamponade"],
-  pericardialeffusion: ["pericardialtamponade", "cardiactamponade"],
+  pericardialeffusion: ["pericardialtamponade", "cardiactamponade", "pericardialfluid"],
   hypertensiveemergency: ["hypertensivecrisis", "malignanthypertension"],
   upperextremitydvt: ["armdvt", "upperextremitydeepveinthrombosis"],
 
