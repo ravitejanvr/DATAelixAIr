@@ -16,7 +16,7 @@ import type { CandidateHint } from "../context_candidate_expander";
 
 const SPARSE_THRESHOLD = 3;
 const MAX_FALLBACK_CANDIDATES = 5;
-const MAX_TOTAL_INJECTED = 20; // Must accommodate all KG candidates (cap=18) + fallback
+const MAX_TOTAL_INJECTED = Number.POSITIVE_INFINITY; // Generation stage is non-destructive; truncation belongs downstream
 
 // ── Weighted Fallback Rules ──
 
@@ -233,7 +233,7 @@ export function applyCandidateFallbackV2(
       diagnosis_name: hint.diagnosis_name,
       icd10_code: null,
       category: hint.source,
-      probability: Math.max(5, Math.round(hint.confidence * 100)), // Preserve raw confidence as percentage (0-100)
+        probability: Math.max(5, hint.confidence * 100), // Preserve raw confidence with a 5% floor in percentage space
       supporting_symptoms: [],
       contradicting_factors: [],
       symptom_coverage: "context_hint",
@@ -266,16 +266,15 @@ export function applyCandidateFallbackV2(
           if (fallbackCandidates.some(f => f.diagnosis_name.toLowerCase() === nameKey)) continue;
 
           // Weighted probability: base_score * cluster_confidence * match_strength
-          const weightedScore = Math.round(
-            candidate.base_score * rule.cluster_confidence * (0.5 + matchStrength * 0.5)
-          );
+          const weightedScore =
+            candidate.base_score * rule.cluster_confidence * (0.5 + matchStrength * 0.5);
 
           fallbackCandidates.push({
             diagnosis_id: `fallback-v2-${rule.id}-${nameKey.replace(/\s+/g, '-')}`,
             diagnosis_name: candidate.diagnosis_name,
             icd10_code: null,
             category: candidate.category,
-            probability: weightedScore,
+            probability: Math.max(5, weightedScore),
             supporting_symptoms: matchedKeywords,
             contradicting_factors: [],
             symptom_coverage: "fallback_v2",
