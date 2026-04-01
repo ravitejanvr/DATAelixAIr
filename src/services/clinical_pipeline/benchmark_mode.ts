@@ -47,6 +47,7 @@ import { rankCandidates, type IntelligenceCoreResult } from "@/services/reasonin
 import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/recall_recovery";
 import { normalizeSignals } from "@/services/signal_normalizer";
 import { generateSuspicionSignals } from "@/services/suspicion_engine";
+import { safetyNetActivation } from "@/services/reasoning/safety_net_activation";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
 // ── Timeout constants (tighter for benchmark) ──
