@@ -24,7 +24,9 @@ export interface OversightEvent {
     | "phase5_context_expansion"
     | "context_aware_safety"
     | "recall_recovery_triggered"
-    | "phase6_intelligence_core";
+    | "phase6_intelligence_core"
+    | "suspicion_engine"
+    | "signal_normalization";
   severity: "info" | "warning" | "critical";
   stage: string;
   message: string;
