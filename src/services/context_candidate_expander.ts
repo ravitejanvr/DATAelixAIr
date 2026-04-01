@@ -284,6 +284,26 @@ const RARE_PATTERN_RULES: RarePatternRule[] = [
     required_symptoms: ["sore throat", "trismus", "muffled voice"],
     activate: { node: "rare_infectious", weight: 0.6 },
   },
+  {
+    id: "ms_pattern",
+    required_symptoms: ["vision loss", "numbness", "weakness"],
+    activate: { node: "atypical_neuro", weight: 0.5 },
+  },
+  {
+    id: "seizure_neuro",
+    required_symptoms: ["seizure", "convulsion", "loss of consciousness"],
+    activate: { node: "atypical_neuro", weight: 0.5 },
+  },
+  {
+    id: "mononucleosis",
+    required_symptoms: ["sore throat", "lymphadenopathy", "fatigue"],
+    activate: { node: "rare_infectious", weight: 0.4 },
+  },
+  {
+    id: "perforated_viscus",
+    required_symptoms: ["severe abdominal pain", "rigidity"],
+    activate: { node: "abdominal", weight: 0.6 },
+  },
 ];
 
 const MAX_ACTIVATIONS = 8;
