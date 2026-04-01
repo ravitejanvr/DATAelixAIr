@@ -311,8 +311,46 @@ export async function runBenchmarkPipeline(
 
     // KG-Native: Merge activations → expand via KG
     const mergedActivation = mergeActivations(failureResult.activation, expansion.activation);
-    const kgExpansion = expandKG(mergedActivation);
+
+    // Phase 6: Deep KG traversal if Intelligence Core enabled
+    const expandedActivation = isPhase6IntelligenceCoreEnabled()
+      ? expandKGDeep(mergedActivation, 2, 0.5)
+      : mergedActivation;
+
+    const kgExpansion = expandKG(expandedActivation);
     const allHints = kgExpansion.candidates;
+
+    // Phase 6: Intelligence Core ranking
+    if (isPhase6IntelligenceCoreEnabled() && allHints.length > 0) {
+      let icResult = rankCandidates({
+        context: ctx,
+        candidates: allHints,
+        activation: expandedActivation,
+      });
+
+      // Recall Recovery
+      if (shouldTriggerRecovery(icResult.candidate_count, icResult.top_score * 100)) {
+        const recovery = runRecallRecovery({
+          activation: expandedActivation,
+          symptoms,
+          current_candidate_count: icResult.candidate_count,
+          top_score: icResult.top_score * 100,
+        });
+        const recoveryHints = [...allHints, ...recovery.additional_candidates];
+        icResult = rankCandidates({
+          context: ctx,
+          candidates: recoveryHints,
+          activation: expandedActivation,
+        });
+        recordOversightEvent({
+          event_type: "recall_recovery_triggered",
+          severity: "warning",
+          stage: "intelligence_core",
+          message: `Recovery: ${recovery.trigger_reason}`,
+          metadata: { recovery } as any,
+        });
+      }
+    }
 
     const { ddx: ddxAfterFallback, fallback: fallbackMeta } = applyCandidateFallbackV2(
       ddxResult, symptoms, allHints,
