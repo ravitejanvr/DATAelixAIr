@@ -98,3 +98,7 @@ export function isPhase6IntelligenceCoreEnabled(): boolean {
 export function isPhase6SafetyNetEnabled(): boolean {
   return currentFlags.enable_phase6_safetynet;
 }
+
+export function isPhase7ClinicalRankerEnabled(): boolean {
+  return currentFlags.enable_phase7_clinical_ranker;
+}
