@@ -1534,7 +1534,7 @@ export async function runUnifiedClinicalPipeline(
     lat.cognitive_controller = Math.round(performance.now() - cogStart);
     pcieCore.addReasoningTrace(
       "cognitive_controller" as any,
-      `Cognitive: pruned ${prunedByController.length}, strategy=${cogOutput.evidence_strategy.strategy_type}, quality=${cogOutput.reasoning_evaluation.quality_score}`,
+      `Cognitive: flagged ${flaggedByController.length}, strategy=${cogOutput.evidence_strategy.strategy_type}, quality=${cogOutput.reasoning_evaluation.quality_score}`,
     );
   }
 
