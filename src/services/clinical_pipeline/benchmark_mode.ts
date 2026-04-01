@@ -47,6 +47,7 @@ import { rankCandidates, type IntelligenceCoreResult } from "@/services/reasonin
 import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/recall_recovery";
 import { normalizeSignals } from "@/services/signal_normalizer";
 import { generateSuspicionSignals } from "@/services/suspicion_engine";
+import { safetyNetActivation } from "@/services/reasoning/safety_net_activation";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
 // ── Timeout constants (tighter for benchmark) ──
@@ -324,10 +325,14 @@ export async function runBenchmarkPipeline(
       suspicion.activation,
     );
 
+    // Phase 6.6: SafetyNet — ensure critical domains are explored
+    const safetyNet = safetyNetActivation(ctx, mergedActivation);
+    const postSafetyNetActivation = safetyNet.activation;
+
     // Phase 6: Deep KG traversal if Intelligence Core enabled
     const expandedActivation = isPhase6IntelligenceCoreEnabled()
-      ? expandKGDeep(mergedActivation, 2, 0.5)
-      : mergedActivation;
+      ? expandKGDeep(postSafetyNetActivation, 2, 0.5)
+      : postSafetyNetActivation;
 
     const kgExpansion = expandKG(expandedActivation);
     const allHints = kgExpansion.candidates;
