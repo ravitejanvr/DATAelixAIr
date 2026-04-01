@@ -34,6 +34,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_phase5_context_candidates: true,
   enable_phase6_intelligence_core: true,
   enable_phase6_safetynet: true,
+  enable_phase7_clinical_ranker: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
