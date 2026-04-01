@@ -1493,12 +1493,12 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
   // ═══════════════════════════════════════════════════════
-  // WAVE 3.5 — Cognitive Controller Pruning + Conflict Resolution
-  // The cognitive controller now runs INLINE to influence final diagnoses.
+  // WAVE 3.5 — Cognitive Controller Review + Conflict Resolution
+  // The cognitive controller is advisory only and never removes diagnoses.
   // ═══════════════════════════════════════════════════════
   let conflictResult: ConflictResolution | null = null;
 
-  // Run cognitive controller on DDX candidates to prune and plan evidence
+  // Run cognitive controller on DDX candidates to flag low-confidence items and plan evidence
   if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
     const cogStart = performance.now();
     const { runCognitiveController } = await import("@/services/cognitive/clinical_cognitive_controller");
@@ -1562,14 +1562,14 @@ export async function runUnifiedClinicalPipeline(
   // ═══════════════════════════════════════════════════════
   // WAVE 3.6 — Bounded Diagnostic Loop (max 1 refinement iteration)
   //
-  // If diagnostic confidence is weak after Wave 3.5, prune low-probability
-  // candidates and re-run Hypothesis Testing → Bayesian to sharpen the DDX.
+  // If diagnostic confidence is weak after Wave 3.5, flag low-confidence
+  // candidates and re-run Hypothesis Testing → Bayesian without deleting any diagnosis.
   // ═══════════════════════════════════════════════════════
   let diagnosticLoopExecuted = false;
   let diagnosticLoopReason = "";
   const LOOP_TOP_PROBABILITY_THRESHOLD = 45; // trigger if top DDX < 45%
   const LOOP_SPREAD_THRESHOLD = 10; // trigger if gap between #1 and #2 < 10%
-  const LOOP_PRUNE_THRESHOLD = 15; // drop candidates below 15%
+  const LOOP_LOW_CONFIDENCE_THRESHOLD = 15; // flag candidates below 15%, never prune
 
   if (ddxResult && ddxResult.differential_diagnoses.length >= 2) {
     const topProb = ddxResult.differential_diagnoses[0].probability;
@@ -1589,24 +1589,41 @@ export async function runUnifiedClinicalPipeline(
 
       console.log(
         `[Pipeline] Wave 3.6: Diagnostic loop triggered — ${diagnosticLoopReason}. ` +
-        `Pruning candidates below ${LOOP_PRUNE_THRESHOLD}% and re-running reasoning.`
+        `Flagging candidates below ${LOOP_LOW_CONFIDENCE_THRESHOLD}% for review and re-running reasoning without pruning.`
       );
 
-      // Prune weak candidates (keep must-not-miss regardless)
-      const prunedDiagnoses = ddxResult.differential_diagnoses.filter(
-        d => d.probability >= LOOP_PRUNE_THRESHOLD || d.must_not_miss,
-      );
-      const prunedCount = ddxResult.differential_diagnoses.length - prunedDiagnoses.length;
-      console.log(`[Pipeline] Wave 3.6: Pruned ${prunedCount} weak candidates, ${prunedDiagnoses.length} remaining.`);
+      const loopDiagnoses = ddxResult.differential_diagnoses;
+      const flaggedForLoop = loopDiagnoses
+        .filter(d => d.probability < LOOP_LOW_CONFIDENCE_THRESHOLD && !d.must_not_miss)
+        .map(d => d.diagnosis_name);
 
-      // Re-run Hypothesis Testing with pruned set (guard: skip if empty)
+      console.log(
+        `[Pipeline] Wave 3.6: Flagged ${flaggedForLoop.length} low-confidence candidates for review; ` +
+        `preserving all ${loopDiagnoses.length} diagnoses.`
+      );
+
+      if (flaggedForLoop.length > 0) {
+        recordOversightEvent({
+          event_type: "diagnostic_loop_review" as any,
+          severity: "info",
+          stage: "diagnostic_loop",
+          message: `Flagged ${flaggedForLoop.length} low-confidence candidates for loop review (preserved): ${flaggedForLoop.join(", ")}`,
+          metadata: {
+            flagged: flaggedForLoop,
+            preserved: true,
+            low_confidence_threshold: LOOP_LOW_CONFIDENCE_THRESHOLD,
+          } as any,
+        });
+      }
+
+      // Re-run Hypothesis Testing with the full generated set (guard: skip if empty)
       const [loopHypoTest, loopBayesian] = await Promise.all([
         (async (): Promise<HypothesisTestResult | null> => {
-          if (prunedDiagnoses.length === 0) return null;
+          if (loopDiagnoses.length === 0) return null;
           try {
             return await withTimeout(
               testHypotheses({
-                candidate_diagnoses: prunedDiagnoses.map((d, i) => ({
+                candidate_diagnoses: loopDiagnoses.map((d, i) => ({
                   diagnosis_id: d.diagnosis_id || `fallback-loop-${i}-${d.diagnosis_name?.replace(/\s+/g, '-').toLowerCase()}`,
                   diagnosis_name: d.diagnosis_name,
                   icd10_code: d.icd10_code || null,
@@ -1627,15 +1644,15 @@ export async function runUnifiedClinicalPipeline(
           }
         })(),
 
-        // Re-run Bayesian with pruned candidates
+        // Re-run Bayesian with the full generated set
         (async (): Promise<BayesianResult | null> => {
-          const prunedIds = prunedDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
-          if (prunedIds.length === 0) return null;
+          const loopIds = loopDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
+          if (loopIds.length === 0) return null;
           try {
             return await withTimeout(
               calculateDiagnosticProbabilities({
                 symptoms,
-                candidate_diagnosis_ids: prunedIds,
+                candidate_diagnosis_ids: loopIds,
                 patient_age: ctx.patient_age ?? undefined,
                 patient_sex: ctx.patient_sex ?? undefined,
                 risk_factors: ctx.risk_factors || [],
@@ -1661,7 +1678,7 @@ export async function runUnifiedClinicalPipeline(
         );
         ddxResult = {
           ...ddxResult,
-          differential_diagnoses: prunedDiagnoses.map(d => {
+          differential_diagnoses: loopDiagnoses.map(d => {
             const tested = adjustedMap.get(d.diagnosis_id);
             return tested ? { ...d, probability: tested.adjusted_probability } : d;
           }).sort((a, b) => b.probability - a.probability),
@@ -1684,7 +1701,7 @@ export async function runUnifiedClinicalPipeline(
       lineageTracker.recordEngineResult("diagnostic_loop", true);
       pcieCore.addReasoningTrace(
         "diagnostic_loop" as any,
-        `Loop triggered: ${diagnosticLoopReason}. Pruned ${prunedCount} candidates, re-ran hypothesis testing + bayesian.`,
+        `Loop triggered: ${diagnosticLoopReason}. Flagged ${flaggedForLoop.length} low-confidence candidates, preserved all diagnoses, re-ran hypothesis testing + bayesian.`,
       );
 
       onProgress?.("diagnostic_loop", { ddx: ddxResult, hypothesis_testing: hypothesisTestResult });
@@ -2213,7 +2230,7 @@ export async function runUnifiedClinicalPipeline(
     diagnostic_loop: diagnosticLoopExecuted ? {
       executed: true,
       reason: diagnosticLoopReason,
-      candidates_pruned: lat.diagnostic_loop ? (ddxResult?.differential_diagnoses?.length || 0) : 0,
+      candidates_pruned: 0,
       candidates_remaining: ddxResult ? ddxResult.differential_diagnoses.length : 0,
       iteration_ms: lat.diagnostic_loop || 0,
     } : null,
