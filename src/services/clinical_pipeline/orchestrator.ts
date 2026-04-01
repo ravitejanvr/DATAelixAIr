@@ -71,6 +71,8 @@ import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import { rankCandidates, type IntelligenceCoreResult } from "@/services/reasoning/intelligence_core";
 import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/recall_recovery";
+import { normalizeSignals } from "@/services/signal_normalizer";
+import { generateSuspicionSignals } from "@/services/suspicion_engine";
 
 // ── Public Types ──
 
@@ -848,10 +850,14 @@ export async function runUnifiedClinicalPipeline(
     ddxResult = applyOrganSystemWeighting(ddxResult, dominantSystem);
   }
 
+  // ── Phase 6.3: Signal Normalization (BEFORE rules) ──
+  const normalizedCtx = normalizeSignals(ctx);
+  const ctxForRules = normalizedCtx.enriched;
+
   // ── Phase 5: KG-Native Context-Assisted Candidate Generation ──
   if (isPhase5ContextCandidatesEnabled()) {
-    // Phase 5.1-5.2: Failure-derived rules → cluster activations
-    const failureResult = applyFailureDerivedRules(ctx);
+    // Phase 5.1-5.2: Failure-derived rules → cluster activations (uses normalized ctx)
+    const failureResult = applyFailureDerivedRules(ctxForRules);
     if (failureResult.rules_fired.length > 0) {
       recordOversightEvent({
         event_type: "phase5_context_expansion",
@@ -862,8 +868,8 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
-    // Phase 5.0: Context expander → cluster activations
-    const expansion = expandCandidatesFromContext(ctx);
+    // Phase 5.0: Context expander → cluster activations (uses normalized ctx)
+    const expansion = expandCandidatesFromContext(ctxForRules);
     if (expansion.expansion_trace.length > 0) {
       recordOversightEvent({
         event_type: "phase5_context_expansion",
@@ -874,8 +880,23 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
-    // KG-Native: Merge activations → expand via KG clusters → candidate hints
-    const mergedActivation = mergeActivations(failureResult.activation, expansion.activation);
+    // Phase 6.2: Suspicion Engine → additional cluster activations (uses normalized ctx)
+    const suspicion = generateSuspicionSignals(ctxForRules);
+    if (suspicion.signal_count > 0) {
+      recordOversightEvent({
+        event_type: "suspicion_engine",
+        severity: "info",
+        stage: "suspicion_engine",
+        message: `Suspicion engine generated ${suspicion.signal_count} signals: [${suspicion.signals.map(s => `${s.type}:${s.cluster}`).join(", ")}]`,
+        metadata: { signals: suspicion.signals } as any,
+      });
+    }
+
+    // KG-Native: Merge ALL activations → expand via KG clusters → candidate hints
+    const mergedActivation = mergeActivations(
+      mergeActivations(failureResult.activation, expansion.activation),
+      suspicion.activation,
+    );
 
     // Phase 6: Deep KG traversal (multi-hop) if Intelligence Core enabled
     const expandedActivation = isPhase6IntelligenceCoreEnabled()

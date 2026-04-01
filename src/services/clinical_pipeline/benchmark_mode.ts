@@ -45,6 +45,8 @@ import { mergeActivations, expandKG, expandKGDeep } from "@/services/kg";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import { rankCandidates, type IntelligenceCoreResult } from "@/services/reasoning/intelligence_core";
 import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/recall_recovery";
+import { normalizeSignals } from "@/services/signal_normalizer";
+import { generateSuspicionSignals } from "@/services/suspicion_engine";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
 // ── Timeout constants (tighter for benchmark) ──
@@ -304,13 +306,23 @@ export async function runBenchmarkPipeline(
     };
   }
 
+  // Phase 6.3: Signal Normalization (BEFORE rules)
+  const normalizedCtx = normalizeSignals(ctx);
+  const ctxForRules = normalizedCtx.enriched;
+
   // Phase 5: KG-Native Candidate Generation
   if (isPhase5ContextCandidatesEnabled()) {
-    const failureResult = applyFailureDerivedRules(ctx);
-    const expansion = expandCandidatesFromContext(ctx);
+    const failureResult = applyFailureDerivedRules(ctxForRules);
+    const expansion = expandCandidatesFromContext(ctxForRules);
 
-    // KG-Native: Merge activations → expand via KG
-    const mergedActivation = mergeActivations(failureResult.activation, expansion.activation);
+    // Phase 6.2: Suspicion Engine
+    const suspicion = generateSuspicionSignals(ctxForRules);
+
+    // KG-Native: Merge ALL activations → expand via KG
+    const mergedActivation = mergeActivations(
+      mergeActivations(failureResult.activation, expansion.activation),
+      suspicion.activation,
+    );
 
     // Phase 6: Deep KG traversal if Intelligence Core enabled
     const expandedActivation = isPhase6IntelligenceCoreEnabled()
