@@ -18,6 +18,7 @@ export interface FeatureFlags {
   enable_phase5_context_candidates: boolean;
   enable_phase6_intelligence_core: boolean;
   enable_phase6_safetynet: boolean;
+  enable_phase7_clinical_ranker: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
