@@ -92,3 +92,7 @@ export function isPhase5ContextCandidatesEnabled(): boolean {
 export function isPhase6IntelligenceCoreEnabled(): boolean {
   return currentFlags.enable_phase6_intelligence_core;
 }
+
+export function isPhase6SafetyNetEnabled(): boolean {
+  return currentFlags.enable_phase6_safetynet;
+}
