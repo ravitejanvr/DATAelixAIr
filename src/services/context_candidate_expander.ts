@@ -371,7 +371,7 @@ const RARE_PATTERN_RULES: RarePatternRule[] = [
   },
 ];
 
-const MAX_ACTIVATIONS = 8;
+const MAX_ACTIVATIONS = 16;
 
 // ── Helper Functions ──
 
