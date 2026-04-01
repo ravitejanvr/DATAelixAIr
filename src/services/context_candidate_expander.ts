@@ -223,7 +223,72 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
       symptom_keywords: ["lymphadenopathy", "night sweats", "weight loss", "fever"],
     },
     min_context_signals: 2,
-    activate: { node: "context_dependent", weight: 0.5 },
+    activate: { node: "malignancy", weight: 0.5 },
+  },
+  // ── Broad symptom → domain activations ──
+  {
+    id: "fatigue_broad",
+    conditions: {
+      symptom_keywords: ["fatigue", "tiredness", "malaise", "lethargy", "weakness", "exhaustion"],
+    },
+    min_context_signals: 1,
+    activate: { node: "general_infectious", weight: 0.3 },
+  },
+  {
+    id: "fatigue_metabolic",
+    conditions: {
+      symptom_keywords: ["fatigue", "tiredness", "weight loss", "weight gain", "weakness"],
+    },
+    min_context_signals: 1,
+    activate: { node: "metabolic", weight: 0.3 },
+  },
+  {
+    id: "fatigue_hematological",
+    conditions: {
+      symptom_keywords: ["fatigue", "pallor", "weakness", "dizziness", "shortness of breath"],
+    },
+    min_context_signals: 1,
+    activate: { node: "hematological", weight: 0.3 },
+  },
+  {
+    id: "joint_autoimmune",
+    conditions: {
+      symptom_keywords: ["joint pain", "rash", "fatigue", "arthralgia", "muscle pain", "photosensitivity"],
+    },
+    min_context_signals: 1,
+    activate: { node: "autoimmune", weight: 0.4 },
+  },
+  {
+    id: "weight_loss_malignancy",
+    conditions: {
+      symptom_keywords: ["weight loss", "night sweats", "fatigue", "anorexia", "loss of appetite"],
+    },
+    min_context_signals: 2,
+    activate: { node: "malignancy", weight: 0.4 },
+  },
+  {
+    id: "edema_renal",
+    conditions: {
+      symptom_keywords: ["edema", "swelling", "oliguria", "decreased urine", "foamy urine", "leg swelling"],
+    },
+    min_context_signals: 1,
+    activate: { node: "metabolic", weight: 0.4 },
+  },
+  {
+    id: "anxiety_panic",
+    conditions: {
+      symptom_keywords: ["anxiety", "panic", "palpitations", "chest tightness", "hyperventilation", "trembling", "fear"],
+    },
+    min_context_signals: 1,
+    activate: { node: "psychiatric", weight: 0.4 },
+  },
+  {
+    id: "back_pain_broad",
+    conditions: {
+      symptom_keywords: ["back pain", "lower back pain", "sciatica", "leg numbness", "claudication"],
+    },
+    min_context_signals: 1,
+    activate: { node: "spinal", weight: 0.4 },
   },
 ];
 
