@@ -21,7 +21,7 @@ const SYNONYM_MAP: Record<string, string[]> = {
   massivepulmonaryembolism: ["pulmonaryembolism", "pe"],
   pneumothorax: ["collapsedlung", "tensionpneumothorax"],
   tensionpneumothorax: ["pneumothorax"],
-  pleuraleffusion: ["pleuralfluid"],
+  pleuraleffusion: ["pleuralfluid", "fluidonlung"],
   tuberculosis: ["tb", "pulmonarytuberculosis"],
   tb: ["tuberculosis"],
   croup: ["laryngotracheitis", "laryngotracheobronchitis"],
