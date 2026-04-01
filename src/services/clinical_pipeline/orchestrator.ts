@@ -71,6 +71,8 @@ import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import { rankCandidates, type IntelligenceCoreResult } from "@/services/reasoning/intelligence_core";
 import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/recall_recovery";
+import { normalizeSignals } from "@/services/signal_normalizer";
+import { generateSuspicionSignals } from "@/services/suspicion_engine";
 
 // ── Public Types ──
 
