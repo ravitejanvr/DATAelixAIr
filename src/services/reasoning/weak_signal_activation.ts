@@ -94,6 +94,10 @@ function detectWeakSignal(
     if (hasAny(symptoms, ["chest pain", "abdominal pain"]) && hasAny(symptoms, ["fever", "cough"])) {
       return { shouldBoost: true, weight: 0.35, reason: "atypical pneumonia with chest/abdominal pain" };
     }
+    // Vague respiratory: cough + chest symptoms + systemic signs (no age required)
+    if (hasAny(symptoms, ["cough", "mild cough", "productive cough"]) && hasAny(symptoms, ["chest heaviness", "chest tightness", "chest discomfort"]) && hasAny(symptoms, ["fatigue", "night sweats", "loss of appetite", "malaise"])) {
+      return { shouldBoost: true, weight: 0.35, reason: "vague respiratory infection pattern (cough + chest symptoms + systemic signs)" };
+    }
   }
 
   // Pleural Effusion: vague dyspnea + positional
