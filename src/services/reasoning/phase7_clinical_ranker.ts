@@ -34,6 +34,10 @@ export interface Phase7Input {
 export interface Phase7Adjustment {
   temporal_fit: number;
   pattern_boost: number;
+  symptom_density: number;
+  safety_weight: number;
+  domain_consistency: number;
+  generic_penalty: number;
   mismatch_penalty: number;
   competition_adjustment: number;
   epi_prior: number;
@@ -338,6 +342,25 @@ const DIAGNOSIS_EPI: Record<string, string> = {
   "lithium toxicity": "very_rare",
 };
 
+// ── Generic / Vague Diagnoses ──
+const GENERIC_DIAGNOSES = new Set([
+  "anxiety disorder", "viral syndrome", "nonspecific illness",
+  "viral upper respiratory infection", "tension headache",
+  "irritable bowel syndrome", "costochondritis", "functional dyspepsia",
+  "somatization disorder", "benign positional vertigo", "panic disorder",
+  "generalized anxiety disorder", "stress reaction",
+]);
+
+// ── MNM Safety Diagnoses ──
+const MNM_SAFETY_SET = new Set([
+  "pulmonary embolism", "myocardial infarction", "acute coronary syndrome",
+  "stroke", "posterior circulation stroke", "subarachnoid hemorrhage",
+  "sepsis", "meningitis", "aortic dissection", "cardiac tamponade",
+  "cauda equina syndrome", "necrotizing fasciitis", "diabetic ketoacidosis",
+  "ruptured aaa", "tension pneumothorax", "anaphylaxis",
+  "bowel obstruction", "ectopic pregnancy",
+]);
+
 // ── Domain Groups for Competition ──
 
 const DOMAIN_GROUPS: Record<string, string[]> = {
@@ -350,6 +373,9 @@ const DOMAIN_GROUPS: Record<string, string[]> = {
   infection_systemic: ["sepsis", "infective endocarditis", "pyelonephritis"],
   functional: ["anxiety disorder", "irritable bowel syndrome", "costochondritis", "tension headache"],
   malignancy: ["lung cancer", "lymphoma", "retinoblastoma"],
+  autoimmune: ["systemic lupus erythematosus", "rheumatoid arthritis", "multiple sclerosis"],
+  renal: ["acute kidney injury", "nephrotic syndrome", "pyelonephritis"],
+  psychiatric: ["panic disorder", "generalized anxiety disorder", "somatization disorder"],
 };
 
 // ── Coherence Expectations ──
@@ -468,9 +494,24 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
   // Track original order for reorder detection
   const originalOrder = icResult.ranked.map(r => r.diagnosis);
 
+  // ── Pre-compute domain signal counts for domain consistency ──
+  const domainSignalCounts = new Map<string, number>();
+  for (const candidate of icResult.ranked) {
+    const d = getDiagnosisDomain(candidate.diagnosis.toLowerCase().trim());
+    if (d !== "other") {
+      domainSignalCounts.set(d, (domainSignalCounts.get(d) || 0) + 1);
+    }
+  }
+
+  // Check if any structured (non-generic) diagnosis has a pattern match
+  const hasStructuredCandidate = icResult.ranked.some(c => {
+    const dl = c.diagnosis.toLowerCase().trim();
+    return !GENERIC_DIAGNOSES.has(dl) && c.score > 0.15;
+  });
+
   const phase7Ranked: Phase7RankedDiagnosis[] = icResult.ranked.map(candidate => {
     const diagLower = candidate.diagnosis.toLowerCase().trim();
-    const isMNM = candidate.reasoning.mnm_flag;
+    const isMNM = candidate.reasoning.mnm_flag || MNM_SAFETY_SET.has(diagLower);
 
     // ── STEP 1: Base normalization (use IC score as base) ──
     let adjustedScore = candidate.score;
@@ -478,32 +519,25 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
     // ── STEP 2: Temporal fit ──
     let temporalFit = 0;
     if (temporalWindow === "acute") {
-      // Penalize chronic-only diseases
       const chronicDx = ["tuberculosis", "lung cancer", "lymphoma", "copd", "chronic mesenteric ischemia"];
       if (chronicDx.some(c => diagLower.includes(c))) {
         temporalFit = -0.25;
       }
     } else if (temporalWindow === "chronic") {
-      // Penalize acute-only diseases in chronic presentation
       const acuteDx = ["anaphylaxis", "pneumothorax", "testicular torsion"];
       if (acuteDx.some(a => diagLower.includes(a))) {
         temporalFit = -0.3;
       }
     }
-    // MNM protection: cap temporal penalty
     if (isMNM && temporalFit < -0.1) temporalFit = -0.1;
 
     // ── STEP 3: Pattern matching ──
     let patternBoost = 0;
     let patternLabel = "none";
     for (const pattern of CLINICAL_PATTERNS) {
-      // Check temporal window compatibility
       if (pattern.temporal_window && temporalWindow && pattern.temporal_window !== temporalWindow) continue;
-      // Check context filter
       if (pattern.context_filter && !pattern.context_filter(context)) continue;
-      // Check if diagnosis matches this pattern
       if (!pattern.matching_diagnoses.some(m => diagLower.includes(m) || m.includes(diagLower))) continue;
-      // Check signal match (any group matches)
       const signalMatch = pattern.signal_groups.some(group => matchSignalGroup(symptoms, group));
       if (signalMatch && pattern.boost > patternBoost) {
         patternBoost = pattern.boost;
@@ -511,50 +545,108 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
       }
     }
 
-    // ── STEP 4: Mismatch penalty ──
-    let mismatchPenalty = 0;
-    // Check coherence expectations for missing critical features
+    // ── STEP 4: Symptom Density Score ──
+    // Count how many patient symptoms match this diagnosis's expected features
+    let symptomDensity = 0;
     const coherenceExpect = COHERENCE_EXPECTATIONS[diagLower];
     if (coherenceExpect) {
       let groupsMet = 0;
       for (const group of coherenceExpect.required_any) {
         if (hasAnySignal(symptoms, group)) groupsMet++;
       }
-      if (groupsMet === 0) {
-        mismatchPenalty = isMNM ? -0.1 : -0.3; // No expected features match at all
+      const totalGroups = coherenceExpect.required_any.length;
+      // Density bonus scales with coverage: 0 to 0.25
+      symptomDensity = roundTo(clamp((groupsMet / Math.max(totalGroups, 1)) * 0.25, 0, 0.25), 3);
+    } else {
+      // For diagnoses without coherence profiles, use IC symptom_match as proxy
+      symptomDensity = roundTo(clamp(candidate.reasoning.symptom_match * 0.15, 0, 0.15), 3);
+    }
+
+    // ── STEP 5: Safety Weight (MNM priority) ──
+    let safetyWeight = 0;
+    if (isMNM) {
+      // MNM diagnoses get a floor boost to prevent ranking too low
+      safetyWeight = 0.15;
+      // Extra boost if any supporting evidence exists
+      if (candidate.reasoning.symptom_match > 0.3 || patternBoost > 0) {
+        safetyWeight = 0.25;
       }
     }
 
-    // ── STEP 6: Epidemiology prior ──
+    // ── STEP 6: Domain Consistency ──
+    const domain = getDiagnosisDomain(diagLower);
+    let domainConsistency = 0;
+    if (domain !== "other") {
+      const domainCount = domainSignalCounts.get(domain) || 0;
+      // Multiple candidates in same domain = stronger signal for that domain
+      if (domainCount >= 3) domainConsistency = 0.15;
+      else if (domainCount >= 2) domainConsistency = 0.08;
+    }
+
+    // ── STEP 7: Generic Penalty ──
+    let genericPenalty = 0;
+    if (GENERIC_DIAGNOSES.has(diagLower) && hasStructuredCandidate) {
+      // Down-weight generic/vague diagnoses when structured alternatives exist
+      genericPenalty = -0.2;
+      // Stronger penalty if a pattern-matched structured diagnosis exists
+      if (icResult.ranked.some(c => {
+        const cl = c.diagnosis.toLowerCase().trim();
+        return !GENERIC_DIAGNOSES.has(cl) && c.score > 0.2;
+      })) {
+        genericPenalty = -0.3;
+      }
+    }
+
+    // ── STEP 8: Mismatch penalty ──
+    let mismatchPenalty = 0;
+    if (coherenceExpect) {
+      let groupsMet = 0;
+      for (const group of coherenceExpect.required_any) {
+        if (hasAnySignal(symptoms, group)) groupsMet++;
+      }
+      if (groupsMet === 0) {
+        mismatchPenalty = isMNM ? -0.1 : -0.3;
+      }
+    }
+
+    // ── STEP 9: Epidemiology prior ──
     const { band: epiBand, key: epiKey } = getEpiBand(diagLower);
     let epiAdjustment = epiBand.adjustment;
-    // Rare diseases need stronger evidence to get epi boost
     if (epiAdjustment < 0 && isMNM) {
-      epiAdjustment = Math.max(epiAdjustment, -0.1); // Cap penalty for MNM
+      epiAdjustment = Math.max(epiAdjustment, -0.1);
     }
-    // Scale epi adjustment by base score — stronger candidates benefit more
     epiAdjustment = epiAdjustment * clamp(adjustedScore, 0.3, 1.0);
 
-    // ── STEP 7: Clinical coherence ──
+    // ── STEP 10: Clinical coherence ──
     const coherence = computeCoherence(diagLower, symptoms);
     let coherenceBonus = coherence.score;
-    if (isMNM && coherenceBonus < 0) coherenceBonus = 0; // Don't penalize MNM coherence
+    if (isMNM && coherenceBonus < 0) coherenceBonus = 0;
 
-    // ── STEP 5: Competition suppression (computed but applied later) ──
-    const domain = getDiagnosisDomain(diagLower);
-
-    // ── Compute adjusted score ──
-    adjustedScore = adjustedScore + temporalFit + patternBoost + mismatchPenalty + epiAdjustment + coherenceBonus;
+    // ── FINAL: Composite Score ──
+    adjustedScore = adjustedScore
+      + temporalFit
+      + patternBoost
+      + symptomDensity
+      + safetyWeight
+      + domainConsistency
+      + genericPenalty
+      + mismatchPenalty
+      + epiAdjustment
+      + coherenceBonus;
     adjustedScore = clamp(adjustedScore, 0.01, 1.0);
 
     return {
       ...candidate,
-      score: candidate.score, // Preserve original IC score
+      score: candidate.score,
       phase7: {
         temporal_fit: roundTo(temporalFit, 3),
         pattern_boost: roundTo(patternBoost, 3),
+        symptom_density: symptomDensity,
+        safety_weight: roundTo(safetyWeight, 3),
+        domain_consistency: roundTo(domainConsistency, 3),
+        generic_penalty: roundTo(genericPenalty, 3),
         mismatch_penalty: roundTo(mismatchPenalty, 3),
-        competition_adjustment: 0, // Computed after sorting
+        competition_adjustment: 0,
         epi_prior: roundTo(epiAdjustment, 3),
         coherence_bonus: roundTo(coherenceBonus, 3),
         pattern_label: patternLabel,
@@ -566,11 +658,9 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
     };
   });
 
-  // ── STEP 5: Competition suppression (post-sort) ──
-  // Sort by phase7_score first
+  // ── Competition suppression (post-sort) ──
   phase7Ranked.sort((a, b) => b.phase7_score - a.phase7_score);
 
-  // Group by domain, suppress weaker alternatives
   const domainBest = new Map<string, number>();
   for (const c of phase7Ranked) {
     const domain = c.phase7.domain;
@@ -581,15 +671,28 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
     }
   }
 
+  // Structured vs generic competition: if top candidate is generic, swap with best structured
+  const topDx = phase7Ranked[0];
+  if (topDx && GENERIC_DIAGNOSES.has(topDx.diagnosis.toLowerCase().trim())) {
+    const bestStructured = phase7Ranked.find(c =>
+      !GENERIC_DIAGNOSES.has(c.diagnosis.toLowerCase().trim()) && c.phase7_score > 0.15
+    );
+    if (bestStructured) {
+      // Boost the structured one above the generic
+      const boost = topDx.phase7_score - bestStructured.phase7_score + 0.05;
+      bestStructured.phase7.competition_adjustment = roundTo(boost, 3);
+      bestStructured.phase7_score = roundTo(clamp(bestStructured.phase7_score + boost, 0.01, 1.0), 4);
+    }
+  }
+
   for (const c of phase7Ranked) {
     const domain = c.phase7.domain;
     if (domain === "other") continue;
     const bestInDomain = domainBest.get(domain) ?? 0;
-    if (c.phase7_score < bestInDomain && !c.reasoning.mnm_flag) {
-      // Suppress weaker alternatives — pull them down slightly
+    if (c.phase7_score < bestInDomain && !c.reasoning.mnm_flag && !MNM_SAFETY_SET.has(c.diagnosis.toLowerCase().trim())) {
       const gap = bestInDomain - c.phase7_score;
       const suppression = -clamp(gap * 0.3, 0, 0.15);
-      c.phase7.competition_adjustment = roundTo(suppression, 3);
+      c.phase7.competition_adjustment = roundTo(c.phase7.competition_adjustment + suppression, 3);
       c.phase7_score = roundTo(clamp(c.phase7_score + suppression, 0.01, 1.0), 4);
     }
   }
