@@ -3,14 +3,14 @@
  *
  * Upgrades the Meta-Orchestrator into a true cognitive reasoning layer.
  * Provides five capabilities:
- *   1. Hypothesis Manager — selects high-value candidate diagnoses, actively prunes
+ *   1. Hypothesis Manager — evaluates candidate diagnoses without removing them
  *   2. Evidence Strategy Planner — determines highest-information-gain next steps
  *   3. Reasoning Evaluator — checks for contradictions and weak distributions
  *   4. Uncertainty Monitor — detects diagnostic uncertainty
  *   5. Diagnostic Policy Engine — implements decision rules
  *
  * v2 fixes:
- *   - Pruning no longer requires contradictions — low probability alone triggers pruning
+ *   - Low-probability candidates are flagged, never deleted
  *   - Evidence planner uses diagnosis-specific test maps for better match rates
  *   - Quality score capped at 100
  *   - Entropy normalized to prevent >100% metrics
@@ -24,7 +24,7 @@ export interface HypothesisEvaluation {
   evidence_support: number; // 0-1 — how much evidence backs this
   contradiction_count: number;
   is_dangerous: boolean;
-  action: "keep" | "prune" | "escalate";
+  action: "keep" | "keep_with_flag" | "escalate";
   reason: string;
 }
 
@@ -94,14 +94,14 @@ export interface CognitiveConfig {
   dangerous_escalation_threshold: number;
   max_candidates_to_evaluate: number;
   entropy_threshold: number;
-  /** Max hypotheses to keep after pruning */
+  /** Rank band before low-confidence candidates are explicitly flagged */
   max_kept_hypotheses: number;
 }
 
 const DEFAULT_CONFIG: CognitiveConfig = {
   min_top_probability: 45,
   min_probability_gap: 10,
-  prune_threshold: 5,  // lowered from 8 — prune anything below 5%
+  prune_threshold: 5,  // low-confidence flag threshold (never prunes)
   dangerous_escalation_threshold: 10,
   max_candidates_to_evaluate: 10,
   entropy_threshold: 2.5,
@@ -231,21 +231,21 @@ function evaluateHypotheses(
       action = "escalate";
       reason = c.must_not_miss
         ? "Must-not-miss diagnosis — always escalated"
-        : "Known dangerous condition — bypasses pruning";
+        : "Known dangerous condition — bypasses low-confidence flagging";
     } else if (c.probability < config.prune_threshold && (c.supporting_symptoms?.length || 0) === 0) {
       // HIGH-RECALL: Flag low-confidence candidates but NEVER remove them
-      action = "keep";
+      action = "keep_with_flag";
       reason = `Low probability (${c.probability}%) with no supporting symptoms — flagged low_confidence`;
     } else if (c.probability < config.prune_threshold * 0.5) {
       // HIGH-RECALL: Flag very low probability but preserve for ranking
-      action = "keep";
+      action = "keep_with_flag";
       reason = `Very low probability (${c.probability}%) — flagged low_confidence`;
     } else if (index >= config.max_kept_hypotheses + 2 && c.probability < config.prune_threshold) {
       // HIGH-RECALL: Flag beyond limit but preserve
-      action = "keep";
+      action = "keep_with_flag";
       reason = `Beyond extended hypothesis limit (rank #${index + 1}) — flagged low_confidence`;
     } else if (contradictions > 3 && c.probability < 10 && evidenceSupport < 0.2) {
-      action = "keep";
+      action = "keep_with_flag";
       reason = `Low probability (${c.probability}%) with ${contradictions} contradictions — flagged low_confidence`;
     }
 
