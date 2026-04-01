@@ -75,6 +75,8 @@ import { normalizeSignals } from "@/services/signal_normalizer";
 import { generateSuspicionSignals } from "@/services/suspicion_engine";
 import { safetyNetActivation } from "@/services/reasoning/safety_net_activation";
 import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_activation";
+import { applyPhase7Ranking, type Phase7Result } from "@/services/reasoning/phase7_clinical_ranker";
+import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
 
 // ── Public Types ──
 
@@ -986,6 +988,20 @@ export async function runUnifiedClinicalPipeline(
         message: `Ranked ${intelligenceCoreResult.candidate_count} candidates in ${intelligenceCoreResult.execution_ms}ms. Top: ${intelligenceCoreResult.ranked[0]?.diagnosis || "none"} (${intelligenceCoreResult.top_score})`,
         metadata: { top_5: intelligenceCoreResult.ranked.slice(0, 5).map(r => ({ diagnosis: r.diagnosis, score: r.score })) } as any,
       });
+    }
+
+    // Phase 7: Clinical Intelligence Ranking (pattern matching, epi priors, competition)
+    if (isPhase7ClinicalRankerEnabled() && intelligenceCoreResult && intelligenceCoreResult.candidate_count > 0) {
+      const phase7 = applyPhase7Ranking({ icResult: intelligenceCoreResult, context: ctx });
+      if (phase7.phase7_reordered) {
+        recordOversightEvent({
+          event_type: "phase6_intelligence_core" as any,
+          severity: "info",
+          stage: "phase7_ranking",
+          message: `Phase 7: ${phase7.reorder_summary} (${phase7.execution_ms}ms)`,
+          metadata: { top3: phase7.ranked.slice(0, 3).map(r => ({ dx: r.diagnosis, p7: r.phase7_score, pattern: r.phase7.pattern_label })) } as any,
+        });
+      }
     }
 
     // Use fallback v2 with KG-resolved hints
