@@ -306,13 +306,23 @@ export async function runBenchmarkPipeline(
     };
   }
 
+  // Phase 6.3: Signal Normalization (BEFORE rules)
+  const normalizedCtx = normalizeSignals(ctx);
+  const ctxForRules = normalizedCtx.enriched;
+
   // Phase 5: KG-Native Candidate Generation
   if (isPhase5ContextCandidatesEnabled()) {
-    const failureResult = applyFailureDerivedRules(ctx);
-    const expansion = expandCandidatesFromContext(ctx);
+    const failureResult = applyFailureDerivedRules(ctxForRules);
+    const expansion = expandCandidatesFromContext(ctxForRules);
 
-    // KG-Native: Merge activations → expand via KG
-    const mergedActivation = mergeActivations(failureResult.activation, expansion.activation);
+    // Phase 6.2: Suspicion Engine
+    const suspicion = generateSuspicionSignals(ctxForRules);
+
+    // KG-Native: Merge ALL activations → expand via KG
+    const mergedActivation = mergeActivations(
+      mergeActivations(failureResult.activation, expansion.activation),
+      suspicion.activation,
+    );
 
     // Phase 6: Deep KG traversal if Intelligence Core enabled
     const expandedActivation = isPhase6IntelligenceCoreEnabled()
