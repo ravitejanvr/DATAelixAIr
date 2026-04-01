@@ -18,7 +18,7 @@
  *   Wave 5 — Output Generation (Uncertainty, Hybrid Reasoning, SOAP)
  */
 
-import { isNewPipelineEnabled } from "@/services/feature_flags";
+import { isNewPipelineEnabled, isPhase6IntelligenceCoreEnabled } from "@/services/feature_flags";
 import { withStageLogging, clearPipelineLogs, getPipelineLogs } from "@/services/pipeline_logger";
 import {
   buildEnrichedContext,
