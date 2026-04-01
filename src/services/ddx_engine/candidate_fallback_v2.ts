@@ -220,7 +220,9 @@ export function applyCandidateFallbackV2(
   const rulesMatched: string[] = [];
 
   // 1. Inject context-expander hints first (higher priority)
-  for (const hint of candidateHints) {
+  // Sort by confidence desc so highest-value candidates get injected first
+  const sortedHints = [...candidateHints].sort((a, b) => b.confidence - a.confidence);
+  for (const hint of sortedHints) {
     const nameKey = hint.diagnosis_name.toLowerCase().trim();
     if (existingNames.has(nameKey)) continue;
     if (fallbackCandidates.some(f => f.diagnosis_name.toLowerCase() === nameKey)) continue;
