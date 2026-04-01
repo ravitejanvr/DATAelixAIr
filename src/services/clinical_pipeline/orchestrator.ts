@@ -1524,7 +1524,7 @@ export async function runUnifiedClinicalPipeline(
         `[Pipeline] Wave 3.5: Cognitive controller flagged ${flaggedByController.length} candidates as low_confidence (preserved)`
       );
       recordOversightEvent({
-        event_type: "cognitive_flagging",
+        event_type: "cognitive_pruning",
         severity: "info",
         stage: "cognitive_controller",
         message: `Flagged ${flaggedByController.length} low-confidence hypotheses (preserved): ${flaggedByController.join(", ")}`,
