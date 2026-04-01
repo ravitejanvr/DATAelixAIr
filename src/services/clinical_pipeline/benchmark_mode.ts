@@ -324,10 +324,16 @@ export async function runBenchmarkPipeline(
     // Phase 6.2: Suspicion Engine
     const suspicion = generateSuspicionSignals(ctxForRules);
 
+    // Phase 6.9: Pattern Recognition
+    const patternResult = recognizeClinicalPatterns(ctxForRules);
+
     // KG-Native: Merge ALL activations → expand via KG
     const mergedActivation = mergeActivations(
-      mergeActivations(failureResult.activation, expansion.activation),
-      suspicion.activation,
+      mergeActivations(
+        mergeActivations(failureResult.activation, expansion.activation),
+        suspicion.activation,
+      ),
+      patternResult.activation,
     );
 
     // Phase 6.6: SafetyNet — ensure critical domains are explored
