@@ -49,6 +49,8 @@ import { normalizeSignals } from "@/services/signal_normalizer";
 import { generateSuspicionSignals } from "@/services/suspicion_engine";
 import { safetyNetActivation } from "@/services/reasoning/safety_net_activation";
 import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_activation";
+import { applyPhase7Ranking } from "@/services/reasoning/phase7_clinical_ranker";
+import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
 // ── Timeout constants (tighter for benchmark) ──
