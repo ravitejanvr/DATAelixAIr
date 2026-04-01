@@ -342,6 +342,25 @@ const DIAGNOSIS_EPI: Record<string, string> = {
   "lithium toxicity": "very_rare",
 };
 
+// ── Generic / Vague Diagnoses ──
+const GENERIC_DIAGNOSES = new Set([
+  "anxiety disorder", "viral syndrome", "nonspecific illness",
+  "viral upper respiratory infection", "tension headache",
+  "irritable bowel syndrome", "costochondritis", "functional dyspepsia",
+  "somatization disorder", "benign positional vertigo", "panic disorder",
+  "generalized anxiety disorder", "stress reaction",
+]);
+
+// ── MNM Safety Diagnoses ──
+const MNM_SAFETY_SET = new Set([
+  "pulmonary embolism", "myocardial infarction", "acute coronary syndrome",
+  "stroke", "posterior circulation stroke", "subarachnoid hemorrhage",
+  "sepsis", "meningitis", "aortic dissection", "cardiac tamponade",
+  "cauda equina syndrome", "necrotizing fasciitis", "diabetic ketoacidosis",
+  "ruptured aaa", "tension pneumothorax", "anaphylaxis",
+  "bowel obstruction", "ectopic pregnancy",
+]);
+
 // ── Domain Groups for Competition ──
 
 const DOMAIN_GROUPS: Record<string, string[]> = {
@@ -354,6 +373,9 @@ const DOMAIN_GROUPS: Record<string, string[]> = {
   infection_systemic: ["sepsis", "infective endocarditis", "pyelonephritis"],
   functional: ["anxiety disorder", "irritable bowel syndrome", "costochondritis", "tension headache"],
   malignancy: ["lung cancer", "lymphoma", "retinoblastoma"],
+  autoimmune: ["systemic lupus erythematosus", "rheumatoid arthritis", "multiple sclerosis"],
+  renal: ["acute kidney injury", "nephrotic syndrome", "pyelonephritis"],
+  psychiatric: ["panic disorder", "generalized anxiety disorder", "somatization disorder"],
 };
 
 // ── Coherence Expectations ──
