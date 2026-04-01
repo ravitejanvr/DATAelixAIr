@@ -58,8 +58,8 @@ export function expandKG(activation: KGActivation): KGExpansionResult {
 
     for (const dx of clusterDiagnoses) {
       const effectiveScore = clusterWeight * dx.base_relevance;
-      const passesThr = effectiveScore >= RELEVANCE_THRESHOLD || isMNM || dx.must_not_miss;
-      if (!passesThr) continue;
+      // Phase 6.6 fix: cluster activation determines inclusion, scoring determines ranking only
+      // Do NOT filter by threshold — all diagnoses from active clusters are included
 
       rawCount++;
       const key = dx.diagnosis_name.toLowerCase().trim();
