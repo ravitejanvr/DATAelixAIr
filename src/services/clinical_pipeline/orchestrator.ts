@@ -74,6 +74,7 @@ import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/r
 import { normalizeSignals } from "@/services/signal_normalizer";
 import { generateSuspicionSignals } from "@/services/suspicion_engine";
 import { safetyNetActivation } from "@/services/reasoning/safety_net_activation";
+import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_activation";
 
 // ── Public Types ──
 
