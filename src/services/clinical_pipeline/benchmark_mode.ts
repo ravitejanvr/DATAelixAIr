@@ -325,10 +325,14 @@ export async function runBenchmarkPipeline(
       suspicion.activation,
     );
 
+    // Phase 6.6: SafetyNet — ensure critical domains are explored
+    const safetyNet = safetyNetActivation(ctx, mergedActivation);
+    const postSafetyNetActivation = safetyNet.activation;
+
     // Phase 6: Deep KG traversal if Intelligence Core enabled
     const expandedActivation = isPhase6IntelligenceCoreEnabled()
-      ? expandKGDeep(mergedActivation, 2, 0.5)
-      : mergedActivation;
+      ? expandKGDeep(postSafetyNetActivation, 2, 0.5)
+      : postSafetyNetActivation;
 
     const kgExpansion = expandKG(expandedActivation);
     const allHints = kgExpansion.candidates;
