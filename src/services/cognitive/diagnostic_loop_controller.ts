@@ -115,21 +115,13 @@ export function evaluateLoopCondition(
 
 /**
  * Prune weak candidates from the DDX list.
+ * HIGH-RECALL MODE: No candidates are removed. All are kept and sorted by probability.
+ * This function now only partitions candidates into "strong" and "weak" for informational purposes.
  */
 export function pruneCandidates<T extends { diagnosis_name: string; probability: number; must_not_miss?: boolean }>(
   candidates: T[],
   threshold = DEFAULT_CONFIG.prune_threshold,
 ): { kept: T[]; pruned: T[] } {
-  const kept: T[] = [];
-  const pruned: T[] = [];
-
-  for (const c of candidates) {
-    if (c.probability >= threshold || c.must_not_miss) {
-      kept.push(c);
-    } else {
-      pruned.push(c);
-    }
-  }
-
-  return { kept, pruned };
+  // HIGH-RECALL: All candidates are kept — none are removed
+  return { kept: [...candidates], pruned: [] };
 }

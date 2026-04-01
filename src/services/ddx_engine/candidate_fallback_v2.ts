@@ -233,7 +233,7 @@ export function applyCandidateFallbackV2(
       diagnosis_name: hint.diagnosis_name,
       icd10_code: null,
       category: hint.source,
-      probability: Math.round(hint.confidence * 10), // Scale confidence to initial score
+      probability: Math.max(5, Math.round(hint.confidence * 100)), // Preserve raw confidence as percentage (0-100)
       supporting_symptoms: [],
       contradicting_factors: [],
       symptom_coverage: "context_hint",

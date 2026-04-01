@@ -233,20 +233,20 @@ function evaluateHypotheses(
         ? "Must-not-miss diagnosis — always escalated"
         : "Known dangerous condition — bypasses pruning";
     } else if (c.probability < config.prune_threshold && (c.supporting_symptoms?.length || 0) === 0) {
-      // Only prune if BOTH low probability AND zero supporting symptoms
-      action = "prune";
-      reason = `Low probability (${c.probability}%) with no supporting symptoms`;
+      // HIGH-RECALL: Flag low-confidence candidates but NEVER remove them
+      action = "keep";
+      reason = `Low probability (${c.probability}%) with no supporting symptoms — flagged low_confidence`;
     } else if (c.probability < config.prune_threshold * 0.5) {
-      // Very low probability — prune even with some support
-      action = "prune";
-      reason = `Very low probability (${c.probability}%) below hard floor (${config.prune_threshold * 0.5}%)`;
+      // HIGH-RECALL: Flag very low probability but preserve for ranking
+      action = "keep";
+      reason = `Very low probability (${c.probability}%) — flagged low_confidence`;
     } else if (index >= config.max_kept_hypotheses + 2 && c.probability < config.prune_threshold) {
-      // Extended top-N: allow 2 extra slots beyond max_kept before pruning
-      action = "prune";
-      reason = `Beyond extended hypothesis limit (rank #${index + 1}) with low probability`;
+      // HIGH-RECALL: Flag beyond limit but preserve
+      action = "keep";
+      reason = `Beyond extended hypothesis limit (rank #${index + 1}) — flagged low_confidence`;
     } else if (contradictions > 3 && c.probability < 10 && evidenceSupport < 0.2) {
-      action = "prune";
-      reason = `Low probability (${c.probability}%) with ${contradictions} contradictions and weak support`;
+      action = "keep";
+      reason = `Low probability (${c.probability}%) with ${contradictions} contradictions — flagged low_confidence`;
     }
 
     return {

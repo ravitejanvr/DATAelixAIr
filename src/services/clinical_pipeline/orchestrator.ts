@@ -1513,36 +1513,28 @@ export async function runUnifiedClinicalPipeline(
       ddxResult.recommended_labs?.map(l => l.test_name) || [],
     );
 
-    // Apply pruning: remove candidates the cognitive controller marked for pruning
-    const prunedByController = cogOutput.hypothesis_evaluation
-      .filter(h => h.action === "prune")
-      .map(h => h.hypothesis.toLowerCase());
+    // HIGH-RECALL: Cognitive controller is advisory only — no candidates are removed
+    // Candidates are flagged but preserved for ranking and final truncation
+    const flaggedByController = cogOutput.hypothesis_evaluation
+      .filter(h => h.reason.includes("flagged low_confidence"))
+      .map(h => h.hypothesis);
     
-    if (prunedByController.length > 0) {
-      const beforeCount = ddxResult.differential_diagnoses.length;
-      ddxResult = {
-        ...ddxResult,
-        differential_diagnoses: ddxResult.differential_diagnoses.filter(
-          d => !prunedByController.includes(d.diagnosis_name.toLowerCase())
-        ),
-      };
-      const afterCount = ddxResult.differential_diagnoses.length;
+    if (flaggedByController.length > 0) {
       console.log(
-        `[Pipeline] Wave 3.5: Cognitive controller pruned ${beforeCount - afterCount} candidates ` +
-        `(${beforeCount} → ${afterCount}), prune rate: ${Math.round(((beforeCount - afterCount) / beforeCount) * 100)}%`
+        `[Pipeline] Wave 3.5: Cognitive controller flagged ${flaggedByController.length} candidates as low_confidence (preserved)`
       );
       recordOversightEvent({
         event_type: "cognitive_pruning",
         severity: "info",
         stage: "cognitive_controller",
-        message: `Pruned ${beforeCount - afterCount} low-value hypotheses (${prunedByController.join(", ")})`,
-        metadata: { pruned: prunedByController, before: beforeCount, after: afterCount },
+        message: `Flagged ${flaggedByController.length} low-confidence hypotheses (preserved): ${flaggedByController.join(", ")}`,
+        metadata: { flagged: flaggedByController, total: ddxResult.differential_diagnoses.length },
       });
     }
     lat.cognitive_controller = Math.round(performance.now() - cogStart);
     pcieCore.addReasoningTrace(
       "cognitive_controller" as any,
-      `Cognitive: pruned ${prunedByController.length}, strategy=${cogOutput.evidence_strategy.strategy_type}, quality=${cogOutput.reasoning_evaluation.quality_score}`,
+      `Cognitive: flagged ${flaggedByController.length}, strategy=${cogOutput.evidence_strategy.strategy_type}, quality=${cogOutput.reasoning_evaluation.quality_score}`,
     );
   }
 
