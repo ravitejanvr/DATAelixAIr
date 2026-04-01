@@ -184,7 +184,7 @@ function shouldActivateDomain(
   currentActivation: KGActivation,
 ): string | null {
   const symptoms = ctx.symptoms ?? [];
-  const age = ctx.age;
+  const age = ctx.patient_age;
 
   // 1. Vague presentation: multiple symptoms but weak activation
   if (symptoms.length >= 2 && currentActivation.nodes.size <= 2) {
