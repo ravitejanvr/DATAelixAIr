@@ -201,6 +201,74 @@ function detectWeakSignal(
     }
   }
 
+  // ── RENAL ──
+
+  // AKI: subtle renal compromise
+  if (dxLower === "acute kidney injury") {
+    if (hasAny(symptoms, ["fatigue", "nausea", "decreased urine", "edema", "confusion"]) && (age && age > 50 || hasAny(medicalHistory, ["diabetes", "hypertension", "ckd", "kidney"]))) {
+      return { shouldBoost: true, weight: 0.35, reason: "AKI risk with nephrotoxic history + nonspecific symptoms" };
+    }
+    if (hasAny(symptoms, ["oliguria", "anuria", "leg swelling", "edema"]) && hasAny(symptoms, ["fatigue", "nausea"])) {
+      return { shouldBoost: true, weight: 0.3, reason: "fluid retention pattern suggesting renal compromise" };
+    }
+  }
+
+  // ── AUTOIMMUNE ──
+
+  // SLE: multi-system vague pattern
+  if (dxLower === "sle") {
+    if (hasAny(symptoms, ["joint pain", "fatigue", "rash", "photosensitivity", "oral ulcers", "arthralgia"])) {
+      if (age && age < 50 && hasAny(symptoms, ["fatigue", "joint pain"])) {
+        return { shouldBoost: true, weight: 0.3, reason: "young patient with multi-system inflammatory signals (fatigue + joints)" };
+      }
+    }
+  }
+
+  // ── ONCOLOGICAL ──
+
+  // Lymphoma: constitutional symptoms
+  if (dxLower === "lymphoma") {
+    if (hasAny(symptoms, ["night sweats", "weight loss", "fatigue"]) && hasAny(symptoms, ["lymphadenopathy", "fever", "pruritus"])) {
+      return { shouldBoost: true, weight: 0.3, reason: "B-symptoms pattern (night sweats + weight loss + lymphadenopathy)" };
+    }
+    if (hasAny(symptoms, ["weight loss", "fatigue", "night sweats"]) && age && age > 40) {
+      return { shouldBoost: true, weight: 0.25, reason: "constitutional weight loss pattern in older patient" };
+    }
+  }
+
+  // ── PSYCHIATRIC ──
+
+  // Panic Attack/Disorder: somatic mimicry
+  if (dxLower === "panic disorder" || dxLower === "panic attack") {
+    if (hasAny(symptoms, ["palpitations", "chest tightness", "shortness of breath", "trembling"]) && hasAny(symptoms, ["anxiety", "fear", "dread", "numbness", "tingling"])) {
+      return { shouldBoost: true, weight: 0.3, reason: "somatic panic presentation (palpitations + anxiety/fear)" };
+    }
+    if (hasAny(symptoms, ["chest pain", "dyspnea", "dizziness"]) && !hasAny(riskFactors, ["hypertension", "diabetes", "smoking"]) && age && age < 45) {
+      return { shouldBoost: true, weight: 0.25, reason: "young patient with cardio-respiratory symptoms and low cardiac risk" };
+    }
+  }
+
+  // ── MUSCULOSKELETAL ──
+
+  // Spinal Stenosis: chronic neuro-MSK pattern
+  if (dxLower === "spinal stenosis") {
+    if (hasAny(symptoms, ["back pain", "leg pain", "claudication", "numbness"]) && age && age > 50) {
+      return { shouldBoost: true, weight: 0.3, reason: "neurogenic claudication pattern in older patient" };
+    }
+    if (hasAny(symptoms, ["back pain", "walking difficulty"]) && hasAny(symptoms, ["leg weakness", "numbness"])) {
+      return { shouldBoost: true, weight: 0.25, reason: "progressive spinal compression pattern" };
+    }
+  }
+
+  // ── HEMATOLOGICAL ──
+
+  // Anemia: subtle fatigue + pallor
+  if (dxLower === "iron deficiency anemia" || dxLower === "anemia") {
+    if (hasAny(symptoms, ["fatigue", "pallor", "weakness", "dizziness"]) && hasAny(symptoms, ["shortness of breath", "palpitations", "exercise intolerance"])) {
+      return { shouldBoost: true, weight: 0.3, reason: "anemia symptom complex (fatigue + exertional symptoms)" };
+    }
+  }
+
   // ── CROSS-SYSTEM VAGUE PATTERN ──
   if (isVague && systemsInvolved >= 2) {
     // Only boost must-not-miss diagnoses for vague multi-system presentations

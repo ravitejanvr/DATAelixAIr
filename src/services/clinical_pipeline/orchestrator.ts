@@ -77,6 +77,7 @@ import { safetyNetActivation } from "@/services/reasoning/safety_net_activation"
 import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_activation";
 import { applyPhase7Ranking, type Phase7Result } from "@/services/reasoning/phase7_clinical_ranker";
 import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
+import { domainCoverageGuarantee } from "@/services/reasoning/domain_coverage_guarantee";
 
 // ── Public Types ──
 
@@ -936,6 +937,19 @@ export async function runUnifiedClinicalPipeline(
           metadata: { boosts: wsaResult.boosts_applied } as any,
         });
       }
+    }
+
+    // Domain Coverage Guarantee — ensure all major clinical domains represented
+    const domainCoverage = domainCoverageGuarantee(allHints);
+    allHints = domainCoverage.candidates;
+    if (domainCoverage.injected_count > 0) {
+      recordOversightEvent({
+        event_type: "phase5_context_expansion" as any,
+        severity: "info",
+        stage: "domain_coverage_guarantee",
+        message: `Domain coverage: injected ${domainCoverage.injected_count} representatives. Filled: [${domainCoverage.domains_filled.join(", ")}]`,
+        metadata: { domains_filled: domainCoverage.domains_filled, already_covered: domainCoverage.domains_already_covered } as any,
+      });
     }
 
     if (kgExpansion.clusters_resolved.length > 0) {
