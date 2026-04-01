@@ -49,6 +49,8 @@ import { normalizeSignals } from "@/services/signal_normalizer";
 import { generateSuspicionSignals } from "@/services/suspicion_engine";
 import { safetyNetActivation } from "@/services/reasoning/safety_net_activation";
 import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_activation";
+import { applyPhase7Ranking } from "@/services/reasoning/phase7_clinical_ranker";
+import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
 // ── Timeout constants (tighter for benchmark) ──
@@ -382,6 +384,20 @@ export async function runBenchmarkPipeline(
           message: `Recovery: ${recovery.trigger_reason}`,
           metadata: { recovery } as any,
         });
+      }
+
+      // Phase 7: Clinical Intelligence Ranking
+      if (isPhase7ClinicalRankerEnabled() && icResult.candidate_count > 0) {
+        const phase7 = applyPhase7Ranking({ icResult, context: ctx });
+        if (phase7.phase7_reordered) {
+          recordOversightEvent({
+            event_type: "phase6_intelligence_core" as any,
+            severity: "info",
+            stage: "phase7_ranking",
+            message: `Phase 7: ${phase7.reorder_summary} (${phase7.execution_ms}ms)`,
+            metadata: { top3: phase7.ranked.slice(0, 3).map(r => ({ dx: r.diagnosis, p7: r.phase7_score, pattern: r.phase7.pattern_label })) } as any,
+          });
+        }
       }
     }
 
