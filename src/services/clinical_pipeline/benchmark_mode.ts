@@ -52,6 +52,7 @@ import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_
 import { applyPhase7Ranking } from "@/services/reasoning/phase7_clinical_ranker";
 import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
 import { domainCoverageGuarantee } from "@/services/reasoning/domain_coverage_guarantee";
+import { recognizeClinicalPatterns } from "@/services/reasoning/pattern_recognizer";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
 // ── Timeout constants (tighter for benchmark) ──
@@ -323,10 +324,16 @@ export async function runBenchmarkPipeline(
     // Phase 6.2: Suspicion Engine
     const suspicion = generateSuspicionSignals(ctxForRules);
 
+    // Phase 6.9: Pattern Recognition
+    const patternResult = recognizeClinicalPatterns(ctxForRules);
+
     // KG-Native: Merge ALL activations → expand via KG
     const mergedActivation = mergeActivations(
-      mergeActivations(failureResult.activation, expansion.activation),
-      suspicion.activation,
+      mergeActivations(
+        mergeActivations(failureResult.activation, expansion.activation),
+        suspicion.activation,
+      ),
+      patternResult.activation,
     );
 
     // Phase 6.6: SafetyNet — ensure critical domains are explored
@@ -340,6 +347,14 @@ export async function runBenchmarkPipeline(
 
     const kgExpansion = expandKG(expandedActivation);
     let allHints = kgExpansion.candidates;
+
+    // Inject pattern-detected MNM candidates (deduped)
+    for (const pc of patternResult.injected_candidates) {
+      const exists = allHints.some(h => h.diagnosis_name.toLowerCase() === pc.diagnosis_name.toLowerCase());
+      if (!exists) {
+        allHints.push(pc);
+      }
+    }
 
     // Phase 6.7: Weak Signal Diagnosis Activation
     if (isPhase6IntelligenceCoreEnabled()) {

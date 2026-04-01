@@ -78,6 +78,7 @@ import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_
 import { applyPhase7Ranking, type Phase7Result } from "@/services/reasoning/phase7_clinical_ranker";
 import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
 import { domainCoverageGuarantee } from "@/services/reasoning/domain_coverage_guarantee";
+import { recognizeClinicalPatterns } from "@/services/reasoning/pattern_recognizer";
 
 // ── Public Types ──
 
@@ -897,10 +898,25 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
+    // Phase 6.9: Pattern Recognition — multi-symptom clinical pattern detection
+    const patternResult = recognizeClinicalPatterns(ctxForRules);
+    if (patternResult.pattern_count > 0) {
+      recordOversightEvent({
+        event_type: "phase5_context_expansion" as any,
+        severity: "info",
+        stage: "pattern_recognizer",
+        message: `Pattern recognizer matched ${patternResult.pattern_count} patterns, injecting ${patternResult.injected_candidates.length} MNM candidates`,
+        metadata: { patterns: patternResult.patterns_matched.map(p => p.pattern_id) } as any,
+      });
+    }
+
     // KG-Native: Merge ALL activations → expand via KG clusters → candidate hints
     const mergedActivation = mergeActivations(
-      mergeActivations(failureResult.activation, expansion.activation),
-      suspicion.activation,
+      mergeActivations(
+        mergeActivations(failureResult.activation, expansion.activation),
+        suspicion.activation,
+      ),
+      patternResult.activation,
     );
 
     // Phase 6.6: SafetyNet — ensure critical domains are explored
@@ -923,6 +939,14 @@ export async function runUnifiedClinicalPipeline(
 
     const kgExpansion = expandKG(expandedActivation);
     let allHints = kgExpansion.candidates;
+
+    // Inject pattern-detected MNM candidates (deduped against KG results)
+    for (const pc of patternResult.injected_candidates) {
+      const exists = allHints.some(h => h.diagnosis_name.toLowerCase() === pc.diagnosis_name.toLowerCase());
+      if (!exists) {
+        allHints.push(pc);
+      }
+    }
 
     // Phase 6.7: Weak Signal Diagnosis Activation — recover missed diagnoses within active clusters
     if (isPhase6IntelligenceCoreEnabled()) {
