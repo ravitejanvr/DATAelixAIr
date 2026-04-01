@@ -32,16 +32,21 @@ export interface RecoveryResult {
   trigger_reason: string;
 }
 
-const RECOVERY_SCORE_THRESHOLD = 20;  // Top score below this triggers recovery
-const RECOVERY_CANDIDATE_THRESHOLD = 2;  // Fewer candidates than this triggers recovery
+const RECOVERY_SCORE_THRESHOLD = 25;  // Top score below this triggers recovery
+const RECOVERY_CANDIDATE_THRESHOLD = 3;  // Fewer candidates than this triggers recovery
+const RECOVERY_RELEVANCE_THRESHOLD = 0.15; // Lowered from 0.25 during recovery
 
-// MNM clusters to explore during recovery
+// MNM clusters to explore during recovery — broad coverage
 const MNM_EXPLORATION_CLUSTERS = [
   "atypical_cardiac",
   "hemodynamic_instability",
   "sepsis",
   "vascular",
   "atypical_neuro",
+  "respiratory",
+  "rare_infectious",
+  "spinal",
+  "abdominal",
 ];
 
 /**
