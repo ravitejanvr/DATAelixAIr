@@ -939,6 +939,19 @@ export async function runUnifiedClinicalPipeline(
       }
     }
 
+    // Domain Coverage Guarantee — ensure all major clinical domains represented
+    const domainCoverage = domainCoverageGuarantee(allHints);
+    allHints = domainCoverage.candidates;
+    if (domainCoverage.injected_count > 0) {
+      recordOversightEvent({
+        event_type: "phase5_context_expansion" as any,
+        severity: "info",
+        stage: "domain_coverage_guarantee",
+        message: `Domain coverage: injected ${domainCoverage.injected_count} representatives. Filled: [${domainCoverage.domains_filled.join(", ")}]`,
+        metadata: { domains_filled: domainCoverage.domains_filled, already_covered: domainCoverage.domains_already_covered } as any,
+      });
+    }
+
     if (kgExpansion.clusters_resolved.length > 0) {
       recordOversightEvent({
         event_type: "phase5_context_expansion",
