@@ -77,6 +77,7 @@ import { safetyNetActivation } from "@/services/reasoning/safety_net_activation"
 import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_activation";
 import { applyPhase7Ranking, type Phase7Result } from "@/services/reasoning/phase7_clinical_ranker";
 import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
+import { domainCoverageGuarantee } from "@/services/reasoning/domain_coverage_guarantee";
 
 // ── Public Types ──
 
