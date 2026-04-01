@@ -17,6 +17,7 @@ export interface FeatureFlags {
   enable_phase10_candidate_completeness: boolean;
   enable_phase5_context_candidates: boolean;
   enable_phase6_intelligence_core: boolean;
+  enable_phase6_safetynet: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
