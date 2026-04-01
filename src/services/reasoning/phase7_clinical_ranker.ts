@@ -34,6 +34,10 @@ export interface Phase7Input {
 export interface Phase7Adjustment {
   temporal_fit: number;
   pattern_boost: number;
+  symptom_density: number;
+  safety_weight: number;
+  domain_consistency: number;
+  generic_penalty: number;
   mismatch_penalty: number;
   competition_adjustment: number;
   epi_prior: number;
