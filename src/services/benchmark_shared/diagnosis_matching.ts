@@ -234,35 +234,15 @@ const SYNONYM_MAP: Record<string, string[]> = {
   somatizationdisorder: ["somaticsymptomdisorder", "somatization", "somatoformdisorder"],
   conversiondisorder: ["functionalneurologicaldisorder", "fnd", "functionalneurologicalsymptomdisorder"],
 
-  // ── Cardiac (expanded) ──
-  atrialfibrillation: ["af", "afib", "atrialfib"],
-  stableangina: ["anginapectoris", "chronicstableangina", "exertionalangina"],
-  pericardialeffusion: ["pericardialtamponade", "cardiactamponade", "pericardialfluid"],
-  heartfailure: ["congestiveheartfailure", "chf", "hf", "cardiacfailure"],
-
-  // ── Respiratory (expanded) ──
-  pleuraleffusion: ["pleuralfluid", "fluidonlung"],
-  vocalcorddysfunction: ["vcd", "paradoxicalvocalfoldmotion"],
-  costochondritis: ["tietzesSyndrome", "chestwalltenderness"],
-
-  // ── Neurological (expanded) ──
-  seizure: ["epilepticseizure", "convulsion", "firstseizure", "epilepsy"],
-  epilepsy: ["seizure", "seizuredisorder"],
-  statusepilepticus: ["prolongedseizure", "nonconvulsivestatusepilepticus", "ncse", "subtlestatusepilepticus"],
-  multiplesclerosis: ["ms", "demyelinating"],
+  // ── Additional expanded entries ──
+  costochondritis: ["tietzessyndrome", "chestwalltenderness"],
+  seizure: ["epilepticseizure", "convulsion", "firstseizure"],
   spinalstenosis: ["lumbarspinalstenosis", "spinalcanalnarrowing"],
 
-  // ── Abdominal (expanded) ──
-  perforatedviscus: ["perforatedduodenalulcer", "perforatedbowel", "bowelperforation", "gastrointestinalperforation"],
-  mesentericischemia: ["chronicmesentericischemia", "intestinalischemia", "acutemesentericischemia"],
-
-  // ── Other expanded ──
-  menieredisease: ["menieres", "endolymphatichydrops"],
-  nonaccidentalinjury: ["nai", "childabuse", "nonaccidentaltrauma"],
-  septicarthritis: ["infectiousarthritis", "jointinfection"],
-  prostatitis: ["acuteprostatitis", "chronicprostatitis"],
-  acutekidneyinjury: ["aki", "acuterenalfailure", "arf"],
-  lymphoma: ["hodgkinlymphoma", "nonhodgkinlymphoma", "nhl"],
+  // ── Other ──
+  feverofunknownorigin: ["fuo", "puo"],
+  anaphylaxis: ["anaphylacticshock"],
+  sinusitis: ["acutesinusitis", "rhinosinusitis"],
 };
 
 export function norm(s: string): string {
