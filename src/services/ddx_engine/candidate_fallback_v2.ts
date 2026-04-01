@@ -16,7 +16,7 @@ import type { CandidateHint } from "../context_candidate_expander";
 
 const SPARSE_THRESHOLD = 3;
 const MAX_FALLBACK_CANDIDATES = 5;
-const MAX_TOTAL_INJECTED = 8; // fallback + hints combined cap
+const MAX_TOTAL_INJECTED = 20; // Must accommodate all KG candidates (cap=18) + fallback
 
 // ── Weighted Fallback Rules ──
 
