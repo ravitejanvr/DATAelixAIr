@@ -26,7 +26,8 @@ export interface OversightEvent {
     | "recall_recovery_triggered"
     | "phase6_intelligence_core"
     | "suspicion_engine"
-    | "signal_normalization";
+    | "signal_normalization"
+    | "phase6_safetynet";
   severity: "info" | "warning" | "critical";
   stage: string;
   message: string;
