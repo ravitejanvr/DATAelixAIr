@@ -482,6 +482,32 @@ function computeCoherence(diagLower: string, symptoms: string[]): { score: numbe
   return { score, explanation };
 }
 
+// ── Tier Classification ──
+
+type RankingTier = 1 | 2 | 3;
+
+function classifyTier(
+  patternBoost: number,
+  symptomDensity: number,
+  isMNM: boolean,
+  isGeneric: boolean,
+  hasStructuredAlternative: boolean,
+  coherenceGroupsMatched: number,
+  coherenceMinGroups: number,
+): RankingTier {
+  // Tier 1: Strong pattern match + good symptom density, OR MNM with evidence
+  if (patternBoost >= 0.5) return 1;
+  if (isMNM && (symptomDensity >= 0.1 || patternBoost > 0)) return 1;
+  if (patternBoost > 0 && symptomDensity >= 0.15) return 1;
+  if (coherenceGroupsMatched >= coherenceMinGroups && coherenceGroupsMatched >= 2 && patternBoost > 0) return 1;
+
+  // Tier 3: Generic fallback when structured alternatives exist
+  if (isGeneric && hasStructuredAlternative) return 3;
+
+  // Tier 2: Everything else (partial matches, weak signals)
+  return 2;
+}
+
 // ── Main Function ──
 
 export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
@@ -503,10 +529,10 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
     }
   }
 
-  // Check if any structured (non-generic) diagnosis has a pattern match
+  // Check if any structured (non-generic) diagnosis exists
   const hasStructuredCandidate = icResult.ranked.some(c => {
     const dl = c.diagnosis.toLowerCase().trim();
-    return !GENERIC_DIAGNOSES.has(dl) && c.score > 0.15;
+    return !GENERIC_DIAGNOSES.has(dl) && c.score > 0.1;
   });
 
   const phase7Ranked: Phase7RankedDiagnosis[] = icResult.ranked.map(candidate => {
@@ -516,22 +542,22 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
     // ── STEP 1: Base normalization (use IC score as base) ──
     let adjustedScore = candidate.score;
 
-    // ── STEP 2: Temporal fit ──
+    // ── STEP 2: Temporal fit (AMPLIFIED) ──
     let temporalFit = 0;
     if (temporalWindow === "acute") {
       const chronicDx = ["tuberculosis", "lung cancer", "lymphoma", "copd", "chronic mesenteric ischemia"];
       if (chronicDx.some(c => diagLower.includes(c))) {
-        temporalFit = -0.25;
+        temporalFit = -0.5;
       }
     } else if (temporalWindow === "chronic") {
       const acuteDx = ["anaphylaxis", "pneumothorax", "testicular torsion"];
       if (acuteDx.some(a => diagLower.includes(a))) {
-        temporalFit = -0.3;
+        temporalFit = -0.6;
       }
     }
-    if (isMNM && temporalFit < -0.1) temporalFit = -0.1;
+    if (isMNM && temporalFit < -0.15) temporalFit = -0.15;
 
-    // ── STEP 3: Pattern matching ──
+    // ── STEP 3: Pattern matching (AMPLIFIED: up to +1.0) ──
     let patternBoost = 0;
     let patternLabel = "none";
     for (const pattern of CLINICAL_PATTERNS) {
@@ -539,90 +565,95 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
       if (pattern.context_filter && !pattern.context_filter(context)) continue;
       if (!pattern.matching_diagnoses.some(m => diagLower.includes(m) || m.includes(diagLower))) continue;
       const signalMatch = pattern.signal_groups.some(group => matchSignalGroup(symptoms, group));
-      if (signalMatch && pattern.boost > patternBoost) {
-        patternBoost = pattern.boost;
-        patternLabel = pattern.label;
+      if (signalMatch) {
+        // Amplify: original boost 0.25-0.35 → now ×2.85 giving 0.7-1.0
+        const amplifiedBoost = roundTo(pattern.boost * 2.85, 3);
+        if (amplifiedBoost > patternBoost) {
+          patternBoost = amplifiedBoost;
+          patternLabel = pattern.label;
+        }
       }
     }
 
-    // ── STEP 4: Symptom Density Score ──
-    // Count how many patient symptoms match this diagnosis's expected features
+    // ── STEP 4: Symptom Density Score (AMPLIFIED: up to +0.5) ──
     let symptomDensity = 0;
+    let coherenceGroupsMatched = 0;
+    let coherenceMinGroups = 1;
     const coherenceExpect = COHERENCE_EXPECTATIONS[diagLower];
     if (coherenceExpect) {
-      let groupsMet = 0;
+      coherenceMinGroups = coherenceExpect.min_groups;
       for (const group of coherenceExpect.required_any) {
-        if (hasAnySignal(symptoms, group)) groupsMet++;
+        if (hasAnySignal(symptoms, group)) coherenceGroupsMatched++;
       }
       const totalGroups = coherenceExpect.required_any.length;
-      // Density bonus scales with coverage: 0 to 0.25
-      symptomDensity = roundTo(clamp((groupsMet / Math.max(totalGroups, 1)) * 0.25, 0, 0.25), 3);
+      // Density bonus scales with coverage: 0 to 0.5
+      symptomDensity = roundTo(clamp((coherenceGroupsMatched / Math.max(totalGroups, 1)) * 0.5, 0, 0.5), 3);
     } else {
       // For diagnoses without coherence profiles, use IC symptom_match as proxy
-      symptomDensity = roundTo(clamp(candidate.reasoning.symptom_match * 0.15, 0, 0.15), 3);
+      symptomDensity = roundTo(clamp(candidate.reasoning.symptom_match * 0.25, 0, 0.25), 3);
     }
 
-    // ── STEP 5: Safety Weight (MNM priority) ──
+    // ── STEP 5: Safety Weight (MNM priority — AMPLIFIED: up to +0.8) ──
     let safetyWeight = 0;
     if (isMNM) {
-      // MNM diagnoses get a floor boost to prevent ranking too low
-      safetyWeight = 0.15;
-      // Extra boost if any supporting evidence exists
+      safetyWeight = 0.4; // Base MNM floor
       if (candidate.reasoning.symptom_match > 0.3 || patternBoost > 0) {
-        safetyWeight = 0.25;
+        safetyWeight = 0.6;
+      }
+      if (patternBoost >= 0.7) {
+        safetyWeight = 0.8; // Strong pattern + MNM = maximum safety priority
       }
     }
 
-    // ── STEP 6: Domain Consistency ──
+    // ── STEP 6: Domain Consistency (AMPLIFIED) ──
     const domain = getDiagnosisDomain(diagLower);
     let domainConsistency = 0;
     if (domain !== "other") {
       const domainCount = domainSignalCounts.get(domain) || 0;
-      // Multiple candidates in same domain = stronger signal for that domain
-      if (domainCount >= 3) domainConsistency = 0.15;
-      else if (domainCount >= 2) domainConsistency = 0.08;
+      if (domainCount >= 3) domainConsistency = 0.35;
+      else if (domainCount >= 2) domainConsistency = 0.2;
     }
 
-    // ── STEP 7: Generic Penalty ──
+    // ── STEP 7: Generic Penalty (AMPLIFIED: down to -1.0) ──
     let genericPenalty = 0;
     if (GENERIC_DIAGNOSES.has(diagLower) && hasStructuredCandidate) {
-      // Down-weight generic/vague diagnoses when structured alternatives exist
-      genericPenalty = -0.2;
-      // Stronger penalty if a pattern-matched structured diagnosis exists
+      genericPenalty = -0.5;
+      // If a pattern-matched structured diagnosis exists, max penalty
       if (icResult.ranked.some(c => {
         const cl = c.diagnosis.toLowerCase().trim();
-        return !GENERIC_DIAGNOSES.has(cl) && c.score > 0.2;
+        return !GENERIC_DIAGNOSES.has(cl) && c.score > 0.15;
       })) {
-        genericPenalty = -0.3;
+        genericPenalty = -1.0;
       }
     }
 
-    // ── STEP 8: Mismatch penalty ──
+    // ── STEP 8: Mismatch penalty (AMPLIFIED) ──
     let mismatchPenalty = 0;
     if (coherenceExpect) {
-      let groupsMet = 0;
-      for (const group of coherenceExpect.required_any) {
-        if (hasAnySignal(symptoms, group)) groupsMet++;
-      }
-      if (groupsMet === 0) {
-        mismatchPenalty = isMNM ? -0.1 : -0.3;
+      if (coherenceGroupsMatched === 0) {
+        mismatchPenalty = isMNM ? -0.15 : -0.6;
+      } else if (coherenceGroupsMatched < coherenceExpect.min_groups) {
+        mismatchPenalty = isMNM ? -0.05 : -0.3;
       }
     }
 
-    // ── STEP 9: Epidemiology prior ──
+    // ── STEP 9: Epidemiology prior (AMPLIFIED) ──
     const { band: epiBand, key: epiKey } = getEpiBand(diagLower);
     let epiAdjustment = epiBand.adjustment;
-    if (epiAdjustment < 0 && isMNM) {
-      epiAdjustment = Math.max(epiAdjustment, -0.1);
+    // Scale rare penalties more aggressively
+    if (epiAdjustment < 0) {
+      epiAdjustment *= 1.5;
+      if (isMNM) epiAdjustment = Math.max(epiAdjustment, -0.15);
+    } else {
+      epiAdjustment *= 1.3;
     }
-    epiAdjustment = epiAdjustment * clamp(adjustedScore, 0.3, 1.0);
 
-    // ── STEP 10: Clinical coherence ──
+    // ── STEP 10: Clinical coherence (AMPLIFIED) ──
     const coherence = computeCoherence(diagLower, symptoms);
-    let coherenceBonus = coherence.score;
+    let coherenceBonus = coherence.score * 2.0; // Double the coherence effect
     if (isMNM && coherenceBonus < 0) coherenceBonus = 0;
 
-    // ── FINAL: Composite Score ──
+    // ── FINAL: Composite Score (unclamped for tier separation) ──
     adjustedScore = adjustedScore
       + temporalFit
       + patternBoost
@@ -633,7 +664,22 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
       + mismatchPenalty
       + epiAdjustment
       + coherenceBonus;
-    adjustedScore = clamp(adjustedScore, 0.01, 1.0);
+
+    // Classify tier BEFORE clamping
+    const tier = classifyTier(
+      patternBoost,
+      symptomDensity,
+      isMNM,
+      GENERIC_DIAGNOSES.has(diagLower),
+      hasStructuredCandidate,
+      coherenceGroupsMatched,
+      coherenceMinGroups,
+    );
+
+    // Add tier separation: Tier 1 gets +2.0, Tier 2 gets +1.0, Tier 3 gets +0.0
+    // This ensures tiers never overlap in score space
+    const tierOffset = tier === 1 ? 2.0 : tier === 2 ? 1.0 : 0.0;
+    adjustedScore += tierOffset;
 
     return {
       ...candidate,
@@ -652,53 +698,95 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
         pattern_label: patternLabel,
         epi_band: epiBand.label,
         domain,
-        coherence_explanation: coherence.explanation,
+        coherence_explanation: `[T${tier}] ${coherence.explanation}`,
       },
       phase7_score: roundTo(adjustedScore, 4),
-    };
+    } as Phase7RankedDiagnosis & { _tier: RankingTier };
   });
 
-  // ── Competition suppression (post-sort) ──
+  // ── Sort: Tier first, then score within tier ──
   phase7Ranked.sort((a, b) => b.phase7_score - a.phase7_score);
 
-  const domainBest = new Map<string, number>();
-  for (const c of phase7Ranked) {
-    const domain = c.phase7.domain;
-    if (domain === "other") continue;
-    const current = domainBest.get(domain);
-    if (!current || c.phase7_score > current) {
-      domainBest.set(domain, c.phase7_score);
+  // ── Hard Ranking Rules (post-sort enforcement) ──
+
+  // Rule 1: MNM cannot fall below Top-5
+  const mnmOutsideTop5 = phase7Ranked
+    .map((c, i) => ({ c, i }))
+    .filter(({ c, i }) => {
+      const dl = c.diagnosis.toLowerCase().trim();
+      return i >= 5 && (c.reasoning.mnm_flag || MNM_SAFETY_SET.has(dl));
+    })
+    .filter(({ c }) => {
+      // Only enforce if there's some symptom evidence
+      return c.reasoning.symptom_match > 0.2 || c.phase7.pattern_boost > 0 || c.phase7.safety_weight > 0;
+    });
+
+  for (const { c: mnmCandidate } of mnmOutsideTop5) {
+    // Find lowest-ranked non-MNM in top-5 and swap
+    for (let i = 4; i >= 0; i--) {
+      const occupant = phase7Ranked[i];
+      const occLower = occupant.diagnosis.toLowerCase().trim();
+      if (!occupant.reasoning.mnm_flag && !MNM_SAFETY_SET.has(occLower)) {
+        // Boost MNM above occupant
+        const boost = occupant.phase7_score - mnmCandidate.phase7_score + 0.05;
+        mnmCandidate.phase7.competition_adjustment = roundTo(boost, 3);
+        mnmCandidate.phase7_score = roundTo(mnmCandidate.phase7_score + boost, 4);
+        break;
+      }
     }
   }
 
-  // Structured vs generic competition: if top candidate is generic, swap with best structured
-  const topDx = phase7Ranked[0];
-  if (topDx && GENERIC_DIAGNOSES.has(topDx.diagnosis.toLowerCase().trim())) {
+  // Rule 2: Generic CANNOT be Top-1 if structured exists
+  phase7Ranked.sort((a, b) => b.phase7_score - a.phase7_score);
+  const top = phase7Ranked[0];
+  if (top && GENERIC_DIAGNOSES.has(top.diagnosis.toLowerCase().trim())) {
     const bestStructured = phase7Ranked.find(c =>
-      !GENERIC_DIAGNOSES.has(c.diagnosis.toLowerCase().trim()) && c.phase7_score > 0.15
+      !GENERIC_DIAGNOSES.has(c.diagnosis.toLowerCase().trim())
     );
     if (bestStructured) {
-      // Boost the structured one above the generic
-      const boost = topDx.phase7_score - bestStructured.phase7_score + 0.05;
-      bestStructured.phase7.competition_adjustment = roundTo(boost, 3);
-      bestStructured.phase7_score = roundTo(clamp(bestStructured.phase7_score + boost, 0.01, 1.0), 4);
+      const boost = top.phase7_score - bestStructured.phase7_score + 0.1;
+      bestStructured.phase7.competition_adjustment = roundTo(
+        bestStructured.phase7.competition_adjustment + boost, 3
+      );
+      bestStructured.phase7_score = roundTo(bestStructured.phase7_score + boost, 4);
+    }
+  }
+
+  // ── Domain competition suppression (stronger) ──
+  phase7Ranked.sort((a, b) => b.phase7_score - a.phase7_score);
+  const domainBest = new Map<string, number>();
+  for (const c of phase7Ranked) {
+    const d = c.phase7.domain;
+    if (d === "other") continue;
+    const current = domainBest.get(d);
+    if (!current || c.phase7_score > current) {
+      domainBest.set(d, c.phase7_score);
     }
   }
 
   for (const c of phase7Ranked) {
-    const domain = c.phase7.domain;
-    if (domain === "other") continue;
-    const bestInDomain = domainBest.get(domain) ?? 0;
-    if (c.phase7_score < bestInDomain && !c.reasoning.mnm_flag && !MNM_SAFETY_SET.has(c.diagnosis.toLowerCase().trim())) {
+    const d = c.phase7.domain;
+    if (d === "other") continue;
+    const bestInDomain = domainBest.get(d) ?? 0;
+    const dl = c.diagnosis.toLowerCase().trim();
+    if (c.phase7_score < bestInDomain && !c.reasoning.mnm_flag && !MNM_SAFETY_SET.has(dl)) {
       const gap = bestInDomain - c.phase7_score;
-      const suppression = -clamp(gap * 0.3, 0, 0.15);
+      const suppression = -clamp(gap * 0.5, 0, 0.3);
       c.phase7.competition_adjustment = roundTo(c.phase7.competition_adjustment + suppression, 3);
-      c.phase7_score = roundTo(clamp(c.phase7_score + suppression, 0.01, 1.0), 4);
+      c.phase7_score = roundTo(c.phase7_score + suppression, 4);
     }
   }
 
   // Final sort
   phase7Ranked.sort((a, b) => b.phase7_score - a.phase7_score);
+
+  // Normalize scores back to 0-1 range for display (preserve ordering)
+  const maxScore = phase7Ranked[0]?.phase7_score ?? 1;
+  if (maxScore > 1) {
+    for (const c of phase7Ranked) {
+      c.phase7_score = roundTo(clamp(c.phase7_score / maxScore, 0.01, 1.0), 4);
+    }
+  }
 
   // Detect reordering
   const newOrder = phase7Ranked.map(r => r.diagnosis);
@@ -730,6 +818,7 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
           ic_score: c.score,
           p7_score: c.phase7_score,
           pattern: c.phase7.pattern_label,
+          tier: c.phase7.coherence_explanation.match(/\[T(\d)\]/)?.[1] || "?",
           epi: c.phase7.epi_band,
         })),
       } as any,
