@@ -557,6 +557,7 @@ export default function CockpitPlayground() {
     setPipelineComplete(false); setPipelineRunning(false);
     setPipelineHypotheses([]); setPipelineEvidence(null); setPipelineCompliance(null);
     setPipelinePhysiology(null); setPipelineBayesian(null); setPipelineDDX(null); setSafetyResults(null);
+    setRenderSource("none");
     setSelectedDiagnoses([]); setSelectedTests([]); setSelectedInstructions([]);
     setSelectedMonitoring([]); setPendingRx([]); setSelectedScenario(""); setSnapshots([]); setShowComparison(false);
     setPipelineStage(null); setStageLatencies({}); setEditingCategory(null);
