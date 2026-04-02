@@ -18,7 +18,7 @@
  *   Wave 5 — Output Generation (Uncertainty, Hybrid Reasoning, SOAP)
  */
 
-import { isNewPipelineEnabled } from "@/services/feature_flags";
+import { isNewPipelineEnabled, isPhase6IntelligenceCoreEnabled } from "@/services/feature_flags";
 import { withStageLogging, clearPipelineLogs, getPipelineLogs } from "@/services/pipeline_logger";
 import {
   buildEnrichedContext,
@@ -66,9 +66,19 @@ import { applyCandidateFallback, type FallbackMeta } from "@/services/ddx_engine
 import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_engine/candidate_fallback_v2";
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
-import { mergeActivations, expandKG } from "@/services/kg";
+import { mergeActivations, expandKG, expandKGDeep } from "@/services/kg";
 import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
+import { rankCandidates, type IntelligenceCoreResult } from "@/services/reasoning/intelligence_core";
+import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/recall_recovery";
+import { normalizeSignals } from "@/services/signal_normalizer";
+import { generateSuspicionSignals } from "@/services/suspicion_engine";
+import { safetyNetActivation } from "@/services/reasoning/safety_net_activation";
+import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_activation";
+import { applyPhase7Ranking, type Phase7Result } from "@/services/reasoning/phase7_clinical_ranker";
+import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
+import { domainCoverageGuarantee } from "@/services/reasoning/domain_coverage_guarantee";
+import { recognizeClinicalPatterns } from "@/services/reasoning/pattern_recognizer";
 
 // ── Public Types ──
 
@@ -846,10 +856,14 @@ export async function runUnifiedClinicalPipeline(
     ddxResult = applyOrganSystemWeighting(ddxResult, dominantSystem);
   }
 
+  // ── Phase 6.3: Signal Normalization (BEFORE rules) ──
+  const normalizedCtx = normalizeSignals(ctx);
+  const ctxForRules = normalizedCtx.enriched;
+
   // ── Phase 5: KG-Native Context-Assisted Candidate Generation ──
   if (isPhase5ContextCandidatesEnabled()) {
-    // Phase 5.1-5.2: Failure-derived rules → cluster activations
-    const failureResult = applyFailureDerivedRules(ctx);
+    // Phase 5.1-5.2: Failure-derived rules → cluster activations (uses normalized ctx)
+    const failureResult = applyFailureDerivedRules(ctxForRules);
     if (failureResult.rules_fired.length > 0) {
       recordOversightEvent({
         event_type: "phase5_context_expansion",
@@ -860,8 +874,8 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
-    // Phase 5.0: Context expander → cluster activations
-    const expansion = expandCandidatesFromContext(ctx);
+    // Phase 5.0: Context expander → cluster activations (uses normalized ctx)
+    const expansion = expandCandidatesFromContext(ctxForRules);
     if (expansion.expansion_trace.length > 0) {
       recordOversightEvent({
         event_type: "phase5_context_expansion",
@@ -872,10 +886,95 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
-    // KG-Native: Merge activations → expand via KG clusters → candidate hints
-    const mergedActivation = mergeActivations(failureResult.activation, expansion.activation);
-    const kgExpansion = expandKG(mergedActivation);
-    const allHints = kgExpansion.candidates;
+    // Phase 6.2: Suspicion Engine → additional cluster activations (uses normalized ctx)
+    const suspicion = generateSuspicionSignals(ctxForRules);
+    if (suspicion.signal_count > 0) {
+      recordOversightEvent({
+        event_type: "suspicion_engine",
+        severity: "info",
+        stage: "suspicion_engine",
+        message: `Suspicion engine generated ${suspicion.signal_count} signals: [${suspicion.signals.map(s => `${s.type}:${s.cluster}`).join(", ")}]`,
+        metadata: { signals: suspicion.signals } as any,
+      });
+    }
+
+    // Phase 6.9: Pattern Recognition — multi-symptom clinical pattern detection
+    const patternResult = recognizeClinicalPatterns(ctxForRules);
+    if (patternResult.pattern_count > 0) {
+      recordOversightEvent({
+        event_type: "phase5_context_expansion" as any,
+        severity: "info",
+        stage: "pattern_recognizer",
+        message: `Pattern recognizer matched ${patternResult.pattern_count} patterns, injecting ${patternResult.injected_candidates.length} MNM candidates`,
+        metadata: { patterns: patternResult.patterns_matched.map(p => p.pattern_id) } as any,
+      });
+    }
+
+    // KG-Native: Merge ALL activations → expand via KG clusters → candidate hints
+    const mergedActivation = mergeActivations(
+      mergeActivations(
+        mergeActivations(failureResult.activation, expansion.activation),
+        suspicion.activation,
+      ),
+      patternResult.activation,
+    );
+
+    // Phase 6.6: SafetyNet — ensure critical domains are explored
+    const safetyNet = safetyNetActivation(ctx, mergedActivation);
+    const postSafetyNetActivation = safetyNet.activation;
+    if (safetyNet.safetynet_count > 0) {
+      recordOversightEvent({
+        event_type: "phase6_safetynet",
+        severity: "info",
+        stage: "safety_net_activation",
+        message: `SafetyNet activated ${safetyNet.safetynet_count} domain(s): [${safetyNet.activated_domains.join(", ")}]`,
+        metadata: { reasons: safetyNet.activation_reasons, domains: safetyNet.activated_domains } as any,
+      });
+    }
+
+    // Phase 6: Deep KG traversal (multi-hop) if Intelligence Core enabled
+    const expandedActivation = isPhase6IntelligenceCoreEnabled()
+      ? expandKGDeep(postSafetyNetActivation, 2, 0.5)
+      : postSafetyNetActivation;
+
+    const kgExpansion = expandKG(expandedActivation);
+    let allHints = kgExpansion.candidates;
+
+    // Inject pattern-detected MNM candidates (deduped against KG results)
+    for (const pc of patternResult.injected_candidates) {
+      const exists = allHints.some(h => h.diagnosis_name.toLowerCase() === pc.diagnosis_name.toLowerCase());
+      if (!exists) {
+        allHints.push(pc);
+      }
+    }
+
+    // Phase 6.7: Weak Signal Diagnosis Activation — recover missed diagnoses within active clusters
+    if (isPhase6IntelligenceCoreEnabled()) {
+      const wsaResult = weakSignalDiagnosisActivation(ctx, allHints, expandedActivation);
+      allHints = wsaResult.candidates;
+      if (wsaResult.boosts_applied.length > 0) {
+        recordOversightEvent({
+          event_type: "phase6_safetynet" as any,
+          severity: "info",
+          stage: "weak_signal_activation",
+          message: `Phase 6.7: ${wsaResult.boosts_applied.length} weak signal boosts (${wsaResult.total_scanned} scanned)`,
+          metadata: { boosts: wsaResult.boosts_applied } as any,
+        });
+      }
+    }
+
+    // Domain Coverage Guarantee — ensure all major clinical domains represented
+    const domainCoverage = domainCoverageGuarantee(allHints);
+    allHints = domainCoverage.candidates;
+    if (domainCoverage.injected_count > 0) {
+      recordOversightEvent({
+        event_type: "phase5_context_expansion" as any,
+        severity: "info",
+        stage: "domain_coverage_guarantee",
+        message: `Domain coverage: injected ${domainCoverage.injected_count} representatives. Filled: [${domainCoverage.domains_filled.join(", ")}]`,
+        metadata: { domains_filled: domainCoverage.domains_filled, already_covered: domainCoverage.domains_already_covered } as any,
+      });
+    }
 
     if (kgExpansion.clusters_resolved.length > 0) {
       recordOversightEvent({
@@ -885,6 +984,62 @@ export async function runUnifiedClinicalPipeline(
         message: `KG expanded ${kgExpansion.clusters_resolved.length} clusters → ${allHints.length} candidates`,
         metadata: { clusters: kgExpansion.clusters_resolved, detail: kgExpansion.expansion_detail } as any,
       });
+    }
+
+    // Phase 6: Intelligence Core ranking (pre-DDX candidate scoring)
+    let intelligenceCoreResult: IntelligenceCoreResult | null = null;
+    if (isPhase6IntelligenceCoreEnabled() && allHints.length > 0) {
+      intelligenceCoreResult = rankCandidates({
+        context: ctx,
+        candidates: allHints,
+        activation: expandedActivation,
+      });
+
+      // Recall Recovery: if Intelligence Core yields low confidence, expand deeper
+      if (shouldTriggerRecovery(intelligenceCoreResult.candidate_count, intelligenceCoreResult.top_score * 100)) {
+        const recovery = runRecallRecovery({
+          activation: expandedActivation,
+          symptoms,
+          current_candidate_count: intelligenceCoreResult.candidate_count,
+          top_score: intelligenceCoreResult.top_score * 100,
+        });
+        // Re-rank with recovery candidates merged
+        const recoveryHints = [...allHints, ...recovery.additional_candidates];
+        intelligenceCoreResult = rankCandidates({
+          context: ctx,
+          candidates: recoveryHints,
+          activation: expandedActivation,
+        });
+        recordOversightEvent({
+          event_type: "recall_recovery_triggered",
+          severity: "warning",
+          stage: "intelligence_core",
+          message: `Recovery mode: ${recovery.trigger_reason}. Added ${recovery.additional_candidates.length} candidates from ${recovery.clusters_explored.length} clusters`,
+          metadata: { recovery } as any,
+        });
+      }
+
+      recordOversightEvent({
+        event_type: "phase6_intelligence_core",
+        severity: "info",
+        stage: "intelligence_core",
+        message: `Ranked ${intelligenceCoreResult.candidate_count} candidates in ${intelligenceCoreResult.execution_ms}ms. Top: ${intelligenceCoreResult.ranked[0]?.diagnosis || "none"} (${intelligenceCoreResult.top_score})`,
+        metadata: { top_5: intelligenceCoreResult.ranked.slice(0, 5).map(r => ({ diagnosis: r.diagnosis, score: r.score })) } as any,
+      });
+    }
+
+    // Phase 7: Clinical Intelligence Ranking (pattern matching, epi priors, competition)
+    if (isPhase7ClinicalRankerEnabled() && intelligenceCoreResult && intelligenceCoreResult.candidate_count > 0) {
+      const phase7 = applyPhase7Ranking({ icResult: intelligenceCoreResult, context: ctx });
+      if (phase7.phase7_reordered) {
+        recordOversightEvent({
+          event_type: "phase6_intelligence_core" as any,
+          severity: "info",
+          stage: "phase7_ranking",
+          message: `Phase 7: ${phase7.reorder_summary} (${phase7.execution_ms}ms)`,
+          metadata: { top3: phase7.ranked.slice(0, 3).map(r => ({ dx: r.diagnosis, p7: r.phase7_score, pattern: r.phase7.pattern_label })) } as any,
+        });
+      }
     }
 
     // Use fallback v2 with KG-resolved hints
@@ -918,6 +1073,46 @@ export async function runUnifiedClinicalPipeline(
         metadata: fallbackMeta as any,
       });
     }
+  }
+
+  // ── Vitals-Aware MNM Score Protection ──
+  // Ensure MNM diagnoses with supporting vitals signals are not under-scored
+  if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const temp = vitals.temperature ?? 0;
+    const hr = vitals.pulse ?? 0;
+    const rr = ctx.respiratory_rate ?? 0;
+    const sbp = vitals.bp_systolic ?? 999;
+    const spo2Val = vitals.spo2 ?? 100;
+    const riskFactorsLower = (ctx.risk_factors || []).map(r => r.toLowerCase());
+
+    ddxResult = {
+      ...ddxResult,
+      differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
+        const dxLower = d.diagnosis_name.toLowerCase().trim();
+
+        // Sepsis vitals-based boost (SIRS criteria: temp ≥102, HR ≥100, RR ≥22, SBP ≤100)
+        if (dxLower === "sepsis" || dxLower.includes("sepsis")) {
+          let vitalBoost = 0;
+          if (temp >= 102) vitalBoost += 5;
+          if (hr >= 100) vitalBoost += 4;
+          if (rr >= 22) vitalBoost += 3;
+          if (sbp <= 100) vitalBoost += 4;
+          if (spo2Val <= 94) vitalBoost += 3;
+          if (riskFactorsLower.some(r => r.includes("diabet"))) vitalBoost += 3;
+
+          if (vitalBoost > 0) {
+            const boostedProb = Math.min(d.probability + vitalBoost, 60);
+            console.log(
+              `[Pipeline] MNM-Vitals: Sepsis boosted ${d.probability}% → ${boostedProb}% ` +
+              `(vitals: T=${temp}, HR=${hr}, RR=${rr}, SBP=${sbp}, SpO2=${spo2Val})`
+            );
+            return { ...d, probability: boostedProb, must_not_miss: true };
+          }
+        }
+
+        return d;
+      }),
+    };
   }
 
   waveLat.wave2_analysis = Math.round(performance.now() - w2Start);
@@ -1013,6 +1208,7 @@ export async function runUnifiedClinicalPipeline(
           `(${hypothesisTestResult.execution_ms}ms)`,
         );
         // Update DDX probabilities with evidence-adjusted values
+        // GUARD: hypothesis layer refines scores, never recomputes from scratch
         if (hypothesisTestResult.tested_hypotheses.length > 0) {
           const adjustedMap = new Map(
             hypothesisTestResult.tested_hypotheses.map(h => [h.diagnosis_id, h]),
@@ -1022,10 +1218,16 @@ export async function runUnifiedClinicalPipeline(
             differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
               const tested = adjustedMap.get(d.diagnosis_id);
               if (tested) {
-                return {
-                  ...d,
-                  probability: tested.adjusted_probability,
-                };
+                const prevScore = d.probability;
+                const newScore = tested.adjusted_probability;
+                // INVARIANT: reject if hypothesis layer dropped score > 30%
+                if (newScore < prevScore * 0.7) {
+                  console.warn(
+                    `[Pipeline] Hypothesis guard: ${d.diagnosis_name} score drop blocked (${prevScore}→${newScore}). Keeping ${Math.round(prevScore * 0.7)}.`
+                  );
+                  return { ...d, probability: Math.round(prevScore * 0.7) };
+                }
+                return { ...d, probability: newScore };
               }
               return d;
             }).sort((a, b) => b.probability - a.probability),
@@ -1183,28 +1385,40 @@ export async function runUnifiedClinicalPipeline(
       const t0 = performance.now();
       try {
         const result = await withRetry(
-          () => calculateDiagnosticProbabilities({
-            candidate_diagnosis_ids: candidateIds,
-            symptoms,
-            physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
-            risk_factors: ctx.risk_factors || [],
-            medical_history: ctx.medical_history || [],
-            patient_age: ctx.patient_age,
-            patient_sex: ctx.patient_sex,
-            region: "south_asia",
-            vitals: {
-              temperature: vitals.temperature,
-              spo2: vitals.spo2,
-              pulse: vitals.pulse,
-              bp_systolic: vitals.bp_systolic,
-              bp_diastolic: vitals.bp_diastolic,
-              respiratory_rate: vitals.respiratory_rate,
-            },
-            duration: ctx.symptom_duration || null,
-            onset_pattern: ctx.onset_pattern || null,
-            severity: ctx.severity || null,
-            body_location: ctx.body_location || null,
-          }),
+          () => {
+            // Build DDX priors map: pass DDX-computed probabilities as informed priors
+            const ddxPriors: Record<string, number> = {};
+            if (ddxResult?.differential_diagnoses) {
+              for (const d of ddxResult.differential_diagnoses) {
+                if (d.diagnosis_id) {
+                  ddxPriors[d.diagnosis_id] = d.probability / 100; // Convert % → 0-1
+                }
+              }
+            }
+            return calculateDiagnosticProbabilities({
+              candidate_diagnosis_ids: candidateIds,
+              symptoms,
+              physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
+              risk_factors: ctx.risk_factors || [],
+              medical_history: ctx.medical_history || [],
+              patient_age: ctx.patient_age,
+              patient_sex: ctx.patient_sex,
+              region: "south_asia",
+              vitals: {
+                temperature: vitals.temperature,
+                spo2: vitals.spo2,
+                pulse: vitals.pulse,
+                bp_systolic: vitals.bp_systolic,
+                bp_diastolic: vitals.bp_diastolic,
+                respiratory_rate: vitals.respiratory_rate,
+              },
+              duration: ctx.symptom_duration || null,
+              onset_pattern: ctx.onset_pattern || null,
+              severity: ctx.severity || null,
+              body_location: ctx.body_location || null,
+              ddx_priors: ddxPriors,
+            });
+          },
           TIMEOUT.BAYESIAN,
           "bayesian_engine",
         );
@@ -1356,6 +1570,7 @@ export async function runUnifiedClinicalPipeline(
   ]);
 
   const hypotheses = hypothesesRaw;
+  let finalBayesianResult = bayesianResult;
 
   waveLat.wave3_reasoning = Math.round(performance.now() - w3Start);
   lineageTracker.recordEngineResult("bayesian", !!bayesianResult);
@@ -1376,12 +1591,12 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
   // ═══════════════════════════════════════════════════════
-  // WAVE 3.5 — Cognitive Controller Pruning + Conflict Resolution
-  // The cognitive controller now runs INLINE to influence final diagnoses.
+  // WAVE 3.5 — Cognitive Controller Review + Conflict Resolution
+  // The cognitive controller is advisory only and never removes diagnoses.
   // ═══════════════════════════════════════════════════════
   let conflictResult: ConflictResolution | null = null;
 
-  // Run cognitive controller on DDX candidates to prune and plan evidence
+  // Run cognitive controller on DDX candidates to flag low-confidence items and plan evidence
   if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
     const cogStart = performance.now();
     const { runCognitiveController } = await import("@/services/cognitive/clinical_cognitive_controller");
@@ -1396,36 +1611,28 @@ export async function runUnifiedClinicalPipeline(
       ddxResult.recommended_labs?.map(l => l.test_name) || [],
     );
 
-    // Apply pruning: remove candidates the cognitive controller marked for pruning
-    const prunedByController = cogOutput.hypothesis_evaluation
-      .filter(h => h.action === "prune")
-      .map(h => h.hypothesis.toLowerCase());
+    // HIGH-RECALL: Cognitive controller is advisory only — no candidates are removed
+    // Candidates are flagged but preserved for ranking and final truncation
+    const flaggedByController = cogOutput.hypothesis_evaluation
+      .filter(h => h.reason.includes("flagged low_confidence"))
+      .map(h => h.hypothesis);
     
-    if (prunedByController.length > 0) {
-      const beforeCount = ddxResult.differential_diagnoses.length;
-      ddxResult = {
-        ...ddxResult,
-        differential_diagnoses: ddxResult.differential_diagnoses.filter(
-          d => !prunedByController.includes(d.diagnosis_name.toLowerCase())
-        ),
-      };
-      const afterCount = ddxResult.differential_diagnoses.length;
+    if (flaggedByController.length > 0) {
       console.log(
-        `[Pipeline] Wave 3.5: Cognitive controller pruned ${beforeCount - afterCount} candidates ` +
-        `(${beforeCount} → ${afterCount}), prune rate: ${Math.round(((beforeCount - afterCount) / beforeCount) * 100)}%`
+        `[Pipeline] Wave 3.5: Cognitive controller flagged ${flaggedByController.length} candidates as low_confidence (preserved)`
       );
       recordOversightEvent({
         event_type: "cognitive_pruning",
         severity: "info",
         stage: "cognitive_controller",
-        message: `Pruned ${beforeCount - afterCount} low-value hypotheses (${prunedByController.join(", ")})`,
-        metadata: { pruned: prunedByController, before: beforeCount, after: afterCount },
+        message: `Flagged ${flaggedByController.length} low-confidence hypotheses (preserved): ${flaggedByController.join(", ")}`,
+        metadata: { flagged: flaggedByController, total: ddxResult.differential_diagnoses.length },
       });
     }
     lat.cognitive_controller = Math.round(performance.now() - cogStart);
     pcieCore.addReasoningTrace(
       "cognitive_controller" as any,
-      `Cognitive: pruned ${prunedByController.length}, strategy=${cogOutput.evidence_strategy.strategy_type}, quality=${cogOutput.reasoning_evaluation.quality_score}`,
+      `Cognitive: flagged ${flaggedByController.length}, strategy=${cogOutput.evidence_strategy.strategy_type}, quality=${cogOutput.reasoning_evaluation.quality_score}`,
     );
   }
 
@@ -1453,14 +1660,14 @@ export async function runUnifiedClinicalPipeline(
   // ═══════════════════════════════════════════════════════
   // WAVE 3.6 — Bounded Diagnostic Loop (max 1 refinement iteration)
   //
-  // If diagnostic confidence is weak after Wave 3.5, prune low-probability
-  // candidates and re-run Hypothesis Testing → Bayesian to sharpen the DDX.
+  // If diagnostic confidence is weak after Wave 3.5, flag low-confidence
+  // candidates and re-run Hypothesis Testing → Bayesian without deleting any diagnosis.
   // ═══════════════════════════════════════════════════════
   let diagnosticLoopExecuted = false;
   let diagnosticLoopReason = "";
   const LOOP_TOP_PROBABILITY_THRESHOLD = 45; // trigger if top DDX < 45%
   const LOOP_SPREAD_THRESHOLD = 10; // trigger if gap between #1 and #2 < 10%
-  const LOOP_PRUNE_THRESHOLD = 15; // drop candidates below 15%
+  const LOOP_LOW_CONFIDENCE_THRESHOLD = 15; // flag candidates below 15%, never prune
 
   if (ddxResult && ddxResult.differential_diagnoses.length >= 2) {
     const topProb = ddxResult.differential_diagnoses[0].probability;
@@ -1480,71 +1687,119 @@ export async function runUnifiedClinicalPipeline(
 
       console.log(
         `[Pipeline] Wave 3.6: Diagnostic loop triggered — ${diagnosticLoopReason}. ` +
-        `Pruning candidates below ${LOOP_PRUNE_THRESHOLD}% and re-running reasoning.`
+        `Flagging candidates below ${LOOP_LOW_CONFIDENCE_THRESHOLD}% for review and re-running reasoning without pruning.`
       );
 
-      // Prune weak candidates (keep must-not-miss regardless)
-      const prunedDiagnoses = ddxResult.differential_diagnoses.filter(
-        d => d.probability >= LOOP_PRUNE_THRESHOLD || d.must_not_miss,
+      const loopDiagnoses = ddxResult.differential_diagnoses;
+      const flaggedForLoop = loopDiagnoses
+        .filter(d => d.probability < LOOP_LOW_CONFIDENCE_THRESHOLD && !d.must_not_miss)
+        .map(d => d.diagnosis_name);
+      const loopIds = loopDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
+      const loopPriors: Record<string, number> = {};
+
+      if (finalBayesianResult?.diagnoses?.length) {
+        for (const d of finalBayesianResult.diagnoses) {
+          if (d.diagnosis_id) loopPriors[d.diagnosis_id] = d.posterior_probability;
+        }
+      } else {
+        for (const d of loopDiagnoses) {
+          if (d.diagnosis_id) loopPriors[d.diagnosis_id] = d.probability / 100;
+        }
+      }
+
+      const loopState = {
+        candidates: loopDiagnoses,
+        scores: finalBayesianResult,
+        ddx_priors: loopPriors,
+        hypothesis_adjustments: hypothesisTestResult?.tested_hypotheses ?? [],
+        mnm_flags: new Map(loopDiagnoses.map(d => [d.diagnosis_id, d.must_not_miss] as const)),
+      };
+
+      const hasNewEvidence = false;
+      const hasNewCandidates = loopIds.some(id => loopState.ddx_priors[id] === undefined);
+      const hasLoopChanges = hasNewEvidence || hasNewCandidates;
+
+      console.log(
+        `[Pipeline] Wave 3.6: Flagged ${flaggedForLoop.length} low-confidence candidates for review; ` +
+        `preserving all ${loopDiagnoses.length} diagnoses.`
       );
-      const prunedCount = ddxResult.differential_diagnoses.length - prunedDiagnoses.length;
-      console.log(`[Pipeline] Wave 3.6: Pruned ${prunedCount} weak candidates, ${prunedDiagnoses.length} remaining.`);
 
-      // Re-run Hypothesis Testing with pruned set (guard: skip if empty)
-      const [loopHypoTest, loopBayesian] = await Promise.all([
-        (async (): Promise<HypothesisTestResult | null> => {
-          if (prunedDiagnoses.length === 0) return null;
-          try {
-            return await withTimeout(
-              testHypotheses({
-                candidate_diagnoses: prunedDiagnoses.map((d, i) => ({
-                  diagnosis_id: d.diagnosis_id || `fallback-loop-${i}-${d.diagnosis_name?.replace(/\s+/g, '-').toLowerCase()}`,
-                  diagnosis_name: d.diagnosis_name,
-                  icd10_code: d.icd10_code || null,
-                  probability: d.probability || 0,
-                  must_not_miss: d.must_not_miss || false,
-                })),
-                patient_symptoms: symptoms,
-                patient_age: ctx.patient_age,
-                patient_sex: ctx.patient_sex,
-                allergies: ctx.allergies,
-                current_medications: ctx.current_medications,
-              }),
-              TIMEOUT.HYPOTHESIS_TESTING,
-              "hypothesis_testing_loop",
-            );
-          } catch {
-            return null;
-          }
-        })(),
+      if (flaggedForLoop.length > 0) {
+        recordOversightEvent({
+          event_type: "diagnostic_loop_review" as any,
+          severity: "info",
+          stage: "diagnostic_loop",
+          message: `Flagged ${flaggedForLoop.length} low-confidence candidates for loop review (preserved): ${flaggedForLoop.join(", ")}`,
+          metadata: {
+            flagged: flaggedForLoop,
+            preserved: true,
+            low_confidence_threshold: LOOP_LOW_CONFIDENCE_THRESHOLD,
+          } as any,
+        });
+      }
 
-        // Re-run Bayesian with pruned candidates
-        (async (): Promise<BayesianResult | null> => {
-          const prunedIds = prunedDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
-          if (prunedIds.length === 0) return null;
-          try {
-            return await withTimeout(
-              calculateDiagnosticProbabilities({
-                symptoms,
-                candidate_diagnosis_ids: prunedIds,
-                patient_age: ctx.patient_age ?? undefined,
-                patient_sex: ctx.patient_sex ?? undefined,
-                risk_factors: ctx.risk_factors || [],
-                medical_history: ctx.medical_history || [],
-                region: "south_asia",
-                vitals,
-                duration: ctx.symptom_duration || null,
-              }),
-              TIMEOUT.BAYESIAN,
-              "bayesian_loop",
-            );
-          } catch {
-            return null;
-          }
-        })(),
-      ]);
+      let loopHypoTest: HypothesisTestResult | null = null;
+      let loopBayesian: BayesianResult | null = null;
 
-      // Apply loop hypothesis testing adjustments
+      if (!hasLoopChanges) {
+        console.log(
+          `[Pipeline] Wave 3.6: Loop skip — no new evidence/candidates. Preserving Wave 3 state.`
+        );
+      } else {
+        [loopHypoTest, loopBayesian] = await Promise.all([
+          (async (): Promise<HypothesisTestResult | null> => {
+            if (loopState.candidates.length === 0) return null;
+            try {
+              return await withTimeout(
+                testHypotheses({
+                  candidate_diagnoses: loopState.candidates.map((d, i) => ({
+                    diagnosis_id: d.diagnosis_id || `fallback-loop-${i}-${d.diagnosis_name?.replace(/\s+/g, '-').toLowerCase()}`,
+                    diagnosis_name: d.diagnosis_name,
+                    icd10_code: d.icd10_code || null,
+                    probability: d.probability || 0,
+                    must_not_miss: d.must_not_miss || false,
+                  })),
+                  patient_symptoms: symptoms,
+                  patient_age: ctx.patient_age,
+                  patient_sex: ctx.patient_sex,
+                  allergies: ctx.allergies,
+                  current_medications: ctx.current_medications,
+                }),
+                TIMEOUT.HYPOTHESIS_TESTING,
+                "hypothesis_testing_loop",
+              );
+            } catch {
+              return null;
+            }
+          })(),
+
+          (async (): Promise<BayesianResult | null> => {
+            if (loopIds.length === 0) return null;
+            console.log(`[Pipeline] Wave 3.6 Bayesian: uses_ddx_prior=${Object.keys(loopState.ddx_priors).length > 0}, candidates=${loopIds.length}`);
+            try {
+              return await withTimeout(
+                calculateDiagnosticProbabilities({
+                  symptoms,
+                  candidate_diagnosis_ids: loopIds,
+                  patient_age: ctx.patient_age ?? undefined,
+                  patient_sex: ctx.patient_sex ?? undefined,
+                  risk_factors: ctx.risk_factors || [],
+                  medical_history: ctx.medical_history || [],
+                  region: "south_asia",
+                  vitals,
+                  duration: ctx.symptom_duration || null,
+                  ddx_priors: Object.keys(loopState.ddx_priors).length > 0 ? loopState.ddx_priors : undefined,
+                }),
+                TIMEOUT.BAYESIAN,
+                "bayesian_loop",
+              );
+            } catch {
+              return null;
+            }
+          })(),
+        ]);
+      }
+
       if (loopHypoTest && loopHypoTest.tested_hypotheses.length > 0) {
         hypothesisTestResult = loopHypoTest;
         const adjustedMap = new Map(
@@ -1552,9 +1807,33 @@ export async function runUnifiedClinicalPipeline(
         );
         ddxResult = {
           ...ddxResult,
-          differential_diagnoses: prunedDiagnoses.map(d => {
+          differential_diagnoses: loopState.candidates.map(d => {
             const tested = adjustedMap.get(d.diagnosis_id);
-            return tested ? { ...d, probability: tested.adjusted_probability } : d;
+            if (!tested) return d;
+
+            const prevScore = d.probability;
+            const nextScore = tested.adjusted_probability;
+            const protectedScore = !hasNewEvidence && nextScore < prevScore
+              ? prevScore
+              : nextScore;
+
+            if (!hasNewEvidence && nextScore < prevScore * 0.8) {
+              console.warn(
+                `[Pipeline] Wave 3.6 invariant: blocked >20% hypothesis drop for ${d.diagnosis_name} (${prevScore}→${nextScore}).`
+              );
+            }
+
+            console.log(JSON.stringify({
+              stage: "Wave 3.6 loop",
+              engine: "hypothesis",
+              diagnosis_id: d.diagnosis_id,
+              used_priors: Object.keys(loopState.ddx_priors).length > 0,
+              score_before: prevScore,
+              score_after: protectedScore,
+              new_evidence: hasNewEvidence,
+            }));
+
+            return { ...d, probability: protectedScore };
           }).sort((a, b) => b.probability - a.probability),
         };
         console.log(
@@ -1562,11 +1841,46 @@ export async function runUnifiedClinicalPipeline(
         );
       }
 
-      // Apply loop Bayesian updates (override previous bayesian result)
       if (loopBayesian) {
-        // Merge loop Bayesian into existing — use loop posteriors for pruned set
+        const previousBayesianMap = new Map(
+          (loopState.scores?.diagnoses || []).map(d => [d.diagnosis_id, d]),
+        );
+
+        finalBayesianResult = {
+          ...loopBayesian,
+          diagnoses: loopBayesian.diagnoses.map(d => {
+            const prev = previousBayesianMap.get(d.diagnosis_id);
+            const scoreBefore = prev?.posterior_probability ?? loopState.ddx_priors[d.diagnosis_id] ?? 0;
+            const protectedScore = !hasNewEvidence && prev && d.posterior_probability < prev.posterior_probability
+              ? prev.posterior_probability
+              : d.posterior_probability;
+
+            if (!hasNewEvidence && prev && d.posterior_probability < prev.posterior_probability * 0.8) {
+              console.warn(
+                `[Pipeline] Wave 3.6 invariant: blocked >20% bayesian drop for ${d.diagnosis_id} (${prev.posterior_probability}→${d.posterior_probability}).`
+              );
+            }
+
+            console.log(JSON.stringify({
+              stage: "Wave 3.6 loop",
+              engine: "bayesian",
+              diagnosis_id: d.diagnosis_id,
+              used_priors: Object.keys(loopState.ddx_priors).length > 0,
+              score_before: scoreBefore,
+              score_after: protectedScore,
+              new_evidence: hasNewEvidence,
+            }));
+
+            return {
+              ...d,
+              posterior_probability: protectedScore,
+              must_not_miss: d.must_not_miss || prev?.must_not_miss || false,
+            };
+          }).sort((a, b) => b.posterior_probability - a.posterior_probability),
+        };
+
         console.log(
-          `[Pipeline] Wave 3.6: Bayesian re-scored ${loopBayesian.total_candidates} candidates.`
+          `[Pipeline] Wave 3.6: Bayesian re-scored ${loopBayesian.total_candidates} candidates (state protected).`
         );
       }
 
@@ -1575,10 +1889,12 @@ export async function runUnifiedClinicalPipeline(
       lineageTracker.recordEngineResult("diagnostic_loop", true);
       pcieCore.addReasoningTrace(
         "diagnostic_loop" as any,
-        `Loop triggered: ${diagnosticLoopReason}. Pruned ${prunedCount} candidates, re-ran hypothesis testing + bayesian.`,
+        hasLoopChanges
+          ? `Loop triggered: ${diagnosticLoopReason}. Flagged ${flaggedForLoop.length} low-confidence candidates, preserved all diagnoses, re-ran hypothesis testing + bayesian with state protection.`
+          : `Loop triggered: ${diagnosticLoopReason}. No new evidence/candidates, preserved Wave 3 hypothesis + bayesian state.`,
       );
 
-      onProgress?.("diagnostic_loop", { ddx: ddxResult, hypothesis_testing: hypothesisTestResult });
+      onProgress?.("diagnostic_loop", { ddx: ddxResult, hypothesis_testing: hypothesisTestResult, bayesian: finalBayesianResult });
     }
   }
 
@@ -1780,7 +2096,7 @@ export async function runUnifiedClinicalPipeline(
   if (symptoms.length > 0 && (ddxResult || hypotheses)) {
     setReasoningCache(
       symptoms,
-      { ddx: ddxResult, hypotheses, evidence, guideline_alignment: guidelineAlignment, uncertainty: uncertaintyResult, hybrid_reasoning: hybridReasoning, bayesian: bayesianResult },
+      { ddx: ddxResult, hypotheses, evidence, guideline_alignment: guidelineAlignment, uncertainty: uncertaintyResult, hybrid_reasoning: hybridReasoning, bayesian: finalBayesianResult },
       uncertaintyResult?.confidence_score || 0,
       6,
     );
@@ -1814,8 +2130,8 @@ export async function runUnifiedClinicalPipeline(
         ddx_enabled: !!ddxResult,
         ddx_diagnoses: ddxResult?.differential_diagnoses.length || 0,
         organ_system_weighting: dominantSystem || "none",
-        bayesian_enabled: !!bayesianResult,
-        bayesian_candidates: bayesianResult?.total_candidates || 0,
+        bayesian_enabled: !!finalBayesianResult,
+        bayesian_candidates: finalBayesianResult?.total_candidates || 0,
         physiology_states: physiologicalContext?.physiological_states.length || 0,
         uncertainty_score: uncertaintyResult?.confidence_score || null,
         uncertainty_label: uncertaintyResult?.confidence_label || null,
@@ -1998,9 +2314,9 @@ export async function runUnifiedClinicalPipeline(
       })),
     });
   }
-  if (bayesianResult) {
+  if (finalBayesianResult) {
     pcieCore.updateReasoning({
-      bayesian_probabilities: bayesianResult.diagnoses.map(d => ({
+      bayesian_probabilities: finalBayesianResult.diagnoses.map(d => ({
         diagnosis_id: d.diagnosis_id,
         posterior_probability: d.posterior_probability,
         prior: d.prior,
@@ -2086,7 +2402,7 @@ export async function runUnifiedClinicalPipeline(
     enabled: true,
     enriched_context: enrichedContext,
     physiological_context: physiologicalContext,
-    bayesian: bayesianResult,
+    bayesian: finalBayesianResult,
     ddx: ddxResult,
     uncertainty: uncertaintyResult,
     hypotheses,
@@ -2104,7 +2420,7 @@ export async function runUnifiedClinicalPipeline(
     diagnostic_loop: diagnosticLoopExecuted ? {
       executed: true,
       reason: diagnosticLoopReason,
-      candidates_pruned: lat.diagnostic_loop ? (ddxResult?.differential_diagnoses?.length || 0) : 0,
+      candidates_pruned: 0,
       candidates_remaining: ddxResult ? ddxResult.differential_diagnoses.length : 0,
       iteration_ms: lat.diagnostic_loop || 0,
     } : null,

@@ -160,6 +160,136 @@ const PHENOTYPE_RULES: PhenotypeRule[] = [
     min_context_signals: 1,
     activate: { node: "abdominal", weight: 0.5 },
   },
+  // ── New rules for missing cluster activations ──
+  {
+    id: "joint_pain_pattern",
+    conditions: {
+      symptom_keywords: ["joint pain", "swollen joint", "knee pain", "arthralgia", "swelling", "knee swollen", "swollen knee"],
+    },
+    min_context_signals: 1,
+    activate: { node: "musculoskeletal", weight: 0.5 },
+  },
+  {
+    id: "syncope_dizziness_pattern",
+    conditions: {
+      symptom_keywords: ["syncope", "fainting", "dizziness", "lightheaded", "blackout", "presyncope", "vertigo", "collapse"],
+    },
+    min_context_signals: 1,
+    activate: { node: "syncope", weight: 0.5 },
+  },
+  {
+    id: "pelvic_urological",
+    conditions: {
+      symptom_keywords: ["pelvic pain", "dysuria", "urinary frequency", "perineal pain", "groin pain", "testicular pain"],
+    },
+    min_context_signals: 1,
+    activate: { node: "renal_gu", weight: 0.5 },
+  },
+  {
+    id: "psychiatric_somatic",
+    conditions: {
+      symptom_keywords: ["anxiety", "panic", "palpitations", "chronic pain", "multiple symptoms", "unexplained symptoms"],
+    },
+    min_context_signals: 1,
+    activate: { node: "psychiatric", weight: 0.4 },
+  },
+  {
+    id: "chest_wall_pain",
+    conditions: {
+      symptom_keywords: ["chest pain", "chest wall", "pleuritic", "costochondral", "tenderness"],
+    },
+    min_context_signals: 1,
+    activate: { node: "musculoskeletal", weight: 0.4 },
+  },
+  {
+    id: "back_pain_spinal",
+    conditions: {
+      symptom_keywords: ["back pain", "leg weakness", "claudication", "neurogenic", "numbness legs"],
+    },
+    min_context_signals: 1,
+    activate: { node: "spinal", weight: 0.4 },
+  },
+  {
+    id: "cardiac_rhythm_fatigue",
+    conditions: {
+      symptom_keywords: ["palpitations", "irregular heartbeat", "fatigue", "dyspnea on exertion", "exercise intolerance"],
+    },
+    min_context_signals: 1,
+    activate: { node: "atypical_cardiac", weight: 0.5 },
+  },
+  {
+    id: "lymphadenopathy_fever",
+    conditions: {
+      symptom_keywords: ["lymphadenopathy", "night sweats", "weight loss", "fever"],
+    },
+    min_context_signals: 2,
+    activate: { node: "malignancy", weight: 0.5 },
+  },
+  // ── Broad symptom → domain activations ──
+  {
+    id: "fatigue_broad",
+    conditions: {
+      symptom_keywords: ["fatigue", "tiredness", "malaise", "lethargy", "weakness", "exhaustion"],
+    },
+    min_context_signals: 1,
+    activate: { node: "general_infectious", weight: 0.3 },
+  },
+  {
+    id: "fatigue_metabolic",
+    conditions: {
+      symptom_keywords: ["fatigue", "tiredness", "weight loss", "weight gain", "weakness"],
+    },
+    min_context_signals: 1,
+    activate: { node: "metabolic", weight: 0.3 },
+  },
+  {
+    id: "fatigue_hematological",
+    conditions: {
+      symptom_keywords: ["fatigue", "pallor", "weakness", "dizziness", "shortness of breath"],
+    },
+    min_context_signals: 1,
+    activate: { node: "hematological", weight: 0.3 },
+  },
+  {
+    id: "joint_autoimmune",
+    conditions: {
+      symptom_keywords: ["joint pain", "rash", "fatigue", "arthralgia", "muscle pain", "photosensitivity"],
+    },
+    min_context_signals: 1,
+    activate: { node: "autoimmune", weight: 0.4 },
+  },
+  {
+    id: "weight_loss_malignancy",
+    conditions: {
+      symptom_keywords: ["weight loss", "night sweats", "fatigue", "anorexia", "loss of appetite"],
+    },
+    min_context_signals: 2,
+    activate: { node: "malignancy", weight: 0.4 },
+  },
+  {
+    id: "edema_renal",
+    conditions: {
+      symptom_keywords: ["edema", "swelling", "oliguria", "decreased urine", "foamy urine", "leg swelling"],
+    },
+    min_context_signals: 1,
+    activate: { node: "metabolic", weight: 0.4 },
+  },
+  {
+    id: "anxiety_panic",
+    conditions: {
+      symptom_keywords: ["anxiety", "panic", "palpitations", "chest tightness", "hyperventilation", "trembling", "fear"],
+    },
+    min_context_signals: 1,
+    activate: { node: "psychiatric", weight: 0.4 },
+  },
+  {
+    id: "back_pain_broad",
+    conditions: {
+      symptom_keywords: ["back pain", "lower back pain", "sciatica", "leg numbness", "claudication"],
+    },
+    min_context_signals: 1,
+    activate: { node: "spinal", weight: 0.4 },
+  },
 ];
 
 // ── Rare Condition Pattern Rules ──
@@ -219,9 +349,29 @@ const RARE_PATTERN_RULES: RarePatternRule[] = [
     required_symptoms: ["sore throat", "trismus", "muffled voice"],
     activate: { node: "rare_infectious", weight: 0.6 },
   },
+  {
+    id: "ms_pattern",
+    required_symptoms: ["vision loss", "numbness", "weakness"],
+    activate: { node: "atypical_neuro", weight: 0.5 },
+  },
+  {
+    id: "seizure_neuro",
+    required_symptoms: ["seizure", "convulsion", "loss of consciousness"],
+    activate: { node: "atypical_neuro", weight: 0.5 },
+  },
+  {
+    id: "mononucleosis",
+    required_symptoms: ["sore throat", "lymphadenopathy", "fatigue"],
+    activate: { node: "rare_infectious", weight: 0.4 },
+  },
+  {
+    id: "perforated_viscus",
+    required_symptoms: ["severe abdominal pain", "rigidity"],
+    activate: { node: "abdominal", weight: 0.6 },
+  },
 ];
 
-const MAX_ACTIVATIONS = 8;
+const MAX_ACTIVATIONS = 16;
 
 // ── Helper Functions ──
 

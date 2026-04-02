@@ -154,6 +154,17 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
     monitoring: ["Temperature Q6H", "CURB-65 score assessment", "Repeat CRP at 48-72 hours", "Follow up in 48-72 hours if no improvement"],
     instructions: ["Complete full antibiotic course", "Increase fluid intake", "Follow up in 48-72 hours if no improvement"],
   },
+  "sepsis": {
+    tests: ["Blood culture x2", "CBC", "CRP", "Procalcitonin", "Lactate", "BMP", "Coagulation profile", "Urinalysis", "Chest X-ray"],
+    medications: [
+      { drug: "IV Fluids", dose: "NS 1L", route: "IV", freq: "STAT", dur: "Bolus over 30min", line: "emergency" },
+      { drug: "Piperacillin-Tazobactam", dose: "4.5g", route: "IV", freq: "Q6H", dur: "7-14 days", line: "first" },
+      { drug: "Vancomycin", dose: "1g", route: "IV", freq: "BD", dur: "Based on culture", line: "alternative" },
+      { drug: "Norepinephrine", dose: "0.1mcg/kg/min", route: "IV", freq: "Continuous", dur: "As needed", line: "emergency" },
+    ],
+    monitoring: ["Lactate clearance Q2-4H", "MAP target ≥65 mmHg", "Urine output ≥0.5ml/kg/hr", "qSOFA score Q1H", "Blood culture follow-up at 48H"],
+    instructions: ["EMERGENCY: Antibiotics within 1 hour of recognition", "Aggressive IV fluid resuscitation", "ICU admission if vasopressors required", "Source control — identify and treat infection source"],
+  },
   "copd exacerbation": {
     tests: ["Chest X-ray", "ABG", "CBC", "Sputum culture"],
     medications: [
@@ -404,6 +415,16 @@ const SCENARIOS: Scenario[] = [
     examFindings: ["Crepitations"], vitals: { bp_systolic: 130, bp_diastolic: 80, pulse: 95, spo2: 93, temperature: 102.0, respiratory_rate: 24, weight_kg: 72, blood_sugar: null },
     chiefComplaint: "Cough",
   },
+  {
+    name: "Sepsis (Demo)",
+    description: "High fever with rigors and confusion — must-not-miss sepsis",
+    patient: { name: "Rajesh Gupta", age: 62, gender: "Male", location: "Lucknow", occupation: "Retired", diet: "Non-vegetarian", allergies: [] },
+    symptoms: ["Fever", "Fatigue", "Dizziness"],
+    duration: "2 days", onset: "Sudden", severity: "Severe", bodyLocation: "Generalized",
+    riskFactors: ["Diabetes"], medicalHistory: ["Diabetes mellitus"], familyHistory: [],
+    examFindings: ["Pallor"], vitals: { bp_systolic: 92, bp_diastolic: 55, pulse: 112, spo2: 92, temperature: 103.6, respiratory_rate: 24, weight_kg: 78, blood_sugar: 240 },
+    chiefComplaint: "High fever with rigors and mild confusion for 2 days",
+  },
 ];
 
 // ── Vital ranges ──
@@ -643,12 +664,81 @@ export default function CockpitPlayground() {
           clinical_context: pipelineContext,
           visit_id: null, consultation_id: null, clinic_id: null,
           intake_approved: false,
+          skip_cache: true,
         },
         (stage, data) => {
           if (runId !== pipelineRunIdRef.current) return;
           setPipelineStage(stage);
           if (data.physiological_context) setPipelinePhysiology(data.physiological_context);
-          if (data.ddx) setPipelineDDX(data.ddx);
+          // Merge DDX updates: full merge strategy across emissions
+          if (data.ddx) {
+            setPipelineDDX((prev: any) => {
+              if (!prev || !prev.differential_diagnoses?.length) return data.ddx;
+              const incoming = data.ddx as any;
+              if (!incoming.differential_diagnoses?.length) return prev;
+
+              const prevMap = new Map<string, any>(
+                prev.differential_diagnoses.map((d: any) => [d.diagnosis_name?.toLowerCase().trim(), d])
+              );
+              const incomingMap = new Map<string, any>(
+                incoming.differential_diagnoses.map((d: any) => [d.diagnosis_name?.toLowerCase().trim(), d])
+              );
+
+              const merged: any[] = [];
+              const seen = new Set<string>();
+
+              // 1. Process all incoming candidates, updating scores from prev where both exist
+              for (const d of incoming.differential_diagnoses) {
+                const key = d.diagnosis_name?.toLowerCase().trim();
+                if (!key || seen.has(key)) continue;
+                seen.add(key);
+                const prevD = prevMap.get(key);
+                // Carry forward MNM flag if previously set
+                const mnm = d.must_not_miss || prevD?.must_not_miss || false;
+                // Use higher score between prev and incoming for MNM; else use incoming
+                const prob = mnm && prevD ? Math.max(d.probability ?? 0, prevD.probability ?? 0) : (d.probability ?? 0);
+                merged.push({ ...d, must_not_miss: mnm, probability: prob });
+              }
+
+              // 2. Preserve previous candidates NOT in incoming if MNM or high-confidence (≥15%)
+              for (const d of prev.differential_diagnoses) {
+                const key = d.diagnosis_name?.toLowerCase().trim();
+                if (!key || seen.has(key)) continue;
+                if (d.must_not_miss || (d.probability ?? 0) >= 15) {
+                  seen.add(key);
+                  merged.push(d);
+                  console.log(`[DDX-Merge] Preserved from prev: ${d.diagnosis_name} (MNM=${d.must_not_miss}, prob=${d.probability}%)`);
+                }
+              }
+
+              // 3. Enforce MNM rank floor: MNM candidates must be in top-5
+              const mnmItems = merged.filter((d: any) => d.must_not_miss);
+              const nonMnm = merged.filter((d: any) => !d.must_not_miss);
+              nonMnm.sort((a: any, b: any) => (b.probability ?? 0) - (a.probability ?? 0));
+              mnmItems.sort((a: any, b: any) => (b.probability ?? 0) - (a.probability ?? 0));
+
+              // Interleave: place MNM in top-5 slots, fill rest with non-MNM
+              const final: any[] = [];
+              let mnmIdx = 0;
+              let nonIdx = 0;
+              for (let i = 0; i < merged.length; i++) {
+                if (i < 5 && mnmIdx < mnmItems.length) {
+                  // Reserve slots for MNM in top-5
+                  if (nonIdx < nonMnm.length && (nonMnm[nonIdx].probability ?? 0) > (mnmItems[mnmIdx].probability ?? 0)) {
+                    final.push(nonMnm[nonIdx++]);
+                  } else {
+                    final.push(mnmItems[mnmIdx++]);
+                  }
+                } else if (mnmIdx < mnmItems.length) {
+                  final.push(mnmItems[mnmIdx++]);
+                } else if (nonIdx < nonMnm.length) {
+                  final.push(nonMnm[nonIdx++]);
+                }
+              }
+
+              return { ...incoming, differential_diagnoses: final };
+            });
+          }
           if (data.bayesian) setPipelineBayesian(data.bayesian);
           if (data.hypotheses?.hypotheses) {
             setPipelineHypotheses(data.hypotheses.hypotheses.map((h: any) => ({
@@ -760,6 +850,7 @@ export default function CockpitPlayground() {
 
   // ── Merged diagnoses for Assessment & Plan ──
   const mergedDiagnoses = useMemo(() => {
+    // ── Build lookup maps from DDX traces + differentials ──
     const ddxNameMap = new Map<string, { name: string; supporting: string[]; mustNotMiss: boolean }>();
     const ddxTraces: any[] = pipelineDDX?.reasoning_traces || [];
     const ddxDifferentials: any[] = pipelineDDX?.differential_diagnoses || [];
@@ -794,67 +885,122 @@ export default function CockpitPlayground() {
       });
     });
 
+    // ── Helpers ──
+    const ddxToDisplay = (dd: any) => {
+      const name = dd.diagnosis_name || dd.diagnosis || "";
+      const management = resolveManagement(name);
+      const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === name.toLowerCase());
+      return {
+        name,
+        pct: Math.round(dd.probability ?? 0),
+        supporting: [...new Set([...(dd.supporting_symptoms || [])])].filter((e: string) => !/^[0-9a-f]{8}-/.test(e)),
+        contradicting: dd.contradicting_factors || [],
+        tests: [...new Set([...ddxLabs, ...management.tests])],
+        medications: management.medications.length > 0 ? management.medications : ddxMedsForDx.map(m => ({ drug: m.drug, dose: m.dose, route: m.route, freq: m.freq, dur: m.dur, line: m.line })),
+        mustNotMiss: dd.must_not_miss || false,
+        instructions: management.instructions,
+        monitoring: management.monitoring,
+      };
+    };
+
+    const bayesianToDisplay = (d: any, idx: number) => {
+      const ddxEntry = ddxNameMap.get(d.diagnosis_id);
+      const hyp = pipelineHypotheses.find((h: any) => {
+        const hName = (h.diagnosis || "").toLowerCase();
+        return ddxEntry && hName === ddxEntry.name.toLowerCase();
+      }) || pipelineHypotheses[idx];
+
+      const displayName = ddxEntry?.name
+        || hyp?.diagnosis
+        || (d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e)) || `Diagnosis ${idx + 1}`);
+
+      const management = resolveManagement(displayName);
+      const pipelineTests = hyp?.recommended_tests || [];
+      const allTests = [...new Set([...ddxLabs, ...pipelineTests, ...management.tests])];
+      const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === displayName.toLowerCase());
+      const allMeds = management.medications.length > 0
+        ? management.medications
+        : ddxMedsForDx.map(m => ({ drug: m.drug, dose: m.dose, route: m.route, freq: m.freq, dur: m.dur, line: m.line }));
+
+      return {
+        name: displayName,
+        pct: Math.round((d.posterior_probability || 0) * 100),
+        supporting: [...new Set([
+          ...(ddxEntry?.supporting || []),
+          ...(d.supporting_evidence || []),
+          ...(hyp?.supporting_factors || []),
+        ])].filter((e: string) => !/^[0-9a-f]{8}-/.test(e)),
+        contradicting: hyp?.contradicting_factors || [],
+        tests: allTests,
+        medications: allMeds,
+        mustNotMiss: ddxEntry?.mustNotMiss || d.must_not_miss || false,
+        bayesian: d,
+        instructions: management.instructions,
+        monitoring: management.monitoring,
+      };
+    };
+
     const hasBayesian = pipelineBayesian?.diagnoses?.length > 0;
     const hasDDX = ddxTraces.length > 0 || ddxDifferentials.length > 0;
 
-    if (hasBayesian) {
-      return pipelineBayesian.diagnoses.slice(0, 8).map((d: any, idx: number) => {
-        const ddxEntry = ddxNameMap.get(d.diagnosis_id);
-        const hyp = pipelineHypotheses.find((h: any) => {
-          const hName = (h.diagnosis || "").toLowerCase();
-          return ddxEntry && hName === ddxEntry.name.toLowerCase();
-        }) || pipelineHypotheses[idx];
+    // ── UNIFIED MERGE: Bayesian + DDX → single source of truth ──
+    if (hasBayesian || hasDDX) {
+      const unified: any[] = [];
+      const seenNames = new Set<string>();
 
-        const displayName = ddxEntry?.name
-          || hyp?.diagnosis
-          || (d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e)) || `Diagnosis ${idx + 1}`);
+      // Phase 1: Bayesian entries (preferred scores when available)
+      if (hasBayesian) {
+        pipelineBayesian.diagnoses.forEach((d: any, idx: number) => {
+          const entry = bayesianToDisplay(d, idx);
+          const key = entry.name.toLowerCase().trim();
+          if (key && !seenNames.has(key)) {
+            // Cross-reference DDX for MNM flag Bayesian may have missed
+            const ddxMatch = ddxDifferentials.find(
+              (dd: any) => (dd.diagnosis_name || "").toLowerCase().trim() === key
+            );
+            if (ddxMatch?.must_not_miss) entry.mustNotMiss = true;
+            seenNames.add(key);
+            unified.push(entry);
+          }
+        });
+      }
 
-        const management = resolveManagement(displayName);
-        const pipelineTests = hyp?.recommended_tests || [];
-        const allTests = [...new Set([...ddxLabs, ...pipelineTests, ...management.tests])];
+      // Phase 2: DDX candidates NOT in Bayesian (pattern/fallback/synthetic-ID candidates)
+      for (const dd of ddxDifferentials) {
+        const key = (dd.diagnosis_name || "").toLowerCase().trim();
+        if (!key || seenNames.has(key)) continue;
+        if (dd.must_not_miss || (dd.probability ?? 0) >= 8) {
+          seenNames.add(key);
+          unified.push(ddxToDisplay(dd));
+        }
+      }
 
-        const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === displayName.toLowerCase());
-        const allMeds = management.medications.length > 0
-          ? management.medications
-          : ddxMedsForDx.map(m => ({ drug: m.drug, dose: m.dose, route: m.route, freq: m.freq, dur: m.dur, line: m.line }));
+      // Phase 3: Sort with MNM rank floor (top-5)
+      const mnm = unified.filter((d: any) => d.mustNotMiss);
+      const nonMnm = unified.filter((d: any) => !d.mustNotMiss);
+      nonMnm.sort((a: any, b: any) => (b.pct || 0) - (a.pct || 0));
+      mnm.sort((a: any, b: any) => (b.pct || 0) - (a.pct || 0));
 
-        return {
-          name: displayName,
-          pct: Math.round((d.posterior_probability || 0) * 100),
-          supporting: [...new Set([
-            ...(ddxEntry?.supporting || []),
-            ...(d.supporting_evidence || []),
-            ...(hyp?.supporting_factors || []),
-          ])].filter(e => !/^[0-9a-f]{8}-/.test(e)),
-          contradicting: hyp?.contradicting_factors || [],
-          tests: allTests,
-          medications: allMeds,
-          mustNotMiss: ddxEntry?.mustNotMiss || d.must_not_miss || false,
-          bayesian: d,
-          instructions: management.instructions,
-          monitoring: management.monitoring,
-        };
-      });
+      const final: any[] = [];
+      let mi = 0, ni = 0;
+      for (let i = 0; i < unified.length; i++) {
+        if (i < 5 && mi < mnm.length) {
+          if (ni < nonMnm.length && (nonMnm[ni].pct || 0) > (mnm[mi].pct || 0)) {
+            final.push(nonMnm[ni++]);
+          } else {
+            final.push(mnm[mi++]);
+          }
+        } else if (mi < mnm.length) {
+          final.push(mnm[mi++]);
+        } else if (ni < nonMnm.length) {
+          final.push(nonMnm[ni++]);
+        }
+      }
+
+      return final.slice(0, 10);
     }
 
-    if (hasDDX) {
-      return ddxTraces.slice(0, 8).map((t: any) => {
-        const management = resolveManagement(t.diagnosis || "");
-        const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === (t.diagnosis || "").toLowerCase());
-        return {
-          name: t.diagnosis || `Diagnosis`,
-          pct: Math.round((t.confidence || 0) * 100),
-          supporting: (t.symptom_evidence || []).map((e: any) => e.symptom || e),
-          contradicting: t.contradicting_factors || [],
-          tests: [...new Set([...ddxLabs, ...management.tests])],
-          medications: management.medications.length > 0 ? management.medications : ddxMedsForDx.map((m: any) => ({ drug: m.drug, dose: m.dose, route: m.route || "PO", freq: m.freq, dur: m.dur, line: m.line || "first" })),
-          mustNotMiss: t.must_not_miss || false,
-          instructions: management.instructions,
-          monitoring: management.monitoring,
-        };
-      });
-    }
-
+    // Fallback: hypotheses only
     return pipelineHypotheses.slice(0, 5).map(h => {
       const management = resolveManagement(h.diagnosis);
       const allTests = [...new Set([...(h.recommended_tests || []), ...management.tests])];
