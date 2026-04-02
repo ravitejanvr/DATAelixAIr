@@ -364,37 +364,7 @@ ${guidelineContext || "No matching guidelines found. Evaluate based on general c
     if (!response.ok) {
       if (response.status === 429) throw new Error("Rate limit exceeded");
       if (response.status === 402) throw new Error("AI credits required");
-      // AI unavailable (503, etc.) — return degraded deterministic-only results
-      console.warn(`AI gateway returned ${response.status}, falling back to deterministic-only compliance`);
-      const durationMs = Date.now() - startMs;
-      const allSources = [...new Set(allGuidelines.map(g => g.source_organization))];
-      const deterministicResults = itemsToEvaluate.map(item => ({
-        item: item.item,
-        item_type: item.type,
-        compliance_status: allGuidelines.length > 0 ? "evidence_supported" : "review_suggested",
-        explanation: "AI evaluation unavailable — compliance assessed from guideline database only.",
-        matching_guidelines: allGuidelines.slice(0, 2).map(g => ({
-          guideline_id: g.id, title: g.title, source: g.source_organization,
-          source_organization: g.source_organization, year: g.year,
-          evidence_grade: g.evidence_grade, recommendation_text: g.recommendation_text,
-          guideline_url: g.guideline_url || "", tier: g.tier, tier_label: g.tier_label,
-        })),
-      }));
-      const totalItems = deterministicResults.length || 1;
-      const complianceScore = allGuidelines.length > 0 ? 70 : 30;
-      return new Response(JSON.stringify({
-        success: true, degraded: true,
-        results: deterministicResults,
-        compliance_score: complianceScore,
-        score_breakdown: { aligned: 0, evidence_supported: allGuidelines.length > 0 ? totalItems : 0, review_suggested: allGuidelines.length > 0 ? 0 : totalItems, total: totalItems },
-        conflicts: uniqueConflicts.slice(0, 10),
-        management_steps: uniqueSteps.slice(0, 8),
-        guidelines_matched: allGuidelines.length,
-        guidelines_sources: allSources,
-        authority_tiers_used: [...new Set(allGuidelines.map(g => `Tier ${g.tier}: ${g.tier_label}`))],
-        duration_ms: durationMs,
-        disclaimer: "AI evaluation temporarily unavailable. Results based on guideline database only.",
-      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      throw new Error(`AI gateway error: ${response.status}`);
     }
 
     const data = await response.json();

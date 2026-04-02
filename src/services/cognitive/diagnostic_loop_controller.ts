@@ -22,7 +22,7 @@ export interface LoopDecision {
   max_iterations: number;
   confidence_gap: number;
   top_probability: number;
-  candidates_to_flag: string[];
+  candidates_to_prune: string[];
 }
 
 export interface LoopConfig {
@@ -63,7 +63,7 @@ export function evaluateLoopCondition(
       max_iterations: cfg.max_iterations,
       confidence_gap: 0,
       top_probability: 0,
-      candidates_to_flag: [],
+      candidates_to_prune: [],
     };
   }
 
@@ -75,7 +75,7 @@ export function evaluateLoopCondition(
       max_iterations: cfg.max_iterations,
       confidence_gap: 0,
       top_probability: candidates[0]?.probability || 0,
-      candidates_to_flag: [],
+      candidates_to_prune: [],
     };
   }
 
@@ -84,8 +84,8 @@ export function evaluateLoopCondition(
   const secondProb = sorted[1]?.probability || 0;
   const gap = topProb - secondProb;
 
-  // Identify low-confidence candidates for flagging only (never removal)
-  const toFlag = sorted
+  // Identify weak candidates for pruning (but preserve must-not-miss)
+  const toPrune = sorted
     .filter(c => c.probability < cfg.prune_threshold && !c.must_not_miss)
     .map(c => c.diagnosis_name);
 
@@ -109,19 +109,27 @@ export function evaluateLoopCondition(
     max_iterations: cfg.max_iterations,
     confidence_gap: gap,
     top_probability: topProb,
-    candidates_to_flag: toFlag,
+    candidates_to_prune: toPrune,
   };
 }
 
 /**
  * Prune weak candidates from the DDX list.
- * HIGH-RECALL MODE: No candidates are removed. All are kept and sorted by probability.
- * This function now only partitions candidates into "strong" and "weak" for informational purposes.
  */
 export function pruneCandidates<T extends { diagnosis_name: string; probability: number; must_not_miss?: boolean }>(
   candidates: T[],
   threshold = DEFAULT_CONFIG.prune_threshold,
 ): { kept: T[]; pruned: T[] } {
-  // HIGH-RECALL: All candidates are kept — none are removed
-  return { kept: [...candidates], pruned: [] };
+  const kept: T[] = [];
+  const pruned: T[] = [];
+
+  for (const c of candidates) {
+    if (c.probability >= threshold || c.must_not_miss) {
+      kept.push(c);
+    } else {
+      pruned.push(c);
+    }
+  }
+
+  return { kept, pruned };
 }

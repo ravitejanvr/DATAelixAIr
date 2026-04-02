@@ -7,4 +7,3 @@
 export { createEmptyActivation, activateNode, mergeActivations, type KGActivation } from "./kg_activation";
 export { getClusterDiagnoses, getAllClusterIds, getClusterStats, type ClusterDiagnosis } from "./kg_clusters";
 export { expandKG, type KGExpansionResult } from "./kg_expander";
-export { expandKGDeep } from "./kg_traversal";
