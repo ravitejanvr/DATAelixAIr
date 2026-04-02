@@ -526,11 +526,11 @@ Deno.serve(async (req) => {
     const results: BayesianDiagnosis[] = [];
     const DEFAULT_PRIOR = 0.05;
 
-    const diagsWithSymLik = candidate_diagnosis_ids.filter((id: string) => (symLikMap.get(id) || []).length > 0).length;
+    const diagsWithSymLik = validCandidateIds.filter((id: string) => (symLikMap.get(id) || []).length > 0).length;
     const hasAnySymLikData = diagsWithSymLik > 0;
     const totalSymptoms = symptomIds.length;
 
-    for (const diagId of candidate_diagnosis_ids) {
+    for (const diagId of validCandidateIds) {
       // ── 1. PRIOR: P(D) with demographic modifiers ──
       const priorData = priorsMap.get(diagId);
       let prior = priorData?.base_prevalence ?? DEFAULT_PRIOR;
