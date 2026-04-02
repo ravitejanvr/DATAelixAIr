@@ -777,7 +777,13 @@ export default function CockpitPlayground() {
   const hasContext = selectedSymptoms.length > 0 || selectedDuration || selectedOnset || selectedSeverity || selectedBodyLocation || selectedRiskFactors.length > 0 || selectedMedicalHistory.length > 0 || selectedFamilyHistory.length > 0 || selectedExamFindings.length > 0;
 
   // ── Merged diagnoses for Assessment & Plan ──
+  // ── Merged diagnoses — SINGLE SOURCE: Bayesian only ──
   const mergedDiagnoses = useMemo(() => {
+    console.log("[RENDER SOURCE USED]", renderSource);
+
+    // Only render when Bayesian is locked
+    if (renderSource !== "bayesian" || !pipelineBayesian?.diagnoses?.length) return [];
+
     const ddxNameMap = new Map<string, { name: string; supporting: string[]; mustNotMiss: boolean }>();
     const ddxTraces: any[] = pipelineDDX?.reasoning_traces || [];
     const ddxDifferentials: any[] = pipelineDDX?.differential_diagnoses || [];
@@ -812,83 +818,44 @@ export default function CockpitPlayground() {
       });
     });
 
-    const hasBayesian = pipelineBayesian?.diagnoses?.length > 0;
-    const hasDDX = ddxTraces.length > 0 || ddxDifferentials.length > 0;
+    return pipelineBayesian.diagnoses.slice(0, 8).map((d: any, idx: number) => {
+      const ddxEntry = ddxNameMap.get(d.diagnosis_id);
+      const hyp = pipelineHypotheses.find((h: any) => {
+        const hName = (h.diagnosis || "").toLowerCase();
+        return ddxEntry && hName === ddxEntry.name.toLowerCase();
+      }) || pipelineHypotheses[idx];
 
-    if (hasBayesian) {
-      return pipelineBayesian.diagnoses.slice(0, 8).map((d: any, idx: number) => {
-        const ddxEntry = ddxNameMap.get(d.diagnosis_id);
-        const hyp = pipelineHypotheses.find((h: any) => {
-          const hName = (h.diagnosis || "").toLowerCase();
-          return ddxEntry && hName === ddxEntry.name.toLowerCase();
-        }) || pipelineHypotheses[idx];
+      const displayName = ddxEntry?.name
+        || hyp?.diagnosis
+        || (d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e)) || `Diagnosis ${idx + 1}`);
 
-        const displayName = ddxEntry?.name
-          || hyp?.diagnosis
-          || (d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e)) || `Diagnosis ${idx + 1}`);
+      const management = resolveManagement(displayName);
+      const pipelineTests = hyp?.recommended_tests || [];
+      const allTests = [...new Set([...ddxLabs, ...pipelineTests, ...management.tests])];
 
-        const management = resolveManagement(displayName);
-        const pipelineTests = hyp?.recommended_tests || [];
-        const allTests = [...new Set([...ddxLabs, ...pipelineTests, ...management.tests])];
+      const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === displayName.toLowerCase());
+      const allMeds = management.medications.length > 0
+        ? management.medications
+        : ddxMedsForDx.map(m => ({ drug: m.drug, dose: m.dose, route: m.route, freq: m.freq, dur: m.dur, line: m.line }));
 
-        const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === displayName.toLowerCase());
-        const allMeds = management.medications.length > 0
-          ? management.medications
-          : ddxMedsForDx.map(m => ({ drug: m.drug, dose: m.dose, route: m.route, freq: m.freq, dur: m.dur, line: m.line }));
-
-        return {
-          name: displayName,
-          pct: Math.round((d.posterior_probability || 0) * 100),
-          supporting: [...new Set([
-            ...(ddxEntry?.supporting || []),
-            ...(d.supporting_evidence || []),
-            ...(hyp?.supporting_factors || []),
-          ])].filter(e => !/^[0-9a-f]{8}-/.test(e)),
-          contradicting: hyp?.contradicting_factors || [],
-          tests: allTests,
-          medications: allMeds,
-          mustNotMiss: ddxEntry?.mustNotMiss || d.must_not_miss || false,
-          bayesian: d,
-          instructions: management.instructions,
-          monitoring: management.monitoring,
-        };
-      });
-    }
-
-    if (hasDDX) {
-      return ddxTraces.slice(0, 8).map((t: any) => {
-        const management = resolveManagement(t.diagnosis || "");
-        const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === (t.diagnosis || "").toLowerCase());
-        return {
-          name: t.diagnosis || `Diagnosis`,
-          pct: Math.round((t.confidence || 0) * 100),
-          supporting: (t.symptom_evidence || []).map((e: any) => e.symptom || e),
-          contradicting: t.contradicting_factors || [],
-          tests: [...new Set([...ddxLabs, ...management.tests])],
-          medications: management.medications.length > 0 ? management.medications : ddxMedsForDx.map((m: any) => ({ drug: m.drug, dose: m.dose, route: m.route || "PO", freq: m.freq, dur: m.dur, line: m.line || "first" })),
-          mustNotMiss: t.must_not_miss || false,
-          instructions: management.instructions,
-          monitoring: management.monitoring,
-        };
-      });
-    }
-
-    return pipelineHypotheses.slice(0, 5).map(h => {
-      const management = resolveManagement(h.diagnosis);
-      const allTests = [...new Set([...(h.recommended_tests || []), ...management.tests])];
       return {
-        name: h.diagnosis,
-        pct: Math.round((h.confidence || 0) * 100),
-        supporting: h.supporting_factors || [],
-        contradicting: h.contradicting_factors || [],
+        name: displayName,
+        pct: Math.round((d.posterior_probability || 0) * 100),
+        supporting: [...new Set([
+          ...(ddxEntry?.supporting || []),
+          ...(d.supporting_evidence || []),
+          ...(hyp?.supporting_factors || []),
+        ])].filter(e => !/^[0-9a-f]{8}-/.test(e)),
+        contradicting: hyp?.contradicting_factors || [],
         tests: allTests,
-        medications: management.medications,
-        mustNotMiss: false,
+        medications: allMeds,
+        mustNotMiss: ddxEntry?.mustNotMiss || d.must_not_miss || false,
+        bayesian: d,
         instructions: management.instructions,
         monitoring: management.monitoring,
       };
     });
-  }, [pipelineBayesian, pipelineHypotheses, pipelineDDX]);
+  }, [pipelineBayesian, pipelineHypotheses, pipelineDDX, renderSource]);
 
   // ── All recommended tests from DDX + pipeline + management engine ──
   const allRecommendedTests = useMemo(() => {
