@@ -951,7 +951,112 @@ export default function CockpitPlayground() {
     toast({ title: "Context updated", description: `Extracted ${symptomMatches.length} signals from input` });
   }, [commandInput, chiefComplaint, toast]);
 
-  // ── Auto-populate selectedDiagnoses from top mergedDiagnoses ──
+  // ── Sepsis Validation Test ──
+  const runSepsisTest = useCallback(() => {
+    const runNum = sepsisRunCount + 1;
+    setSepsisRunCount(runNum);
+    console.log(`\n=== SEPSIS TEST RUN #${runNum} ===`);
+
+    // Step 1: Clean state
+    setRenderSource("none");
+    renderSourceRef.current = "none";
+    setPipelineBayesian(null);
+    setPipelineDDX(null);
+    setPipelineHypotheses([]);
+    setPipelineComplete(false);
+    setSoapSections(EMPTY_SOAP);
+    setSoapManualEdits({});
+    setSelectedDiagnoses([]);
+    setSelectedTests([]);
+    setSelectedInstructions([]);
+    setSelectedMonitoring([]);
+    setPendingRx([]);
+    setEditingCategory(null);
+
+    // Step 2: Inject sepsis test case
+    const sepsisPatient = {
+      name: "Test Patient (Sepsis)", age: 58, gender: "Male",
+      location: "Delhi", occupation: "Retired", diet: "Non-vegetarian",
+      allergies: [] as string[], pregnancyStatus: undefined,
+    };
+    setMockPatient(sepsisPatient);
+    setSelectedSymptoms(["Fever", "Dizziness", "Breathlessness"]);
+    setChiefComplaint("Fever");
+    setSelectedDuration("2 days");
+    setSelectedOnset("Sudden");
+    setSelectedSeverity("Severe");
+    setSelectedBodyLocation("Generalized");
+    setSelectedRiskFactors(["Diabetes", "Immunocompromised"]);
+    setSelectedMedicalHistory(["Diabetes mellitus"]);
+    setSelectedFamilyHistory([]);
+    setSelectedExamFindings(["Pallor"]);
+    setExpansionSelections({});
+    setPatientVitals({
+      bp_systolic: 92, bp_diastolic: 55, pulse: 112, spo2: 92,
+      temperature: 103.6, respiratory_rate: 24, weight_kg: 75, blood_sugar: 220,
+    });
+    setSelectedScenario("Sepsis (Validation)");
+
+    toast({ title: `Sepsis Test Run #${runNum}`, description: "Injecting sepsis scenario — pipeline will auto-trigger" });
+
+    // Step 3: Log results when Bayesian arrives (via effect below)
+  }, [sepsisRunCount, toast]);
+
+  // ── Sepsis result logger + stability checker ──
+  useEffect(() => {
+    if (selectedScenario !== "Sepsis (Validation)" || !pipelineBayesian?.diagnoses?.length || renderSource !== "bayesian") return;
+
+    const ddxTraces: any[] = pipelineDDX?.reasoning_traces || [];
+    const ddxDiffs: any[] = pipelineDDX?.differential_diagnoses || [];
+    const nameMap = new Map<string, string>();
+    ddxTraces.forEach((t: any) => { if (t.diagnosis_id && t.diagnosis) nameMap.set(t.diagnosis_id, t.diagnosis); });
+    ddxDiffs.forEach((d: any) => { if (d.diagnosis_id && d.diagnosis_name) nameMap.set(d.diagnosis_id, d.diagnosis_name); });
+
+    const results = pipelineBayesian.diagnoses.slice(0, 8).map((d: any, i: number) => ({
+      rank: i + 1,
+      name: nameMap.get(d.diagnosis_id) || d.diagnosis_id,
+      pct: Math.round((d.posterior_probability || 0) * 100),
+    }));
+
+    console.log("=== SEPSIS TEST RESULT ===");
+    console.table(results.map((r: any) => ({ rank: r.rank, diagnosis: r.name, probability: r.pct + "%" })));
+
+    // Check if sepsis is in top 5
+    const sepsisIdx = results.findIndex((r: any) => /sepsis|septic/i.test(r.name));
+    if (sepsisIdx === -1 || sepsisIdx >= 5) {
+      console.warn("⚠️ WARNING: Sepsis NOT in top 5 diagnoses!");
+    } else {
+      console.log(`✅ Sepsis found at rank ${sepsisIdx + 1} with ${results[sepsisIdx].pct}%`);
+    }
+
+    // Stability comparison with previous run
+    const prev = sepsisLastResultRef.current;
+    if (prev) {
+      console.log("=== STABILITY CHECK (vs previous run) ===");
+      let hasRegression = false;
+      results.forEach((r: any, i: number) => {
+        const prevEntry = prev.find((p: any) => p.name === r.name);
+        if (prevEntry) {
+          const diff = Math.abs(r.pct - prevEntry.pct);
+          if (diff > 5) {
+            console.warn(`⚠️ SCORE DRIFT: ${r.name} — ${prevEntry.pct}% → ${r.pct}% (Δ${diff}%)`);
+            hasRegression = true;
+          }
+        }
+        const prevAtRank = prev[i];
+        if (prevAtRank && prevAtRank.name !== r.name) {
+          console.warn(`⚠️ RANK CHANGE at #${i + 1}: was "${prevAtRank.name}", now "${r.name}"`);
+          hasRegression = true;
+        }
+      });
+      if (!hasRegression) {
+        console.log("✅ STABLE — rankings and scores match previous run");
+      }
+    }
+
+    sepsisLastResultRef.current = results.map((r: any) => ({ name: r.name, pct: r.pct }));
+  }, [pipelineBayesian, renderSource, selectedScenario, pipelineDDX]);
+
   useEffect(() => {
     if (mergedDiagnoses.length > 0) {
       const topNames = mergedDiagnoses.slice(0, 3).map((d: any) => d.name);
