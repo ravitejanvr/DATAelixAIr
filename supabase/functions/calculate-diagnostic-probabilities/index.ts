@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
       supabase.from("dangerous_diagnoses")
         .select("diagnosis_id, diagnosis_name, severity_level, emergency_protocol, must_not_miss")
         .eq("must_not_miss", true)
-        .in("diagnosis_id", candidate_diagnosis_ids),
+        .in("diagnosis_id", validCandidateIds),
       durationCategory
         ? supabase.from("duration_modifiers")
             .select("diagnosis_id, duration_category, modifier_weight")
