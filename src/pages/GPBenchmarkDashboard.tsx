@@ -406,6 +406,9 @@ export default function GPBenchmarkDashboard() {
           <TabsTrigger value="v9" className="flex items-center gap-1.5">
             <Target className="h-3.5 w-3.5" /> Benchmark v9 (Control)
           </TabsTrigger>
+          <TabsTrigger value="validation" className="flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5" /> Validation Suite
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="v10">
