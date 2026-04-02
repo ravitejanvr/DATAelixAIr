@@ -1894,12 +1894,8 @@ export async function runUnifiedClinicalPipeline(
           : `Loop triggered: ${diagnosticLoopReason}. No new evidence/candidates, preserved Wave 3 hypothesis + bayesian state.`,
       );
 
-      if (hasLoopChanges) {
-        console.log({ wave: "Wave 3.6", hasLoopChanges, emitting: true });
-        onProgress?.("diagnostic_loop", { ddx: ddxResult, hypothesis_testing: hypothesisTestResult, bayesian: finalBayesianResult });
-      } else {
-        console.log({ wave: "Wave 3.6", hasLoopChanges, emitting: false, reason: "no_changes_skipping_emission" });
-      }
+      // SINGLE-PASS MODEL: Wave 3.6 NEVER emits to UI — only Wave 3 emission is authoritative
+      console.log({ wave: "Wave 3.6", hasLoopChanges, emitting: false, reason: "single_pass_model_wave3_only" });
     }
   }
 
