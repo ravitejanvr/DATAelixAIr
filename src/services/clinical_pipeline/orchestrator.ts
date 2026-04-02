@@ -1209,26 +1209,10 @@ export async function runUnifiedClinicalPipeline(
           "bayesian_engine",
         );
         lat.bayesian_engine = Math.round(performance.now() - t0);
-        // Fallback: if retry also failed, use DDX-derived probabilities
-        if (!result && ddxResult && ddxResult.differential_diagnoses.length > 0) {
-          return {
-            diagnoses: ddxResult.differential_diagnoses.map(d => ({
-              diagnosis_id: d.diagnosis_id,
-              posterior_probability: d.probability / 100,
-              prior: 0.01,
-              symptom_likelihood: d.probability / 100,
-              physiology_likelihood: 1.0,
-              risk_modifier: 1.0,
-              supporting_evidence: d.supporting_symptoms || [],
-              must_not_miss: d.must_not_miss,
-            })),
-            total_candidates: ddxResult.differential_diagnoses.length,
-            symptoms_resolved: ddxResult.matched_symptoms?.length || 0,
-            physiology_states_used: 0,
-            risk_factors_applied: 0,
-            execution_ms: 0,
-            source: "ddx_timeout_fallback",
-          };
+        // FIX 1: No fallback scoring — return null if Bayesian failed
+        // This prevents score regime switching (DDX probability/100 ≠ Bayesian posterior)
+        if (!result) {
+          console.warn("[Pipeline] Bayesian engine unavailable — no fallback scoring applied");
         }
         return result;
       } catch {
