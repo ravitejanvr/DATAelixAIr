@@ -301,16 +301,32 @@ Deno.serve(async (req) => {
     const totalSymptoms = symptomIds.length;
 
     for (const diagId of candidate_diagnosis_ids) {
-      // ── 1. PRIOR: P(D) with demographic modifiers ──
+      // ── 1. PRIOR: Use DDX-computed probability if available, else DB prior ──
+      const ddxPrior = ddx_priors[diagId];
       const priorData = priorsMap.get(diagId);
-      let prior = priorData?.base_prevalence ?? DEFAULT_PRIOR;
+      let prior: number;
 
-      if (priorData) {
-        // Try granular age group first, then fallback to broader categories
-        const ageMod = resolveAgeModifier(priorData.age_modifier, ageGroup, patient_age);
-        const sexMod = priorData.sex_modifier?.[sexKey] ?? 1.0;
-        const regMod = priorData.region_modifier?.[regionKey] ?? 1.0;
-        prior *= ageMod * sexMod * regMod;
+      if (ddxPrior !== undefined && ddxPrior > 0) {
+        // DDX-seeded prior: trust the Intelligence Core's multi-signal score
+        prior = Math.max(ddxPrior, 1e-4);
+        // Still apply demographic modifiers as refinement (dampened to avoid double-counting)
+        if (priorData) {
+          const ageMod = resolveAgeModifier(priorData.age_modifier, ageGroup, patient_age);
+          const sexMod = priorData.sex_modifier?.[sexKey] ?? 1.0;
+          const regMod = priorData.region_modifier?.[regionKey] ?? 1.0;
+          // Dampened: sqrt of modifier to avoid over-adjusting an already-calibrated prior
+          const demoAdj = Math.sqrt(ageMod * sexMod * regMod);
+          prior *= demoAdj;
+        }
+      } else {
+        // Fallback: DB-only prior
+        prior = priorData?.base_prevalence ?? DEFAULT_PRIOR;
+        if (priorData) {
+          const ageMod = resolveAgeModifier(priorData.age_modifier, ageGroup, patient_age);
+          const sexMod = priorData.sex_modifier?.[sexKey] ?? 1.0;
+          const regMod = priorData.region_modifier?.[regionKey] ?? 1.0;
+          prior *= ageMod * sexMod * regMod;
+        }
       }
 
       // ── 2. HISTORY MULTIPLIER: Apply medical history to prior ──
