@@ -79,7 +79,7 @@ export function evaluateWeakSignals(input: WeakSignalInput): WeakSignalResult {
     "pulmonary embolism": ["dvt", "clot", "thrombosis", "immobile", "surgery", "cancer", "oral contraceptive"],
     "myocardial infarction": ["diabetes", "hypertension", "smoking", "cholesterol", "coronary", "stent"],
     "stroke": ["atrial fibrillation", "hypertension", "diabetes", "previous stroke", "tia"],
-    "sepsis": ["immunocompromised", "hiv", "transplant", "chemotherapy", "dialysis"],
+    "sepsis": ["immunocompromised", "hiv", "transplant", "chemotherapy", "dialysis", "diabetes", "diabetic", "chronic kidney", "elderly", "recent surgery", "indwelling catheter"],
     "diabetic ketoacidosis": ["diabetes", "type 1", "insulin"],
   };
 
