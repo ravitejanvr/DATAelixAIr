@@ -487,7 +487,7 @@ Deno.serve(async (req) => {
     const { data: diagNameRows } = await supabase
       .from("diagnoses")
       .select("id, diagnosis_name")
-      .in("id", candidate_diagnosis_ids);
+      .in("id", validCandidateIds);
 
     const diagNameMap = new Map<string, string>();
     for (const row of diagNameRows || []) {
