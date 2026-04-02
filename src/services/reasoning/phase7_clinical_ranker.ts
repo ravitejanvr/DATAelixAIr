@@ -217,7 +217,20 @@ const CLINICAL_PATTERNS: ClinicalPattern[] = [
     temporal_window: "acute",
     matching_diagnoses: ["sepsis", "pneumonia", "urinary tract infection", "pyelonephritis", "infective endocarditis"],
     boost: 0.3,
-    context_filter: (ctx) => (ctx.patient_age ?? 0) > 60,
+    // Soft age factor: age increases boost but never blocks it
+    context_filter: (ctx) => {
+      const age = ctx.patient_age ?? 40;
+      // Always returns true (no hard gate) — age modulates boost via weight
+      return true;
+    },
+    // Age-aware weight: older patients get stronger boost, younger still get base
+    context_weight: (ctx) => {
+      const age = ctx.patient_age ?? 40;
+      if (age > 60) return 1.0;
+      if (age > 50) return 0.8;
+      if (age > 40) return 0.6;
+      return 0.4;
+    },
   },
   {
     id: "subacute_infection",
