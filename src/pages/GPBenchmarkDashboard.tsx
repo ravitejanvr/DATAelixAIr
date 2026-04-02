@@ -16,6 +16,7 @@ import { runBenchmarkSuite, BENCHMARK_SUITE, comparePhases } from "@/services/be
 import type { BenchmarkResult, BenchmarkSuiteResult, PhaseComparisonReport } from "@/services/benchmark_v9/types";
 import type { PipelineMode } from "@/services/benchmark_v9/runner";
 import BenchmarkV10Panel from "@/components/BenchmarkV10Panel";
+import ValidationPanel from "@/components/ValidationPanel";
 import SEO from "@/components/SEO";
 
 // ── Helpers ──
@@ -405,6 +406,9 @@ export default function GPBenchmarkDashboard() {
           <TabsTrigger value="v9" className="flex items-center gap-1.5">
             <Target className="h-3.5 w-3.5" /> Benchmark v9 (Control)
           </TabsTrigger>
+          <TabsTrigger value="validation" className="flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5" /> Validation Suite
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="v10">
@@ -646,6 +650,10 @@ export default function GPBenchmarkDashboard() {
               </>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="validation">
+          <ValidationPanel />
         </TabsContent>
       </Tabs>
     </div>
