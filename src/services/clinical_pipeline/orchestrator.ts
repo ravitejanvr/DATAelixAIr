@@ -1378,28 +1378,40 @@ export async function runUnifiedClinicalPipeline(
       const t0 = performance.now();
       try {
         const result = await withRetry(
-          () => calculateDiagnosticProbabilities({
-            candidate_diagnosis_ids: candidateIds,
-            symptoms,
-            physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
-            risk_factors: ctx.risk_factors || [],
-            medical_history: ctx.medical_history || [],
-            patient_age: ctx.patient_age,
-            patient_sex: ctx.patient_sex,
-            region: "south_asia",
-            vitals: {
-              temperature: vitals.temperature,
-              spo2: vitals.spo2,
-              pulse: vitals.pulse,
-              bp_systolic: vitals.bp_systolic,
-              bp_diastolic: vitals.bp_diastolic,
-              respiratory_rate: vitals.respiratory_rate,
-            },
-            duration: ctx.symptom_duration || null,
-            onset_pattern: ctx.onset_pattern || null,
-            severity: ctx.severity || null,
-            body_location: ctx.body_location || null,
-          }),
+          () => {
+            // Build DDX priors map: pass DDX-computed probabilities as informed priors
+            const ddxPriors: Record<string, number> = {};
+            if (ddxResult?.differential_diagnoses) {
+              for (const d of ddxResult.differential_diagnoses) {
+                if (d.diagnosis_id) {
+                  ddxPriors[d.diagnosis_id] = d.probability / 100; // Convert % → 0-1
+                }
+              }
+            }
+            return calculateDiagnosticProbabilities({
+              candidate_diagnosis_ids: candidateIds,
+              symptoms,
+              physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
+              risk_factors: ctx.risk_factors || [],
+              medical_history: ctx.medical_history || [],
+              patient_age: ctx.patient_age,
+              patient_sex: ctx.patient_sex,
+              region: "south_asia",
+              vitals: {
+                temperature: vitals.temperature,
+                spo2: vitals.spo2,
+                pulse: vitals.pulse,
+                bp_systolic: vitals.bp_systolic,
+                bp_diastolic: vitals.bp_diastolic,
+                respiratory_rate: vitals.respiratory_rate,
+              },
+              duration: ctx.symptom_duration || null,
+              onset_pattern: ctx.onset_pattern || null,
+              severity: ctx.severity || null,
+              body_location: ctx.body_location || null,
+              ddx_priors: ddxPriors,
+            });
+          },
           TIMEOUT.BAYESIAN,
           "bayesian_engine",
         );
