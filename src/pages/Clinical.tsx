@@ -777,7 +777,7 @@ export default function Clinical() {
                   const key = (d.diagnosis_name || d.diagnosis || "").toLowerCase().trim();
                   if (!key || seen.has(key)) continue;
                   const score = d.probability ?? d.posterior ?? 0;
-                  if (d.must_not_miss || score >= 15) {
+                  if (d.must_not_miss || score >= 0.15) {
                     seen.add(key);
                     merged.push(d);
                     console.log(`[Bayesian-Merge] ${key}: preserved from prev (MNM=${d.must_not_miss}, score=${score.toFixed(1)}%)`);
