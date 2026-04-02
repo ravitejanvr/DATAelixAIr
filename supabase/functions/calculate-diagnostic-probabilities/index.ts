@@ -427,22 +427,30 @@ Deno.serve(async (req) => {
     }
 
     // ════════════════════════════════════════════
-    // SOFTMAX NORMALIZATION
+    // TEMPERATURE-SCALED SUM NORMALIZATION (replaces Softmax to prevent score collapse)
     // ════════════════════════════════════════════
+    const TEMPERATURE = 0.7;
     const maxLog = Math.max(...results.map(d => d.log_score));
-    const expScores = results.map(d => Math.exp(d.log_score - maxLog));
+    // Temperature-scaled exponentiation preserves relative differences better than raw softmax
+    const expScores = results.map(d => Math.exp((d.log_score - maxLog) / TEMPERATURE));
     const sumExp = expScores.reduce((s, e) => s + e, 0) || 1;
     for (let i = 0; i < results.length; i++) {
       results[i].posterior_probability = parseFloat((expScores[i] / sumExp).toFixed(4));
     }
 
-    // Ensure must-not-miss have minimum 3% visibility
+    // MNM FLOOR PROTECTION: must-not-miss diagnoses retain at least 50% of their prior
+    const hasDdxPriors = Object.keys(ddx_priors).length > 0;
     for (const d of results) {
-      if (d.must_not_miss && d.posterior_probability < 0.03) {
-        d.posterior_probability = 0.03;
+      if (d.must_not_miss) {
+        const priorFloor = d.prior * 0.5;
+        const minFloor = hasDdxPriors ? priorFloor : 0.03;
+        if (d.posterior_probability < minFloor) {
+          d.posterior_probability = minFloor;
+        }
       }
     }
 
+    // Re-normalize after floor enforcement
     const newTotal = results.reduce((s, d) => s + d.posterior_probability, 0) || 1;
     for (const d of results) {
       d.posterior_probability = parseFloat((d.posterior_probability / newTotal).toFixed(4));
