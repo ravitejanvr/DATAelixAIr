@@ -39,6 +39,10 @@ const CLUSTER_REGISTRY: Record<string, ClusterDiagnosis[]> = {
     { diagnosis_name: "Acute Coronary Syndrome", base_relevance: 0.85, must_not_miss: true, category: "cardiovascular" },
     { diagnosis_name: "Unstable Angina", base_relevance: 0.7, must_not_miss: true, category: "cardiovascular" },
     { diagnosis_name: "Infective Endocarditis", base_relevance: 0.6, must_not_miss: true, category: "cardiovascular" },
+    { diagnosis_name: "Atrial Fibrillation", base_relevance: 0.55, must_not_miss: false, category: "cardiovascular" },
+    { diagnosis_name: "Stable Angina", base_relevance: 0.5, must_not_miss: false, category: "cardiovascular" },
+    { diagnosis_name: "Pericardial Effusion", base_relevance: 0.55, must_not_miss: false, category: "cardiovascular" },
+    { diagnosis_name: "Heart Failure", base_relevance: 0.6, must_not_miss: false, category: "cardiovascular" },
   ],
 
   // ── Respiratory ──
@@ -49,6 +53,8 @@ const CLUSTER_REGISTRY: Record<string, ClusterDiagnosis[]> = {
     { diagnosis_name: "Pneumothorax", base_relevance: 0.6, must_not_miss: true, category: "respiratory" },
     { diagnosis_name: "COPD Exacerbation", base_relevance: 0.55, must_not_miss: false, category: "respiratory" },
     { diagnosis_name: "Lung Cancer", base_relevance: 0.35, must_not_miss: false, category: "oncological" },
+    { diagnosis_name: "Pleural Effusion", base_relevance: 0.5, must_not_miss: false, category: "respiratory" },
+    { diagnosis_name: "Vocal Cord Dysfunction", base_relevance: 0.4, must_not_miss: false, category: "respiratory" },
   ],
 
   // ── Neurological ──
@@ -64,6 +70,10 @@ const CLUSTER_REGISTRY: Record<string, ClusterDiagnosis[]> = {
     { diagnosis_name: "Guillain-Barré Syndrome", base_relevance: 0.5, must_not_miss: true, category: "neurological" },
     { diagnosis_name: "Normal Pressure Hydrocephalus", base_relevance: 0.5, must_not_miss: false, category: "neurological" },
     { diagnosis_name: "Myasthenia Gravis", base_relevance: 0.45, must_not_miss: false, category: "neurological" },
+    { diagnosis_name: "Multiple Sclerosis", base_relevance: 0.45, must_not_miss: false, category: "neurological" },
+    { diagnosis_name: "Status Epilepticus", base_relevance: 0.6, must_not_miss: true, category: "neurological" },
+    { diagnosis_name: "Seizure", base_relevance: 0.5, must_not_miss: false, category: "neurological" },
+    { diagnosis_name: "Conversion Disorder", base_relevance: 0.4, must_not_miss: false, category: "neurological" },
   ],
 
   // ── Rare Infectious / Airway ──
@@ -72,6 +82,7 @@ const CLUSTER_REGISTRY: Record<string, ClusterDiagnosis[]> = {
     { diagnosis_name: "Epiglottitis", base_relevance: 0.75, must_not_miss: true, category: "infectious" },
     { diagnosis_name: "Meningococcal Septicemia", base_relevance: 0.8, must_not_miss: true, category: "infectious" },
     { diagnosis_name: "Peritonsillar Abscess", base_relevance: 0.6, must_not_miss: false, category: "infectious" },
+    { diagnosis_name: "Infectious Mononucleosis", base_relevance: 0.45, must_not_miss: false, category: "infectious" },
   ],
 
   // ── Context-Dependent (History-Triggered) ──
@@ -81,6 +92,7 @@ const CLUSTER_REGISTRY: Record<string, ClusterDiagnosis[]> = {
     { diagnosis_name: "Paracetamol Hepatotoxicity", base_relevance: 0.8, must_not_miss: true, category: "toxicological" },
     { diagnosis_name: "Acute Liver Failure", base_relevance: 0.6, must_not_miss: true, category: "hepatological" },
     { diagnosis_name: "Upper Extremity DVT", base_relevance: 0.65, must_not_miss: false, category: "vascular" },
+    { diagnosis_name: "Lymphoma", base_relevance: 0.5, must_not_miss: false, category: "oncological" },
   ],
 
   // ── Hemodynamic Instability ──
@@ -97,11 +109,13 @@ const CLUSTER_REGISTRY: Record<string, ClusterDiagnosis[]> = {
     { diagnosis_name: "Pyloric Stenosis", base_relevance: 0.7, must_not_miss: true, category: "surgical" },
     { diagnosis_name: "Intussusception", base_relevance: 0.7, must_not_miss: true, category: "surgical" },
     { diagnosis_name: "Compartment Syndrome", base_relevance: 0.75, must_not_miss: true, category: "surgical" },
+    { diagnosis_name: "Non-Accidental Injury", base_relevance: 0.5, must_not_miss: true, category: "pediatric" },
   ],
 
   // ── Chronic/Subacute ──
   chronic_subacute: [
     { diagnosis_name: "Chronic Mesenteric Ischemia", base_relevance: 0.55, must_not_miss: true, category: "vascular" },
+    { diagnosis_name: "Mesenteric Ischemia", base_relevance: 0.6, must_not_miss: true, category: "vascular" },
   ],
 
   // ── Toxicological ──
@@ -121,6 +135,7 @@ const CLUSTER_REGISTRY: Record<string, ClusterDiagnosis[]> = {
     { diagnosis_name: "Bowel Obstruction", base_relevance: 0.65, must_not_miss: true, category: "gastrointestinal" },
     { diagnosis_name: "Alcoholic Hepatitis", base_relevance: 0.5, must_not_miss: false, category: "gastrointestinal" },
     { diagnosis_name: "Acute Pancreatitis", base_relevance: 0.55, must_not_miss: false, category: "gastrointestinal" },
+    { diagnosis_name: "Perforated Viscus", base_relevance: 0.6, must_not_miss: true, category: "gastrointestinal" },
   ],
 
   // ── Sepsis ──
@@ -145,12 +160,14 @@ const CLUSTER_REGISTRY: Record<string, ClusterDiagnosis[]> = {
     { diagnosis_name: "Anaphylaxis", base_relevance: 0.9, must_not_miss: true, category: "immunological" },
     { diagnosis_name: "Angioedema", base_relevance: 0.7, must_not_miss: true, category: "immunological" },
     { diagnosis_name: "Drug Reaction", base_relevance: 0.4, must_not_miss: false, category: "dermatological" },
+    { diagnosis_name: "SLE", base_relevance: 0.45, must_not_miss: false, category: "immunological" },
   ],
 
   // ── Spinal ──
   spinal: [
     { diagnosis_name: "Cauda Equina Syndrome", base_relevance: 0.85, must_not_miss: true, category: "neurological" },
     { diagnosis_name: "Spinal Cord Compression", base_relevance: 0.75, must_not_miss: true, category: "neurological" },
+    { diagnosis_name: "Spinal Stenosis", base_relevance: 0.5, must_not_miss: false, category: "neurological" },
   ],
 
   // ── Surgical ──
@@ -194,11 +211,81 @@ const CLUSTER_REGISTRY: Record<string, ClusterDiagnosis[]> = {
   elderly_confusion: [
     { diagnosis_name: "Urinary Tract Infection", base_relevance: 0.55, must_not_miss: false, category: "renal" },
     { diagnosis_name: "Delirium", base_relevance: 0.65, must_not_miss: false, category: "neurological" },
+    { diagnosis_name: "Acute Kidney Injury", base_relevance: 0.5, must_not_miss: false, category: "renal" },
   ],
 
   // ── Pheochromocytoma (rare endocrine) ──
   pheochromocytoma: [
     { diagnosis_name: "Pheochromocytoma", base_relevance: 0.5, must_not_miss: false, category: "endocrine" },
+  ],
+
+  // ── Musculoskeletal / Rheumatological ──
+  musculoskeletal: [
+    { diagnosis_name: "Rheumatoid Arthritis", base_relevance: 0.5, must_not_miss: false, category: "rheumatological" },
+    { diagnosis_name: "Septic Arthritis", base_relevance: 0.7, must_not_miss: true, category: "infectious" },
+    { diagnosis_name: "Costochondritis", base_relevance: 0.4, must_not_miss: false, category: "musculoskeletal" },
+  ],
+
+  // ── Renal / GU ──
+  renal_gu: [
+    { diagnosis_name: "Prostatitis", base_relevance: 0.45, must_not_miss: false, category: "urological" },
+    { diagnosis_name: "Acute Kidney Injury", base_relevance: 0.55, must_not_miss: false, category: "renal" },
+  ],
+
+  // ── Syncope / Autonomic ──
+  syncope: [
+    { diagnosis_name: "Vasovagal Syncope", base_relevance: 0.5, must_not_miss: false, category: "cardiovascular" },
+    { diagnosis_name: "Orthostatic Hypotension", base_relevance: 0.45, must_not_miss: false, category: "cardiovascular" },
+    { diagnosis_name: "BPPV", base_relevance: 0.45, must_not_miss: false, category: "neurological" },
+  ],
+
+  // ── Psychiatric / Functional ──
+  psychiatric: [
+    { diagnosis_name: "Panic Disorder", base_relevance: 0.4, must_not_miss: false, category: "psychiatric" },
+    { diagnosis_name: "Panic Attack", base_relevance: 0.4, must_not_miss: false, category: "psychiatric" },
+    { diagnosis_name: "Somatization Disorder", base_relevance: 0.4, must_not_miss: false, category: "psychiatric" },
+    { diagnosis_name: "Generalized Anxiety Disorder", base_relevance: 0.35, must_not_miss: false, category: "psychiatric" },
+  ],
+
+  // ── Autoimmune / Connective Tissue ──
+  autoimmune: [
+    { diagnosis_name: "SLE", base_relevance: 0.5, must_not_miss: false, category: "immunological" },
+    { diagnosis_name: "Rheumatoid Arthritis", base_relevance: 0.45, must_not_miss: false, category: "rheumatological" },
+    { diagnosis_name: "Vasculitis", base_relevance: 0.4, must_not_miss: false, category: "immunological" },
+    { diagnosis_name: "Sarcoidosis", base_relevance: 0.35, must_not_miss: false, category: "immunological" },
+    { diagnosis_name: "Inflammatory Bowel Disease", base_relevance: 0.4, must_not_miss: false, category: "gastrointestinal" },
+  ],
+
+  // ── Malignancy / Oncological ──
+  malignancy: [
+    { diagnosis_name: "Lymphoma", base_relevance: 0.5, must_not_miss: false, category: "oncological" },
+    { diagnosis_name: "Lung Cancer", base_relevance: 0.4, must_not_miss: false, category: "oncological" },
+    { diagnosis_name: "Leukemia", base_relevance: 0.35, must_not_miss: false, category: "oncological" },
+    { diagnosis_name: "Colorectal Cancer", base_relevance: 0.35, must_not_miss: false, category: "oncological" },
+  ],
+
+  // ── Metabolic / Renal ──
+  metabolic: [
+    { diagnosis_name: "Acute Kidney Injury", base_relevance: 0.55, must_not_miss: false, category: "renal" },
+    { diagnosis_name: "Chronic Kidney Disease", base_relevance: 0.4, must_not_miss: false, category: "renal" },
+    { diagnosis_name: "Hyponatremia", base_relevance: 0.4, must_not_miss: false, category: "metabolic" },
+    { diagnosis_name: "Hypercalcemia", base_relevance: 0.4, must_not_miss: false, category: "metabolic" },
+    { diagnosis_name: "Rhabdomyolysis", base_relevance: 0.45, must_not_miss: false, category: "metabolic" },
+  ],
+
+  // ── General Infectious ──
+  general_infectious: [
+    { diagnosis_name: "Upper Respiratory Tract Infection", base_relevance: 0.5, must_not_miss: false, category: "infectious" },
+    { diagnosis_name: "Viral Syndrome", base_relevance: 0.45, must_not_miss: false, category: "infectious" },
+    { diagnosis_name: "Cellulitis", base_relevance: 0.4, must_not_miss: false, category: "infectious" },
+    { diagnosis_name: "Endocarditis", base_relevance: 0.4, must_not_miss: true, category: "infectious" },
+  ],
+
+  // ── Anemia / Hematological ──
+  hematological: [
+    { diagnosis_name: "Iron Deficiency Anemia", base_relevance: 0.5, must_not_miss: false, category: "hematological" },
+    { diagnosis_name: "B12 Deficiency", base_relevance: 0.4, must_not_miss: false, category: "hematological" },
+    { diagnosis_name: "Hemolytic Anemia", base_relevance: 0.35, must_not_miss: false, category: "hematological" },
   ],
 };
 

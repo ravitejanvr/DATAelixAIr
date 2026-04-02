@@ -16,7 +16,15 @@ import type { CandidateHint } from "../context_candidate_expander";
 
 const SPARSE_THRESHOLD = 3;
 const MAX_FALLBACK_CANDIDATES = 5;
-const MAX_TOTAL_INJECTED = 8; // fallback + hints combined cap
+const MAX_TOTAL_INJECTED = Number.POSITIVE_INFINITY; // Generation stage is non-destructive; truncation belongs downstream
+
+// Must-not-miss diagnoses that should always be flagged when injected
+const MUST_NOT_MISS_DIAGNOSES = new Set([
+  "sepsis", "pulmonary embolism", "myocardial infarction", "acute coronary syndrome",
+  "stroke", "aortic dissection", "meningitis", "subarachnoid hemorrhage",
+  "diabetic ketoacidosis", "necrotizing fasciitis", "cauda equina syndrome",
+  "tension pneumothorax", "ectopic pregnancy", "cardiac tamponade",
+]);
 
 // ── Weighted Fallback Rules ──
 
@@ -220,22 +228,28 @@ export function applyCandidateFallbackV2(
   const rulesMatched: string[] = [];
 
   // 1. Inject context-expander hints first (higher priority)
-  for (const hint of candidateHints) {
+  // Sort by confidence desc so highest-value candidates get injected first
+  const sortedHints = [...candidateHints].sort((a, b) => b.confidence - a.confidence);
+  for (const hint of sortedHints) {
     const nameKey = hint.diagnosis_name.toLowerCase().trim();
     if (existingNames.has(nameKey)) continue;
     if (fallbackCandidates.some(f => f.diagnosis_name.toLowerCase() === nameKey)) continue;
     if (fallbackCandidates.length >= MAX_TOTAL_INJECTED) break;
+
+    // Determine MNM status: check if this hint was generated as a must-not-miss by pattern recognizer
+    const isMNM = !!(hint as any).must_not_miss ||
+      MUST_NOT_MISS_DIAGNOSES.has(nameKey);
 
     fallbackCandidates.push({
       diagnosis_id: `hint-${hint.source}-${nameKey.replace(/\s+/g, '-')}`,
       diagnosis_name: hint.diagnosis_name,
       icd10_code: null,
       category: hint.source,
-      probability: Math.round(hint.confidence * 10), // Scale confidence to initial score
+      probability: Math.max(isMNM ? 8 : 5, hint.confidence * 100), // MNM gets higher floor
       supporting_symptoms: [],
       contradicting_factors: [],
       symptom_coverage: "context_hint",
-      must_not_miss: false,
+      must_not_miss: isMNM,
       guideline_source: `phase5_${hint.source}`,
     });
 
@@ -264,16 +278,15 @@ export function applyCandidateFallbackV2(
           if (fallbackCandidates.some(f => f.diagnosis_name.toLowerCase() === nameKey)) continue;
 
           // Weighted probability: base_score * cluster_confidence * match_strength
-          const weightedScore = Math.round(
-            candidate.base_score * rule.cluster_confidence * (0.5 + matchStrength * 0.5)
-          );
+          const weightedScore =
+            candidate.base_score * rule.cluster_confidence * (0.5 + matchStrength * 0.5);
 
           fallbackCandidates.push({
             diagnosis_id: `fallback-v2-${rule.id}-${nameKey.replace(/\s+/g, '-')}`,
             diagnosis_name: candidate.diagnosis_name,
             icd10_code: null,
             category: candidate.category,
-            probability: weightedScore,
+            probability: Math.max(5, weightedScore),
             supporting_symptoms: matchedKeywords,
             contradicting_factors: [],
             symptom_coverage: "fallback_v2",
