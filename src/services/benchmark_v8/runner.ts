@@ -312,14 +312,14 @@ async function runCase(bc: BenchmarkCaseV8): Promise<CaseResultV8> {
     };
 
     // Cognitive metrics
-    const flaggedCount = cognitiveOutput.hypothesis_evaluation.filter(h => h.action === "keep_with_flag").length;
+    const prunedCount = cognitiveOutput.hypothesis_evaluation.filter(h => h.action === "prune").length;
     const totalEval = cognitiveOutput.hypothesis_evaluation.length;
 
     const cognitiveMetrics: CognitiveMetrics = {
       hypothesis_management: {
         total_evaluated: totalEval,
-        kept: cognitiveOutput.hypothesis_evaluation.filter(h => h.action === "keep" || h.action === "keep_with_flag").length,
-        pruned: 0,
+        kept: cognitiveOutput.hypothesis_evaluation.filter(h => h.action === "keep").length,
+        pruned: prunedCount,
         escalated: cognitiveOutput.hypothesis_evaluation.filter(h => h.action === "escalate").length,
         prune_accuracy: 1,
       },
@@ -421,8 +421,7 @@ async function runCase(bc: BenchmarkCaseV8): Promise<CaseResultV8> {
       bayesian_probabilities: ((o1?.bayesian as any)?.diagnoses || []).map((d: any) => ({
         diagnosis: d.diagnosis_name || d.diagnosis || "", probability: d.posterior_probability || d.probability || 0,
       })),
-      hypotheses_pruned: [],
-      hypotheses_flagged_low_confidence: cognitiveOutput.hypothesis_evaluation.filter(h => h.action === "keep_with_flag").map(h => h.hypothesis),
+      hypotheses_pruned: cognitiveOutput.hypothesis_evaluation.filter(h => h.action === "prune").map(h => h.hypothesis),
       final_ranking: finalRanked.slice(0, 10).map((d, i) => ({
         diagnosis: d.name, diagnosis_id: d.diagnosis_id, probability: d.probability, rank: i + 1,
       })),
