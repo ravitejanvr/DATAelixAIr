@@ -1075,46 +1075,6 @@ export async function runUnifiedClinicalPipeline(
     }
   }
 
-  // ── Vitals-Aware MNM Score Protection ──
-  // Ensure MNM diagnoses with supporting vitals signals are not under-scored
-  if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
-    const temp = vitals.temperature ?? 0;
-    const hr = vitals.pulse ?? 0;
-    const rr = ctx.respiratory_rate ?? 0;
-    const sbp = vitals.bp_systolic ?? 999;
-    const spo2Val = vitals.spo2 ?? 100;
-    const riskFactorsLower = (ctx.risk_factors || []).map(r => r.toLowerCase());
-
-    ddxResult = {
-      ...ddxResult,
-      differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
-        const dxLower = d.diagnosis_name.toLowerCase().trim();
-
-        // Sepsis vitals-based boost (SIRS criteria: temp ≥102, HR ≥100, RR ≥22, SBP ≤100)
-        if (dxLower === "sepsis" || dxLower.includes("sepsis")) {
-          let vitalBoost = 0;
-          if (temp >= 102) vitalBoost += 5;
-          if (hr >= 100) vitalBoost += 4;
-          if (rr >= 22) vitalBoost += 3;
-          if (sbp <= 100) vitalBoost += 4;
-          if (spo2Val <= 94) vitalBoost += 3;
-          if (riskFactorsLower.some(r => r.includes("diabet"))) vitalBoost += 3;
-
-          if (vitalBoost > 0) {
-            const boostedProb = Math.min(d.probability + vitalBoost, 60);
-            console.log(
-              `[Pipeline] MNM-Vitals: Sepsis boosted ${d.probability}% → ${boostedProb}% ` +
-              `(vitals: T=${temp}, HR=${hr}, RR=${rr}, SBP=${sbp}, SpO2=${spo2Val})`
-            );
-            return { ...d, probability: boostedProb, must_not_miss: true };
-          }
-        }
-
-        return d;
-      }),
-    };
-  }
-
   waveLat.wave2_analysis = Math.round(performance.now() - w2Start);
   lineageTracker.recordEngineResult("ddx", !!ddxResult);
   lineageTracker.recordEngineResult("physiology", !!physiologicalContext);
@@ -1208,7 +1168,6 @@ export async function runUnifiedClinicalPipeline(
           `(${hypothesisTestResult.execution_ms}ms)`,
         );
         // Update DDX probabilities with evidence-adjusted values
-        // GUARD: hypothesis layer refines scores, never recomputes from scratch
         if (hypothesisTestResult.tested_hypotheses.length > 0) {
           const adjustedMap = new Map(
             hypothesisTestResult.tested_hypotheses.map(h => [h.diagnosis_id, h]),
@@ -1218,16 +1177,10 @@ export async function runUnifiedClinicalPipeline(
             differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
               const tested = adjustedMap.get(d.diagnosis_id);
               if (tested) {
-                const prevScore = d.probability;
-                const newScore = tested.adjusted_probability;
-                // INVARIANT: reject if hypothesis layer dropped score > 30%
-                if (newScore < prevScore * 0.7) {
-                  console.warn(
-                    `[Pipeline] Hypothesis guard: ${d.diagnosis_name} score drop blocked (${prevScore}→${newScore}). Keeping ${Math.round(prevScore * 0.7)}.`
-                  );
-                  return { ...d, probability: Math.round(prevScore * 0.7) };
-                }
-                return { ...d, probability: newScore };
+                return {
+                  ...d,
+                  probability: tested.adjusted_probability,
+                };
               }
               return d;
             }).sort((a, b) => b.probability - a.probability),
@@ -1385,40 +1338,28 @@ export async function runUnifiedClinicalPipeline(
       const t0 = performance.now();
       try {
         const result = await withRetry(
-          () => {
-            // Build DDX priors map: pass DDX-computed probabilities as informed priors
-            const ddxPriors: Record<string, number> = {};
-            if (ddxResult?.differential_diagnoses) {
-              for (const d of ddxResult.differential_diagnoses) {
-                if (d.diagnosis_id) {
-                  ddxPriors[d.diagnosis_id] = d.probability / 100; // Convert % → 0-1
-                }
-              }
-            }
-            return calculateDiagnosticProbabilities({
-              candidate_diagnosis_ids: candidateIds,
-              symptoms,
-              physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
-              risk_factors: ctx.risk_factors || [],
-              medical_history: ctx.medical_history || [],
-              patient_age: ctx.patient_age,
-              patient_sex: ctx.patient_sex,
-              region: "south_asia",
-              vitals: {
-                temperature: vitals.temperature,
-                spo2: vitals.spo2,
-                pulse: vitals.pulse,
-                bp_systolic: vitals.bp_systolic,
-                bp_diastolic: vitals.bp_diastolic,
-                respiratory_rate: vitals.respiratory_rate,
-              },
-              duration: ctx.symptom_duration || null,
-              onset_pattern: ctx.onset_pattern || null,
-              severity: ctx.severity || null,
-              body_location: ctx.body_location || null,
-              ddx_priors: ddxPriors,
-            });
-          },
+          () => calculateDiagnosticProbabilities({
+            candidate_diagnosis_ids: candidateIds,
+            symptoms,
+            physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
+            risk_factors: ctx.risk_factors || [],
+            medical_history: ctx.medical_history || [],
+            patient_age: ctx.patient_age,
+            patient_sex: ctx.patient_sex,
+            region: "south_asia",
+            vitals: {
+              temperature: vitals.temperature,
+              spo2: vitals.spo2,
+              pulse: vitals.pulse,
+              bp_systolic: vitals.bp_systolic,
+              bp_diastolic: vitals.bp_diastolic,
+              respiratory_rate: vitals.respiratory_rate,
+            },
+            duration: ctx.symptom_duration || null,
+            onset_pattern: ctx.onset_pattern || null,
+            severity: ctx.severity || null,
+            body_location: ctx.body_location || null,
+          }),
           TIMEOUT.BAYESIAN,
           "bayesian_engine",
         );
@@ -1570,7 +1511,6 @@ export async function runUnifiedClinicalPipeline(
   ]);
 
   const hypotheses = hypothesesRaw;
-  let finalBayesianResult = bayesianResult;
 
   waveLat.wave3_reasoning = Math.round(performance.now() - w3Start);
   lineageTracker.recordEngineResult("bayesian", !!bayesianResult);
@@ -1694,30 +1634,6 @@ export async function runUnifiedClinicalPipeline(
       const flaggedForLoop = loopDiagnoses
         .filter(d => d.probability < LOOP_LOW_CONFIDENCE_THRESHOLD && !d.must_not_miss)
         .map(d => d.diagnosis_name);
-      const loopIds = loopDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
-      const loopPriors: Record<string, number> = {};
-
-      if (finalBayesianResult?.diagnoses?.length) {
-        for (const d of finalBayesianResult.diagnoses) {
-          if (d.diagnosis_id) loopPriors[d.diagnosis_id] = d.posterior_probability;
-        }
-      } else {
-        for (const d of loopDiagnoses) {
-          if (d.diagnosis_id) loopPriors[d.diagnosis_id] = d.probability / 100;
-        }
-      }
-
-      const loopState = {
-        candidates: loopDiagnoses,
-        scores: finalBayesianResult,
-        ddx_priors: loopPriors,
-        hypothesis_adjustments: hypothesisTestResult?.tested_hypotheses ?? [],
-        mnm_flags: new Map(loopDiagnoses.map(d => [d.diagnosis_id, d.must_not_miss] as const)),
-      };
-
-      const hasNewEvidence = false;
-      const hasNewCandidates = loopIds.some(id => loopState.ddx_priors[id] === undefined);
-      const hasLoopChanges = hasNewEvidence || hasNewCandidates;
 
       console.log(
         `[Pipeline] Wave 3.6: Flagged ${flaggedForLoop.length} low-confidence candidates for review; ` +
@@ -1738,68 +1654,61 @@ export async function runUnifiedClinicalPipeline(
         });
       }
 
-      let loopHypoTest: HypothesisTestResult | null = null;
-      let loopBayesian: BayesianResult | null = null;
+      // Re-run Hypothesis Testing with the full generated set (guard: skip if empty)
+      const [loopHypoTest, loopBayesian] = await Promise.all([
+        (async (): Promise<HypothesisTestResult | null> => {
+          if (loopDiagnoses.length === 0) return null;
+          try {
+            return await withTimeout(
+              testHypotheses({
+                candidate_diagnoses: loopDiagnoses.map((d, i) => ({
+                  diagnosis_id: d.diagnosis_id || `fallback-loop-${i}-${d.diagnosis_name?.replace(/\s+/g, '-').toLowerCase()}`,
+                  diagnosis_name: d.diagnosis_name,
+                  icd10_code: d.icd10_code || null,
+                  probability: d.probability || 0,
+                  must_not_miss: d.must_not_miss || false,
+                })),
+                patient_symptoms: symptoms,
+                patient_age: ctx.patient_age,
+                patient_sex: ctx.patient_sex,
+                allergies: ctx.allergies,
+                current_medications: ctx.current_medications,
+              }),
+              TIMEOUT.HYPOTHESIS_TESTING,
+              "hypothesis_testing_loop",
+            );
+          } catch {
+            return null;
+          }
+        })(),
 
-      if (!hasLoopChanges) {
-        console.log(
-          `[Pipeline] Wave 3.6: Loop skip — no new evidence/candidates. Preserving Wave 3 state.`
-        );
-      } else {
-        [loopHypoTest, loopBayesian] = await Promise.all([
-          (async (): Promise<HypothesisTestResult | null> => {
-            if (loopState.candidates.length === 0) return null;
-            try {
-              return await withTimeout(
-                testHypotheses({
-                  candidate_diagnoses: loopState.candidates.map((d, i) => ({
-                    diagnosis_id: d.diagnosis_id || `fallback-loop-${i}-${d.diagnosis_name?.replace(/\s+/g, '-').toLowerCase()}`,
-                    diagnosis_name: d.diagnosis_name,
-                    icd10_code: d.icd10_code || null,
-                    probability: d.probability || 0,
-                    must_not_miss: d.must_not_miss || false,
-                  })),
-                  patient_symptoms: symptoms,
-                  patient_age: ctx.patient_age,
-                  patient_sex: ctx.patient_sex,
-                  allergies: ctx.allergies,
-                  current_medications: ctx.current_medications,
-                }),
-                TIMEOUT.HYPOTHESIS_TESTING,
-                "hypothesis_testing_loop",
-              );
-            } catch {
-              return null;
-            }
-          })(),
+        // Re-run Bayesian with the full generated set
+        (async (): Promise<BayesianResult | null> => {
+          const loopIds = loopDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
+          if (loopIds.length === 0) return null;
+          try {
+            return await withTimeout(
+              calculateDiagnosticProbabilities({
+                symptoms,
+                candidate_diagnosis_ids: loopIds,
+                patient_age: ctx.patient_age ?? undefined,
+                patient_sex: ctx.patient_sex ?? undefined,
+                risk_factors: ctx.risk_factors || [],
+                medical_history: ctx.medical_history || [],
+                region: "south_asia",
+                vitals,
+                duration: ctx.symptom_duration || null,
+              }),
+              TIMEOUT.BAYESIAN,
+              "bayesian_loop",
+            );
+          } catch {
+            return null;
+          }
+        })(),
+      ]);
 
-          (async (): Promise<BayesianResult | null> => {
-            if (loopIds.length === 0) return null;
-            console.log(`[Pipeline] Wave 3.6 Bayesian: uses_ddx_prior=${Object.keys(loopState.ddx_priors).length > 0}, candidates=${loopIds.length}`);
-            try {
-              return await withTimeout(
-                calculateDiagnosticProbabilities({
-                  symptoms,
-                  candidate_diagnosis_ids: loopIds,
-                  patient_age: ctx.patient_age ?? undefined,
-                  patient_sex: ctx.patient_sex ?? undefined,
-                  risk_factors: ctx.risk_factors || [],
-                  medical_history: ctx.medical_history || [],
-                  region: "south_asia",
-                  vitals,
-                  duration: ctx.symptom_duration || null,
-                  ddx_priors: Object.keys(loopState.ddx_priors).length > 0 ? loopState.ddx_priors : undefined,
-                }),
-                TIMEOUT.BAYESIAN,
-                "bayesian_loop",
-              );
-            } catch {
-              return null;
-            }
-          })(),
-        ]);
-      }
-
+      // Apply loop hypothesis testing adjustments
       if (loopHypoTest && loopHypoTest.tested_hypotheses.length > 0) {
         hypothesisTestResult = loopHypoTest;
         const adjustedMap = new Map(
@@ -1807,33 +1716,9 @@ export async function runUnifiedClinicalPipeline(
         );
         ddxResult = {
           ...ddxResult,
-          differential_diagnoses: loopState.candidates.map(d => {
+          differential_diagnoses: loopDiagnoses.map(d => {
             const tested = adjustedMap.get(d.diagnosis_id);
-            if (!tested) return d;
-
-            const prevScore = d.probability;
-            const nextScore = tested.adjusted_probability;
-            const protectedScore = !hasNewEvidence && nextScore < prevScore
-              ? prevScore
-              : nextScore;
-
-            if (!hasNewEvidence && nextScore < prevScore * 0.8) {
-              console.warn(
-                `[Pipeline] Wave 3.6 invariant: blocked >20% hypothesis drop for ${d.diagnosis_name} (${prevScore}→${nextScore}).`
-              );
-            }
-
-            console.log(JSON.stringify({
-              stage: "Wave 3.6 loop",
-              engine: "hypothesis",
-              diagnosis_id: d.diagnosis_id,
-              used_priors: Object.keys(loopState.ddx_priors).length > 0,
-              score_before: prevScore,
-              score_after: protectedScore,
-              new_evidence: hasNewEvidence,
-            }));
-
-            return { ...d, probability: protectedScore };
+            return tested ? { ...d, probability: tested.adjusted_probability } : d;
           }).sort((a, b) => b.probability - a.probability),
         };
         console.log(
@@ -1841,46 +1726,11 @@ export async function runUnifiedClinicalPipeline(
         );
       }
 
+      // Apply loop Bayesian updates (override previous bayesian result)
       if (loopBayesian) {
-        const previousBayesianMap = new Map(
-          (loopState.scores?.diagnoses || []).map(d => [d.diagnosis_id, d]),
-        );
-
-        finalBayesianResult = {
-          ...loopBayesian,
-          diagnoses: loopBayesian.diagnoses.map(d => {
-            const prev = previousBayesianMap.get(d.diagnosis_id);
-            const scoreBefore = prev?.posterior_probability ?? loopState.ddx_priors[d.diagnosis_id] ?? 0;
-            const protectedScore = !hasNewEvidence && prev && d.posterior_probability < prev.posterior_probability
-              ? prev.posterior_probability
-              : d.posterior_probability;
-
-            if (!hasNewEvidence && prev && d.posterior_probability < prev.posterior_probability * 0.8) {
-              console.warn(
-                `[Pipeline] Wave 3.6 invariant: blocked >20% bayesian drop for ${d.diagnosis_id} (${prev.posterior_probability}→${d.posterior_probability}).`
-              );
-            }
-
-            console.log(JSON.stringify({
-              stage: "Wave 3.6 loop",
-              engine: "bayesian",
-              diagnosis_id: d.diagnosis_id,
-              used_priors: Object.keys(loopState.ddx_priors).length > 0,
-              score_before: scoreBefore,
-              score_after: protectedScore,
-              new_evidence: hasNewEvidence,
-            }));
-
-            return {
-              ...d,
-              posterior_probability: protectedScore,
-              must_not_miss: d.must_not_miss || prev?.must_not_miss || false,
-            };
-          }).sort((a, b) => b.posterior_probability - a.posterior_probability),
-        };
-
+        // Merge loop Bayesian into existing — use loop posteriors for pruned set
         console.log(
-          `[Pipeline] Wave 3.6: Bayesian re-scored ${loopBayesian.total_candidates} candidates (state protected).`
+          `[Pipeline] Wave 3.6: Bayesian re-scored ${loopBayesian.total_candidates} candidates.`
         );
       }
 
@@ -1889,13 +1739,10 @@ export async function runUnifiedClinicalPipeline(
       lineageTracker.recordEngineResult("diagnostic_loop", true);
       pcieCore.addReasoningTrace(
         "diagnostic_loop" as any,
-        hasLoopChanges
-          ? `Loop triggered: ${diagnosticLoopReason}. Flagged ${flaggedForLoop.length} low-confidence candidates, preserved all diagnoses, re-ran hypothesis testing + bayesian with state protection.`
-          : `Loop triggered: ${diagnosticLoopReason}. No new evidence/candidates, preserved Wave 3 hypothesis + bayesian state.`,
+        `Loop triggered: ${diagnosticLoopReason}. Flagged ${flaggedForLoop.length} low-confidence candidates, preserved all diagnoses, re-ran hypothesis testing + bayesian.`,
       );
 
-      // SINGLE-PASS MODEL: Wave 3.6 NEVER emits to UI — only Wave 3 emission is authoritative
-      console.log({ wave: "Wave 3.6", hasLoopChanges, emitting: false, reason: "single_pass_model_wave3_only" });
+      onProgress?.("diagnostic_loop", { ddx: ddxResult, hypothesis_testing: hypothesisTestResult });
     }
   }
 
@@ -2097,7 +1944,7 @@ export async function runUnifiedClinicalPipeline(
   if (symptoms.length > 0 && (ddxResult || hypotheses)) {
     setReasoningCache(
       symptoms,
-      { ddx: ddxResult, hypotheses, evidence, guideline_alignment: guidelineAlignment, uncertainty: uncertaintyResult, hybrid_reasoning: hybridReasoning, bayesian: finalBayesianResult },
+      { ddx: ddxResult, hypotheses, evidence, guideline_alignment: guidelineAlignment, uncertainty: uncertaintyResult, hybrid_reasoning: hybridReasoning, bayesian: bayesianResult },
       uncertaintyResult?.confidence_score || 0,
       6,
     );
@@ -2131,8 +1978,8 @@ export async function runUnifiedClinicalPipeline(
         ddx_enabled: !!ddxResult,
         ddx_diagnoses: ddxResult?.differential_diagnoses.length || 0,
         organ_system_weighting: dominantSystem || "none",
-        bayesian_enabled: !!finalBayesianResult,
-        bayesian_candidates: finalBayesianResult?.total_candidates || 0,
+        bayesian_enabled: !!bayesianResult,
+        bayesian_candidates: bayesianResult?.total_candidates || 0,
         physiology_states: physiologicalContext?.physiological_states.length || 0,
         uncertainty_score: uncertaintyResult?.confidence_score || null,
         uncertainty_label: uncertaintyResult?.confidence_label || null,
@@ -2315,9 +2162,9 @@ export async function runUnifiedClinicalPipeline(
       })),
     });
   }
-  if (finalBayesianResult) {
+  if (bayesianResult) {
     pcieCore.updateReasoning({
-      bayesian_probabilities: finalBayesianResult.diagnoses.map(d => ({
+      bayesian_probabilities: bayesianResult.diagnoses.map(d => ({
         diagnosis_id: d.diagnosis_id,
         posterior_probability: d.posterior_probability,
         prior: d.prior,
@@ -2403,7 +2250,7 @@ export async function runUnifiedClinicalPipeline(
     enabled: true,
     enriched_context: enrichedContext,
     physiological_context: physiologicalContext,
-    bayesian: finalBayesianResult,
+    bayesian: bayesianResult,
     ddx: ddxResult,
     uncertainty: uncertaintyResult,
     hypotheses,

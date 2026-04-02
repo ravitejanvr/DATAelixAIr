@@ -18,14 +18,6 @@ const SPARSE_THRESHOLD = 3;
 const MAX_FALLBACK_CANDIDATES = 5;
 const MAX_TOTAL_INJECTED = Number.POSITIVE_INFINITY; // Generation stage is non-destructive; truncation belongs downstream
 
-// Must-not-miss diagnoses that should always be flagged when injected
-const MUST_NOT_MISS_DIAGNOSES = new Set([
-  "sepsis", "pulmonary embolism", "myocardial infarction", "acute coronary syndrome",
-  "stroke", "aortic dissection", "meningitis", "subarachnoid hemorrhage",
-  "diabetic ketoacidosis", "necrotizing fasciitis", "cauda equina syndrome",
-  "tension pneumothorax", "ectopic pregnancy", "cardiac tamponade",
-]);
-
 // ── Weighted Fallback Rules ──
 
 interface WeightedFallbackRule {
@@ -236,20 +228,16 @@ export function applyCandidateFallbackV2(
     if (fallbackCandidates.some(f => f.diagnosis_name.toLowerCase() === nameKey)) continue;
     if (fallbackCandidates.length >= MAX_TOTAL_INJECTED) break;
 
-    // Determine MNM status: check if this hint was generated as a must-not-miss by pattern recognizer
-    const isMNM = !!(hint as any).must_not_miss ||
-      MUST_NOT_MISS_DIAGNOSES.has(nameKey);
-
     fallbackCandidates.push({
       diagnosis_id: `hint-${hint.source}-${nameKey.replace(/\s+/g, '-')}`,
       diagnosis_name: hint.diagnosis_name,
       icd10_code: null,
       category: hint.source,
-      probability: Math.max(isMNM ? 8 : 5, hint.confidence * 100), // MNM gets higher floor
+        probability: Math.max(5, hint.confidence * 100), // Preserve raw confidence with a 5% floor in percentage space
       supporting_symptoms: [],
       contradicting_factors: [],
       symptom_coverage: "context_hint",
-      must_not_miss: isMNM,
+      must_not_miss: false,
       guideline_source: `phase5_${hint.source}`,
     });
 
