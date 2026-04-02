@@ -670,7 +670,34 @@ export default function CockpitPlayground() {
           if (runId !== pipelineRunIdRef.current) return;
           setPipelineStage(stage);
           if (data.physiological_context) setPipelinePhysiology(data.physiological_context);
-          if (data.ddx) setPipelineDDX(data.ddx);
+          // Merge DDX updates: preserve MNM candidates from earlier stages
+          if (data.ddx) {
+            setPipelineDDX((prev: any) => {
+              if (!prev || !prev.differential_diagnoses?.length) return data.ddx;
+              const incoming = data.ddx as any;
+              if (!incoming.differential_diagnoses?.length) return prev;
+
+              // Build map of incoming candidates
+              const incomingMap = new Map(
+                incoming.differential_diagnoses.map((d: any) => [d.diagnosis_name?.toLowerCase().trim(), d])
+              );
+
+              // Collect MNM candidates from previous state that are missing in incoming
+              const preservedMNM: any[] = [];
+              for (const d of prev.differential_diagnoses) {
+                const key = d.diagnosis_name?.toLowerCase().trim();
+                if (d.must_not_miss && !incomingMap.has(key)) {
+                  preservedMNM.push(d);
+                  console.log(`[UI] MNM preserved across stages: ${d.diagnosis_name} (prob=${d.probability}%)`);
+                }
+              }
+
+              return {
+                ...incoming,
+                differential_diagnoses: [...incoming.differential_diagnoses, ...preservedMNM],
+              };
+            });
+          }
           if (data.bayesian) setPipelineBayesian(data.bayesian);
           if (data.hypotheses?.hypotheses) {
             setPipelineHypotheses(data.hypotheses.hypotheses.map((h: any) => ({
