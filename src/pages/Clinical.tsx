@@ -753,8 +753,8 @@ export default function Clinical() {
                   if (!key || seen.has(key)) continue;
                   seen.add(key);
                   const prevD = prevMap.get(key);
-                  const prevScore = prevD?.probability ?? prevD?.posterior ?? 0;
-                  const newScore = d.probability ?? d.posterior ?? 0;
+                  const prevScore = prevD?.probability ?? prevD?.posterior_probability ?? prevD?.posterior ?? 0;
+                  const newScore = d.probability ?? d.posterior_probability ?? d.posterior ?? 0;
                   const isMNM = d.must_not_miss || prevD?.must_not_miss || false;
 
                   let finalScore = newScore;
@@ -769,7 +769,7 @@ export default function Clinical() {
                   }
 
                   console.log(`[Bayesian-Merge] ${key}: prev=${prevScore.toFixed(1)}% new=${newScore.toFixed(1)}% final=${finalScore.toFixed(1)}% → ${decision}`);
-                  merged.push({ ...d, ...(prevD ? { must_not_miss: isMNM } : {}), probability: finalScore, posterior: finalScore });
+                  merged.push({ ...d, ...(prevD ? { must_not_miss: isMNM } : {}), probability: finalScore, posterior: finalScore, posterior_probability: finalScore });
                 }
 
                 // Preserve previous diagnoses not in incoming
