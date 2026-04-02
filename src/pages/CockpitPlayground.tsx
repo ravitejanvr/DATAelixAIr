@@ -652,6 +652,7 @@ export default function CockpitPlayground() {
           clinical_context: pipelineContext,
           visit_id: null, consultation_id: null, clinic_id: null,
           intake_approved: false,
+          skip_cache: true, // FIX 4: Force deterministic execution — no cache path divergence
         },
         (stage, data) => {
           if (runId !== pipelineRunIdRef.current) return;
