@@ -1570,6 +1570,7 @@ export async function runUnifiedClinicalPipeline(
   ]);
 
   const hypotheses = hypothesesRaw;
+  let finalBayesianResult = bayesianResult;
 
   waveLat.wave3_reasoning = Math.round(performance.now() - w3Start);
   lineageTracker.recordEngineResult("bayesian", !!bayesianResult);
