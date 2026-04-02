@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
       normalizedHistory.length > 0
         ? supabase.from("medical_history_modifiers")
             .select("diagnosis_id, history_condition, prior_multiplier, confidence")
-            .in("diagnosis_id", candidate_diagnosis_ids)
+            .in("diagnosis_id", validCandidateIds)
             .in("history_condition", normalizedHistory)
         : Promise.resolve({ data: [] }),
       supabase.from("dangerous_diagnoses")
