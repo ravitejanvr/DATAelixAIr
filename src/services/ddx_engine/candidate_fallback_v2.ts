@@ -228,16 +228,20 @@ export function applyCandidateFallbackV2(
     if (fallbackCandidates.some(f => f.diagnosis_name.toLowerCase() === nameKey)) continue;
     if (fallbackCandidates.length >= MAX_TOTAL_INJECTED) break;
 
+    // Determine MNM status: check if this hint was generated as a must-not-miss by pattern recognizer
+    const isMNM = !!(hint as any).must_not_miss ||
+      MUST_NOT_MISS_DIAGNOSES.has(nameKey);
+
     fallbackCandidates.push({
       diagnosis_id: `hint-${hint.source}-${nameKey.replace(/\s+/g, '-')}`,
       diagnosis_name: hint.diagnosis_name,
       icd10_code: null,
       category: hint.source,
-        probability: Math.max(5, hint.confidence * 100), // Preserve raw confidence with a 5% floor in percentage space
+      probability: Math.max(isMNM ? 8 : 5, hint.confidence * 100), // MNM gets higher floor
       supporting_symptoms: [],
       contradicting_factors: [],
       symptom_coverage: "context_hint",
-      must_not_miss: false,
+      must_not_miss: isMNM,
       guideline_source: `phase5_${hint.source}`,
     });
 
