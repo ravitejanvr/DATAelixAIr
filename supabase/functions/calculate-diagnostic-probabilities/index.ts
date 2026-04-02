@@ -678,10 +678,13 @@ Deno.serve(async (req) => {
     }
 
     // ════════════════════════════════════════════
-    // SOFTMAX NORMALIZATION
+    // TEMPERATURE-SCALED SOFTMAX NORMALIZATION
     // ════════════════════════════════════════════
-    const maxLog = Math.max(...results.map(d => d.log_score));
-    const expScores = results.map(d => Math.exp(d.log_score - maxLog));
+    // T < 1.0 sharpens distribution; T = 0.7 provides strong clinical differentiation
+    const TEMPERATURE = 0.7;
+    const scaledScores = results.map(d => d.log_score / TEMPERATURE);
+    const maxLog = Math.max(...scaledScores);
+    const expScores = scaledScores.map(s => Math.exp(s - maxLog));
     const sumExp = expScores.reduce((s, e) => s + e, 0) || 1;
     for (let i = 0; i < results.length; i++) {
       results[i].posterior_probability = parseFloat((expScores[i] / sumExp).toFixed(4));
@@ -701,6 +704,19 @@ Deno.serve(async (req) => {
 
     results.sort((a, b) => b.posterior_probability - a.posterior_probability);
 
+    // ── SCORE TRACE (for debugging) ──
+    console.log("[BayesianEngine] Score trace:", JSON.stringify(
+      results.slice(0, 8).map(d => ({
+        id: d.diagnosis_id,
+        name: diagNameMap.get(d.diagnosis_id) || "?",
+        prior: d.prior.toFixed(4),
+        feature_score: d.clinical_feature_score.toFixed(1),
+        interaction: d.interaction_bonus.toFixed(1),
+        log_score: d.log_score.toFixed(2),
+        posterior: (d.posterior_probability * 100).toFixed(1) + "%",
+      }))
+    ));
+
     const executionMs = Date.now() - start;
 
     return new Response(JSON.stringify({
@@ -717,6 +733,8 @@ Deno.serve(async (req) => {
         onset_modifier: parseFloat(d.onset_modifier.toFixed(2)),
         vital_modifier: parseFloat(d.vital_modifier.toFixed(2)),
         cluster_modifier: parseFloat(d.cluster_modifier.toFixed(2)),
+        clinical_feature_score: parseFloat(d.clinical_feature_score.toFixed(2)),
+        interaction_bonus: parseFloat(d.interaction_bonus.toFixed(2)),
         log_score: parseFloat(d.log_score.toFixed(4)),
         supporting_evidence: d.supporting_evidence,
         must_not_miss: d.must_not_miss,
@@ -730,8 +748,9 @@ Deno.serve(async (req) => {
       onset_pattern: onsetCategory,
       vitals_signals_applied: Array.from(vitalModMap.values()).flat().length,
       cluster_matches: Array.from(clusterModMap.entries()).filter(([, v]) => v > 1).length,
+      clinical_features_detected: Object.entries(clinicalFeatures).filter(([, v]) => v).map(([k]) => k),
       execution_ms: executionMs,
-      source: "bayesian_engine_v4_full_signals",
+      source: "bayesian_engine_v5_clinical_weights",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
