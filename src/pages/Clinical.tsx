@@ -769,7 +769,7 @@ export default function Clinical() {
                   }
 
                   console.log(`[Bayesian-Merge] ${key}: prev=${prevScore.toFixed(1)}% new=${newScore.toFixed(1)}% final=${finalScore.toFixed(1)}% → ${decision}`);
-                  merged.push({ ...d, ...(prevD ? { must_not_miss: isMNM } : {}), probability: finalScore, posterior: finalScore, posterior_probability: finalScore });
+                  merged.push({ ...d, ...(prevD ? { must_not_miss: isMNM } : {}), probability: finalScore, posterior: finalScore, posterior_probability: finalScore / 100 });
                 }
 
                 // Preserve previous diagnoses not in incoming
