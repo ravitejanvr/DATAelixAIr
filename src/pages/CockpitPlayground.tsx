@@ -485,6 +485,9 @@ export default function CockpitPlayground() {
   const [pipelineDDX, setPipelineDDX] = useState<any>(null);
   const [safetyResults, setSafetyResults] = useState<SafetyResults | null>(null);
 
+  // ── RENDER SOURCE LOCK — single deterministic render path ──
+  const [renderSource, setRenderSource] = useState<"none" | "bayesian">("none");
+
   // Copilot selections — bidirectional with Plan
   const [selectedDiagnoses, setSelectedDiagnoses] = useState<string[]>([]);
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
