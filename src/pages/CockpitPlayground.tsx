@@ -739,7 +739,19 @@ export default function CockpitPlayground() {
               return { ...incoming, differential_diagnoses: final };
             });
           }
-          if (data.bayesian) setPipelineBayesian(data.bayesian);
+          if (data.bayesian) {
+            setPipelineBayesian((prev: any) => {
+              // SINGLE-PASS MODEL: Accept first emission only
+              if (prev && prev._locked) {
+                console.log("[Cockpit-Bayesian] LOCKED — ignoring subsequent emission");
+                return prev;
+              }
+              const incoming = data.bayesian as any;
+              if (!incoming) return prev;
+              console.log("[Cockpit-Bayesian] First emission accepted, locking");
+              return { ...incoming, _locked: true };
+            });
+          }
           if (data.hypotheses?.hypotheses) {
             setPipelineHypotheses(data.hypotheses.hypotheses.map((h: any) => ({
               diagnosis: h.hypothesis || h.diagnosis || h.diagnosis_name || "",
