@@ -744,6 +744,19 @@ Deno.serve(async (req) => {
       }))
     ));
 
+    // ── FLAT DISTRIBUTION WARNING ──
+    if (results.length >= 3) {
+      const top = results[0]?.posterior_probability || 0;
+      const bottom = results[Math.min(results.length - 1, 4)]?.posterior_probability || 0;
+      if (top > 0 && bottom > 0 && (top - bottom) < 0.05) {
+        console.warn(`[BayesianEngine] ⚠️ FLAT DISTRIBUTION DETECTED — top=${(top*100).toFixed(1)}%, bottom=${(bottom*100).toFixed(1)}%. Feature weights may not be applying.`);
+      }
+    }
+
+    // Log clinical features for verification
+    const activeFeatures = Object.entries(clinicalFeatures).filter(([, v]) => v).map(([k]) => k);
+    console.log(`[BayesianEngine] Clinical features active: [${activeFeatures.join(", ")}]`);
+
     const executionMs = Date.now() - start;
 
     return new Response(JSON.stringify({
