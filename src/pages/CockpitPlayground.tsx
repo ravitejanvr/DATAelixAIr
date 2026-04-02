@@ -502,6 +502,10 @@ export default function CockpitPlayground() {
   const [snapshots, setSnapshots] = useState<PipelineSnapshot[]>([]);
   const [showComparison, setShowComparison] = useState(false);
 
+  // ── Sepsis Validation Tool state ──
+  const [sepsisRunCount, setSepsisRunCount] = useState(0);
+  const sepsisLastResultRef = useRef<Array<{ name: string; pct: number }> | null>(null);
+
   const [editingCategory, setEditingCategory] = useState<ContextCategory | null>(null);
   const [expandedDx, setExpandedDx] = useState<Set<string>>(new Set());
   const [showMoreDx, setShowMoreDx] = useState(false);
