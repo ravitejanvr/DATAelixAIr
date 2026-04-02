@@ -154,6 +154,17 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
     monitoring: ["Temperature Q6H", "CURB-65 score assessment", "Repeat CRP at 48-72 hours", "Follow up in 48-72 hours if no improvement"],
     instructions: ["Complete full antibiotic course", "Increase fluid intake", "Follow up in 48-72 hours if no improvement"],
   },
+  "sepsis": {
+    tests: ["Blood culture x2", "CBC", "CRP", "Procalcitonin", "Lactate", "BMP", "Coagulation profile", "Urinalysis", "Chest X-ray"],
+    medications: [
+      { drug: "IV Fluids", dose: "NS 1L", route: "IV", freq: "STAT", dur: "Bolus over 30min", line: "emergency" },
+      { drug: "Piperacillin-Tazobactam", dose: "4.5g", route: "IV", freq: "Q6H", dur: "7-14 days", line: "first" },
+      { drug: "Vancomycin", dose: "1g", route: "IV", freq: "BD", dur: "Based on culture", line: "alternative" },
+      { drug: "Norepinephrine", dose: "0.1mcg/kg/min", route: "IV", freq: "Continuous", dur: "As needed", line: "emergency" },
+    ],
+    monitoring: ["Lactate clearance Q2-4H", "MAP target ≥65 mmHg", "Urine output ≥0.5ml/kg/hr", "qSOFA score Q1H", "Blood culture follow-up at 48H"],
+    instructions: ["EMERGENCY: Antibiotics within 1 hour of recognition", "Aggressive IV fluid resuscitation", "ICU admission if vasopressors required", "Source control — identify and treat infection source"],
+  },
   "copd exacerbation": {
     tests: ["Chest X-ray", "ABG", "CBC", "Sputum culture"],
     medications: [
@@ -403,6 +414,16 @@ const SCENARIOS: Scenario[] = [
     riskFactors: ["Smoking"], medicalHistory: ["COPD"], familyHistory: [],
     examFindings: ["Crepitations"], vitals: { bp_systolic: 130, bp_diastolic: 80, pulse: 95, spo2: 93, temperature: 102.0, respiratory_rate: 24, weight_kg: 72, blood_sugar: null },
     chiefComplaint: "Cough",
+  },
+  {
+    name: "Sepsis (Demo)",
+    description: "High fever with chills — must-not-miss sepsis",
+    patient: { name: "Rajesh Gupta", age: 58, gender: "Male", location: "Lucknow", occupation: "Retired", diet: "Non-vegetarian", allergies: [] },
+    symptoms: ["Fever", "Body ache", "Fatigue", "Palpitations"],
+    duration: "3 days", onset: "Progressive", severity: "Severe", bodyLocation: "Generalized",
+    riskFactors: ["Diabetes"], medicalHistory: ["Diabetes mellitus"], familyHistory: [],
+    examFindings: [], vitals: { bp_systolic: 95, bp_diastolic: 58, pulse: 118, spo2: 93, temperature: 103.2, respiratory_rate: 26, weight_kg: 78, blood_sugar: 220 },
+    chiefComplaint: "High fever with chills and body aches for 3 days",
   },
 ];
 
