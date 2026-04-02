@@ -670,32 +670,73 @@ export default function CockpitPlayground() {
           if (runId !== pipelineRunIdRef.current) return;
           setPipelineStage(stage);
           if (data.physiological_context) setPipelinePhysiology(data.physiological_context);
-          // Merge DDX updates: preserve MNM candidates from earlier stages
+          // Merge DDX updates: full merge strategy across emissions
           if (data.ddx) {
             setPipelineDDX((prev: any) => {
               if (!prev || !prev.differential_diagnoses?.length) return data.ddx;
               const incoming = data.ddx as any;
               if (!incoming.differential_diagnoses?.length) return prev;
 
-              // Build map of incoming candidates
-              const incomingMap = new Map(
+              const prevMap = new Map<string, any>(
+                prev.differential_diagnoses.map((d: any) => [d.diagnosis_name?.toLowerCase().trim(), d])
+              );
+              const incomingMap = new Map<string, any>(
                 incoming.differential_diagnoses.map((d: any) => [d.diagnosis_name?.toLowerCase().trim(), d])
               );
 
-              // Collect MNM candidates from previous state that are missing in incoming
-              const preservedMNM: any[] = [];
+              const merged: any[] = [];
+              const seen = new Set<string>();
+
+              // 1. Process all incoming candidates, updating scores from prev where both exist
+              for (const d of incoming.differential_diagnoses) {
+                const key = d.diagnosis_name?.toLowerCase().trim();
+                if (!key || seen.has(key)) continue;
+                seen.add(key);
+                const prevD = prevMap.get(key);
+                // Carry forward MNM flag if previously set
+                const mnm = d.must_not_miss || prevD?.must_not_miss || false;
+                // Use higher score between prev and incoming for MNM; else use incoming
+                const prob = mnm && prevD ? Math.max(d.probability ?? 0, prevD.probability ?? 0) : (d.probability ?? 0);
+                merged.push({ ...d, must_not_miss: mnm, probability: prob });
+              }
+
+              // 2. Preserve previous candidates NOT in incoming if MNM or high-confidence (≥15%)
               for (const d of prev.differential_diagnoses) {
                 const key = d.diagnosis_name?.toLowerCase().trim();
-                if (d.must_not_miss && !incomingMap.has(key)) {
-                  preservedMNM.push(d);
-                  console.log(`[UI] MNM preserved across stages: ${d.diagnosis_name} (prob=${d.probability}%)`);
+                if (!key || seen.has(key)) continue;
+                if (d.must_not_miss || (d.probability ?? 0) >= 15) {
+                  seen.add(key);
+                  merged.push(d);
+                  console.log(`[DDX-Merge] Preserved from prev: ${d.diagnosis_name} (MNM=${d.must_not_miss}, prob=${d.probability}%)`);
                 }
               }
 
-              return {
-                ...incoming,
-                differential_diagnoses: [...incoming.differential_diagnoses, ...preservedMNM],
-              };
+              // 3. Enforce MNM rank floor: MNM candidates must be in top-5
+              const mnmItems = merged.filter((d: any) => d.must_not_miss);
+              const nonMnm = merged.filter((d: any) => !d.must_not_miss);
+              nonMnm.sort((a: any, b: any) => (b.probability ?? 0) - (a.probability ?? 0));
+              mnmItems.sort((a: any, b: any) => (b.probability ?? 0) - (a.probability ?? 0));
+
+              // Interleave: place MNM in top-5 slots, fill rest with non-MNM
+              const final: any[] = [];
+              let mnmIdx = 0;
+              let nonIdx = 0;
+              for (let i = 0; i < merged.length; i++) {
+                if (i < 5 && mnmIdx < mnmItems.length) {
+                  // Reserve slots for MNM in top-5
+                  if (nonIdx < nonMnm.length && (nonMnm[nonIdx].probability ?? 0) > (mnmItems[mnmIdx].probability ?? 0)) {
+                    final.push(nonMnm[nonIdx++]);
+                  } else {
+                    final.push(mnmItems[mnmIdx++]);
+                  }
+                } else if (mnmIdx < mnmItems.length) {
+                  final.push(mnmItems[mnmIdx++]);
+                } else if (nonIdx < nonMnm.length) {
+                  final.push(nonMnm[nonIdx++]);
+                }
+              }
+
+              return { ...incoming, differential_diagnoses: final };
             });
           }
           if (data.bayesian) setPipelineBayesian(data.bayesian);
