@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
       durationCategory
         ? supabase.from("duration_modifiers")
             .select("diagnosis_id, duration_category, modifier_weight")
-            .in("diagnosis_id", candidate_diagnosis_ids)
+            .in("diagnosis_id", validCandidateIds)
             .eq("duration_category", durationCategory)
         : Promise.resolve({ data: [] }),
       onsetCategory
