@@ -18,6 +18,14 @@ const SPARSE_THRESHOLD = 3;
 const MAX_FALLBACK_CANDIDATES = 5;
 const MAX_TOTAL_INJECTED = Number.POSITIVE_INFINITY; // Generation stage is non-destructive; truncation belongs downstream
 
+// Must-not-miss diagnoses that should always be flagged when injected
+const MUST_NOT_MISS_DIAGNOSES = new Set([
+  "sepsis", "pulmonary embolism", "myocardial infarction", "acute coronary syndrome",
+  "stroke", "aortic dissection", "meningitis", "subarachnoid hemorrhage",
+  "diabetic ketoacidosis", "necrotizing fasciitis", "cauda equina syndrome",
+  "tension pneumothorax", "ectopic pregnancy", "cardiac tamponade",
+]);
+
 // ── Weighted Fallback Rules ──
 
 interface WeightedFallbackRule {
