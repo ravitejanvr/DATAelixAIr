@@ -266,6 +266,226 @@ Deno.serve(async (req) => {
     }
 
     // ════════════════════════════════════════════
+    // EXTRACT CLINICAL FEATURES FROM VITALS/SYMPTOMS
+    // ════════════════════════════════════════════
+    const tempC = getVitalValue(vitals, "temperature");
+    const hr = getVitalValue(vitals, "heartRate") ?? getVitalValue(vitals, "heart_rate");
+    const rr = getVitalValue(vitals, "respiratoryRate") ?? getVitalValue(vitals, "respiratory_rate");
+    const spo2Val = getVitalValue(vitals, "spo2") ?? getVitalValue(vitals, "SpO2");
+    let sbpVal: number | null = null;
+    const bpRaw = vitals?.bloodPressure ?? vitals?.blood_pressure;
+    if (typeof bpRaw === "string" && bpRaw.includes("/")) {
+      sbpVal = parseInt(bpRaw.split("/")[0]);
+      if (isNaN(sbpVal)) sbpVal = null;
+    } else if (typeof bpRaw === "number") {
+      sbpVal = bpRaw;
+    }
+
+    const normalizedSymptomsLower = normalizedSymptomNames.map(s => s.toLowerCase());
+    const allInputSymptoms = symptoms.map((s: string) => s.toLowerCase().trim());
+    const allSymptomText = [...normalizedSymptomsLower, ...allInputSymptoms];
+
+    const clinicalFeatures = {
+      fever: (tempC !== null && tempC >= 38) || allSymptomText.some(s => s.includes("fever")),
+      hypotension: sbpVal !== null && sbpVal < 90,
+      tachycardia: hr !== null && hr > 100,
+      tachypnea: rr !== null && rr > 22,
+      hypoxia: spo2Val !== null && spo2Val < 94,
+      altered_mental_status: allSymptomText.some(s =>
+        s.includes("confusion") || s.includes("altered") || s.includes("disoriented") || s.includes("drowsy") || s.includes("letharg")),
+      infection_source: allSymptomText.some(s =>
+        s.includes("infection") || s.includes("abscess") || s.includes("wound") || s.includes("cellulitis")) ||
+        normalizedHistory.some((h: string) => h.includes("infection")),
+      chest_pain: allSymptomText.some(s => s.includes("chest pain")),
+      cough: allSymptomText.some(s => s.includes("cough")),
+      dyspnea: allSymptomText.some(s =>
+        s.includes("shortness of breath") || s.includes("dyspnea") || s.includes("breathless") || s.includes("difficulty breathing")),
+      abdominal_pain: allSymptomText.some(s => s.includes("abdominal pain") || s.includes("stomach pain")),
+      diarrhea: allSymptomText.some(s => s.includes("diarrhea") || s.includes("loose stool")),
+      vomiting: allSymptomText.some(s => s.includes("vomiting") || s.includes("nausea")),
+      headache: allSymptomText.some(s => s.includes("headache")),
+      urinary: allSymptomText.some(s =>
+        s.includes("urine") || s.includes("urinary") || s.includes("dysuria") || s.includes("reduced urine")),
+      sweating: allSymptomText.some(s => s.includes("sweating") || s.includes("diaphoresis")),
+      rash: allSymptomText.some(s => s.includes("rash") || s.includes("skin")),
+      joint_pain: allSymptomText.some(s => s.includes("joint") || s.includes("arthralgia")),
+      sore_throat: allSymptomText.some(s => s.includes("sore throat") || s.includes("pharyngitis")),
+      diabetes_history: normalizedHistory.some((h: string) =>
+        h.includes("diabetes") || h.includes("diabetic")),
+      hypertension_history: normalizedHistory.some((h: string) =>
+        h.includes("hypertension") || h.includes("high blood pressure")),
+    };
+
+    // ════════════════════════════════════════════
+    // DISEASE-SPECIFIC CLINICAL WEIGHT PROFILES
+    // ════════════════════════════════════════════
+    // Keys are lowercase disease name fragments matched against diagnosis names
+    interface DiseaseWeightProfile {
+      features: Record<string, number>;
+      interactions: Array<{ conditions: string[]; bonus: number }>;
+      age_boost?: { min_age: number; boost: number };
+    }
+
+    const DISEASE_WEIGHT_PROFILES: Record<string, DiseaseWeightProfile> = {
+      "sepsis": {
+        features: {
+          hypotension: 2.5, altered_mental_status: 2.0, tachycardia: 1.2,
+          tachypnea: 1.2, fever: 1.0, hypoxia: 1.0, infection_source: 1.5,
+          urinary: 0.5, diabetes_history: 0.8,
+        },
+        interactions: [
+          { conditions: ["fever", "hypotension"], bonus: 2.5 },
+          { conditions: ["hypotension", "tachycardia"], bonus: 1.5 },
+          { conditions: ["fever", "altered_mental_status"], bonus: 2.0 },
+          { conditions: ["tachycardia", "tachypnea", "fever"], bonus: 1.8 },
+        ],
+        age_boost: { min_age: 50, boost: 0.8 },
+      },
+      "pneumonia": {
+        features: {
+          cough: 2.0, fever: 1.5, dyspnea: 1.8, tachypnea: 1.5,
+          hypoxia: 2.0, chest_pain: 0.8, tachycardia: 0.5,
+        },
+        interactions: [
+          { conditions: ["cough", "fever"], bonus: 1.5 },
+          { conditions: ["hypoxia", "tachypnea"], bonus: 2.0 },
+          { conditions: ["cough", "dyspnea", "fever"], bonus: 2.0 },
+        ],
+        age_boost: { min_age: 60, boost: 0.6 },
+      },
+      "myocardial infarction": {
+        features: {
+          chest_pain: 3.0, sweating: 2.0, dyspnea: 1.5,
+          hypotension: 1.5, tachycardia: 1.0, hypertension_history: 1.2,
+          diabetes_history: 0.8,
+        },
+        interactions: [
+          { conditions: ["chest_pain", "sweating"], bonus: 2.5 },
+          { conditions: ["chest_pain", "dyspnea"], bonus: 1.5 },
+          { conditions: ["chest_pain", "hypotension"], bonus: 2.0 },
+        ],
+        age_boost: { min_age: 45, boost: 1.0 },
+      },
+      "acute coronary": {
+        features: {
+          chest_pain: 3.0, sweating: 2.0, dyspnea: 1.5,
+          tachycardia: 1.0, hypertension_history: 1.0,
+        },
+        interactions: [
+          { conditions: ["chest_pain", "sweating"], bonus: 2.5 },
+        ],
+        age_boost: { min_age: 45, boost: 0.8 },
+      },
+      "urinary tract infection": {
+        features: {
+          urinary: 2.5, fever: 1.0, abdominal_pain: 0.8,
+        },
+        interactions: [
+          { conditions: ["urinary", "fever"], bonus: 1.5 },
+        ],
+      },
+      "pyelonephritis": {
+        features: {
+          urinary: 2.0, fever: 1.8, abdominal_pain: 1.0,
+          tachycardia: 0.8, hypotension: 1.0,
+        },
+        interactions: [
+          { conditions: ["urinary", "fever", "tachycardia"], bonus: 1.5 },
+        ],
+      },
+      "gastroenteritis": {
+        features: {
+          diarrhea: 2.5, vomiting: 2.0, abdominal_pain: 1.5,
+          fever: 0.8,
+        },
+        interactions: [
+          { conditions: ["diarrhea", "vomiting"], bonus: 1.5 },
+          { conditions: ["diarrhea", "abdominal_pain", "fever"], bonus: 1.0 },
+        ],
+      },
+      "meningitis": {
+        features: {
+          headache: 2.0, fever: 2.0, altered_mental_status: 2.5,
+          vomiting: 1.0, rash: 1.0,
+        },
+        interactions: [
+          { conditions: ["headache", "fever", "altered_mental_status"], bonus: 3.0 },
+        ],
+      },
+      "asthma": {
+        features: {
+          dyspnea: 2.0, cough: 1.5, tachypnea: 1.0, hypoxia: 1.0,
+        },
+        interactions: [
+          { conditions: ["dyspnea", "cough"], bonus: 1.0 },
+        ],
+      },
+      "copd": {
+        features: {
+          dyspnea: 2.0, cough: 1.5, tachypnea: 1.2, hypoxia: 1.5,
+        },
+        interactions: [
+          { conditions: ["dyspnea", "hypoxia"], bonus: 1.5 },
+        ],
+        age_boost: { min_age: 50, boost: 0.6 },
+      },
+      "pulmonary embolism": {
+        features: {
+          dyspnea: 2.5, chest_pain: 2.0, tachycardia: 1.5,
+          hypoxia: 2.0, hypotension: 1.5,
+        },
+        interactions: [
+          { conditions: ["dyspnea", "tachycardia", "hypoxia"], bonus: 2.5 },
+          { conditions: ["chest_pain", "dyspnea"], bonus: 1.5 },
+        ],
+      },
+      "dengue": {
+        features: {
+          fever: 2.0, headache: 1.5, joint_pain: 1.5, rash: 1.5,
+        },
+        interactions: [
+          { conditions: ["fever", "joint_pain", "rash"], bonus: 2.0 },
+        ],
+      },
+      "malaria": {
+        features: {
+          fever: 2.5, chills: 2.0, headache: 1.0, sweating: 1.0,
+        },
+        interactions: [
+          { conditions: ["fever", "chills"], bonus: 1.5 },
+        ],
+      },
+      "pharyngitis": {
+        features: {
+          sore_throat: 3.0, fever: 1.5,
+        },
+        interactions: [],
+      },
+      "diabetic ketoacidosis": {
+        features: {
+          vomiting: 1.5, abdominal_pain: 1.5, altered_mental_status: 2.0,
+          tachypnea: 2.0, diabetes_history: 3.0,
+        },
+        interactions: [
+          { conditions: ["diabetes_history", "vomiting", "tachypnea"], bonus: 2.5 },
+        ],
+      },
+    };
+
+    // ════════════════════════════════════════════
+    // FETCH DIAGNOSIS NAMES FOR WEIGHT MATCHING
+    // ════════════════════════════════════════════
+    const { data: diagNameRows } = await supabase
+      .from("diagnoses")
+      .select("id, diagnosis_name")
+      .in("id", candidate_diagnosis_ids);
+
+    const diagNameMap = new Map<string, string>();
+    for (const row of diagNameRows || []) {
+      diagNameMap.set(row.id, row.diagnosis_name.toLowerCase());
+    }
+
+    // ════════════════════════════════════════════
     // COMPUTE POSTERIORS
     // ════════════════════════════════════════════
 
@@ -286,6 +506,8 @@ Deno.serve(async (req) => {
       onset_modifier: number;
       vital_modifier: number;
       cluster_modifier: number;
+      clinical_feature_score: number;
+      interaction_bonus: number;
       log_score: number;
       posterior_probability: number;
       supporting_evidence: string[];
@@ -305,14 +527,13 @@ Deno.serve(async (req) => {
       let prior = priorData?.base_prevalence ?? DEFAULT_PRIOR;
 
       if (priorData) {
-        // Try granular age group first, then fallback to broader categories
         const ageMod = resolveAgeModifier(priorData.age_modifier, ageGroup, patient_age);
         const sexMod = priorData.sex_modifier?.[sexKey] ?? 1.0;
         const regMod = priorData.region_modifier?.[regionKey] ?? 1.0;
         prior *= ageMod * sexMod * regMod;
       }
 
-      // ── 2. HISTORY MULTIPLIER: Apply medical history to prior ──
+      // ── 2. HISTORY MULTIPLIER ──
       const historyMult = historyMultiplierMap.get(diagId) || 1.0;
       const adjustedPrior = Math.min(prior * historyMult, 0.95);
 
@@ -340,17 +561,16 @@ Deno.serve(async (req) => {
         }
       }
 
-      // ── 4. TEMPORAL MODIFIERS (duration + onset) ──
+      // ── 4. TEMPORAL MODIFIERS ──
       const durMod = durationModMap.get(diagId) || 1.0;
       const onMod = onsetModMap.get(diagId) || 1.0;
       if (durMod !== 1.0) logScore += Math.log(durMod);
       if (onMod !== 1.0) logScore += Math.log(onMod);
 
-      // ── 5. VITAL SIGN MODIFIERS (disease-specific from DB) ──
+      // ── 5. VITAL SIGN MODIFIERS (DB-driven) ──
       const vitalMods = vitalModMap.get(diagId) || [];
       let vitalModifier = 1.0;
       if (vitalMods.length > 0) {
-        // Use the strongest vital modifier to prevent over-stacking
         const maxVitalMod = Math.max(...vitalMods);
         vitalModifier = maxVitalMod;
         logScore += Math.log(maxVitalMod);
@@ -378,6 +598,50 @@ Deno.serve(async (req) => {
         logScore += Math.log(Math.max(w, 1e-4));
       }
 
+      // ════════════════════════════════════════════
+      // ── 9. CLINICAL FEATURE WEIGHTS (NEW — breaks uniformity) ──
+      // ════════════════════════════════════════════
+      let clinicalFeatureScore = 0;
+      let interactionBonus = 0;
+
+      const diagName = diagNameMap.get(diagId) || "";
+
+      // Find matching weight profile
+      let matchedProfile: DiseaseWeightProfile | null = null;
+      for (const [pattern, profile] of Object.entries(DISEASE_WEIGHT_PROFILES)) {
+        if (diagName.includes(pattern)) {
+          matchedProfile = profile;
+          break;
+        }
+      }
+
+      if (matchedProfile) {
+        // Apply feature weights
+        for (const [featureKey, weight] of Object.entries(matchedProfile.features)) {
+          if ((clinicalFeatures as any)[featureKey]) {
+            clinicalFeatureScore += weight;
+          }
+        }
+
+        // Apply interaction terms (non-linear separation)
+        for (const interaction of matchedProfile.interactions) {
+          const allMet = interaction.conditions.every(c => (clinicalFeatures as any)[c]);
+          if (allMet) {
+            interactionBonus += interaction.bonus;
+          }
+        }
+
+        // Age-conditional boost
+        if (matchedProfile.age_boost && patient_age !== null && patient_age >= matchedProfile.age_boost.min_age) {
+          clinicalFeatureScore += matchedProfile.age_boost.boost;
+        }
+      }
+
+      // Add clinical feature score directly to log_score
+      // This is the key differentiator — diseases with matching features
+      // get strong positive boosts while others don't
+      logScore += clinicalFeatureScore + interactionBonus;
+
       // Collect supporting evidence
       const evidence: string[] = [];
       if (symLiks.length > 0) evidence.push(`${symLiks.length}/${totalSymptoms} symptoms (coverage ${(coverageRatio * 100).toFixed(0)}%)`);
@@ -388,6 +652,8 @@ Deno.serve(async (req) => {
       if (onMod !== 1.0) evidence.push(`onset(${onsetCategory}) ×${onMod.toFixed(1)}`);
       if (vitalMods.length > 0) evidence.push(`vitals boost ×${vitalModifier.toFixed(1)}`);
       if (clusterMod > 1.0) evidence.push(`cluster match ×${clusterMod.toFixed(1)}`);
+      if (clinicalFeatureScore > 0) evidence.push(`clinical features +${clinicalFeatureScore.toFixed(1)}`);
+      if (interactionBonus > 0) evidence.push(`interactions +${interactionBonus.toFixed(1)}`);
       if (priorData) evidence.push(`prior: ${(adjustedPrior * 100).toFixed(1)}%`);
 
       results.push({
@@ -402,6 +668,8 @@ Deno.serve(async (req) => {
         onset_modifier: onMod,
         vital_modifier: vitalModifier,
         cluster_modifier: clusterMod,
+        clinical_feature_score: clinicalFeatureScore,
+        interaction_bonus: interactionBonus,
         log_score: logScore,
         posterior_probability: 0,
         supporting_evidence: evidence,
@@ -410,10 +678,13 @@ Deno.serve(async (req) => {
     }
 
     // ════════════════════════════════════════════
-    // SOFTMAX NORMALIZATION
+    // TEMPERATURE-SCALED SOFTMAX NORMALIZATION
     // ════════════════════════════════════════════
-    const maxLog = Math.max(...results.map(d => d.log_score));
-    const expScores = results.map(d => Math.exp(d.log_score - maxLog));
+    // T < 1.0 sharpens distribution; T = 0.7 provides strong clinical differentiation
+    const TEMPERATURE = 0.7;
+    const scaledScores = results.map(d => d.log_score / TEMPERATURE);
+    const maxLog = Math.max(...scaledScores);
+    const expScores = scaledScores.map(s => Math.exp(s - maxLog));
     const sumExp = expScores.reduce((s, e) => s + e, 0) || 1;
     for (let i = 0; i < results.length; i++) {
       results[i].posterior_probability = parseFloat((expScores[i] / sumExp).toFixed(4));
@@ -433,6 +704,19 @@ Deno.serve(async (req) => {
 
     results.sort((a, b) => b.posterior_probability - a.posterior_probability);
 
+    // ── SCORE TRACE (for debugging) ──
+    console.log("[BayesianEngine] Score trace:", JSON.stringify(
+      results.slice(0, 8).map(d => ({
+        id: d.diagnosis_id,
+        name: diagNameMap.get(d.diagnosis_id) || "?",
+        prior: d.prior.toFixed(4),
+        feature_score: d.clinical_feature_score.toFixed(1),
+        interaction: d.interaction_bonus.toFixed(1),
+        log_score: d.log_score.toFixed(2),
+        posterior: (d.posterior_probability * 100).toFixed(1) + "%",
+      }))
+    ));
+
     const executionMs = Date.now() - start;
 
     return new Response(JSON.stringify({
@@ -449,6 +733,8 @@ Deno.serve(async (req) => {
         onset_modifier: parseFloat(d.onset_modifier.toFixed(2)),
         vital_modifier: parseFloat(d.vital_modifier.toFixed(2)),
         cluster_modifier: parseFloat(d.cluster_modifier.toFixed(2)),
+        clinical_feature_score: parseFloat(d.clinical_feature_score.toFixed(2)),
+        interaction_bonus: parseFloat(d.interaction_bonus.toFixed(2)),
         log_score: parseFloat(d.log_score.toFixed(4)),
         supporting_evidence: d.supporting_evidence,
         must_not_miss: d.must_not_miss,
@@ -462,8 +748,9 @@ Deno.serve(async (req) => {
       onset_pattern: onsetCategory,
       vitals_signals_applied: Array.from(vitalModMap.values()).flat().length,
       cluster_matches: Array.from(clusterModMap.entries()).filter(([, v]) => v > 1).length,
+      clinical_features_detected: Object.entries(clinicalFeatures).filter(([, v]) => v).map(([k]) => k),
       execution_ms: executionMs,
-      source: "bayesian_engine_v4_full_signals",
+      source: "bayesian_engine_v5_clinical_weights",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
