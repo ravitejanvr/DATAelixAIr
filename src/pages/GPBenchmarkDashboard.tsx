@@ -16,6 +16,7 @@ import { runBenchmarkSuite, BENCHMARK_SUITE, comparePhases } from "@/services/be
 import type { BenchmarkResult, BenchmarkSuiteResult, PhaseComparisonReport } from "@/services/benchmark_v9/types";
 import type { PipelineMode } from "@/services/benchmark_v9/runner";
 import BenchmarkV10Panel from "@/components/BenchmarkV10Panel";
+import ValidationPanel from "@/components/ValidationPanel";
 import SEO from "@/components/SEO";
 
 // ── Helpers ──
