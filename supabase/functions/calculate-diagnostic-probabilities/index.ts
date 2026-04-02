@@ -82,11 +82,20 @@ Deno.serve(async (req) => {
       onset_pattern = null,  // "sudden" | "gradual" | "progressive" | "intermittent" | "episodic"
     } = body;
 
-    if (candidate_diagnosis_ids.length === 0) {
+    // Filter to valid UUIDs only — non-UUID hint IDs (e.g. "hint-phenotype_inference-...")
+    // cause PostgreSQL type errors that fail entire queries silently
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validCandidateIds = candidate_diagnosis_ids.filter((id: string) => UUID_RE.test(id));
+    const skippedIds = candidate_diagnosis_ids.length - validCandidateIds.length;
+    if (skippedIds > 0) {
+      console.warn(`[BayesianEngine] Skipped ${skippedIds} non-UUID candidate IDs`);
+    }
+
+    if (validCandidateIds.length === 0) {
       return new Response(JSON.stringify({
         diagnoses: [],
         execution_ms: Date.now() - start,
-        source: "bayesian_engine_v4",
+        source: "bayesian_engine_v5_clinical_weights",
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
