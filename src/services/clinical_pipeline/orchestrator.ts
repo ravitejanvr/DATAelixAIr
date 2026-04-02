@@ -1800,7 +1800,18 @@ export async function runUnifiedClinicalPipeline(
           ...ddxResult,
           differential_diagnoses: loopDiagnoses.map(d => {
             const tested = adjustedMap.get(d.diagnosis_id);
-            return tested ? { ...d, probability: tested.adjusted_probability } : d;
+            if (tested) {
+              const prevScore = d.probability;
+              const newScore = tested.adjusted_probability;
+              if (newScore < prevScore * 0.7) {
+                console.warn(
+                  `[Pipeline] Loop hypothesis guard: ${d.diagnosis_name} score drop blocked (${prevScore}→${newScore}).`
+                );
+                return { ...d, probability: Math.round(prevScore * 0.7) };
+              }
+              return { ...d, probability: newScore };
+            }
+            return d;
           }).sort((a, b) => b.probability - a.probability),
         };
         console.log(
