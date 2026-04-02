@@ -748,7 +748,7 @@ Deno.serve(async (req) => {
         supporting_evidence: d.supporting_evidence,
         must_not_miss: d.must_not_miss,
       })),
-      total_candidates: candidate_diagnosis_ids.length,
+      total_candidates: validCandidateIds.length,
       symptoms_resolved: symptomIds.length,
       physiology_states_used: physiological_state_ids.length,
       risk_factors_applied: normalizedRiskFactors.length,
