@@ -664,6 +664,7 @@ export default function CockpitPlayground() {
           clinical_context: pipelineContext,
           visit_id: null, consultation_id: null, clinic_id: null,
           intake_approved: false,
+          skip_cache: true,
         },
         (stage, data) => {
           if (runId !== pipelineRunIdRef.current) return;
