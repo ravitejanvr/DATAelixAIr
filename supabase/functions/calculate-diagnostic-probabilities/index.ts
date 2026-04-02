@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
         .in("diagnosis_id", validCandidateIds),
       supabase.from("symptom_cluster_modifiers")
         .select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight")
-        .in("diagnosis_id", candidate_diagnosis_ids),
+        .in("diagnosis_id", validCandidateIds),
     ]);
 
     // ════════════════════════════════════════════
