@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
       symptomIds.length > 0
         ? supabase.from("symptom_likelihoods")
             .select("diagnosis_id, symptom_id, likelihood_value, symptom_specificity")
-            .in("diagnosis_id", candidate_diagnosis_ids)
+            .in("diagnosis_id", validCandidateIds)
             .in("symptom_id", symptomIds)
         : Promise.resolve({ data: [] }),
       physiological_state_ids.length > 0
