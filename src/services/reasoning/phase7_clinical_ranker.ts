@@ -77,6 +77,8 @@ interface ClinicalPattern {
   boost: number;
   /** Context requirements (age, risk factors) */
   context_filter?: (ctx: ClinicalContext) => boolean;
+  /** Optional weight modifier based on context (0-1, multiplied with boost) */
+  context_weight?: (ctx: ClinicalContext) => number;
 }
 
 const CLINICAL_PATTERNS: ClinicalPattern[] = [
