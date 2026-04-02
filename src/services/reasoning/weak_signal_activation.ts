@@ -196,8 +196,14 @@ function detectWeakSignal(
 
   // Sepsis: subtle systemic signs in elderly/immunocompromised
   if (dxLower === "sepsis") {
-    if (age && age > 65 && hasAny(symptoms, ["confusion", "lethargy", "weakness"]) && hasAny(symptoms, ["fever", "chills", "tachycardia"])) {
-      return { shouldBoost: true, weight: 0.4, reason: "elderly sepsis with altered mental status" };
+    // Sepsis with systemic signs — age is a soft amplifier, not a gate
+    if (hasAny(symptoms, ["confusion", "lethargy", "weakness", "altered mental status", "dizziness"]) && hasAny(symptoms, ["fever", "chills", "tachycardia", "rigors"])) {
+      const ageWeight = age && age > 65 ? 0.4 : age && age > 50 ? 0.35 : 0.3;
+      return { shouldBoost: true, weight: ageWeight, reason: "sepsis with systemic signs (age-modulated)" };
+    }
+    // Diabetes/immunocompromised + infection signals
+    if (hasAny(medicalHistory, ["diabetes", "diabetic", "immunocompromised", "transplant", "dialysis"]) && hasAny(symptoms, ["fever", "chills", "fatigue", "malaise"])) {
+      return { shouldBoost: true, weight: 0.35, reason: "sepsis risk: infection signs in immunocompromised/diabetic patient" };
     }
   }
 

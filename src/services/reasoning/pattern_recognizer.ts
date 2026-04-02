@@ -313,17 +313,22 @@ const CLINICAL_PATTERNS: ClinicalPattern[] = [
   {
     id: "systemic_infection",
     name: "Systemic infection pattern",
-    symptoms: ["fever", "chills", "malaise", "body aches", "fatigue", "sweating", "tachycardia", "headache"],
+    symptoms: ["fever", "chills", "malaise", "body aches", "fatigue", "sweating", "tachycardia", "headache", "rigors", "confusion", "dizziness"],
     min_matches: 2,
     domains: [
       { node: "general_infectious", weight: 0.5 },
       { node: "sepsis", weight: 0.3 },
     ],
+    context_boosters: {
+      age_range: [55, 100] as [number, number],
+      risk_keywords: ["diabetes", "diabetic", "immunocompromised", "chronic kidney", "dialysis"],
+      history_keywords: ["diabetes", "diabetic", "dm", "type 2 diabetes", "transplant", "chemotherapy"],
+    },
     must_not_miss: [
-      { name: "Sepsis", confidence: 0.15, domain: "sepsis" },
+      { name: "Sepsis", confidence: 0.20, domain: "sepsis" },
       { name: "Endocarditis", confidence: 0.10, domain: "general_infectious" },
     ],
-    base_confidence: 0.3,
+    base_confidence: 0.35,
   },
 ];
 
