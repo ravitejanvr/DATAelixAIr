@@ -242,50 +242,7 @@ const CLUSTER_REGISTRY: Record<string, ClusterDiagnosis[]> = {
   // ── Psychiatric / Functional ──
   psychiatric: [
     { diagnosis_name: "Panic Disorder", base_relevance: 0.4, must_not_miss: false, category: "psychiatric" },
-    { diagnosis_name: "Panic Attack", base_relevance: 0.4, must_not_miss: false, category: "psychiatric" },
     { diagnosis_name: "Somatization Disorder", base_relevance: 0.4, must_not_miss: false, category: "psychiatric" },
-    { diagnosis_name: "Generalized Anxiety Disorder", base_relevance: 0.35, must_not_miss: false, category: "psychiatric" },
-  ],
-
-  // ── Autoimmune / Connective Tissue ──
-  autoimmune: [
-    { diagnosis_name: "SLE", base_relevance: 0.5, must_not_miss: false, category: "immunological" },
-    { diagnosis_name: "Rheumatoid Arthritis", base_relevance: 0.45, must_not_miss: false, category: "rheumatological" },
-    { diagnosis_name: "Vasculitis", base_relevance: 0.4, must_not_miss: false, category: "immunological" },
-    { diagnosis_name: "Sarcoidosis", base_relevance: 0.35, must_not_miss: false, category: "immunological" },
-    { diagnosis_name: "Inflammatory Bowel Disease", base_relevance: 0.4, must_not_miss: false, category: "gastrointestinal" },
-  ],
-
-  // ── Malignancy / Oncological ──
-  malignancy: [
-    { diagnosis_name: "Lymphoma", base_relevance: 0.5, must_not_miss: false, category: "oncological" },
-    { diagnosis_name: "Lung Cancer", base_relevance: 0.4, must_not_miss: false, category: "oncological" },
-    { diagnosis_name: "Leukemia", base_relevance: 0.35, must_not_miss: false, category: "oncological" },
-    { diagnosis_name: "Colorectal Cancer", base_relevance: 0.35, must_not_miss: false, category: "oncological" },
-  ],
-
-  // ── Metabolic / Renal ──
-  metabolic: [
-    { diagnosis_name: "Acute Kidney Injury", base_relevance: 0.55, must_not_miss: false, category: "renal" },
-    { diagnosis_name: "Chronic Kidney Disease", base_relevance: 0.4, must_not_miss: false, category: "renal" },
-    { diagnosis_name: "Hyponatremia", base_relevance: 0.4, must_not_miss: false, category: "metabolic" },
-    { diagnosis_name: "Hypercalcemia", base_relevance: 0.4, must_not_miss: false, category: "metabolic" },
-    { diagnosis_name: "Rhabdomyolysis", base_relevance: 0.45, must_not_miss: false, category: "metabolic" },
-  ],
-
-  // ── General Infectious ──
-  general_infectious: [
-    { diagnosis_name: "Upper Respiratory Tract Infection", base_relevance: 0.5, must_not_miss: false, category: "infectious" },
-    { diagnosis_name: "Viral Syndrome", base_relevance: 0.45, must_not_miss: false, category: "infectious" },
-    { diagnosis_name: "Cellulitis", base_relevance: 0.4, must_not_miss: false, category: "infectious" },
-    { diagnosis_name: "Endocarditis", base_relevance: 0.4, must_not_miss: true, category: "infectious" },
-  ],
-
-  // ── Anemia / Hematological ──
-  hematological: [
-    { diagnosis_name: "Iron Deficiency Anemia", base_relevance: 0.5, must_not_miss: false, category: "hematological" },
-    { diagnosis_name: "B12 Deficiency", base_relevance: 0.4, must_not_miss: false, category: "hematological" },
-    { diagnosis_name: "Hemolytic Anemia", base_relevance: 0.35, must_not_miss: false, category: "hematological" },
   ],
 };
 

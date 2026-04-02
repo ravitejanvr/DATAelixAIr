@@ -16,7 +16,7 @@ import type { CandidateHint } from "../context_candidate_expander";
 
 const SPARSE_THRESHOLD = 3;
 const MAX_FALLBACK_CANDIDATES = 5;
-const MAX_TOTAL_INJECTED = Number.POSITIVE_INFINITY; // Generation stage is non-destructive; truncation belongs downstream
+const MAX_TOTAL_INJECTED = 8; // fallback + hints combined cap
 
 // ── Weighted Fallback Rules ──
 
@@ -220,9 +220,7 @@ export function applyCandidateFallbackV2(
   const rulesMatched: string[] = [];
 
   // 1. Inject context-expander hints first (higher priority)
-  // Sort by confidence desc so highest-value candidates get injected first
-  const sortedHints = [...candidateHints].sort((a, b) => b.confidence - a.confidence);
-  for (const hint of sortedHints) {
+  for (const hint of candidateHints) {
     const nameKey = hint.diagnosis_name.toLowerCase().trim();
     if (existingNames.has(nameKey)) continue;
     if (fallbackCandidates.some(f => f.diagnosis_name.toLowerCase() === nameKey)) continue;
@@ -233,7 +231,7 @@ export function applyCandidateFallbackV2(
       diagnosis_name: hint.diagnosis_name,
       icd10_code: null,
       category: hint.source,
-        probability: Math.max(5, hint.confidence * 100), // Preserve raw confidence with a 5% floor in percentage space
+      probability: Math.round(hint.confidence * 10), // Scale confidence to initial score
       supporting_symptoms: [],
       contradicting_factors: [],
       symptom_coverage: "context_hint",
@@ -266,15 +264,16 @@ export function applyCandidateFallbackV2(
           if (fallbackCandidates.some(f => f.diagnosis_name.toLowerCase() === nameKey)) continue;
 
           // Weighted probability: base_score * cluster_confidence * match_strength
-          const weightedScore =
-            candidate.base_score * rule.cluster_confidence * (0.5 + matchStrength * 0.5);
+          const weightedScore = Math.round(
+            candidate.base_score * rule.cluster_confidence * (0.5 + matchStrength * 0.5)
+          );
 
           fallbackCandidates.push({
             diagnosis_id: `fallback-v2-${rule.id}-${nameKey.replace(/\s+/g, '-')}`,
             diagnosis_name: candidate.diagnosis_name,
             icd10_code: null,
             category: candidate.category,
-            probability: Math.max(5, weightedScore),
+            probability: weightedScore,
             supporting_symptoms: matchedKeywords,
             contradicting_factors: [],
             symptom_coverage: "fallback_v2",
