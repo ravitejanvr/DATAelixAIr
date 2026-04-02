@@ -21,7 +21,7 @@ const SYNONYM_MAP: Record<string, string[]> = {
   massivepulmonaryembolism: ["pulmonaryembolism", "pe"],
   pneumothorax: ["collapsedlung", "tensionpneumothorax"],
   tensionpneumothorax: ["pneumothorax"],
-  pleuraleffusion: ["pleuralfluid", "fluidonlung"],
+  pleuraleffusion: ["pleuralfluid"],
   tuberculosis: ["tb", "pulmonarytuberculosis"],
   tb: ["tuberculosis"],
   croup: ["laryngotracheitis", "laryngotracheobronchitis"],
@@ -69,13 +69,13 @@ const SYNONYM_MAP: Record<string, string[]> = {
   myocardialinfarction: ["acutecoronarysyndrome", "heartattack", "mi", "stemi", "nstemi", "silentmi"],
   mi: ["myocardialinfarction", "acutecoronarysyndrome"],
   pericarditis: ["acutepericarditis"],
-  heartfailure: ["congestiveheartfailure", "chf", "hf", "cardiacfailure"],
-  congestiveheartfailure: ["heartfailure", "chf", "hf"],
+  heartfailure: ["congestiveheartfailure", "chf"],
+  congestiveheartfailure: ["heartfailure", "chf"],
   aorticdissection: ["thoracicaorticdissection"],
   rupturedaaa: ["abdominalaorticaneurysm", "rupturedabdominalaorticaneurysm"],
-  stableangina: ["anginapectoris", "chronicstableangina", "exertionalangina"],
-  atrialfibrillation: ["af", "afib", "atrialfib"],
-  af: ["atrialfibrillation", "afib"],
+  stableangina: ["anginapectoris", "chronicstableangina"],
+  atrialfibrillation: ["af", "afib"],
+  af: ["atrialfibrillation"],
   infectiveendocarditis: ["endocarditis", "bacterialendocarditis", "ie"],
   endocarditis: ["infectiveendocarditis"],
   wpwsyndrome: ["wpw", "wolffparkinsonwhite", "wolffparkinsonwhitesyndrome", "preexcitation"],
@@ -87,7 +87,7 @@ const SYNONYM_MAP: Record<string, string[]> = {
   cardiacTamponade: ["pericardialeffusionwithtamponade", "becktrtiad"],
   pericardialtamponade: ["cardiactamponade"],
   cardiactamponade: ["pericardialtamponade"],
-  pericardialeffusion: ["pericardialtamponade", "cardiactamponade", "pericardialfluid"],
+  pericardialeffusion: ["pericardialtamponade", "cardiactamponade"],
   hypertensiveemergency: ["hypertensivecrisis", "malignanthypertension"],
   upperextremitydvt: ["armdvt", "upperextremitydeepveinthrombosis"],
 
@@ -223,26 +223,14 @@ const SYNONYM_MAP: Record<string, string[]> = {
   nonaccidentalinjury: ["nai", "childabuse", "nonaccidentaltrauma"],
 
   // ── Syncope ──
-  vasovagalsyncope: ["neurocardiogenicsyncope", "simplefaint", "vasovagal"],
-  orthostatichypotension: ["posturalhypotension", "orthostaticsyncope"],
-  bppv: ["benignparoxysmalpositionalvertigo", "positionalvertigo"],
-  benignparoxysmalpositionalvertigo: ["bppv"],
-
-  // ── Psychiatric / Functional ──
-  panicdisorder: ["panicattack", "panicanxiety"],
-  panicattack: ["panicdisorder"],
-  somatizationdisorder: ["somaticsymptomdisorder", "somatization", "somatoformdisorder"],
-  conversiondisorder: ["functionalneurologicaldisorder", "fnd", "functionalneurologicalsymptomdisorder"],
-
-  // ── Additional expanded entries ──
-  costochondritis: ["tietzessyndrome", "chestwalltenderness"],
-  seizure: ["epilepticseizure", "convulsion", "firstseizure"],
-  spinalstenosis: ["lumbarspinalstenosis", "spinalcanalnarrowing"],
+  vasovagalsyncope: ["neurocardiogenicsyncope", "simplefaint"],
+  orthostatichypotension: ["posturalhypotension"],
 
   // ── Other ──
   feverofunknownorigin: ["fuo", "puo"],
   anaphylaxis: ["anaphylacticshock"],
   sinusitis: ["acutesinusitis", "rhinosinusitis"],
+  menieredisease: ["menieres", "endolymphatichydrops"],
 };
 
 export function norm(s: string): string {

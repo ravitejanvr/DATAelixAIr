@@ -18,7 +18,7 @@
  *   Wave 5 — Output Generation (Uncertainty, Hybrid Reasoning, SOAP)
  */
 
-import { isNewPipelineEnabled, isPhase6IntelligenceCoreEnabled } from "@/services/feature_flags";
+import { isNewPipelineEnabled } from "@/services/feature_flags";
 import { withStageLogging, clearPipelineLogs, getPipelineLogs } from "@/services/pipeline_logger";
 import {
   buildEnrichedContext,
@@ -66,13 +66,9 @@ import { applyCandidateFallback, type FallbackMeta } from "@/services/ddx_engine
 import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_engine/candidate_fallback_v2";
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
-import { mergeActivations, expandKG, expandKGDeep } from "@/services/kg";
+import { mergeActivations, expandKG } from "@/services/kg";
 import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
-import { rankCandidates, type IntelligenceCoreResult } from "@/services/reasoning/intelligence_core";
-import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/recall_recovery";
-import { normalizeSignals } from "@/services/signal_normalizer";
-import { generateSuspicionSignals } from "@/services/suspicion_engine";
 
 // ── Public Types ──
 
@@ -850,14 +846,10 @@ export async function runUnifiedClinicalPipeline(
     ddxResult = applyOrganSystemWeighting(ddxResult, dominantSystem);
   }
 
-  // ── Phase 6.3: Signal Normalization (BEFORE rules) ──
-  const normalizedCtx = normalizeSignals(ctx);
-  const ctxForRules = normalizedCtx.enriched;
-
   // ── Phase 5: KG-Native Context-Assisted Candidate Generation ──
   if (isPhase5ContextCandidatesEnabled()) {
-    // Phase 5.1-5.2: Failure-derived rules → cluster activations (uses normalized ctx)
-    const failureResult = applyFailureDerivedRules(ctxForRules);
+    // Phase 5.1-5.2: Failure-derived rules → cluster activations
+    const failureResult = applyFailureDerivedRules(ctx);
     if (failureResult.rules_fired.length > 0) {
       recordOversightEvent({
         event_type: "phase5_context_expansion",
@@ -868,8 +860,8 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
-    // Phase 5.0: Context expander → cluster activations (uses normalized ctx)
-    const expansion = expandCandidatesFromContext(ctxForRules);
+    // Phase 5.0: Context expander → cluster activations
+    const expansion = expandCandidatesFromContext(ctx);
     if (expansion.expansion_trace.length > 0) {
       recordOversightEvent({
         event_type: "phase5_context_expansion",
@@ -880,30 +872,9 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
-    // Phase 6.2: Suspicion Engine → additional cluster activations (uses normalized ctx)
-    const suspicion = generateSuspicionSignals(ctxForRules);
-    if (suspicion.signal_count > 0) {
-      recordOversightEvent({
-        event_type: "suspicion_engine",
-        severity: "info",
-        stage: "suspicion_engine",
-        message: `Suspicion engine generated ${suspicion.signal_count} signals: [${suspicion.signals.map(s => `${s.type}:${s.cluster}`).join(", ")}]`,
-        metadata: { signals: suspicion.signals } as any,
-      });
-    }
-
-    // KG-Native: Merge ALL activations → expand via KG clusters → candidate hints
-    const mergedActivation = mergeActivations(
-      mergeActivations(failureResult.activation, expansion.activation),
-      suspicion.activation,
-    );
-
-    // Phase 6: Deep KG traversal (multi-hop) if Intelligence Core enabled
-    const expandedActivation = isPhase6IntelligenceCoreEnabled()
-      ? expandKGDeep(mergedActivation, 2, 0.5)
-      : mergedActivation;
-
-    const kgExpansion = expandKG(expandedActivation);
+    // KG-Native: Merge activations → expand via KG clusters → candidate hints
+    const mergedActivation = mergeActivations(failureResult.activation, expansion.activation);
+    const kgExpansion = expandKG(mergedActivation);
     const allHints = kgExpansion.candidates;
 
     if (kgExpansion.clusters_resolved.length > 0) {
@@ -913,48 +884,6 @@ export async function runUnifiedClinicalPipeline(
         stage: "kg_expander",
         message: `KG expanded ${kgExpansion.clusters_resolved.length} clusters → ${allHints.length} candidates`,
         metadata: { clusters: kgExpansion.clusters_resolved, detail: kgExpansion.expansion_detail } as any,
-      });
-    }
-
-    // Phase 6: Intelligence Core ranking (pre-DDX candidate scoring)
-    let intelligenceCoreResult: IntelligenceCoreResult | null = null;
-    if (isPhase6IntelligenceCoreEnabled() && allHints.length > 0) {
-      intelligenceCoreResult = rankCandidates({
-        context: ctx,
-        candidates: allHints,
-        activation: expandedActivation,
-      });
-
-      // Recall Recovery: if Intelligence Core yields low confidence, expand deeper
-      if (shouldTriggerRecovery(intelligenceCoreResult.candidate_count, intelligenceCoreResult.top_score * 100)) {
-        const recovery = runRecallRecovery({
-          activation: expandedActivation,
-          symptoms,
-          current_candidate_count: intelligenceCoreResult.candidate_count,
-          top_score: intelligenceCoreResult.top_score * 100,
-        });
-        // Re-rank with recovery candidates merged
-        const recoveryHints = [...allHints, ...recovery.additional_candidates];
-        intelligenceCoreResult = rankCandidates({
-          context: ctx,
-          candidates: recoveryHints,
-          activation: expandedActivation,
-        });
-        recordOversightEvent({
-          event_type: "recall_recovery_triggered",
-          severity: "warning",
-          stage: "intelligence_core",
-          message: `Recovery mode: ${recovery.trigger_reason}. Added ${recovery.additional_candidates.length} candidates from ${recovery.clusters_explored.length} clusters`,
-          metadata: { recovery } as any,
-        });
-      }
-
-      recordOversightEvent({
-        event_type: "phase6_intelligence_core",
-        severity: "info",
-        stage: "intelligence_core",
-        message: `Ranked ${intelligenceCoreResult.candidate_count} candidates in ${intelligenceCoreResult.execution_ms}ms. Top: ${intelligenceCoreResult.ranked[0]?.diagnosis || "none"} (${intelligenceCoreResult.top_score})`,
-        metadata: { top_5: intelligenceCoreResult.ranked.slice(0, 5).map(r => ({ diagnosis: r.diagnosis, score: r.score })) } as any,
       });
     }
 
