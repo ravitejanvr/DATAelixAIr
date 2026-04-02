@@ -80,7 +80,6 @@ Deno.serve(async (req) => {
       vitals = {},
       duration = null,       // "acute" | "subacute" | "chronic"
       onset_pattern = null,  // "sudden" | "gradual" | "progressive" | "intermittent" | "episodic"
-      ddx_priors = {},       // DDX-computed probabilities keyed by diagnosis_id (0-1 scale)
     } = body;
 
     if (candidate_diagnosis_ids.length === 0) {
@@ -301,32 +300,16 @@ Deno.serve(async (req) => {
     const totalSymptoms = symptomIds.length;
 
     for (const diagId of candidate_diagnosis_ids) {
-      // ── 1. PRIOR: Use DDX-computed probability if available, else DB prior ──
-      const ddxPrior = ddx_priors[diagId];
+      // ── 1. PRIOR: P(D) with demographic modifiers ──
       const priorData = priorsMap.get(diagId);
-      let prior: number;
+      let prior = priorData?.base_prevalence ?? DEFAULT_PRIOR;
 
-      if (ddxPrior !== undefined && ddxPrior > 0) {
-        // DDX-seeded prior: trust the Intelligence Core's multi-signal score
-        prior = Math.max(ddxPrior, 1e-4);
-        // Still apply demographic modifiers as refinement (dampened to avoid double-counting)
-        if (priorData) {
-          const ageMod = resolveAgeModifier(priorData.age_modifier, ageGroup, patient_age);
-          const sexMod = priorData.sex_modifier?.[sexKey] ?? 1.0;
-          const regMod = priorData.region_modifier?.[regionKey] ?? 1.0;
-          // Dampened: sqrt of modifier to avoid over-adjusting an already-calibrated prior
-          const demoAdj = Math.sqrt(ageMod * sexMod * regMod);
-          prior *= demoAdj;
-        }
-      } else {
-        // Fallback: DB-only prior
-        prior = priorData?.base_prevalence ?? DEFAULT_PRIOR;
-        if (priorData) {
-          const ageMod = resolveAgeModifier(priorData.age_modifier, ageGroup, patient_age);
-          const sexMod = priorData.sex_modifier?.[sexKey] ?? 1.0;
-          const regMod = priorData.region_modifier?.[regionKey] ?? 1.0;
-          prior *= ageMod * sexMod * regMod;
-        }
+      if (priorData) {
+        // Try granular age group first, then fallback to broader categories
+        const ageMod = resolveAgeModifier(priorData.age_modifier, ageGroup, patient_age);
+        const sexMod = priorData.sex_modifier?.[sexKey] ?? 1.0;
+        const regMod = priorData.region_modifier?.[regionKey] ?? 1.0;
+        prior *= ageMod * sexMod * regMod;
       }
 
       // ── 2. HISTORY MULTIPLIER: Apply medical history to prior ──
@@ -427,30 +410,22 @@ Deno.serve(async (req) => {
     }
 
     // ════════════════════════════════════════════
-    // TEMPERATURE-SCALED SUM NORMALIZATION (replaces Softmax to prevent score collapse)
+    // SOFTMAX NORMALIZATION
     // ════════════════════════════════════════════
-    const TEMPERATURE = 0.7;
     const maxLog = Math.max(...results.map(d => d.log_score));
-    // Temperature-scaled exponentiation preserves relative differences better than raw softmax
-    const expScores = results.map(d => Math.exp((d.log_score - maxLog) / TEMPERATURE));
+    const expScores = results.map(d => Math.exp(d.log_score - maxLog));
     const sumExp = expScores.reduce((s, e) => s + e, 0) || 1;
     for (let i = 0; i < results.length; i++) {
       results[i].posterior_probability = parseFloat((expScores[i] / sumExp).toFixed(4));
     }
 
-    // MNM FLOOR PROTECTION: must-not-miss diagnoses retain at least 50% of their prior
-    const hasDdxPriors = Object.keys(ddx_priors).length > 0;
+    // Ensure must-not-miss have minimum 3% visibility
     for (const d of results) {
-      if (d.must_not_miss) {
-        const priorFloor = d.prior * 0.5;
-        const minFloor = hasDdxPriors ? priorFloor : 0.03;
-        if (d.posterior_probability < minFloor) {
-          d.posterior_probability = minFloor;
-        }
+      if (d.must_not_miss && d.posterior_probability < 0.03) {
+        d.posterior_probability = 0.03;
       }
     }
 
-    // Re-normalize after floor enforcement
     const newTotal = results.reduce((s, d) => s + d.posterior_probability, 0) || 1;
     for (const d of results) {
       d.posterior_probability = parseFloat((d.posterior_probability / newTotal).toFixed(4));

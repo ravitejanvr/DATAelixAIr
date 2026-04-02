@@ -60,8 +60,6 @@ export interface BayesianInput {
   onset_pattern?: string | null;
   severity?: string | null;
   body_location?: string | null;
-  /** DDX-computed probabilities keyed by diagnosis_id (0-1 scale). Used as informed priors. */
-  ddx_priors?: Record<string, number>;
 }
 
 /**
