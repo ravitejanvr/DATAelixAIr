@@ -479,6 +479,24 @@ Deno.serve(async (req) => {
           { conditions: ["diabetes_history", "vomiting", "tachypnea"], bonus: 2.5 },
         ],
       },
+      "migraine": {
+        features: {
+          headache: 3.0, vomiting: 1.0,
+        },
+        interactions: [],
+      },
+      "tension headache": {
+        features: {
+          headache: 2.5,
+        },
+        interactions: [],
+      },
+      "cluster headache": {
+        features: {
+          headache: 2.8,
+        },
+        interactions: [],
+      },
     };
 
     // ════════════════════════════════════════════
