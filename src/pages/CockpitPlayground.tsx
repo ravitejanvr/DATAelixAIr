@@ -530,10 +530,11 @@ export default function CockpitPlayground() {
     setChiefComplaint(scenario.chiefComplaint);
     setExpansionSelections({});
     setPipelineComplete(false);
-    setPipelineHypotheses([]);
-    setPipelineBayesian(null);
-    setPipelineDDX(null);
-    setSoapSections(EMPTY_SOAP);
+     setPipelineHypotheses([]);
+     setPipelineBayesian(null);
+     setPipelineDDX(null);
+     setRenderSource("none");
+     setSoapSections(EMPTY_SOAP);
     setSoapManualEdits({});
     setSelectedDiagnoses([]);
     setSelectedTests([]);
