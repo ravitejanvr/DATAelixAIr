@@ -417,13 +417,13 @@ const SCENARIOS: Scenario[] = [
   },
   {
     name: "Sepsis (Demo)",
-    description: "High fever with chills — must-not-miss sepsis",
-    patient: { name: "Rajesh Gupta", age: 58, gender: "Male", location: "Lucknow", occupation: "Retired", diet: "Non-vegetarian", allergies: [] },
-    symptoms: ["Fever", "Body ache", "Fatigue", "Palpitations"],
-    duration: "3 days", onset: "Progressive", severity: "Severe", bodyLocation: "Generalized",
+    description: "High fever with rigors and confusion — must-not-miss sepsis",
+    patient: { name: "Rajesh Gupta", age: 62, gender: "Male", location: "Lucknow", occupation: "Retired", diet: "Non-vegetarian", allergies: [] },
+    symptoms: ["Fever", "Fatigue", "Dizziness"],
+    duration: "2 days", onset: "Sudden", severity: "Severe", bodyLocation: "Generalized",
     riskFactors: ["Diabetes"], medicalHistory: ["Diabetes mellitus"], familyHistory: [],
-    examFindings: [], vitals: { bp_systolic: 95, bp_diastolic: 58, pulse: 118, spo2: 93, temperature: 103.2, respiratory_rate: 26, weight_kg: 78, blood_sugar: 220 },
-    chiefComplaint: "High fever with chills and body aches for 3 days",
+    examFindings: ["Pallor"], vitals: { bp_systolic: 92, bp_diastolic: 55, pulse: 112, spo2: 92, temperature: 103.6, respiratory_rate: 24, weight_kg: 78, blood_sugar: 240 },
+    chiefComplaint: "High fever with rigors and mild confusion for 2 days",
   },
 ];
 
