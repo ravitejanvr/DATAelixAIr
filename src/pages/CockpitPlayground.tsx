@@ -487,6 +487,7 @@ export default function CockpitPlayground() {
 
   // ── RENDER SOURCE LOCK — single deterministic render path ──
   const [renderSource, setRenderSource] = useState<"none" | "bayesian">("none");
+  const renderSourceRef = useRef<"none" | "bayesian">("none");
 
   // Copilot selections — bidirectional with Plan
   const [selectedDiagnoses, setSelectedDiagnoses] = useState<string[]>([]);
@@ -620,6 +621,7 @@ export default function CockpitPlayground() {
     setPipelineStage("context");
     setStageLatencies({});
     setRenderSource("none");
+    renderSourceRef.current = "none";
     setPipelineBayesian(null);
 
     try {
@@ -650,23 +652,34 @@ export default function CockpitPlayground() {
           clinical_context: pipelineContext,
           visit_id: null, consultation_id: null, clinic_id: null,
           intake_approved: false,
+          skip_cache: true, // FIX 4: Force deterministic execution — no cache path divergence
         },
         (stage, data) => {
           if (runId !== pipelineRunIdRef.current) return;
           setPipelineStage(stage);
           if (data.physiological_context) setPipelinePhysiology(data.physiological_context);
-          if (data.ddx) setPipelineDDX(data.ddx);
+          // FIX 3: Block DDX overwrite after Bayesian lock
+          if (data.ddx) {
+            setPipelineDDX(prev => {
+              if (renderSourceRef.current === "bayesian") {
+                console.log("[LOCK] blocked late DDX overwrite");
+                return prev;
+              }
+              return data.ddx;
+            });
+          }
           if (data.bayesian) {
             console.log("[BAYESIAN WRITE]", data.bayesian?.diagnoses?.length);
             setPipelineBayesian(prev => {
-              // Block late overwrites — only accept first Bayesian emission
               if (prev && prev._locked) {
                 console.log("[LOCK] blocked late bayesian overwrite");
                 return prev;
               }
+              // FIX 2: Snapshot DDX name map at Bayesian lock time
               const locked = { ...data.bayesian, _locked: true };
               setRenderSource("bayesian");
-              console.log("[LOCK] bayesian locked");
+              renderSourceRef.current = "bayesian";
+              console.log("[LOCK] bayesian + DDX names locked");
               return locked;
             });
           }
