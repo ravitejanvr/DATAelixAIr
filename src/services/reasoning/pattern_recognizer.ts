@@ -319,11 +319,11 @@ const CLINICAL_PATTERNS: ClinicalPattern[] = [
       { node: "general_infectious", weight: 0.5 },
       { node: "sepsis", weight: 0.3 },
     ],
-    context_boosters: [
-      { field: "risk_factors", keywords: ["diabetes", "diabetic", "immunocompromised", "chronic kidney", "dialysis"], boost: 0.15 },
-      { field: "medical_history", keywords: ["diabetes", "diabetic", "dm", "type 2 diabetes", "transplant", "chemotherapy"], boost: 0.15 },
-      { field: "age", range: [55, 100], boost: 0.1 },
-    ],
+    context_boosters: {
+      age_range: [55, 100] as [number, number],
+      risk_keywords: ["diabetes", "diabetic", "immunocompromised", "chronic kidney", "dialysis"],
+      history_keywords: ["diabetes", "diabetic", "dm", "type 2 diabetes", "transplant", "chemotherapy"],
+    },
     must_not_miss: [
       { name: "Sepsis", confidence: 0.20, domain: "sepsis" },
       { name: "Endocarditis", confidence: 0.10, domain: "general_infectious" },
