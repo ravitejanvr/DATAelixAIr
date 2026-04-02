@@ -16,21 +16,23 @@ import type { ClinicalContext } from "@/lib/clinical-context";
 // ── Helpers ──
 
 function buildClinicalContext(ctx: ValidationScenario["clinical_context"]): ClinicalContext {
+  const bp = ctx.vitals?.bloodPressure ?? null;
   return {
     chief_complaint: ctx.chief_complaint,
-    symptoms: ctx.symptoms.join(", "),
-    age: ctx.age,
-    sex: ctx.sex,
-    vitals: ctx.vitals ?? {},
+    symptoms: ctx.symptoms,
+    patient_age: ctx.age,
+    patient_sex: ctx.sex,
+    height: null,
+    weight: null,
+    blood_pressure: typeof bp === "string" ? bp : null,
+    pulse: ctx.vitals?.heartRate ?? null,
+    temperature: ctx.vitals?.temperature ?? null,
+    respiratory_rate: ctx.vitals?.respiratoryRate ?? null,
+    oxygen_saturation: ctx.vitals?.spo2 ?? null,
+    symptom_duration: ctx.duration ?? "",
     medical_history: ctx.medical_history ?? [],
-    medications: ctx.medications ?? [],
+    current_medications: ctx.medications ?? [],
     allergies: ctx.allergies ?? [],
-    duration: ctx.duration ?? "",
-    transcript: "",
-    follow_up: "",
-    assessment: "",
-    notes: "",
-    doctor_name: "Validation",
   };
 }
 
