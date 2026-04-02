@@ -1734,10 +1734,32 @@ export async function runUnifiedClinicalPipeline(
           }
         })(),
 
-        // Re-run Bayesian with the full generated set
+        // Re-run Bayesian with the full generated set — MUST use ddx_priors for consistency
         (async (): Promise<BayesianResult | null> => {
           const loopIds = loopDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
           if (loopIds.length === 0) return null;
+
+          // Build priors from Wave 3 Bayesian posteriors (preferred) or DDX scores
+          const loopPriors: Record<string, number> = {};
+          if (bayesianResult?.diagnoses?.length) {
+            for (const d of bayesianResult.diagnoses) {
+              if (d.diagnosis_id) loopPriors[d.diagnosis_id] = d.posterior_probability;
+            }
+          } else if (ddxResult?.differential_diagnoses) {
+            for (const d of ddxResult.differential_diagnoses) {
+              if (d.diagnosis_id) loopPriors[d.diagnosis_id] = d.probability / 100;
+            }
+          }
+
+          // Guard: if priors exist from Wave 3, skip recomputation if no new candidates
+          const hasNewCandidates = loopIds.some(id => !loopPriors[id]);
+          if (Object.keys(loopPriors).length > 0 && !hasNewCandidates) {
+            console.log(`[Pipeline] Wave 3.6: Bayesian skip — no new candidates, preserving Wave 3 posteriors.`);
+            return bayesianResult;
+          }
+
+          console.log(`[Pipeline] Wave 3.6 Bayesian: uses_ddx_prior=${Object.keys(loopPriors).length > 0}, candidates=${loopIds.length}`);
+
           try {
             return await withTimeout(
               calculateDiagnosticProbabilities({
@@ -1750,6 +1772,7 @@ export async function runUnifiedClinicalPipeline(
                 region: "south_asia",
                 vitals,
                 duration: ctx.symptom_duration || null,
+                ddx_priors: Object.keys(loopPriors).length > 0 ? loopPriors : undefined,
               }),
               TIMEOUT.BAYESIAN,
               "bayesian_loop",
