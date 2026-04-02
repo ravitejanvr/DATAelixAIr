@@ -582,7 +582,8 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
       const signalMatch = pattern.signal_groups.some(group => matchSignalGroup(symptoms, group));
       if (signalMatch) {
         // Amplify: original boost 0.25-0.35 → now ×2.85 giving 0.7-1.0
-        const amplifiedBoost = roundTo(pattern.boost * 2.85, 3);
+        const contextMod = pattern.context_weight ? pattern.context_weight(context) : 1.0;
+        const amplifiedBoost = roundTo(pattern.boost * 2.85 * contextMod, 3);
         if (amplifiedBoost > patternBoost) {
           patternBoost = amplifiedBoost;
           patternLabel = pattern.label;
