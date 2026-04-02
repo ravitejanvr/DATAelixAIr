@@ -651,6 +651,10 @@ export default function GPBenchmarkDashboard() {
             )}
           </div>
         </TabsContent>
+
+        <TabsContent value="validation">
+          <ValidationPanel />
+        </TabsContent>
       </Tabs>
     </div>
   );
