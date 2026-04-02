@@ -731,27 +731,7 @@ export default function Clinical() {
             // Streaming progress callback
             setPipelineStage(stage);
             if (data.physiological_context) setPipelinePhysiology(data.physiological_context);
-            if (data.bayesian) {
-              setPipelineBayesian((prev: any) => {
-                // SINGLE-PASS MODEL: Accept first emission, lock state
-                if (prev && prev.diagnoses?.length && prev._locked) {
-                  console.log("[Bayesian-State] LOCKED — ignoring subsequent emission", { stage });
-                  return prev;
-                }
-                const incoming = data.bayesian as any;
-                if (!incoming || !incoming.diagnoses?.length) return prev || incoming;
-                // Synchronize all score fields
-                const synced = incoming.diagnoses.map((d: any) => {
-                  const score = d.probability ?? d.posterior_probability ?? d.posterior ?? 0;
-                  return { ...d, probability: score, posterior: score, posterior_probability: score };
-                });
-                console.log("[Bayesian-State] First emission accepted, locking state", { 
-                  count: synced.length, 
-                  sepsis: synced.find((d: any) => (d.diagnosis_name || d.diagnosis || "").toLowerCase().includes("sepsis"))?.probability 
-                });
-                return { ...incoming, diagnoses: synced, total_candidates: synced.length, _locked: true };
-              });
-            }
+            if (data.bayesian) setPipelineBayesian(data.bayesian);
             if (data.hypotheses?.hypotheses) {
               setPipelineHypotheses(data.hypotheses.hypotheses.map((h: any) => ({
                 diagnosis: h.hypothesis || h.diagnosis || h.diagnosis_name || "",
