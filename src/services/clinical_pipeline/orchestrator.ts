@@ -1075,6 +1075,46 @@ export async function runUnifiedClinicalPipeline(
     }
   }
 
+  // ── Vitals-Aware MNM Score Protection ──
+  // Ensure MNM diagnoses with supporting vitals signals are not under-scored
+  if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const temp = vitals.temperature ?? 0;
+    const hr = vitals.pulse ?? 0;
+    const rr = ctx.respiratory_rate ?? 0;
+    const sbp = vitals.bp_systolic ?? 999;
+    const spo2Val = vitals.spo2 ?? 100;
+    const riskFactorsLower = (ctx.risk_factors || []).map(r => r.toLowerCase());
+
+    ddxResult = {
+      ...ddxResult,
+      differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
+        const dxLower = d.diagnosis_name.toLowerCase().trim();
+
+        // Sepsis vitals-based boost (SIRS criteria: temp ≥102, HR ≥100, RR ≥22, SBP ≤100)
+        if (dxLower === "sepsis" || dxLower.includes("sepsis")) {
+          let vitalBoost = 0;
+          if (temp >= 102) vitalBoost += 5;
+          if (hr >= 100) vitalBoost += 4;
+          if (rr >= 22) vitalBoost += 3;
+          if (sbp <= 100) vitalBoost += 4;
+          if (spo2Val <= 94) vitalBoost += 3;
+          if (riskFactorsLower.some(r => r.includes("diabet"))) vitalBoost += 3;
+
+          if (vitalBoost > 0) {
+            const boostedProb = Math.min(d.probability + vitalBoost, 60);
+            console.log(
+              `[Pipeline] MNM-Vitals: Sepsis boosted ${d.probability}% → ${boostedProb}% ` +
+              `(vitals: T=${temp}, HR=${hr}, RR=${rr}, SBP=${sbp}, SpO2=${spo2Val})`
+            );
+            return { ...d, probability: boostedProb, must_not_miss: true };
+          }
+        }
+
+        return d;
+      }),
+    };
+  }
+
   waveLat.wave2_analysis = Math.round(performance.now() - w2Start);
   lineageTracker.recordEngineResult("ddx", !!ddxResult);
   lineageTracker.recordEngineResult("physiology", !!physiologicalContext);
