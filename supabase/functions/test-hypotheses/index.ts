@@ -266,17 +266,31 @@ Deno.serve(async (req) => {
         ? supporting.length / expectedSymptoms.length
         : 0;
 
-      // Compute adjusted probability
-      const evidenceMultiplier = 0.5 + evidenceScore; // range: 0.5 to 1.5
-      let adjustedProb = Math.round(originalProb * evidenceMultiplier);
+      // ══════════════════════════════════════════════
+      // REFINEMENT-BASED SCORING (not recomputation)
+      // adjustment = (evidenceScore - 0.5) * MAX_ADJUSTMENT
+      // This yields a bounded delta: -15 to +15 points
+      // Original score is ALWAYS the anchor
+      // ══════════════════════════════════════════════
+      const MAX_ADJUSTMENT = 15;
+      const adjustment = (evidenceScore - 0.5) * 2 * MAX_ADJUSTMENT; // range: -15 to +15
+      let adjustedProb = Math.round(originalProb + adjustment);
+
+      // INVARIANT: score cannot drop more than 30% from original
+      const floor = Math.round(originalProb * 0.7);
+      adjustedProb = Math.max(adjustedProb, floor);
       
       // Must-not-miss diagnoses maintain a visibility floor
       if (mustNotMiss) {
-        adjustedProb = Math.max(adjustedProb, Math.max(15, Math.round(originalProb * 0.8)));
+        adjustedProb = Math.max(adjustedProb, Math.max(15, Math.round(originalProb * 0.85)));
       }
       
-      // Cap at 95
+      // Cap at 95, floor at 1
       adjustedProb = Math.min(95, Math.max(1, adjustedProb));
+
+      console.log(
+        `[HypothesisTesting] ${dxName}: original=${originalProb}, evidence=${evidenceScore.toFixed(2)}, adjustment=${adjustment.toFixed(1)}, final=${adjustedProb}, mnm=${mustNotMiss}`,
+      );
 
       // Determine verdict
       let verdict: TestedHypothesis["verdict"] = "indeterminate";
