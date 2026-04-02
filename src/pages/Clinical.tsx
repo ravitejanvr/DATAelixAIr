@@ -731,63 +731,7 @@ export default function Clinical() {
             // Streaming progress callback
             setPipelineStage(stage);
             if (data.physiological_context) setPipelinePhysiology(data.physiological_context);
-            if (data.bayesian) {
-              setPipelineBayesian((prev: any) => {
-                const incoming = data.bayesian as any;
-                if (!prev || !prev.diagnoses?.length) return incoming;
-                if (!incoming || !incoming.diagnoses?.length) return prev;
-
-                const prevMap = new Map<string, any>(
-                  prev.diagnoses.map((d: any) => [(d.diagnosis_name || d.diagnosis || "").toLowerCase().trim(), d])
-                );
-                const incomingMap = new Map<string, any>(
-                  incoming.diagnoses.map((d: any) => [(d.diagnosis_name || d.diagnosis || "").toLowerCase().trim(), d])
-                );
-
-                const merged: any[] = [];
-                const seen = new Set<string>();
-
-                // Process incoming, merge with prev
-                for (const d of incoming.diagnoses) {
-                  const key = (d.diagnosis_name || d.diagnosis || "").toLowerCase().trim();
-                  if (!key || seen.has(key)) continue;
-                  seen.add(key);
-                  const prevD = prevMap.get(key);
-                  const prevScore = prevD?.probability ?? prevD?.posterior_probability ?? prevD?.posterior ?? 0;
-                  const newScore = d.probability ?? d.posterior_probability ?? d.posterior ?? 0;
-                  const isMNM = d.must_not_miss || prevD?.must_not_miss || false;
-
-                  let finalScore = newScore;
-                  let decision = "updated";
-
-                  if (isMNM && newScore < prevScore) {
-                    finalScore = prevScore;
-                    decision = "kept_prev (MNM protected)";
-                  } else if (prevScore > 0 && newScore < prevScore * 0.8) {
-                    finalScore = prevScore;
-                    decision = "kept_prev (>20% drop blocked)";
-                  }
-
-                  console.log(`[Bayesian-Merge] ${key}: prev=${prevScore.toFixed(1)}% new=${newScore.toFixed(1)}% final=${finalScore.toFixed(1)}% → ${decision}`);
-                  merged.push({ ...d, ...(prevD ? { must_not_miss: isMNM } : {}), probability: finalScore, posterior: finalScore, posterior_probability: finalScore });
-                }
-
-                // Preserve previous diagnoses not in incoming
-                for (const d of prev.diagnoses) {
-                  const key = (d.diagnosis_name || d.diagnosis || "").toLowerCase().trim();
-                  if (!key || seen.has(key)) continue;
-                  const score = d.probability ?? d.posterior ?? 0;
-                  if (d.must_not_miss || score >= 0.15) {
-                    seen.add(key);
-                    merged.push(d);
-                    console.log(`[Bayesian-Merge] ${key}: preserved from prev (MNM=${d.must_not_miss}, score=${score.toFixed(1)}%)`);
-                  }
-                }
-
-                merged.sort((a: any, b: any) => (b.probability ?? 0) - (a.probability ?? 0));
-                return { ...incoming, diagnoses: merged, total_candidates: merged.length };
-              });
-            }
+            if (data.bayesian) setPipelineBayesian(data.bayesian);
             if (data.hypotheses?.hypotheses) {
               setPipelineHypotheses(data.hypotheses.hypotheses.map((h: any) => ({
                 diagnosis: h.hypothesis || h.diagnosis || h.diagnosis_name || "",

@@ -77,8 +77,6 @@ interface ClinicalPattern {
   boost: number;
   /** Context requirements (age, risk factors) */
   context_filter?: (ctx: ClinicalContext) => boolean;
-  /** Optional weight modifier based on context (0-1, multiplied with boost) */
-  context_weight?: (ctx: ClinicalContext) => number;
 }
 
 const CLINICAL_PATTERNS: ClinicalPattern[] = [
@@ -219,20 +217,7 @@ const CLINICAL_PATTERNS: ClinicalPattern[] = [
     temporal_window: "acute",
     matching_diagnoses: ["sepsis", "pneumonia", "urinary tract infection", "pyelonephritis", "infective endocarditis"],
     boost: 0.3,
-    // Soft age factor: age increases boost but never blocks it
-    context_filter: (ctx) => {
-      const age = ctx.patient_age ?? 40;
-      // Always returns true (no hard gate) — age modulates boost via weight
-      return true;
-    },
-    // Age-aware weight: older patients get stronger boost, younger still get base
-    context_weight: (ctx) => {
-      const age = ctx.patient_age ?? 40;
-      if (age > 60) return 1.0;
-      if (age > 50) return 0.8;
-      if (age > 40) return 0.6;
-      return 0.4;
-    },
+    context_filter: (ctx) => (ctx.patient_age ?? 0) > 60,
   },
   {
     id: "subacute_infection",
@@ -582,8 +567,7 @@ export function applyPhase7Ranking(input: Phase7Input): Phase7Result {
       const signalMatch = pattern.signal_groups.some(group => matchSignalGroup(symptoms, group));
       if (signalMatch) {
         // Amplify: original boost 0.25-0.35 → now ×2.85 giving 0.7-1.0
-        const contextMod = pattern.context_weight ? pattern.context_weight(context) : 1.0;
-        const amplifiedBoost = roundTo(pattern.boost * 2.85 * contextMod, 3);
+        const amplifiedBoost = roundTo(pattern.boost * 2.85, 3);
         if (amplifiedBoost > patternBoost) {
           patternBoost = amplifiedBoost;
           patternLabel = pattern.label;
