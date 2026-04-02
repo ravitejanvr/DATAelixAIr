@@ -621,6 +621,7 @@ export default function CockpitPlayground() {
     setPipelineStage("context");
     setStageLatencies({});
     setRenderSource("none");
+    renderSourceRef.current = "none";
     setPipelineBayesian(null);
 
     try {
