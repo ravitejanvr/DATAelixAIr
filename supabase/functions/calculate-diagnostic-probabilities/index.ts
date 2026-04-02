@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
       vitals = {},
       duration = null,       // "acute" | "subacute" | "chronic"
       onset_pattern = null,  // "sudden" | "gradual" | "progressive" | "intermittent" | "episodic"
+      ddx_priors = {},       // DDX-computed probabilities keyed by diagnosis_id (0-1 scale)
     } = body;
 
     if (candidate_diagnosis_ids.length === 0) {
