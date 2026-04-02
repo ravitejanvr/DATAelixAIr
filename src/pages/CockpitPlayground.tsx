@@ -654,7 +654,20 @@ export default function CockpitPlayground() {
           setPipelineStage(stage);
           if (data.physiological_context) setPipelinePhysiology(data.physiological_context);
           if (data.ddx) setPipelineDDX(data.ddx);
-          if (data.bayesian) setPipelineBayesian(data.bayesian);
+          if (data.bayesian) {
+            console.log("[BAYESIAN WRITE]", data.bayesian?.diagnoses?.length);
+            setPipelineBayesian(prev => {
+              // Block late overwrites — only accept first Bayesian emission
+              if (prev && prev._locked) {
+                console.log("[LOCK] blocked late bayesian overwrite");
+                return prev;
+              }
+              const locked = { ...data.bayesian, _locked: true };
+              setRenderSource("bayesian");
+              console.log("[LOCK] bayesian locked");
+              return locked;
+            });
+          }
           if (data.hypotheses?.hypotheses) {
             setPipelineHypotheses(data.hypotheses.hypotheses.map((h: any) => ({
               diagnosis: h.hypothesis || h.diagnosis || h.diagnosis_name || "",
