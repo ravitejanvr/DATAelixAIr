@@ -619,6 +619,8 @@ export default function CockpitPlayground() {
     setPipelineComplete(false);
     setPipelineStage("context");
     setStageLatencies({});
+    setRenderSource("none");
+    setPipelineBayesian(null);
 
     try {
       const { runUnifiedClinicalPipeline } = await import("@/services/clinical_pipeline/orchestrator");
