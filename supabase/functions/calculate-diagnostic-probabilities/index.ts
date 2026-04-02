@@ -82,11 +82,20 @@ Deno.serve(async (req) => {
       onset_pattern = null,  // "sudden" | "gradual" | "progressive" | "intermittent" | "episodic"
     } = body;
 
-    if (candidate_diagnosis_ids.length === 0) {
+    // Filter to valid UUIDs only — non-UUID hint IDs (e.g. "hint-phenotype_inference-...")
+    // cause PostgreSQL type errors that fail entire queries silently
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validCandidateIds = candidate_diagnosis_ids.filter((id: string) => UUID_RE.test(id));
+    const skippedIds = candidate_diagnosis_ids.length - validCandidateIds.length;
+    if (skippedIds > 0) {
+      console.warn(`[BayesianEngine] Skipped ${skippedIds} non-UUID candidate IDs`);
+    }
+
+    if (validCandidateIds.length === 0) {
       return new Response(JSON.stringify({
         diagnoses: [],
         execution_ms: Date.now() - start,
-        source: "bayesian_engine_v4",
+        source: "bayesian_engine_v5_clinical_weights",
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -140,53 +149,53 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       supabase.from("disease_priors")
         .select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier")
-        .in("diagnosis_id", candidate_diagnosis_ids),
+        .in("diagnosis_id", validCandidateIds),
       symptomIds.length > 0
         ? supabase.from("symptom_likelihoods")
             .select("diagnosis_id, symptom_id, likelihood_value, symptom_specificity")
-            .in("diagnosis_id", candidate_diagnosis_ids)
+            .in("diagnosis_id", validCandidateIds)
             .in("symptom_id", symptomIds)
         : Promise.resolve({ data: [] }),
       physiological_state_ids.length > 0
         ? supabase.from("physiology_likelihoods")
             .select("diagnosis_id, physiological_state_id, likelihood_value")
-            .in("diagnosis_id", candidate_diagnosis_ids)
+            .in("diagnosis_id", validCandidateIds)
             .in("physiological_state_id", physiological_state_ids)
         : Promise.resolve({ data: [] }),
       normalizedRiskFactors.length > 0
         ? supabase.from("risk_factor_modifiers")
             .select("diagnosis_id, risk_factor, modifier_weight")
-            .in("diagnosis_id", candidate_diagnosis_ids)
+            .in("diagnosis_id", validCandidateIds)
             .in("risk_factor", normalizedRiskFactors)
         : Promise.resolve({ data: [] }),
       normalizedHistory.length > 0
         ? supabase.from("medical_history_modifiers")
             .select("diagnosis_id, history_condition, prior_multiplier, confidence")
-            .in("diagnosis_id", candidate_diagnosis_ids)
+            .in("diagnosis_id", validCandidateIds)
             .in("history_condition", normalizedHistory)
         : Promise.resolve({ data: [] }),
       supabase.from("dangerous_diagnoses")
         .select("diagnosis_id, diagnosis_name, severity_level, emergency_protocol, must_not_miss")
         .eq("must_not_miss", true)
-        .in("diagnosis_id", candidate_diagnosis_ids),
+        .in("diagnosis_id", validCandidateIds),
       durationCategory
         ? supabase.from("duration_modifiers")
             .select("diagnosis_id, duration_category, modifier_weight")
-            .in("diagnosis_id", candidate_diagnosis_ids)
+            .in("diagnosis_id", validCandidateIds)
             .eq("duration_category", durationCategory)
         : Promise.resolve({ data: [] }),
       onsetCategory
         ? supabase.from("onset_modifiers")
             .select("diagnosis_id, onset_pattern, modifier_weight")
-            .in("diagnosis_id", candidate_diagnosis_ids)
+            .in("diagnosis_id", validCandidateIds)
             .eq("onset_pattern", onsetCategory)
         : Promise.resolve({ data: [] }),
       supabase.from("vital_sign_modifiers")
         .select("diagnosis_id, vital_parameter, condition, threshold_value, modifier_weight")
-        .in("diagnosis_id", candidate_diagnosis_ids),
+        .in("diagnosis_id", validCandidateIds),
       supabase.from("symptom_cluster_modifiers")
         .select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight")
-        .in("diagnosis_id", candidate_diagnosis_ids),
+        .in("diagnosis_id", validCandidateIds),
     ]);
 
     // ════════════════════════════════════════════
@@ -470,6 +479,24 @@ Deno.serve(async (req) => {
           { conditions: ["diabetes_history", "vomiting", "tachypnea"], bonus: 2.5 },
         ],
       },
+      "migraine": {
+        features: {
+          headache: 3.0, vomiting: 1.0,
+        },
+        interactions: [],
+      },
+      "tension headache": {
+        features: {
+          headache: 2.5,
+        },
+        interactions: [],
+      },
+      "cluster headache": {
+        features: {
+          headache: 2.8,
+        },
+        interactions: [],
+      },
     };
 
     // ════════════════════════════════════════════
@@ -478,7 +505,7 @@ Deno.serve(async (req) => {
     const { data: diagNameRows } = await supabase
       .from("diagnoses")
       .select("id, diagnosis_name")
-      .in("id", candidate_diagnosis_ids);
+      .in("id", validCandidateIds);
 
     const diagNameMap = new Map<string, string>();
     for (const row of diagNameRows || []) {
@@ -517,11 +544,11 @@ Deno.serve(async (req) => {
     const results: BayesianDiagnosis[] = [];
     const DEFAULT_PRIOR = 0.05;
 
-    const diagsWithSymLik = candidate_diagnosis_ids.filter((id: string) => (symLikMap.get(id) || []).length > 0).length;
+    const diagsWithSymLik = validCandidateIds.filter((id: string) => (symLikMap.get(id) || []).length > 0).length;
     const hasAnySymLikData = diagsWithSymLik > 0;
     const totalSymptoms = symptomIds.length;
 
-    for (const diagId of candidate_diagnosis_ids) {
+    for (const diagId of validCandidateIds) {
       // ── 1. PRIOR: P(D) with demographic modifiers ──
       const priorData = priorsMap.get(diagId);
       let prior = priorData?.base_prevalence ?? DEFAULT_PRIOR;
@@ -717,6 +744,19 @@ Deno.serve(async (req) => {
       }))
     ));
 
+    // ── FLAT DISTRIBUTION WARNING ──
+    if (results.length >= 3) {
+      const top = results[0]?.posterior_probability || 0;
+      const bottom = results[Math.min(results.length - 1, 4)]?.posterior_probability || 0;
+      if (top > 0 && bottom > 0 && (top - bottom) < 0.05) {
+        console.warn(`[BayesianEngine] ⚠️ FLAT DISTRIBUTION DETECTED — top=${(top*100).toFixed(1)}%, bottom=${(bottom*100).toFixed(1)}%. Feature weights may not be applying.`);
+      }
+    }
+
+    // Log clinical features for verification
+    const activeFeatures = Object.entries(clinicalFeatures).filter(([, v]) => v).map(([k]) => k);
+    console.log(`[BayesianEngine] Clinical features active: [${activeFeatures.join(", ")}]`);
+
     const executionMs = Date.now() - start;
 
     return new Response(JSON.stringify({
@@ -739,7 +779,7 @@ Deno.serve(async (req) => {
         supporting_evidence: d.supporting_evidence,
         must_not_miss: d.must_not_miss,
       })),
-      total_candidates: candidate_diagnosis_ids.length,
+      total_candidates: validCandidateIds.length,
       symptoms_resolved: symptomIds.length,
       physiology_states_used: physiological_state_ids.length,
       risk_factors_applied: normalizedRiskFactors.length,
