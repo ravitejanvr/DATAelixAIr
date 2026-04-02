@@ -2402,7 +2402,7 @@ export async function runUnifiedClinicalPipeline(
     enabled: true,
     enriched_context: enrichedContext,
     physiological_context: physiologicalContext,
-    bayesian: bayesianResult,
+    bayesian: finalBayesianResult,
     ddx: ddxResult,
     uncertainty: uncertaintyResult,
     hypotheses,
