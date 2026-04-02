@@ -1208,6 +1208,7 @@ export async function runUnifiedClinicalPipeline(
           `(${hypothesisTestResult.execution_ms}ms)`,
         );
         // Update DDX probabilities with evidence-adjusted values
+        // GUARD: hypothesis layer refines scores, never recomputes from scratch
         if (hypothesisTestResult.tested_hypotheses.length > 0) {
           const adjustedMap = new Map(
             hypothesisTestResult.tested_hypotheses.map(h => [h.diagnosis_id, h]),
@@ -1217,10 +1218,16 @@ export async function runUnifiedClinicalPipeline(
             differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
               const tested = adjustedMap.get(d.diagnosis_id);
               if (tested) {
-                return {
-                  ...d,
-                  probability: tested.adjusted_probability,
-                };
+                const prevScore = d.probability;
+                const newScore = tested.adjusted_probability;
+                // INVARIANT: reject if hypothesis layer dropped score > 30%
+                if (newScore < prevScore * 0.7) {
+                  console.warn(
+                    `[Pipeline] Hypothesis guard: ${d.diagnosis_name} score drop blocked (${prevScore}→${newScore}). Keeping ${Math.round(prevScore * 0.7)}.`
+                  );
+                  return { ...d, probability: Math.round(prevScore * 0.7) };
+                }
+                return { ...d, probability: newScore };
               }
               return d;
             }).sort((a, b) => b.probability - a.probability),
@@ -1793,7 +1800,18 @@ export async function runUnifiedClinicalPipeline(
           ...ddxResult,
           differential_diagnoses: loopDiagnoses.map(d => {
             const tested = adjustedMap.get(d.diagnosis_id);
-            return tested ? { ...d, probability: tested.adjusted_probability } : d;
+            if (tested) {
+              const prevScore = d.probability;
+              const newScore = tested.adjusted_probability;
+              if (newScore < prevScore * 0.7) {
+                console.warn(
+                  `[Pipeline] Loop hypothesis guard: ${d.diagnosis_name} score drop blocked (${prevScore}→${newScore}).`
+                );
+                return { ...d, probability: Math.round(prevScore * 0.7) };
+              }
+              return { ...d, probability: newScore };
+            }
+            return d;
           }).sort((a, b) => b.probability - a.probability),
         };
         console.log(
