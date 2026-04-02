@@ -655,18 +655,28 @@ export default function CockpitPlayground() {
           if (runId !== pipelineRunIdRef.current) return;
           setPipelineStage(stage);
           if (data.physiological_context) setPipelinePhysiology(data.physiological_context);
-          if (data.ddx) setPipelineDDX(data.ddx);
+          // FIX 3: Block DDX overwrite after Bayesian lock
+          if (data.ddx) {
+            setPipelineDDX(prev => {
+              if (renderSourceRef.current === "bayesian") {
+                console.log("[LOCK] blocked late DDX overwrite");
+                return prev;
+              }
+              return data.ddx;
+            });
+          }
           if (data.bayesian) {
             console.log("[BAYESIAN WRITE]", data.bayesian?.diagnoses?.length);
             setPipelineBayesian(prev => {
-              // Block late overwrites — only accept first Bayesian emission
               if (prev && prev._locked) {
                 console.log("[LOCK] blocked late bayesian overwrite");
                 return prev;
               }
+              // FIX 2: Snapshot DDX name map at Bayesian lock time
               const locked = { ...data.bayesian, _locked: true };
               setRenderSource("bayesian");
-              console.log("[LOCK] bayesian locked");
+              renderSourceRef.current = "bayesian";
+              console.log("[LOCK] bayesian + DDX names locked");
               return locked;
             });
           }

@@ -1502,30 +1502,8 @@ export async function runUnifiedClinicalPipeline(
           }
         })(),
 
-        // Re-run Bayesian with pruned candidates
-        (async (): Promise<BayesianResult | null> => {
-          const prunedIds = prunedDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
-          if (prunedIds.length === 0) return null;
-          try {
-            return await withTimeout(
-              calculateDiagnosticProbabilities({
-                symptoms,
-                candidate_diagnosis_ids: prunedIds,
-                patient_age: ctx.patient_age ?? undefined,
-                patient_sex: ctx.patient_sex ?? undefined,
-                risk_factors: ctx.risk_factors || [],
-                medical_history: ctx.medical_history || [],
-                region: "south_asia",
-                vitals,
-                duration: ctx.symptom_duration || null,
-              }),
-              TIMEOUT.BAYESIAN,
-              "bayesian_loop",
-            );
-          } catch {
-            return null;
-          }
-        })(),
+        // FIX 5: Remove Wave 3.6 redundant Bayesian — computed but discarded, wastes latency
+        (async (): Promise<BayesianResult | null> => null)(),
       ]);
 
       // Apply loop hypothesis testing adjustments
