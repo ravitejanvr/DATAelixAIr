@@ -1314,6 +1314,16 @@ export default function CockpitPlayground() {
                 {s.name}
               </Button>
             ))}
+            <div className="w-px h-4 bg-border mx-1" />
+            <Button
+              variant={selectedScenario === "Sepsis (Validation)" ? "default" : "outline"}
+              size="sm"
+              className="h-6 text-[10px] rounded-full gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
+              onClick={runSepsisTest}
+            >
+              <FlaskConical className="h-2.5 w-2.5" />
+              Run Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
+            </Button>
           </div>
         </div>
 
