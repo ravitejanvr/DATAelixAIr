@@ -17,8 +17,6 @@ export interface FeatureFlags {
   enable_phase10_candidate_completeness: boolean;
   enable_phase5_context_candidates: boolean;
   enable_phase6_intelligence_core: boolean;
-  enable_phase6_safetynet: boolean;
-  enable_phase7_clinical_ranker: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -33,8 +31,6 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_phase10_candidate_completeness: false,
   enable_phase5_context_candidates: true,
   enable_phase6_intelligence_core: true,
-  enable_phase6_safetynet: true,
-  enable_phase7_clinical_ranker: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -93,12 +89,4 @@ export function isPhase5ContextCandidatesEnabled(): boolean {
 
 export function isPhase6IntelligenceCoreEnabled(): boolean {
   return currentFlags.enable_phase6_intelligence_core;
-}
-
-export function isPhase6SafetyNetEnabled(): boolean {
-  return currentFlags.enable_phase6_safetynet;
-}
-
-export function isPhase7ClinicalRankerEnabled(): boolean {
-  return currentFlags.enable_phase7_clinical_ranker;
 }

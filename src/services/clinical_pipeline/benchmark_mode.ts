@@ -47,12 +47,6 @@ import { rankCandidates, type IntelligenceCoreResult } from "@/services/reasonin
 import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/recall_recovery";
 import { normalizeSignals } from "@/services/signal_normalizer";
 import { generateSuspicionSignals } from "@/services/suspicion_engine";
-import { safetyNetActivation } from "@/services/reasoning/safety_net_activation";
-import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_activation";
-import { applyPhase7Ranking } from "@/services/reasoning/phase7_clinical_ranker";
-import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
-import { domainCoverageGuarantee } from "@/services/reasoning/domain_coverage_guarantee";
-import { recognizeClinicalPatterns } from "@/services/reasoning/pattern_recognizer";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
 // ── Timeout constants (tighter for benchmark) ──
@@ -324,59 +318,19 @@ export async function runBenchmarkPipeline(
     // Phase 6.2: Suspicion Engine
     const suspicion = generateSuspicionSignals(ctxForRules);
 
-    // Phase 6.9: Pattern Recognition
-    const patternResult = recognizeClinicalPatterns(ctxForRules);
-
     // KG-Native: Merge ALL activations → expand via KG
     const mergedActivation = mergeActivations(
-      mergeActivations(
-        mergeActivations(failureResult.activation, expansion.activation),
-        suspicion.activation,
-      ),
-      patternResult.activation,
+      mergeActivations(failureResult.activation, expansion.activation),
+      suspicion.activation,
     );
-
-    // Phase 6.6: SafetyNet — ensure critical domains are explored
-    const safetyNet = safetyNetActivation(ctx, mergedActivation);
-    const postSafetyNetActivation = safetyNet.activation;
 
     // Phase 6: Deep KG traversal if Intelligence Core enabled
     const expandedActivation = isPhase6IntelligenceCoreEnabled()
-      ? expandKGDeep(postSafetyNetActivation, 2, 0.5)
-      : postSafetyNetActivation;
+      ? expandKGDeep(mergedActivation, 2, 0.5)
+      : mergedActivation;
 
     const kgExpansion = expandKG(expandedActivation);
-    let allHints = kgExpansion.candidates;
-
-    // Inject pattern-detected MNM candidates (deduped)
-    for (const pc of patternResult.injected_candidates) {
-      const exists = allHints.some(h => h.diagnosis_name.toLowerCase() === pc.diagnosis_name.toLowerCase());
-      if (!exists) {
-        allHints.push(pc);
-      }
-    }
-
-    // Phase 6.7: Weak Signal Diagnosis Activation
-    if (isPhase6IntelligenceCoreEnabled()) {
-      const wsaResult = weakSignalDiagnosisActivation(ctx, allHints, expandedActivation);
-      allHints = wsaResult.candidates;
-      if (wsaResult.boosts_applied.length > 0) {
-        recordOversightEvent({
-          event_type: "phase6_safetynet" as any,
-          severity: "info",
-          stage: "weak_signal_activation",
-          message: `Phase 6.7: ${wsaResult.boosts_applied.length} weak signal boosts`,
-          metadata: { boosts: wsaResult.boosts_applied } as any,
-        });
-      }
-    }
-
-    // Domain Coverage Guarantee
-    const domainCoverage = domainCoverageGuarantee(allHints);
-    allHints = domainCoverage.candidates;
-    if (domainCoverage.injected_count > 0) {
-      console.log(`[Benchmark] Domain coverage: +${domainCoverage.injected_count} reps, filled: [${domainCoverage.domains_filled.join(", ")}]`);
-    }
+    const allHints = kgExpansion.candidates;
 
     // Phase 6: Intelligence Core ranking
     if (isPhase6IntelligenceCoreEnabled() && allHints.length > 0) {
@@ -407,20 +361,6 @@ export async function runBenchmarkPipeline(
           message: `Recovery: ${recovery.trigger_reason}`,
           metadata: { recovery } as any,
         });
-      }
-
-      // Phase 7: Clinical Intelligence Ranking
-      if (isPhase7ClinicalRankerEnabled() && icResult.candidate_count > 0) {
-        const phase7 = applyPhase7Ranking({ icResult, context: ctx });
-        if (phase7.phase7_reordered) {
-          recordOversightEvent({
-            event_type: "phase6_intelligence_core" as any,
-            severity: "info",
-            stage: "phase7_ranking",
-            message: `Phase 7: ${phase7.reorder_summary} (${phase7.execution_ms}ms)`,
-            metadata: { top3: phase7.ranked.slice(0, 3).map(r => ({ dx: r.diagnosis, p7: r.phase7_score, pattern: r.phase7.pattern_label })) } as any,
-          });
-        }
       }
     }
 
@@ -679,13 +619,16 @@ export async function runBenchmarkPipeline(
       })),
       ddxResult.recommended_labs?.map(l => l.test_name) || [],
     );
-    // HIGH-RECALL: Cognitive controller is advisory only — no candidates are removed
-    // Candidates flagged as low_confidence are kept for ranking/truncation
-    const flaggedByController = cogOutput.hypothesis_evaluation
-      .filter(h => h.reason.includes("flagged low_confidence"))
-      .map(h => h.hypothesis);
-    if (flaggedByController.length > 0) {
-      console.log(`[BenchPipeline] Wave 3.5: ${flaggedByController.length} candidates flagged low_confidence (preserved)`);
+    const prunedByController = cogOutput.hypothesis_evaluation
+      .filter(h => h.action === "prune")
+      .map(h => h.hypothesis.toLowerCase());
+    if (prunedByController.length > 0) {
+      ddxResult = {
+        ...ddxResult,
+        differential_diagnoses: ddxResult.differential_diagnoses.filter(
+          d => !prunedByController.includes(d.diagnosis_name.toLowerCase())
+        ),
+      };
     }
   }
 

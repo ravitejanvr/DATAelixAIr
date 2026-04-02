@@ -73,12 +73,6 @@ import { rankCandidates, type IntelligenceCoreResult } from "@/services/reasonin
 import { shouldTriggerRecovery, runRecallRecovery } from "@/services/reasoning/recall_recovery";
 import { normalizeSignals } from "@/services/signal_normalizer";
 import { generateSuspicionSignals } from "@/services/suspicion_engine";
-import { safetyNetActivation } from "@/services/reasoning/safety_net_activation";
-import { weakSignalDiagnosisActivation } from "@/services/reasoning/weak_signal_activation";
-import { applyPhase7Ranking, type Phase7Result } from "@/services/reasoning/phase7_clinical_ranker";
-import { isPhase7ClinicalRankerEnabled } from "@/services/feature_flags";
-import { domainCoverageGuarantee } from "@/services/reasoning/domain_coverage_guarantee";
-import { recognizeClinicalPatterns } from "@/services/reasoning/pattern_recognizer";
 
 // ── Public Types ──
 
@@ -898,83 +892,19 @@ export async function runUnifiedClinicalPipeline(
       });
     }
 
-    // Phase 6.9: Pattern Recognition — multi-symptom clinical pattern detection
-    const patternResult = recognizeClinicalPatterns(ctxForRules);
-    if (patternResult.pattern_count > 0) {
-      recordOversightEvent({
-        event_type: "phase5_context_expansion" as any,
-        severity: "info",
-        stage: "pattern_recognizer",
-        message: `Pattern recognizer matched ${patternResult.pattern_count} patterns, injecting ${patternResult.injected_candidates.length} MNM candidates`,
-        metadata: { patterns: patternResult.patterns_matched.map(p => p.pattern_id) } as any,
-      });
-    }
-
     // KG-Native: Merge ALL activations → expand via KG clusters → candidate hints
     const mergedActivation = mergeActivations(
-      mergeActivations(
-        mergeActivations(failureResult.activation, expansion.activation),
-        suspicion.activation,
-      ),
-      patternResult.activation,
+      mergeActivations(failureResult.activation, expansion.activation),
+      suspicion.activation,
     );
-
-    // Phase 6.6: SafetyNet — ensure critical domains are explored
-    const safetyNet = safetyNetActivation(ctx, mergedActivation);
-    const postSafetyNetActivation = safetyNet.activation;
-    if (safetyNet.safetynet_count > 0) {
-      recordOversightEvent({
-        event_type: "phase6_safetynet",
-        severity: "info",
-        stage: "safety_net_activation",
-        message: `SafetyNet activated ${safetyNet.safetynet_count} domain(s): [${safetyNet.activated_domains.join(", ")}]`,
-        metadata: { reasons: safetyNet.activation_reasons, domains: safetyNet.activated_domains } as any,
-      });
-    }
 
     // Phase 6: Deep KG traversal (multi-hop) if Intelligence Core enabled
     const expandedActivation = isPhase6IntelligenceCoreEnabled()
-      ? expandKGDeep(postSafetyNetActivation, 2, 0.5)
-      : postSafetyNetActivation;
+      ? expandKGDeep(mergedActivation, 2, 0.5)
+      : mergedActivation;
 
     const kgExpansion = expandKG(expandedActivation);
-    let allHints = kgExpansion.candidates;
-
-    // Inject pattern-detected MNM candidates (deduped against KG results)
-    for (const pc of patternResult.injected_candidates) {
-      const exists = allHints.some(h => h.diagnosis_name.toLowerCase() === pc.diagnosis_name.toLowerCase());
-      if (!exists) {
-        allHints.push(pc);
-      }
-    }
-
-    // Phase 6.7: Weak Signal Diagnosis Activation — recover missed diagnoses within active clusters
-    if (isPhase6IntelligenceCoreEnabled()) {
-      const wsaResult = weakSignalDiagnosisActivation(ctx, allHints, expandedActivation);
-      allHints = wsaResult.candidates;
-      if (wsaResult.boosts_applied.length > 0) {
-        recordOversightEvent({
-          event_type: "phase6_safetynet" as any,
-          severity: "info",
-          stage: "weak_signal_activation",
-          message: `Phase 6.7: ${wsaResult.boosts_applied.length} weak signal boosts (${wsaResult.total_scanned} scanned)`,
-          metadata: { boosts: wsaResult.boosts_applied } as any,
-        });
-      }
-    }
-
-    // Domain Coverage Guarantee — ensure all major clinical domains represented
-    const domainCoverage = domainCoverageGuarantee(allHints);
-    allHints = domainCoverage.candidates;
-    if (domainCoverage.injected_count > 0) {
-      recordOversightEvent({
-        event_type: "phase5_context_expansion" as any,
-        severity: "info",
-        stage: "domain_coverage_guarantee",
-        message: `Domain coverage: injected ${domainCoverage.injected_count} representatives. Filled: [${domainCoverage.domains_filled.join(", ")}]`,
-        metadata: { domains_filled: domainCoverage.domains_filled, already_covered: domainCoverage.domains_already_covered } as any,
-      });
-    }
+    const allHints = kgExpansion.candidates;
 
     if (kgExpansion.clusters_resolved.length > 0) {
       recordOversightEvent({
@@ -1026,20 +956,6 @@ export async function runUnifiedClinicalPipeline(
         message: `Ranked ${intelligenceCoreResult.candidate_count} candidates in ${intelligenceCoreResult.execution_ms}ms. Top: ${intelligenceCoreResult.ranked[0]?.diagnosis || "none"} (${intelligenceCoreResult.top_score})`,
         metadata: { top_5: intelligenceCoreResult.ranked.slice(0, 5).map(r => ({ diagnosis: r.diagnosis, score: r.score })) } as any,
       });
-    }
-
-    // Phase 7: Clinical Intelligence Ranking (pattern matching, epi priors, competition)
-    if (isPhase7ClinicalRankerEnabled() && intelligenceCoreResult && intelligenceCoreResult.candidate_count > 0) {
-      const phase7 = applyPhase7Ranking({ icResult: intelligenceCoreResult, context: ctx });
-      if (phase7.phase7_reordered) {
-        recordOversightEvent({
-          event_type: "phase6_intelligence_core" as any,
-          severity: "info",
-          stage: "phase7_ranking",
-          message: `Phase 7: ${phase7.reorder_summary} (${phase7.execution_ms}ms)`,
-          metadata: { top3: phase7.ranked.slice(0, 3).map(r => ({ dx: r.diagnosis, p7: r.phase7_score, pattern: r.phase7.pattern_label })) } as any,
-        });
-      }
     }
 
     // Use fallback v2 with KG-resolved hints
@@ -1531,12 +1447,12 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
   // ═══════════════════════════════════════════════════════
-  // WAVE 3.5 — Cognitive Controller Review + Conflict Resolution
-  // The cognitive controller is advisory only and never removes diagnoses.
+  // WAVE 3.5 — Cognitive Controller Pruning + Conflict Resolution
+  // The cognitive controller now runs INLINE to influence final diagnoses.
   // ═══════════════════════════════════════════════════════
   let conflictResult: ConflictResolution | null = null;
 
-  // Run cognitive controller on DDX candidates to flag low-confidence items and plan evidence
+  // Run cognitive controller on DDX candidates to prune and plan evidence
   if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
     const cogStart = performance.now();
     const { runCognitiveController } = await import("@/services/cognitive/clinical_cognitive_controller");
@@ -1551,28 +1467,36 @@ export async function runUnifiedClinicalPipeline(
       ddxResult.recommended_labs?.map(l => l.test_name) || [],
     );
 
-    // HIGH-RECALL: Cognitive controller is advisory only — no candidates are removed
-    // Candidates are flagged but preserved for ranking and final truncation
-    const flaggedByController = cogOutput.hypothesis_evaluation
-      .filter(h => h.reason.includes("flagged low_confidence"))
-      .map(h => h.hypothesis);
+    // Apply pruning: remove candidates the cognitive controller marked for pruning
+    const prunedByController = cogOutput.hypothesis_evaluation
+      .filter(h => h.action === "prune")
+      .map(h => h.hypothesis.toLowerCase());
     
-    if (flaggedByController.length > 0) {
+    if (prunedByController.length > 0) {
+      const beforeCount = ddxResult.differential_diagnoses.length;
+      ddxResult = {
+        ...ddxResult,
+        differential_diagnoses: ddxResult.differential_diagnoses.filter(
+          d => !prunedByController.includes(d.diagnosis_name.toLowerCase())
+        ),
+      };
+      const afterCount = ddxResult.differential_diagnoses.length;
       console.log(
-        `[Pipeline] Wave 3.5: Cognitive controller flagged ${flaggedByController.length} candidates as low_confidence (preserved)`
+        `[Pipeline] Wave 3.5: Cognitive controller pruned ${beforeCount - afterCount} candidates ` +
+        `(${beforeCount} → ${afterCount}), prune rate: ${Math.round(((beforeCount - afterCount) / beforeCount) * 100)}%`
       );
       recordOversightEvent({
         event_type: "cognitive_pruning",
         severity: "info",
         stage: "cognitive_controller",
-        message: `Flagged ${flaggedByController.length} low-confidence hypotheses (preserved): ${flaggedByController.join(", ")}`,
-        metadata: { flagged: flaggedByController, total: ddxResult.differential_diagnoses.length },
+        message: `Pruned ${beforeCount - afterCount} low-value hypotheses (${prunedByController.join(", ")})`,
+        metadata: { pruned: prunedByController, before: beforeCount, after: afterCount },
       });
     }
     lat.cognitive_controller = Math.round(performance.now() - cogStart);
     pcieCore.addReasoningTrace(
       "cognitive_controller" as any,
-      `Cognitive: flagged ${flaggedByController.length}, strategy=${cogOutput.evidence_strategy.strategy_type}, quality=${cogOutput.reasoning_evaluation.quality_score}`,
+      `Cognitive: pruned ${prunedByController.length}, strategy=${cogOutput.evidence_strategy.strategy_type}, quality=${cogOutput.reasoning_evaluation.quality_score}`,
     );
   }
 
@@ -1600,14 +1524,14 @@ export async function runUnifiedClinicalPipeline(
   // ═══════════════════════════════════════════════════════
   // WAVE 3.6 — Bounded Diagnostic Loop (max 1 refinement iteration)
   //
-  // If diagnostic confidence is weak after Wave 3.5, flag low-confidence
-  // candidates and re-run Hypothesis Testing → Bayesian without deleting any diagnosis.
+  // If diagnostic confidence is weak after Wave 3.5, prune low-probability
+  // candidates and re-run Hypothesis Testing → Bayesian to sharpen the DDX.
   // ═══════════════════════════════════════════════════════
   let diagnosticLoopExecuted = false;
   let diagnosticLoopReason = "";
   const LOOP_TOP_PROBABILITY_THRESHOLD = 45; // trigger if top DDX < 45%
   const LOOP_SPREAD_THRESHOLD = 10; // trigger if gap between #1 and #2 < 10%
-  const LOOP_LOW_CONFIDENCE_THRESHOLD = 15; // flag candidates below 15%, never prune
+  const LOOP_PRUNE_THRESHOLD = 15; // drop candidates below 15%
 
   if (ddxResult && ddxResult.differential_diagnoses.length >= 2) {
     const topProb = ddxResult.differential_diagnoses[0].probability;
@@ -1627,41 +1551,24 @@ export async function runUnifiedClinicalPipeline(
 
       console.log(
         `[Pipeline] Wave 3.6: Diagnostic loop triggered — ${diagnosticLoopReason}. ` +
-        `Flagging candidates below ${LOOP_LOW_CONFIDENCE_THRESHOLD}% for review and re-running reasoning without pruning.`
+        `Pruning candidates below ${LOOP_PRUNE_THRESHOLD}% and re-running reasoning.`
       );
 
-      const loopDiagnoses = ddxResult.differential_diagnoses;
-      const flaggedForLoop = loopDiagnoses
-        .filter(d => d.probability < LOOP_LOW_CONFIDENCE_THRESHOLD && !d.must_not_miss)
-        .map(d => d.diagnosis_name);
-
-      console.log(
-        `[Pipeline] Wave 3.6: Flagged ${flaggedForLoop.length} low-confidence candidates for review; ` +
-        `preserving all ${loopDiagnoses.length} diagnoses.`
+      // Prune weak candidates (keep must-not-miss regardless)
+      const prunedDiagnoses = ddxResult.differential_diagnoses.filter(
+        d => d.probability >= LOOP_PRUNE_THRESHOLD || d.must_not_miss,
       );
+      const prunedCount = ddxResult.differential_diagnoses.length - prunedDiagnoses.length;
+      console.log(`[Pipeline] Wave 3.6: Pruned ${prunedCount} weak candidates, ${prunedDiagnoses.length} remaining.`);
 
-      if (flaggedForLoop.length > 0) {
-        recordOversightEvent({
-          event_type: "diagnostic_loop_review" as any,
-          severity: "info",
-          stage: "diagnostic_loop",
-          message: `Flagged ${flaggedForLoop.length} low-confidence candidates for loop review (preserved): ${flaggedForLoop.join(", ")}`,
-          metadata: {
-            flagged: flaggedForLoop,
-            preserved: true,
-            low_confidence_threshold: LOOP_LOW_CONFIDENCE_THRESHOLD,
-          } as any,
-        });
-      }
-
-      // Re-run Hypothesis Testing with the full generated set (guard: skip if empty)
+      // Re-run Hypothesis Testing with pruned set (guard: skip if empty)
       const [loopHypoTest, loopBayesian] = await Promise.all([
         (async (): Promise<HypothesisTestResult | null> => {
-          if (loopDiagnoses.length === 0) return null;
+          if (prunedDiagnoses.length === 0) return null;
           try {
             return await withTimeout(
               testHypotheses({
-                candidate_diagnoses: loopDiagnoses.map((d, i) => ({
+                candidate_diagnoses: prunedDiagnoses.map((d, i) => ({
                   diagnosis_id: d.diagnosis_id || `fallback-loop-${i}-${d.diagnosis_name?.replace(/\s+/g, '-').toLowerCase()}`,
                   diagnosis_name: d.diagnosis_name,
                   icd10_code: d.icd10_code || null,
@@ -1682,15 +1589,15 @@ export async function runUnifiedClinicalPipeline(
           }
         })(),
 
-        // Re-run Bayesian with the full generated set
+        // Re-run Bayesian with pruned candidates
         (async (): Promise<BayesianResult | null> => {
-          const loopIds = loopDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
-          if (loopIds.length === 0) return null;
+          const prunedIds = prunedDiagnoses.map(d => d.diagnosis_id).filter(Boolean);
+          if (prunedIds.length === 0) return null;
           try {
             return await withTimeout(
               calculateDiagnosticProbabilities({
                 symptoms,
-                candidate_diagnosis_ids: loopIds,
+                candidate_diagnosis_ids: prunedIds,
                 patient_age: ctx.patient_age ?? undefined,
                 patient_sex: ctx.patient_sex ?? undefined,
                 risk_factors: ctx.risk_factors || [],
@@ -1716,7 +1623,7 @@ export async function runUnifiedClinicalPipeline(
         );
         ddxResult = {
           ...ddxResult,
-          differential_diagnoses: loopDiagnoses.map(d => {
+          differential_diagnoses: prunedDiagnoses.map(d => {
             const tested = adjustedMap.get(d.diagnosis_id);
             return tested ? { ...d, probability: tested.adjusted_probability } : d;
           }).sort((a, b) => b.probability - a.probability),
@@ -1739,7 +1646,7 @@ export async function runUnifiedClinicalPipeline(
       lineageTracker.recordEngineResult("diagnostic_loop", true);
       pcieCore.addReasoningTrace(
         "diagnostic_loop" as any,
-        `Loop triggered: ${diagnosticLoopReason}. Flagged ${flaggedForLoop.length} low-confidence candidates, preserved all diagnoses, re-ran hypothesis testing + bayesian.`,
+        `Loop triggered: ${diagnosticLoopReason}. Pruned ${prunedCount} candidates, re-ran hypothesis testing + bayesian.`,
       );
 
       onProgress?.("diagnostic_loop", { ddx: ddxResult, hypothesis_testing: hypothesisTestResult });
@@ -2268,7 +2175,7 @@ export async function runUnifiedClinicalPipeline(
     diagnostic_loop: diagnosticLoopExecuted ? {
       executed: true,
       reason: diagnosticLoopReason,
-      candidates_pruned: 0,
+      candidates_pruned: lat.diagnostic_loop ? (ddxResult?.differential_diagnoses?.length || 0) : 0,
       candidates_remaining: ddxResult ? ddxResult.differential_diagnoses.length : 0,
       iteration_ms: lat.diagnostic_loop || 0,
     } : null,
