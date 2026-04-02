@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       supabase.from("disease_priors")
         .select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier")
-        .in("diagnosis_id", candidate_diagnosis_ids),
+        .in("diagnosis_id", validCandidateIds),
       symptomIds.length > 0
         ? supabase.from("symptom_likelihoods")
             .select("diagnosis_id, symptom_id, likelihood_value, symptom_specificity")
