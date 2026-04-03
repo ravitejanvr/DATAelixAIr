@@ -1450,6 +1450,37 @@ export async function runUnifiedClinicalPipeline(
     console.warn("[Pipeline] Physio-Bayesian diff skipped:", e);
   }
 
+  // ── Systemic Override Layer (feature-flagged, deterministic) ──
+  {
+    const { isSystemicOverrideEnabled } = await import("@/services/feature_flags");
+    if (isSystemicOverrideEnabled() && fusedBayesian && fusedBayesian.diagnoses.length > 0) {
+      const { applySystemicOverride } = await import("@/services/clinical_pipeline/systemic_override_layer");
+      const overrideResult = applySystemicOverride({
+        bayesianDiagnoses: fusedBayesian.diagnoses,
+        physiologicalContext: physiologicalContext,
+      });
+      if (overrideResult.applied) {
+        fusedBayesian = { ...fusedBayesian, diagnoses: overrideResult.diagnoses };
+        console.log("[Pipeline] SYSTEMIC OVERRIDE APPLIED:", overrideResult.reason);
+        recordOversightEvent({
+          event_type: "systemic_override",
+          severity: "warning",
+          stage: "systemic_override",
+          message: overrideResult.reason,
+          metadata: { before_top: overrideResult.before_top, after_top: overrideResult.after_top } as any,
+        });
+      } else {
+        console.log("[Pipeline] Systemic override skipped:", overrideResult.reason);
+      }
+      if (typeof window !== "undefined") {
+        (window as any).__SYSTEMIC_OVERRIDE__ = {
+          applied: overrideResult.applied,
+          reason: overrideResult.reason,
+        };
+      }
+    }
+  }
+
   onProgress?.("bayesian", { bayesian: fusedBayesian });
   onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });

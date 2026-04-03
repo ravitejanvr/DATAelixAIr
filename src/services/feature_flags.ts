@@ -98,3 +98,7 @@ export function isPatternPriorityLayerEnabled(): boolean {
 export function isScoreFusionEnabled(): boolean {
   return currentFlags.enable_score_fusion;
 }
+
+export function isSystemicOverrideEnabled(): boolean {
+  return currentFlags.enable_systemic_override;
+}
