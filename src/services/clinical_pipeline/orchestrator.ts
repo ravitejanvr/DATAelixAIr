@@ -1474,42 +1474,7 @@ export async function runUnifiedClinicalPipeline(
     lat.score_fusion = Math.round(performance.now() - fusionStart);
   }
 
-  // ── Physiology vs Bayesian disagreement analysis (pre-override snapshot, for logging only) ──
-  try {
-    const { analyzePhysiologyBayesianMismatch } = await import("@/debug/physiology_bayesian_diff");
-    if (fusedBayesian?.diagnoses?.length) {
-      // Build name map early for pre-override logging
-      const preNameMap = new Map<string, string>();
-      if (ddxResult?.differential_diagnoses) {
-        for (const d of ddxResult.differential_diagnoses) {
-          if (d.diagnosis_id && d.diagnosis_name) preNameMap.set(d.diagnosis_id, d.diagnosis_name);
-        }
-      }
-      const mismatch = analyzePhysiologyBayesianMismatch({
-        physiological_states: physiologicalContext?.physiological_states,
-        affected_systems: physiologicalContext?.affected_systems?.map((s: any) => s.system_name || s) || [],
-        candidate_diagnosis_ids: physiologicalContext?.candidate_diagnosis_ids || [],
-        bayesian_diagnoses: fusedBayesian.diagnoses,
-        symptoms,
-        vitals: {
-          temperature: vitals.temperature,
-          pulse: vitals.pulse,
-          bp_systolic: vitals.bp_systolic,
-          bp_diastolic: vitals.bp_diastolic,
-          respiratory_rate: vitals.respiratory_rate,
-          spo2: vitals.spo2,
-        },
-        diagnosisNameMap: preNameMap,
-      });
-      console.log("=== PHYSIOLOGY vs BAYESIAN (post-fusion) ===", mismatch.disagreement.type);
-      // Set the final physio-bayesian diff for debug panel
-      if (typeof window !== "undefined") {
-        (window as any).__PHYSIO_BAYESIAN_DIFF__ = mismatch;
-      }
-    }
-  } catch (e) {
-    console.warn("[Pipeline] Physio-Bayesian diff skipped:", e);
-  }
+  // ── Physiology vs Bayesian disagreement analysis — MOVED to post-SSAL (see below) ──
 
   // ── Systemic Override Layer — DISABLED (Physiology-First Architecture) ──
   // Override is no longer needed: systemic instability now directly conditions
