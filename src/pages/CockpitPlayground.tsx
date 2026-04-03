@@ -1326,6 +1326,30 @@ export default function CockpitPlayground() {
               <FlaskConical className="h-2.5 w-2.5" />
               Run Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-[10px] rounded-full gap-1 border-muted-foreground/30 text-muted-foreground hover:bg-accent"
+              onClick={async () => {
+                try {
+                  console.log("=== SYSTEM TEST HARNESS START ===");
+                  const { runSystemicVsOrganTests } = await import(
+                    "@/tests/systemic_vs_organ_diagnostic_tests"
+                  );
+                  const results = await runSystemicVsOrganTests();
+                  console.log("=== SYSTEM TEST RESULTS ===");
+                  console.table(results.results);
+                  (window as any).__SYSTEM_TEST_RESULTS__ = results;
+                  alert(`System Tests Completed:\n${results.summary.system_behavior}\nPassed: ${results.summary.passed}/${results.summary.total_cases}`);
+                } catch (err) {
+                  console.error("System test failed:", err);
+                  alert("System test execution failed");
+                }
+              }}
+            >
+              <Beaker className="h-2.5 w-2.5" />
+              Run System Tests
+            </Button>
           </div>
         </div>
 
