@@ -23,7 +23,8 @@ export interface OversightEvent {
     | "candidate_fallback_v2_triggered"
     | "phase5_context_expansion"
     | "context_aware_safety"
-    | "pattern_priority_applied";
+    | "pattern_priority_applied"
+    | "score_fusion_applied";
   severity: "info" | "warning" | "critical";
   stage: string;
   message: string;
