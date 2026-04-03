@@ -469,7 +469,25 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Diagnosis panel REMOVED from Copilot — diagnoses appear only in Assessment (center column) */}
+      {/* ═══ PRIMARY AUTHORITY HEADER ═══ */}
+      {diagnosis && (
+        <motion.div {...fadeIn}>
+          <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-primary/5 border border-primary/20">
+            <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center">
+              <Target className="h-3 w-3 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-semibold text-primary uppercase tracking-widest">Primary Recommendation</p>
+              <p className="text-xs font-semibold text-foreground truncate">{diagnosis}</p>
+            </div>
+            {primaryConfidence != null && primaryConfidence > 0 && (
+              <Badge variant="outline" className="text-[9px] shrink-0 border-primary/30 text-primary">
+                {Math.round(primaryConfidence * 100)}%
+              </Badge>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Recommended Investigations — top 5 with show more */}
       {tests.length > 0 && (() => {
