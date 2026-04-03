@@ -621,6 +621,7 @@ export default function CockpitPlayground() {
     setSelectedMonitoring([]); setPendingRx([]); setSelectedScenario(""); setSnapshots([]); setShowComparison(false);
     setPipelineStage(null); setStageLatencies({}); setEditingCategory(null);
     setCommandInput("");
+    setInvestigationResults({});
   };
 
   // ── Generate SOAP Subjective from all selections ──
