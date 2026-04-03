@@ -16,6 +16,7 @@ export interface FeatureFlags {
   enable_phase9_safety_decoupling: boolean;
   enable_phase10_candidate_completeness: boolean;
   enable_phase5_context_candidates: boolean;
+  enable_pattern_priority_layer: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
