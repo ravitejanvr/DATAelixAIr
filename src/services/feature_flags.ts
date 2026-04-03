@@ -86,3 +86,7 @@ export function isPhase10CandidateCompletenessEnabled(): boolean {
 export function isPhase5ContextCandidatesEnabled(): boolean {
   return currentFlags.enable_phase5_context_candidates;
 }
+
+export function isPatternPriorityLayerEnabled(): boolean {
+  return currentFlags.enable_pattern_priority_layer;
+}
