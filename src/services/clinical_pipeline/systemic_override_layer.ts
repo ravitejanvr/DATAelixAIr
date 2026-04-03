@@ -43,7 +43,7 @@ export interface SystemicOverrideResult {
 
 const SEPSIS_KEYWORDS = ["sepsis", "septicemia", "septicaemia", "systemic infection"];
 const PNEUMONIA_KEYWORDS = ["pneumonia", "cap", "community acquired pneumonia", "community-acquired pneumonia"];
-const SEPSIS_FLOOR = 0.55;
+const SEPSIS_FLOOR = 0.60;
 const PNEUMONIA_SUPPRESSION = 0.7;
 const MIN_SIGNALS = 3;
 
