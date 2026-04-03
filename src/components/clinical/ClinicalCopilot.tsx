@@ -163,6 +163,7 @@ export default function ClinicalCopilot({
   patientAge,
   allergies,
   diagnosis,
+  primaryConfidence,
   chiefComplaint,
   patientSex,
   carePlan,
