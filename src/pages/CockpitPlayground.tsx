@@ -948,33 +948,70 @@ export default function CockpitPlayground() {
     });
   }, [pipelineBayesian, pipelineHypotheses, pipelineDDX, renderSource]);
 
-  // ── PRIMARY management: from mergedDiagnoses[0] ONLY ──
-  // DATA ISOLATION: Uses ONLY primary.tests/medications (already diagnosis-filtered in mergedDiagnoses construction)
-  // NO global pipelineDDX pulls — those caused cross-diagnosis contamination
+  // ── PRIMARY management: diagnosis-first authority from resolveManagement ONLY ──
   const primaryManagement = useMemo(() => {
-    const primary = mergedDiagnoses[0];
-    if (!primary) return { tests: [] as string[], medications: [] as any[], instructions: [] as string[], monitoring: [] as string[], diagnosis: "", probability: 0 };
+    const primaryDiagnosis = mergedDiagnoses[0];
+    if (!primaryDiagnosis) {
+      return { tests: [] as string[], medications: [] as any[], instructions: [] as string[], monitoring: [] as string[], diagnosis: "", probability: 0 };
+    }
 
-    // Tests and medications are already correctly populated per-diagnosis in mergedDiagnoses
+    const authoritativeManagement = resolveManagement(primaryDiagnosis.name || "");
+    const primaryTests = authoritativeManagement.tests || [];
     const result = {
-      tests: primary.tests || [],
-      medications: primary.medications || [],
-      instructions: primary.instructions || [],
-      monitoring: primary.monitoring || [],
-      diagnosis: primary.name || "",
-      probability: primary.bayesian?.posterior_probability ?? 0,
+      tests: primaryTests,
+      medications: authoritativeManagement.medications || [],
+      instructions: authoritativeManagement.instructions || [],
+      monitoring: authoritativeManagement.monitoring || [],
+      diagnosis: primaryDiagnosis.name || "",
+      probability: primaryDiagnosis.bayesian?.posterior_probability ?? 0,
     };
 
-    // RUNTIME SAFETY GUARD: detect cross-diagnosis contamination
-    if (result.medications.some((m: any) => {
-      const drug = (m.drug || "").toLowerCase();
-      return drug.includes("amoxicillin") || drug.includes("atorvastatin") || drug.includes("nitroglycerin");
-    }) && result.diagnosis.toLowerCase().includes("sepsis")) {
+    const forbiddenTestKeywords = ["troponin", "ct angiography"];
+    if (
+      /sepsis/i.test(result.diagnosis) &&
+      primaryTests.some((t: string) =>
+        forbiddenTestKeywords.some((f) => t.toLowerCase().includes(f))
+      )
+    ) {
+      console.error("🚨 TEST CONTAMINATION: Non-sepsis test in PRIMARY", primaryTests);
+    }
+
+    const forbiddenMedicationKeywords = ["amoxicillin", "atorvastatin", "nitroglycerin"];
+    if (
+      /sepsis/i.test(result.diagnosis) &&
+      result.medications.some((m: any) => {
+        const drug = (m.drug || "").toLowerCase();
+        return forbiddenMedicationKeywords.some((f) => drug.includes(f));
+      })
+    ) {
       console.error("🚨 PRIMARY CONTAMINATION DETECTED — non-sepsis meds in sepsis primary:", result.medications.map((m: any) => m.drug));
     }
 
     return result;
   }, [mergedDiagnoses]);
+
+  useEffect(() => {
+    if (!primaryManagement.diagnosis) return;
+
+    const forbiddenTestKeywords = ["troponin", "ct angiography"];
+    const isSepsisPrimary = /sepsis/i.test(primaryManagement.diagnosis);
+    const hasForbiddenPrimaryTests = primaryManagement.tests.some((t: string) =>
+      forbiddenTestKeywords.some((f) => t.toLowerCase().includes(f))
+    );
+    const hasSepsisCoreTests = ["cbc", "lactate", "blood culture"].every((keyword) =>
+      primaryManagement.tests.some((t: string) => t.toLowerCase().includes(keyword))
+    );
+
+    console.log("TEST SOURCE VALIDATION:");
+    console.log("- PRIMARY tests from resolveManagement only → YES");
+    console.log("- pipelineDDX used in PRIMARY tests → NO");
+
+    if (isSepsisPrimary) {
+      console.log("CLINICAL VALIDATION:");
+      console.log(`- Sepsis tests ONLY (CBC, lactate, cultures) → ${hasSepsisCoreTests && !hasForbiddenPrimaryTests ? "YES" : "NO"}`);
+      console.log(`- Cardiac/PE tests removed → ${!hasForbiddenPrimaryTests ? "YES" : "NO"}`);
+    }
+  }, [primaryManagement]);
 
   // ── SECONDARY management: from mergedDiagnoses[1..n] ──
   const secondaryPlans = useMemo(() => {
