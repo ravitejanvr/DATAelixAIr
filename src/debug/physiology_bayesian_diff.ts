@@ -169,7 +169,7 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
       explanation = `${signal_count}/5 systemic signals (${phenotype}) — ${resolveName(sepsisEntry || ordered[0], nameMap)} correctly prioritized at ${sepsisProb}% (confidence ${(confidence * 100).toFixed(0)}%).`;
     } else {
       type = "SYSTEMIC_MISSED";
-      const sepsisEntry = sorted.find(d => isSepsisLike(resolveName(d, nameMap)));
+      const sepsisEntry = ordered.find(d => isSepsisLike(resolveName(d, nameMap)));
       const sepsisScore = sepsisEntry ? Math.round((sepsisEntry.posterior_probability ?? 0) * 100) : 0;
       explanation = `HIGH systemic instability (${signal_count}/5 signals, ${phenotype}) but Sepsis ranked #${sepsisRank} at ${sepsisScore}% — organ-level diagnosis prioritized over systemic condition.`;
     }
