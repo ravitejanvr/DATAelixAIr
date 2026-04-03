@@ -18,6 +18,7 @@ import type { PipelineMode } from "@/services/benchmark_v9/runner";
 import BenchmarkV10Panel from "@/components/BenchmarkV10Panel";
 import ValidationPanel from "@/components/ValidationPanel";
 import SEO from "@/components/SEO";
+import SystemModeIndicator from "@/components/SystemModeIndicator";
 
 // ── Helpers ──
 
