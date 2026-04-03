@@ -20,6 +20,7 @@ export interface FeatureFlags {
   enable_score_fusion: boolean;
   enable_systemic_override: boolean;
   enable_cognitive_authority_layer: boolean;
+  enable_execution_authority_fix: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
