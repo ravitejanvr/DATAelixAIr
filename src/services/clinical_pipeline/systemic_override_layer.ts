@@ -113,18 +113,27 @@ export function applySystemicOverride(input: SystemicOverrideInput): SystemicOve
   const cloned = bayesianDiagnoses.map(d => ({ ...d }));
   const originalSepsisScore = cloned[sepsisIdx].posterior_probability;
 
-  // DEBUG MARKER: force 0.99 to trace overwrites
-  cloned[sepsisIdx].posterior_probability = 0.99;
-  (cloned[sepsisIdx] as any).debug_override_marker = "OVERRIDE_APPLIED";
+  // Calibrated systemic floor
+  cloned[sepsisIdx].posterior_probability = Math.max(originalSepsisScore, SEPSIS_FLOOR);
 
-  // FIX 4: Suppress pneumonia candidates
+  console.log("[SYSTEMIC_OVERRIDE_TRIGGERED]", {
+    signals: signalCount,
+    original_sepsis: (originalSepsisScore * 100).toFixed(1) + "%",
+    floor_applied: originalSepsisScore < SEPSIS_FLOOR,
+  });
+
+  if (originalSepsisScore < SEPSIS_FLOOR) {
+    console.log("[SYSTEMIC_FLOOR_APPLIED]", `${(originalSepsisScore * 100).toFixed(1)}% → ${(SEPSIS_FLOOR * 100).toFixed(1)}%`);
+  }
+
+  // Suppress pneumonia under systemic dominance
   for (let i = 0; i < cloned.length; i++) {
     if (isPneumoniaCandidate(cloned[i].diagnosis_id, diagnosisNameMap)) {
       cloned[i].posterior_probability *= PNEUMONIA_SUPPRESSION;
     }
   }
 
-  // FIX 5: Re-sort
+  // Re-sort
   cloned.sort((a, b) => b.posterior_probability - a.posterior_probability);
 
   // Normalize to sum = 1
@@ -137,11 +146,6 @@ export function applySystemicOverride(input: SystemicOverrideInput): SystemicOve
 
   const sepsisName = resolveNameForId(bayesianDiagnoses[sepsisIdx].diagnosis_id, diagnosisNameMap);
   const newSepsisScore = cloned.find(d => isSepsisCandidate(d.diagnosis_id, diagnosisNameMap))?.posterior_probability ?? 0;
-
-  console.log("[SystemicOverride] OVERRIDE_INPUT", bayesianDiagnoses.slice(0, 3).map(d =>
-    `${resolveNameForId(d.diagnosis_id, diagnosisNameMap)}: ${(d.posterior_probability * 100).toFixed(1)}%`));
-  console.log("[SystemicOverride] OVERRIDE_OUTPUT", cloned.slice(0, 3).map(d =>
-    `${resolveNameForId(d.diagnosis_id, diagnosisNameMap)}: ${(d.posterior_probability * 100).toFixed(1)}%`));
 
   return {
     diagnoses: cloned,
