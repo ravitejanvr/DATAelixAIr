@@ -753,13 +753,18 @@ export default function CockpitPlayground() {
               sources_queried: [], retrieval_confidence: "moderate",
             });
           }
-          if (data.guideline_alignment) {
+          // Use post-SSAL compliance (primary-only), fallback to guideline_alignment for score/sources only
+          const complianceSource = data.guideline_compliance || data.guideline_alignment;
+          if (complianceSource) {
+            const postSSAL = data.guideline_compliance;
             setPipelineCompliance({
-              results: [], guidelines_matched: 0,
-              guidelines_sources: data.guideline_alignment.guideline_sources_used || [],
-              guideline_sources_used: data.guideline_alignment.guideline_sources_used || [],
-              guideline_compliance_score: data.guideline_alignment.guideline_compliance_score || 0,
-              conflicts_detected: (data.guideline_alignment.conflicts_detected || []).map((c: any) => ({
+              results: postSSAL?.results || [],
+              guidelines_matched: postSSAL?.guidelines_matched || 0,
+              guidelines_sources: complianceSource.guideline_sources_used || [],
+              guideline_sources_used: complianceSource.guideline_sources_used || [],
+              guideline_compliance_score: complianceSource.guideline_compliance_score || 0,
+              // Only show conflicts from post-SSAL primary-scoped compliance
+              conflicts_detected: (postSSAL?.conflicts_detected || []).map((c: any) => ({
                 recommendation: c.recommendation || c.prescribed_drug || "",
                 conflicting_guideline: c.conflicting_guideline || c.guideline_recommends || "",
                 organization: c.organization || c.source || "",
