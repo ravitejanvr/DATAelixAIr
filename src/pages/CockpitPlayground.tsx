@@ -918,7 +918,11 @@ export default function CockpitPlayground() {
 
       const management = resolveManagement(displayName);
       const pipelineTests = hyp?.recommended_tests || [];
-      const allTests = [...new Set([...ddxLabs, ...pipelineTests, ...management.tests])];
+      // Filter DDX labs to THIS diagnosis only (prevent cross-contamination)
+      const ddxLabsForDx = ddxLabsRaw
+        .filter(l => !l.for_diagnosis || l.for_diagnosis.toLowerCase() === displayName.toLowerCase())
+        .map(l => l.test_name);
+      const allTests = [...new Set([...ddxLabsForDx, ...pipelineTests, ...management.tests])];
 
       const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === displayName.toLowerCase());
       const allMeds = management.medications.length > 0
