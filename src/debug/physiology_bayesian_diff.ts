@@ -16,12 +16,13 @@ interface SystemicSignals {
 }
 
 type SystemicState = "HIGH" | "MODERATE" | "LOW";
-type DisagreementType = "SYSTEMIC_MISSED" | "ORGAN_MISSED" | "AMBIGUOUS" | "ALIGNED";
+type DisagreementType = "SYSTEMIC_MISSED" | "ORGAN_MISSED" | "ALIGNED_SYSTEMIC" | "ALIGNED_ORGAN" | "ALIGNED";
 
 export interface PhysioBayesianDiff {
   physiology: {
     systemic_state: SystemicState;
     systemic_score: number;
+    confidence: number;
     signals: SystemicSignals;
     affected_systems: string[];
     candidate_diagnosis_ids: string[];
@@ -117,25 +118,42 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
   const sepsisRank = findRank(diagnoses, isSepsisLike);
   const pneumoniaRank = findRank(diagnoses, isPneumoniaLike);
 
-  // Step 3: Detect disagreement
+  // Step 3: Confidence from signal density
+  const confidence = systemicScore / 5;
+
+  // Step 4: Detect disagreement — systemic HIGH always resolves definitively
   let type: DisagreementType = "ALIGNED";
   let explanation = "Physiology and Bayesian rankings are consistent.";
 
-  if (systemicState === "HIGH" && sepsisRank > pneumoniaRank) {
-    type = "SYSTEMIC_MISSED";
-    explanation = `Strong systemic instability (${systemicScore}/5 signals) but Bayesian ranks Sepsis #${sepsisRank} behind Pneumonia #${pneumoniaRank}. Systemic pattern may be under-weighted.`;
-  } else if (systemicState === "LOW" && pneumoniaRank > sepsisRank && sepsisRank <= 3) {
-    type = "ORGAN_MISSED";
-    explanation = `Low systemic instability but Bayesian ranks Sepsis #${sepsisRank} above Pneumonia #${pneumoniaRank}. Organ-specific signals may be under-weighted.`;
-  } else if (Math.abs(sepsisRank - pneumoniaRank) <= 1 && systemicState !== "LOW") {
-    type = "AMBIGUOUS";
-    explanation = `Sepsis (#${sepsisRank}) and Pneumonia (#${pneumoniaRank}) are within ±1 rank with ${systemicState} systemic state. Close competition.`;
+  if (systemicState === "HIGH") {
+    if (sepsisRank > pneumoniaRank) {
+      type = "SYSTEMIC_MISSED";
+      explanation = `Strong systemic instability (${systemicScore}/5 signals, confidence ${(confidence * 100).toFixed(0)}%) but Bayesian ranks Sepsis #${sepsisRank} behind Pneumonia #${pneumoniaRank}. Physiology shows strong systemic instability but Bayesian favors organ-level diagnosis.`;
+    } else {
+      type = "ALIGNED_SYSTEMIC";
+      explanation = `Systemic instability (${systemicScore}/5 signals) and Bayesian both favor systemic diagnosis. Sepsis #${sepsisRank}, Pneumonia #${pneumoniaRank}.`;
+    }
+  } else if (systemicState === "LOW") {
+    if (pneumoniaRank < sepsisRank) {
+      type = "ALIGNED_ORGAN";
+      explanation = `Low systemic instability and Bayesian correctly favors organ-level diagnosis. Pneumonia #${pneumoniaRank}, Sepsis #${sepsisRank}.`;
+    } else if (sepsisRank <= pneumoniaRank) {
+      type = "ORGAN_MISSED";
+      explanation = `Low systemic instability but Bayesian ranks Sepsis #${sepsisRank} at or above Pneumonia #${pneumoniaRank}. Organ-specific signals may be under-weighted.`;
+    }
+  } else {
+    // MODERATE — keep aligned unless clear mismatch
+    if (sepsisRank > pneumoniaRank + 2) {
+      type = "SYSTEMIC_MISSED";
+      explanation = `Moderate systemic instability (${systemicScore}/5) but Bayesian ranks Sepsis #${sepsisRank} well behind Pneumonia #${pneumoniaRank}.`;
+    }
   }
 
   return {
     physiology: {
       systemic_state: systemicState,
       systemic_score: systemicScore,
+      confidence,
       signals,
       affected_systems: input.affected_systems ?? [],
       candidate_diagnosis_ids: input.candidate_diagnosis_ids ?? [],
