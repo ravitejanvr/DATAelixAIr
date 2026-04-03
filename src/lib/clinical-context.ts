@@ -178,6 +178,7 @@ export interface UIContextOverrides {
   exam_findings?: string[];
   medical_history?: string[];
   blood_sugar?: number | null;
+  investigation_results?: InvestigationResults;
 }
 
 /**
