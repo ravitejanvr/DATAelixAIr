@@ -6,6 +6,7 @@
  */
 
 import { runUnifiedClinicalPipeline, type PipelineResult } from "@/services/clinical_pipeline/orchestrator";
+import { setSystemMode } from "@/services/system_mode";
 import { VALIDATION_SCENARIOS } from "./scenarios";
 import type {
   ValidationScenario, DiagnosisSnapshot, RunSnapshot,
@@ -102,6 +103,7 @@ function computeRankingVariance(runs: RunSnapshot[]): number {
 // ── Pipeline execution wrapper ──
 
 async function executePipeline(scenario: ValidationScenario, skipCache: boolean, runIdx: number): Promise<RunSnapshot> {
+  setSystemMode("VALIDATION", "pipeline");
   const ctx = buildClinicalContext(scenario.clinical_context);
   const t0 = performance.now();
 

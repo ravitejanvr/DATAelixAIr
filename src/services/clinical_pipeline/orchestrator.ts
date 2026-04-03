@@ -427,6 +427,10 @@ export async function runUnifiedClinicalPipeline(
   input: PipelineInput,
   onProgress?: PipelineProgressCallback,
 ): Promise<PipelineResult> {
+  // ── SYSTEM_MODE enforcement: declare LIVE_PIPELINE ──
+  const { setSystemMode } = await import("@/services/system_mode");
+  setSystemMode("LIVE_PIPELINE", "pipeline");
+
   const pipelineStart = performance.now();
   const lat: Record<string, number> = {};
   const waveLat: Record<string, number> = {};
