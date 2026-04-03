@@ -1616,9 +1616,13 @@ export async function runUnifiedClinicalPipeline(
       }
     }
 
-    // Sort by posterior descending and assign rank + names
-    const enrichedDiagnoses = [...fusedBayesian.diagnoses]
-      .sort((a, b) => b.posterior_probability - a.posterior_probability)
+    // If CPR was applied, preserve its ordering (clinical priority).
+    // Otherwise sort by posterior descending (default numeric ordering).
+    const orderedDiagnoses = cprApplied
+      ? [...fusedBayesian.diagnoses]
+      : [...fusedBayesian.diagnoses].sort((a, b) => b.posterior_probability - a.posterior_probability);
+
+    const enrichedDiagnoses = orderedDiagnoses
       .map((d, idx) => {
         const resolvedName = ssalNameMap.get(d.diagnosis_id)
           || (d as any).diagnosis_name
