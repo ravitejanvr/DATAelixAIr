@@ -67,10 +67,11 @@ import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_en
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { mergeActivations, expandKG } from "@/services/kg";
-import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled } from "@/services/feature_flags";
+import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCognitiveAuthorityLayerEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResult } from "@/services/clinical_pipeline/pattern_priority_layer";
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
+import { applyCognitiveAuthority, type CALMetadata } from "@/services/clinical_pipeline/cognitive_authority_layer";
 
 // ── Public Types ──
 
@@ -1540,6 +1541,37 @@ export async function runUnifiedClinicalPipeline(
     console.log("[SSAL_VALID]", enrichedDiagnoses.map(d => ({ id: d.diagnosis_id, name: d.diagnosis_name, rank: d.rank, prob: Math.round(d.posterior_probability * 100) + "%" })));
 
     fusedBayesian = { ...fusedBayesian, diagnoses: enrichedDiagnoses as any };
+
+    // ═══════════════════════════════════════════════════════
+    // CAL — Cognitive Authority Layer (feature-flagged)
+    // Applies clinician-like systemic reasoning AFTER SSAL enrichment.
+    // Uses ONLY existing physiology engine + disease taxonomy.
+    // ═══════════════════════════════════════════════════════
+    let calMetadata: CALMetadata | null = null;
+    if (isCognitiveAuthorityLayerEnabled()) {
+      const calInput = {
+        diagnoses: fusedBayesian.diagnoses as any,
+        vitals: {
+          bp_systolic: vitals.bp_systolic,
+          pulse: vitals.pulse,
+          heart_rate: vitals.pulse,
+          respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
+          temperature: vitals.temperature,
+          spo2: vitals.spo2,
+        },
+      };
+      const calOutput = applyCognitiveAuthority(calInput);
+      calMetadata = calOutput.cal_metadata;
+
+      if (calOutput.cal_metadata.applied) {
+        fusedBayesian = { ...fusedBayesian, diagnoses: calOutput.diagnoses as any };
+        console.log("[CAL] Authority applied — final ranking updated");
+      } else {
+        console.log("[CAL] Not applied:", calOutput.cal_metadata.skip_reason || "below threshold");
+      }
+    } else {
+      console.log("[CAL] DISABLED — feature flag off");
+    }
 
     // Freeze to prevent downstream mutation
     try {
