@@ -1633,8 +1633,47 @@ export async function runUnifiedClinicalPipeline(
   }
 
   onProgress?.("bayesian", { bayesian: fusedBayesian });
-  onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
-  onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
+
+  // ═══════════════════════════════════════════════════════
+  // POST-SSAL: Primary-Only Guideline Compliance
+  // Runs AFTER SSAL freeze so it uses the authoritative primary diagnosis.
+  // DDX-based compliance was removed from Wave 3 to prevent cross-diagnosis contamination.
+  // ═══════════════════════════════════════════════════════
+  let guidelineCompliancePostSSAL = guidelineCompliance;
+  if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
+    const primaryDiagnosisName = (fusedBayesian.diagnoses[0] as any).diagnosis_name || "";
+    if (primaryDiagnosisName) {
+      const complianceT0 = performance.now();
+      try {
+        console.log("[Pipeline] Post-SSAL Compliance: evaluating PRIMARY ONLY →", primaryDiagnosisName);
+
+        // Runtime guard: exactly one diagnosis
+        const complianceInput = {
+          diagnoses: [primaryDiagnosisName],
+          medications: [] as Array<{ drug_name: string; dose: string; frequency: string; duration: string }>,
+          tests: [] as string[],
+          patient_age: ctx.patient_age ?? undefined,
+          patient_sex: ctx.patient_sex ?? undefined,
+          chief_complaint: ctx.chief_complaint,
+        };
+
+        console.log("COMPLIANCE FINAL INPUT", complianceInput);
+
+        guidelineCompliancePostSSAL = await withTimeout(
+          checkGuidelineCompliance(complianceInput),
+          TIMEOUT.GUIDELINE_COMPLIANCE,
+          "guideline_compliance_primary",
+        );
+        lat.guideline_compliance = Math.round(performance.now() - complianceT0);
+      } catch (e) {
+        console.warn("[Pipeline] Post-SSAL compliance failed:", e);
+        lat.guideline_compliance = Math.round(performance.now() - complianceT0);
+      }
+    }
+  }
+
+  onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliancePostSSAL });
+  onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliancePostSSAL });
 
   // ═══════════════════════════════════════════════════════
   // WAVE 3.5 — Cognitive Controller Pruning + Conflict Resolution
