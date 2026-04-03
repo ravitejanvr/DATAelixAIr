@@ -1390,7 +1390,39 @@ export async function runUnifiedClinicalPipeline(
     lab_results: [], risk_flags: ctx.risk_flags || [], patient_age: ctx.patient_age, patient_sex: ctx.patient_sex, context_confidence: 0,
   });
 
-  onProgress?.("bayesian", { bayesian: bayesianResult });
+  // ═══════════════════════════════════════════════════════
+  // Phase 5.5 — Post-Bayesian Score Fusion
+  // Bridges DDX, Pattern, and Physiology intelligence into Bayesian posteriors.
+  // Feature-flagged via enable_score_fusion. Pure, deterministic.
+  // ═══════════════════════════════════════════════════════
+  let fusedBayesian = bayesianResult;
+  if (isScoreFusionEnabled() && bayesianResult && bayesianResult.diagnoses.length > 0) {
+    const fusionStart = performance.now();
+    const fusionOutput = applyScoreFusion({
+      bayesian: bayesianResult,
+      ddx: ddxResult,
+      physiology: physiologicalContext,
+      patternAdjustments: patternPriorityResult,
+    });
+    if (fusionOutput.fusion_applied) {
+      fusedBayesian = fusionOutput.result;
+      console.log("[Pipeline] Phase 5.5: Score fusion applied —", fusionOutput.diagnostics.length, "diagnoses modulated.");
+      recordOversightEvent({
+        event_type: "score_fusion_applied",
+        severity: "info",
+        stage: "score_fusion",
+        message: `Fused ${fusionOutput.diagnostics.length} diagnoses. Top: ${fusedBayesian!.diagnoses[0]?.diagnosis_id} (${(fusedBayesian!.diagnoses[0]?.posterior_probability * 100).toFixed(1)}%)`,
+        metadata: { diagnostics: fusionOutput.diagnostics } as any,
+      });
+      pcieCore.addReasoningTrace(
+        "score_fusion" as any,
+        `Score fusion applied: ${fusionOutput.diagnostics.length} dx modulated`,
+      );
+    }
+    lat.score_fusion = Math.round(performance.now() - fusionStart);
+  }
+
+  onProgress?.("bayesian", { bayesian: fusedBayesian });
   onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
