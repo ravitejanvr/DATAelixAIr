@@ -1107,24 +1107,25 @@ export async function runUnifiedClinicalPipeline(
   // Detects high-signal clinical patterns and adjusts DDX weights
   // before Bayesian scoring. Feature-flagged.
   // ═══════════════════════════════════════════════════════
+  let patternPriorityResult: PatternPriorityResult | null = null;
   if (isPatternPriorityLayerEnabled() && ddxResult && ddxResult.differential_diagnoses.length > 0) {
     const ppStart = performance.now();
-    const patternResult = detectPatternPriorities(ctx);
-    if (patternResult.patterns_detected.length > 0) {
+    patternPriorityResult = detectPatternPriorities(ctx);
+    if (patternPriorityResult.patterns_detected.length > 0) {
       ddxResult = {
         ...ddxResult,
-        differential_diagnoses: applyPatternPriority(ddxResult.differential_diagnoses, patternResult),
+        differential_diagnoses: applyPatternPriority(ddxResult.differential_diagnoses, patternPriorityResult),
       };
       recordOversightEvent({
         event_type: "pattern_priority_applied",
-        severity: patternResult.global_modifiers.risk_level === "critical" ? "warning" : "info",
+        severity: patternPriorityResult.global_modifiers.risk_level === "critical" ? "warning" : "info",
         stage: "pattern_priority_layer",
-        message: `Detected ${patternResult.patterns_detected.length} patterns (dominant: ${patternResult.global_modifiers.dominant_pattern || 'none'}, risk: ${patternResult.global_modifiers.risk_level}). Boosted ${patternResult.priority_adjustments.boost.length}, suppressed ${patternResult.priority_adjustments.suppress.length} diagnoses.`,
-        metadata: patternResult as any,
+        message: `Detected ${patternPriorityResult.patterns_detected.length} patterns (dominant: ${patternPriorityResult.global_modifiers.dominant_pattern || 'none'}, risk: ${patternPriorityResult.global_modifiers.risk_level}). Boosted ${patternPriorityResult.priority_adjustments.boost.length}, suppressed ${patternPriorityResult.priority_adjustments.suppress.length} diagnoses.`,
+        metadata: patternPriorityResult as any,
       });
       pcieCore.addReasoningTrace(
         "pattern_priority" as any,
-        `Patterns: [${patternResult.patterns_detected.map(p => p.pattern_name).join(", ")}] risk=${patternResult.global_modifiers.risk_level}`,
+        `Patterns: [${patternPriorityResult.patterns_detected.map(p => p.pattern_name).join(", ")}] risk=${patternPriorityResult.global_modifiers.risk_level}`,
       );
     }
     lat.pattern_priority = Math.round(performance.now() - ppStart);
