@@ -773,9 +773,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Log clinical features for verification
-    const activeFeatures = Object.entries(clinicalFeatures).filter(([, v]) => v).map(([k]) => k);
-    console.log(`[BayesianEngine] Clinical features active: [${activeFeatures.join(", ")}]`);
+    // (feature logging moved earlier)
 
     const executionMs = Date.now() - start;
 
