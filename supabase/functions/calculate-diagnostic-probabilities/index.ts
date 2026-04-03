@@ -278,17 +278,25 @@ Deno.serve(async (req) => {
     // EXTRACT CLINICAL FEATURES FROM VITALS/SYMPTOMS
     // ════════════════════════════════════════════
     const tempC = getVitalValue(vitals, "temperature");
-    const hr = getVitalValue(vitals, "heartRate") ?? getVitalValue(vitals, "heart_rate");
+    const hr = getVitalValue(vitals, "heartRate") ?? getVitalValue(vitals, "heart_rate") ?? getVitalValue(vitals, "pulse");
     const rr = getVitalValue(vitals, "respiratoryRate") ?? getVitalValue(vitals, "respiratory_rate");
     const spo2Val = getVitalValue(vitals, "spo2") ?? getVitalValue(vitals, "SpO2");
     let sbpVal: number | null = null;
-    const bpRaw = vitals?.bloodPressure ?? vitals?.blood_pressure;
-    if (typeof bpRaw === "string" && bpRaw.includes("/")) {
-      sbpVal = parseInt(bpRaw.split("/")[0]);
-      if (isNaN(sbpVal)) sbpVal = null;
-    } else if (typeof bpRaw === "number") {
-      sbpVal = bpRaw;
+    // Accept bp_systolic (from orchestrator) or bloodPressure string (from direct calls)
+    const bpSystolicDirect = getVitalValue(vitals, "bp_systolic");
+    if (bpSystolicDirect !== null) {
+      sbpVal = bpSystolicDirect;
+    } else {
+      const bpRaw = vitals?.bloodPressure ?? vitals?.blood_pressure ?? vitals?.bp;
+      if (typeof bpRaw === "string" && bpRaw.includes("/")) {
+        sbpVal = parseInt(bpRaw.split("/")[0]);
+        if (isNaN(sbpVal)) sbpVal = null;
+      } else if (typeof bpRaw === "number") {
+        sbpVal = bpRaw;
+      }
     }
+    
+    console.log("[BayesianEngine] VITALS PARSED:", JSON.stringify({ tempC, hr, rr, spo2: spo2Val, sbp: sbpVal }));
 
     const normalizedSymptomsLower = normalizedSymptomNames.map(s => s.toLowerCase());
     const allInputSymptoms = symptoms.map((s: string) => s.toLowerCase().trim());
@@ -324,6 +332,10 @@ Deno.serve(async (req) => {
       hypertension_history: normalizedHistory.some((h: string) =>
         h.includes("hypertension") || h.includes("high blood pressure")),
     };
+
+    // Log active features for debugging
+    const activeFeatures = Object.entries(clinicalFeatures).filter(([_, v]) => v).map(([k]) => k);
+    console.log("[BayesianEngine] ACTIVE FEATURES:", JSON.stringify(activeFeatures));
 
     // ════════════════════════════════════════════
     // DISEASE-SPECIFIC CLINICAL WEIGHT PROFILES
@@ -496,6 +508,14 @@ Deno.serve(async (req) => {
           headache: 2.8,
         },
         interactions: [],
+      },
+      "appendicitis": {
+        features: {
+          abdominal_pain: 3.0, fever: 1.2, vomiting: 1.5, tachycardia: 0.5,
+        },
+        interactions: [
+          { conditions: ["abdominal_pain", "fever", "vomiting"], bonus: 2.0 },
+        ],
       },
     };
 
@@ -753,9 +773,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Log clinical features for verification
-    const activeFeatures = Object.entries(clinicalFeatures).filter(([, v]) => v).map(([k]) => k);
-    console.log(`[BayesianEngine] Clinical features active: [${activeFeatures.join(", ")}]`);
+    // (feature logging moved earlier)
 
     const executionMs = Date.now() - start;
 
