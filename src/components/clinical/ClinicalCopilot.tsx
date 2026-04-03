@@ -64,6 +64,15 @@ export interface PipelineCompliance {
   conflicts_detected?: Array<{ recommendation: string; conflicting_guideline: string; organization: string; severity: string; explanation: string }>;
 }
 
+interface SecondaryPlan {
+  diagnosis: string;
+  probability: number;
+  tests: string[];
+  medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line?: "first" | "alternative" | "emergency" }>;
+  monitoring: string[];
+  instructions: string[];
+}
+
 interface ClinicalCopilotProps {
   diagnoses: string[];
   selectedDiagnoses: string[];
@@ -78,6 +87,7 @@ interface ClinicalCopilotProps {
   patientAge?: number;
   allergies?: string[];
   diagnosis?: string;
+  primaryConfidence?: number;
   chiefComplaint?: string;
   patientSex?: string;
   carePlan?: string;
@@ -87,6 +97,7 @@ interface ClinicalCopilotProps {
   monitoring?: string[];
   selectedMonitoring?: string[];
   onToggleMonitoring?: (m: string) => void;
+  secondaryPlans?: SecondaryPlan[];
   hypotheses?: HypothesisEntry[];
   pipelineEvidence?: PipelineEvidence | null;
   pipelineCompliance?: PipelineCompliance | null;
@@ -152,6 +163,7 @@ export default function ClinicalCopilot({
   patientAge,
   allergies,
   diagnosis,
+  primaryConfidence,
   chiefComplaint,
   patientSex,
   carePlan,
@@ -161,6 +173,7 @@ export default function ClinicalCopilot({
   monitoring,
   selectedMonitoring,
   onToggleMonitoring,
+  secondaryPlans,
   hypotheses,
   pipelineEvidence,
   pipelineCompliance,
@@ -456,7 +469,25 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Diagnosis panel REMOVED from Copilot — diagnoses appear only in Assessment (center column) */}
+      {/* ═══ PRIMARY AUTHORITY HEADER ═══ */}
+      {diagnosis && (
+        <motion.div {...fadeIn}>
+          <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-primary/5 border border-primary/20">
+            <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center">
+              <Target className="h-3 w-3 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-semibold text-primary uppercase tracking-widest">Primary Recommendation</p>
+              <p className="text-xs font-semibold text-foreground truncate">{diagnosis}</p>
+            </div>
+            {primaryConfidence != null && primaryConfidence > 0 && (
+              <Badge variant="outline" className="text-[9px] shrink-0 border-primary/30 text-primary">
+                {Math.round(primaryConfidence * 100)}%
+              </Badge>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Recommended Investigations — top 5 with show more */}
       {tests.length > 0 && (() => {
@@ -614,6 +645,77 @@ export default function ClinicalCopilot({
           </motion.div>
         );
       })()}
+
+      {/* ═══ SECONDARY CONTEXT — Differentials (Collapsible) ═══ */}
+      {secondaryPlans && secondaryPlans.length > 0 && (
+        <motion.div {...fadeIn}>
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <button className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors text-left">
+                <Brain className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex-1">Also Consider (Differentials)</span>
+                <Badge variant="outline" className="text-[8px]">{secondaryPlans.length}</Badge>
+                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-1 space-y-1.5">
+              {secondaryPlans.map((plan, idx) => (
+                <ClinicalCard key={idx} className="p-2 border-border/60">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="text-[10px] font-semibold text-foreground">{plan.diagnosis}</span>
+                    {plan.probability > 0 && (
+                      <Badge variant="outline" className="text-[8px] ml-auto">{Math.round(plan.probability * 100)}%</Badge>
+                    )}
+                  </div>
+                  {plan.tests.length > 0 && (
+                    <div className="mb-1">
+                      <p className="text-[8px] text-muted-foreground font-medium mb-0.5">Additional Tests</p>
+                      <div className="flex flex-wrap gap-0.5">
+                        {plan.tests.map(t => (
+                          <Chip key={t} variant="lab" size="sm" selected={selectedTests.includes(t)} onClick={() => onToggleTest(t)}>{t}</Chip>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {plan.medications.length > 0 && (
+                    <div className="mb-1">
+                      <p className="text-[8px] text-muted-foreground font-medium mb-0.5">Additional Medications</p>
+                      <div className="flex flex-wrap gap-0.5">
+                        {plan.medications.map((rx: any, j: number) => (
+                          <Chip key={j} variant="medication" size="sm" addable selected={selectedMedications.some(p => p.drug_name === rx.drug)} onClick={() => onToggleMedication(rx)}>
+                            {rx.drug} {rx.dose}
+                          </Chip>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {plan.monitoring.length > 0 && (
+                    <div className="mb-1">
+                      <p className="text-[8px] text-muted-foreground font-medium mb-0.5">Additional Monitoring</p>
+                      <div className="flex flex-wrap gap-0.5">
+                        {plan.monitoring.map((m, j) => (
+                          <Chip key={j} variant="action" size="sm" selected={selectedMonitoring?.includes(m)} onClick={() => onToggleMonitoring?.(m)}>{m}</Chip>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {plan.instructions.length > 0 && (
+                    <div>
+                      <p className="text-[8px] text-muted-foreground font-medium mb-0.5">Additional Instructions</p>
+                      <div className="flex flex-wrap gap-0.5">
+                        {plan.instructions.map((inst, j) => (
+                          <Chip key={j} variant="action" size="sm" selected={selectedInstructions.includes(inst)} onClick={() => onToggleInstruction(inst)}>{inst}</Chip>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </ClinicalCard>
+              ))}
+              <p className="text-[8px] text-muted-foreground italic px-1">Secondary differentials — consider if primary is uncertain.</p>
+            </CollapsibleContent>
+          </Collapsible>
+        </motion.div>
+      )}
 
       {/* Safety Alerts — only show after doctor selects prescriptions */}
       {safetyResults && selectedMedications.length > 0 && (
