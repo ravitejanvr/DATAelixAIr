@@ -1102,6 +1102,34 @@ export async function runUnifiedClinicalPipeline(
   }
 
   // ═══════════════════════════════════════════════════════
+  // Phase 5.4 — Pattern Priority Layer (pre-Bayesian)
+  // Detects high-signal clinical patterns and adjusts DDX weights
+  // before Bayesian scoring. Feature-flagged.
+  // ═══════════════════════════════════════════════════════
+  if (isPatternPriorityLayerEnabled() && ddxResult && ddxResult.differential_diagnoses.length > 0) {
+    const ppStart = performance.now();
+    const patternResult = detectPatternPriorities(ctx);
+    if (patternResult.patterns_detected.length > 0) {
+      ddxResult = {
+        ...ddxResult,
+        differential_diagnoses: applyPatternPriority(ddxResult.differential_diagnoses, patternResult),
+      };
+      recordOversightEvent({
+        event_type: "pattern_priority_applied",
+        severity: patternResult.global_modifiers.risk_level === "critical" ? "warning" : "info",
+        stage: "pattern_priority_layer",
+        message: `Detected ${patternResult.patterns_detected.length} patterns (dominant: ${patternResult.global_modifiers.dominant_pattern || 'none'}, risk: ${patternResult.global_modifiers.risk_level}). Boosted ${patternResult.priority_adjustments.boost.length}, suppressed ${patternResult.priority_adjustments.suppress.length} diagnoses.`,
+        metadata: patternResult as any,
+      });
+      pcieCore.addReasoningTrace(
+        "pattern_priority" as any,
+        `Patterns: [${patternResult.patterns_detected.map(p => p.pattern_name).join(", ")}] risk=${patternResult.global_modifiers.risk_level}`,
+      );
+    }
+    lat.pattern_priority = Math.round(performance.now() - ppStart);
+  }
+
+  // ═══════════════════════════════════════════════════════
   // WAVE 2d — Causal Reasoning (parallel with nothing — runs after DDX adjustments)
   // Builds causal chains, convergent pathways, counterfactuals, and conflict detection.
   // Deterministic, graph-only — no LLM. Target: <300ms.
