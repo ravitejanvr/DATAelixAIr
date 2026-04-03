@@ -26,7 +26,8 @@ export interface OversightEvent {
     | "pattern_priority_applied"
     | "score_fusion_applied"
     | "systemic_override"
-    | "clinical_priority_resolution";
+    | "clinical_priority_resolution"
+    | "evidence_engine_applied";
   severity: "info" | "warning" | "critical";
   stage: string;
   message: string;
