@@ -1409,7 +1409,8 @@ export async function runUnifiedClinicalPipeline(
       }
     }
     console.log(`[Pipeline] Score Fusion: name map has ${fusionNameMap.size} entries for ${bayesianResult.diagnoses.length} Bayesian diagnoses`);
-    const fusionOutput = applyScoreFusion({
+
+    const fusionInput = {
       bayesian: bayesianResult,
       ddx: ddxResult,
       physiology: physiologicalContext,
@@ -1423,7 +1424,12 @@ export async function runUnifiedClinicalPipeline(
         spo2: vitals.spo2,
       },
       diagnosisNameMap: fusionNameMap,
-    });
+    };
+
+    // Feature flag: use canonical ID-based fusion or legacy string-based fusion
+    const fusionOutput = isCanonicalMappingEnabled()
+      ? applyCanonicalScoreFusion(fusionInput)
+      : applyScoreFusion(fusionInput);
     if (fusionOutput.fusion_applied) {
       fusedBayesian = fusionOutput.result;
       console.log("[Pipeline] Phase 5.5: Physiology-First Score Fusion applied —", fusionOutput.diagnostics.length, "diagnoses modulated.");
