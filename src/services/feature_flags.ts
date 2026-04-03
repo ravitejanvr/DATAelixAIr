@@ -18,6 +18,7 @@ export interface FeatureFlags {
   enable_phase5_context_candidates: boolean;
   enable_pattern_priority_layer: boolean;
   enable_score_fusion: boolean;
+  enable_systemic_override: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -33,6 +34,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_phase5_context_candidates: true,
   enable_pattern_priority_layer: true,
   enable_score_fusion: true,
+  enable_systemic_override: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -95,4 +97,8 @@ export function isPatternPriorityLayerEnabled(): boolean {
 
 export function isScoreFusionEnabled(): boolean {
   return currentFlags.enable_score_fusion;
+}
+
+export function isSystemicOverrideEnabled(): boolean {
+  return currentFlags.enable_systemic_override;
 }
