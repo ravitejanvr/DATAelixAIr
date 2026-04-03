@@ -892,7 +892,7 @@ export default function CockpitPlayground() {
       }
     });
 
-    const ddxLabs: string[] = (pipelineDDX?.recommended_labs || []).map((l: any) => l.test_name);
+    const ddxLabsRaw: Array<{ test_name: string; for_diagnosis?: string }> = pipelineDDX?.recommended_labs || [];
     const ddxMeds: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency"; forDiagnosis: string }> = [];
     (pipelineDDX?.suggested_medications || []).forEach((m: any) => {
       ddxMeds.push({
@@ -918,7 +918,11 @@ export default function CockpitPlayground() {
 
       const management = resolveManagement(displayName);
       const pipelineTests = hyp?.recommended_tests || [];
-      const allTests = [...new Set([...ddxLabs, ...pipelineTests, ...management.tests])];
+      // Filter DDX labs to THIS diagnosis only (prevent cross-contamination)
+      const ddxLabsForDx = ddxLabsRaw
+        .filter(l => !l.for_diagnosis || l.for_diagnosis.toLowerCase() === displayName.toLowerCase())
+        .map(l => l.test_name);
+      const allTests = [...new Set([...ddxLabsForDx, ...pipelineTests, ...management.tests])];
 
       const ddxMedsForDx = ddxMeds.filter(m => m.forDiagnosis.toLowerCase() === displayName.toLowerCase());
       const allMeds = management.medications.length > 0
@@ -945,40 +949,32 @@ export default function CockpitPlayground() {
   }, [pipelineBayesian, pipelineHypotheses, pipelineDDX, renderSource]);
 
   // ── PRIMARY management: from mergedDiagnoses[0] ONLY ──
+  // DATA ISOLATION: Uses ONLY primary.tests/medications (already diagnosis-filtered in mergedDiagnoses construction)
+  // NO global pipelineDDX pulls — those caused cross-diagnosis contamination
   const primaryManagement = useMemo(() => {
     const primary = mergedDiagnoses[0];
     if (!primary) return { tests: [] as string[], medications: [] as any[], instructions: [] as string[], monitoring: [] as string[], diagnosis: "", probability: 0 };
-    const tests = new Set<string>();
-    (primary.tests || []).forEach((t: string) => tests.add(t));
-    // Also include DDX engine tests (they are diagnosis-derived)
-    (pipelineDDX?.recommended_labs || []).forEach((l: any) => tests.add(l.test_name));
-    // Include hypothesis-recommended tests for the primary
-    const primaryHyp = pipelineHypotheses.find(h => h.diagnosis.toLowerCase() === (primary.name || "").toLowerCase());
-    primaryHyp?.recommended_tests?.forEach(t => tests.add(t));
 
-    const seen = new Set<string>();
-    const meds: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }> = [];
-    // DDX medications (diagnosis-derived)
-    (pipelineDDX?.suggested_medications || []).forEach((m: any) => {
-      const name = m.generic_name || m.drug_name || m.drug || "";
-      if (name && !seen.has(name)) {
-        seen.add(name);
-        meds.push({ drug: name, dose: m.dose || "", route: m.route || "PO", freq: m.frequency || "", dur: m.duration || "", line: m.line || "first" });
-      }
-    });
-    (primary.medications || []).forEach((rx: any) => {
-      if (!seen.has(rx.drug)) { seen.add(rx.drug); meds.push(rx); }
-    });
-
-    return {
-      tests: Array.from(tests),
-      medications: meds,
+    // Tests and medications are already correctly populated per-diagnosis in mergedDiagnoses
+    const result = {
+      tests: primary.tests || [],
+      medications: primary.medications || [],
       instructions: primary.instructions || [],
       monitoring: primary.monitoring || [],
       diagnosis: primary.name || "",
       probability: primary.bayesian?.posterior_probability ?? 0,
     };
-  }, [mergedDiagnoses, pipelineHypotheses, pipelineDDX]);
+
+    // RUNTIME SAFETY GUARD: detect cross-diagnosis contamination
+    if (result.medications.some((m: any) => {
+      const drug = (m.drug || "").toLowerCase();
+      return drug.includes("amoxicillin") || drug.includes("atorvastatin") || drug.includes("nitroglycerin");
+    }) && result.diagnosis.toLowerCase().includes("sepsis")) {
+      console.error("🚨 PRIMARY CONTAMINATION DETECTED — non-sepsis meds in sepsis primary:", result.medications.map((m: any) => m.drug));
+    }
+
+    return result;
+  }, [mergedDiagnoses]);
 
   // ── SECONDARY management: from mergedDiagnoses[1..n] ──
   const secondaryPlans = useMemo(() => {
