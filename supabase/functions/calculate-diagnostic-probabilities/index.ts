@@ -889,8 +889,10 @@ Deno.serve(async (req) => {
       vitals_signals_applied: Array.from(vitalModMap.values()).flat().length,
       cluster_matches: Array.from(clusterModMap.entries()).filter(([, v]) => v > 1).length,
       clinical_features_detected: Object.entries(clinicalFeatures).filter(([, v]) => v).map(([k]) => k),
+      systemic_conditioning_applied: enable_systemic_likelihood,
+      systemic_state_used: enable_systemic_likelihood ? effectiveSystemicState : null,
       execution_ms: executionMs,
-      source: "bayesian_engine_v5_clinical_weights",
+      source: enable_systemic_likelihood ? "bayesian_engine_v6_systemic_aware" : "bayesian_engine_v5_clinical_weights",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
