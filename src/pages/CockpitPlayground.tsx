@@ -1001,11 +1001,7 @@ export default function CockpitPlayground() {
     }).filter((p: any) => p.tests.length > 0 || p.medications.length > 0 || p.instructions.length > 0 || p.monitoring.length > 0);
   }, [mergedDiagnoses, primaryManagement]);
 
-  // ── Legacy flat lists kept for Plan section population (unchanged behavior) ──
-  const allRecommendedTests = primaryManagement.tests;
-  const allRecommendedMedications = primaryManagement.medications;
-  const allInstructions = primaryManagement.instructions;
-  const allMonitoring = primaryManagement.monitoring;
+  // Legacy aggregation aliases REMOVED — primary isolation enforced
 
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
@@ -2026,7 +2022,7 @@ export default function CockpitPlayground() {
                           </div>
                         ) : (
                           <p className="text-xs text-muted-foreground italic">
-                            {allMonitoring.length > 0 ? "Select monitoring from AI Copilot →" : "Monitoring parameters will appear after diagnosis."}
+                            {primaryManagement.monitoring.length > 0 ? "Select monitoring from AI Copilot →" : "Monitoring parameters will appear after diagnosis."}
                           </p>
                         )}
                       </div>
@@ -2048,7 +2044,7 @@ export default function CockpitPlayground() {
                           </div>
                         ) : (
                           <p className="text-xs text-muted-foreground italic">
-                            {allInstructions.length > 0 ? "Select instructions from AI Copilot →" : "Instructions will appear after diagnosis."}
+                            {primaryManagement.instructions.length > 0 ? "Select instructions from AI Copilot →" : "Instructions will appear after diagnosis."}
                           </p>
                         )}
                       </div>
