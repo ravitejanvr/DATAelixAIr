@@ -2022,7 +2022,7 @@ export default function CockpitPlayground() {
                           </div>
                         ) : (
                           <p className="text-xs text-muted-foreground italic">
-                            {allMonitoring.length > 0 ? "Select monitoring from AI Copilot →" : "Monitoring parameters will appear after diagnosis."}
+                            {primaryManagement.monitoring.length > 0 ? "Select monitoring from AI Copilot →" : "Monitoring parameters will appear after diagnosis."}
                           </p>
                         )}
                       </div>
