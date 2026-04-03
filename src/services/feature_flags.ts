@@ -20,6 +20,7 @@ export interface FeatureFlags {
   enable_score_fusion: boolean;
   enable_systemic_override: boolean;
   enable_cognitive_authority_layer: boolean;
+  enable_execution_authority_fix: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -37,6 +38,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_score_fusion: true,
   enable_systemic_override: true,
   enable_cognitive_authority_layer: true,
+  enable_execution_authority_fix: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -107,4 +109,8 @@ export function isSystemicOverrideEnabled(): boolean {
 
 export function isCognitiveAuthorityLayerEnabled(): boolean {
   return currentFlags.enable_cognitive_authority_layer;
+}
+
+export function isExecutionAuthorityFixEnabled(): boolean {
+  return currentFlags.enable_execution_authority_fix;
 }

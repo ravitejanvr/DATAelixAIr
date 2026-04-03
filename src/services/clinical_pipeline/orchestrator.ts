@@ -67,11 +67,12 @@ import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_en
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { mergeActivations, expandKG } from "@/services/kg";
-import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCognitiveAuthorityLayerEnabled } from "@/services/feature_flags";
+import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCognitiveAuthorityLayerEnabled, isExecutionAuthorityFixEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResult } from "@/services/clinical_pipeline/pattern_priority_layer";
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
 import { applyCognitiveAuthority, type CALMetadata } from "@/services/clinical_pipeline/cognitive_authority_layer";
+import { enforceClinicalPriority, type EnforcerMetadata } from "@/services/clinical_pipeline/clinical_authority_enforcer";
 
 // ── Public Types ──
 
@@ -1572,6 +1573,31 @@ export async function runUnifiedClinicalPipeline(
     } else {
       console.log("[CAL] DISABLED — feature flag off");
     }
+
+    // ═══════════════════════════════════════════════════════
+    // ENFORCER — Clinical Authority Enforcer (must-not-miss priority)
+    // Ensures dangerous systemic conditions meet minimum probability floors.
+    // ═══════════════════════════════════════════════════════
+    if (isExecutionAuthorityFixEnabled()) {
+      const enforcerOutput = enforceClinicalPriority({
+        diagnoses: fusedBayesian.diagnoses as any,
+        vitals: {
+          bp_systolic: vitals.bp_systolic,
+          pulse: vitals.pulse,
+          heart_rate: vitals.pulse,
+          respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
+          temperature: vitals.temperature,
+          spo2: vitals.spo2,
+        },
+      });
+      if (enforcerOutput.enforcer_metadata.applied) {
+        fusedBayesian = { ...fusedBayesian, diagnoses: enforcerOutput.diagnoses as any };
+        console.log("[AUTHORITY_ENFORCER] Priority enforced — ranking updated");
+      }
+    }
+
+    // Mark authority ready BEFORE freeze so downstream can verify
+    (fusedBayesian as any)._authority_ready = true;
 
     // Freeze to prevent downstream mutation
     try {

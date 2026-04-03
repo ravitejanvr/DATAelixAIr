@@ -675,18 +675,23 @@ export default function CockpitPlayground() {
             });
           }
           if (data.bayesian) {
-            console.log("[BAYESIAN WRITE]", data.bayesian?.diagnoses?.length);
-            console.log("[FINAL_RENDER_SOURCE]", data.bayesian?.diagnoses?.slice(0, 3).map((d: any) => `${d.diagnosis_id}: ${(d.posterior_probability * 100).toFixed(1)}%`));
+            const bResult = data.bayesian as any;
+            const isAuthorityReady = bResult._authority_ready === true;
+            if (!isAuthorityReady) {
+              console.log("[COPILOT_BLOCKED_PRE_AUTHORITY] bayesian emission without _authority_ready — skipping");
+              return;
+            }
+            console.log("[BAYESIAN WRITE]", bResult.diagnoses?.length, "authority_ready:", isAuthorityReady);
+            console.log("[FINAL_RENDER_SOURCE]", bResult.diagnoses?.slice(0, 3).map((d: any) => `${d.diagnosis_name || d.diagnosis_id}: ${(d.posterior_probability * 100).toFixed(1)}%`));
             setPipelineBayesian(prev => {
               if (prev && prev._locked) {
                 console.log("[LOCK] blocked late bayesian overwrite");
                 return prev;
               }
-              // FIX 2: Snapshot DDX name map at Bayesian lock time
-              const locked = { ...data.bayesian, _locked: true };
+              const locked = { ...bResult, _locked: true };
               setRenderSource("bayesian");
               renderSourceRef.current = "bayesian";
-              console.log("[LOCK] bayesian + DDX names locked");
+              console.log("[LOCK] bayesian + DDX names locked (authority confirmed)");
               return locked;
             });
             // Capture physiology vs bayesian diff (read-only)
@@ -807,23 +812,12 @@ export default function CockpitPlayground() {
   const mergedDiagnoses = useMemo(() => {
     console.log("[RENDER SOURCE USED]", renderSource);
 
-    // DEBUG: Trace override marker at render time
-    if (pipelineBayesian?.diagnoses?.length) {
-      const sepsisEntry = pipelineBayesian.diagnoses.find((d: any) => d.debug_override_marker === "OVERRIDE_APPLIED");
-      console.log("[OVERRIDE_TRACE_AT_RENDER]", {
-        marker_present: !!sepsisEntry,
-        probability: sepsisEntry?.posterior_probability,
-        rank: sepsisEntry ? pipelineBayesian.diagnoses.indexOf(sepsisEntry) + 1 : -1,
-        all_top3: pipelineBayesian.diagnoses.slice(0, 3).map((d: any) => ({
-          id: d.diagnosis_id,
-          prob: d.posterior_probability,
-          marker: d.debug_override_marker || "NONE",
-        })),
-      });
-    }
-
-    // Only render when Bayesian is locked
+    // Only render when Bayesian is locked and authority confirmed
     if (renderSource !== "bayesian" || !pipelineBayesian?.diagnoses?.length) return [];
+    if (!pipelineBayesian._authority_ready) {
+      console.log("[RENDER_BLOCKED] authority not ready");
+      return [];
+    }
 
     const ddxNameMap = new Map<string, { name: string; supporting: string[]; mustNotMiss: boolean }>();
     const ddxTraces: any[] = pipelineDDX?.reasoning_traces || [];
