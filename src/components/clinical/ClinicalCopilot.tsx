@@ -205,8 +205,9 @@ export default function ClinicalCopilot({
   const [showMoreMonitoring, setShowMoreMonitoring] = useState(false);
   const [showMoreInstructions, setShowMoreInstructions] = useState(false);
 
-  const effectiveCompliance = pipelineCompliance?.results || complianceResults;
-  const effectiveSources = pipelineCompliance?.guidelines_sources || complianceSources;
+  // Manual compliance results take priority over pipeline (pipeline may use stale/DDX data)
+  const effectiveCompliance = complianceResults || pipelineCompliance?.results;
+  const effectiveSources = (complianceResults ? complianceSources : null) || pipelineCompliance?.guidelines_sources || [];
 
   const safetyAlertCount = safetyResults
     ? (safetyResults.allergy_flags?.length || 0) +
