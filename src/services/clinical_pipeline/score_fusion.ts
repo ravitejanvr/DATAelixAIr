@@ -37,6 +37,8 @@ export interface ScoreFusionInput {
   patternAdjustments: PatternPriorityResult | null;
   /** Direct vitals for systemic state computation (preferred over physiology extraction) */
   vitals?: VitalsInput;
+  /** UUID → diagnosis_name map from DDX, used to resolve Bayesian UUIDs for semantic matching */
+  diagnosisNameMap?: Map<string, string>;
 }
 
 export interface FusionDiagnostics {
