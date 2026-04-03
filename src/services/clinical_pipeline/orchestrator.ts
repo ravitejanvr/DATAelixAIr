@@ -148,6 +148,8 @@ export interface PipelineResult {
   context_graph: UnifiedClinicalContextGraph | null;
   /** Wave 6 — Cognitive layer (runs async, populated after pipeline returns) */
   cognitive_layer: CognitiveLayerResult | null;
+  /** Phase 5.7 — Evidence engine (lab likelihood update) */
+  evidence_engine: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null;
 }
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
