@@ -136,11 +136,12 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
 
   const { signals, signal_count, severity, phenotype, systemic_strength } = systemicState;
 
-  // Extract top 3 with resolved names (SSAL: use canonical_name/diagnosis_name)
-  const sorted = [...diagnoses].sort(
-    (a, b) => (b.posterior_probability ?? 0) - (a.posterior_probability ?? 0)
-  );
-  const top3 = sorted.slice(0, 3).map(d => ({
+  // Extract top 3 with resolved names — SSAL-compliant: use rank field if available
+  const hasRanks = diagnoses.some(d => d.rank != null);
+  const ordered = hasRanks
+    ? [...diagnoses].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
+    : [...diagnoses].sort((a, b) => (b.posterior_probability ?? 0) - (a.posterior_probability ?? 0));
+  const top3 = ordered.slice(0, 3).map(d => ({
     name: resolveName(d, nameMap),
     prob: Math.round((d.posterior_probability ?? 0) * 10000) / 10000,
   }));
