@@ -67,7 +67,7 @@ import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_en
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { mergeActivations, expandKG } from "@/services/kg";
-import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCanonicalMappingEnabled, isBayesianSystemicLikelihoodEnabled } from "@/services/feature_flags";
+import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCanonicalMappingEnabled, isBayesianSystemicLikelihoodEnabled, isClinicalPriorityResolutionEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResult } from "@/services/clinical_pipeline/pattern_priority_layer";
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
@@ -1523,7 +1523,62 @@ export async function runUnifiedClinicalPipeline(
   }
 
   // ═══════════════════════════════════════════════════════
-  // SSAL — Single Semantic Authority Layer
+  // Phase 5.6 — Clinical Priority Resolution (Post-Fusion Tie-Break)
+  // When systemic instability is HIGH and diagnoses are within epsilon,
+  // systemic diagnoses are promoted over organ-specific ones.
+  // Feature-flagged: enable_clinical_priority_resolution
+  // ═══════════════════════════════════════════════════════
+  if (isClinicalPriorityResolutionEnabled() && fusedBayesian && fusedBayesian.diagnoses.length >= 2) {
+    const { applyClinicalPriorityResolution } = await import("@/services/clinical_pipeline/clinical_priority_resolution");
+    
+    // Compute systemic state from vitals
+    const cprSignals = [
+      vitals.bp_systolic != null && vitals.bp_systolic < 100,
+      vitals.pulse != null && vitals.pulse > 100,
+      (vitals.respiratory_rate ?? ctx.respiratory_rate) != null && (vitals.respiratory_rate ?? ctx.respiratory_rate) > 22,
+      vitals.temperature != null && (vitals.temperature >= 38 || vitals.temperature >= 100.4),
+      vitals.spo2 != null && vitals.spo2 < 94,
+    ];
+    const cprSignalCount = cprSignals.filter(Boolean).length;
+    const cprInstability = cprSignalCount >= 4 ? "HIGH" as const : cprSignalCount >= 2 ? "MODERATE" as const : "LOW" as const;
+
+    // Build name map for category classification
+    const cprNameMap = new Map<string, string>();
+    if (ddxResult?.differential_diagnoses) {
+      for (const d of ddxResult.differential_diagnoses) {
+        if (d.diagnosis_id && d.diagnosis_name) cprNameMap.set(d.diagnosis_id, d.diagnosis_name);
+      }
+    }
+    // Also use any names already on the diagnosis objects
+    for (const d of fusedBayesian.diagnoses) {
+      if ((d as any).diagnosis_name && !cprNameMap.has(d.diagnosis_id)) {
+        cprNameMap.set(d.diagnosis_id, (d as any).diagnosis_name);
+      }
+    }
+
+    const cprResult = applyClinicalPriorityResolution({
+      bayesian: fusedBayesian,
+      systemic_instability_level: cprInstability,
+      signal_count: cprSignalCount,
+      diagnosisNameMap: cprNameMap,
+    });
+
+    if (cprResult.applied) {
+      fusedBayesian = cprResult.result;
+      console.log(`[Pipeline] Phase 5.6: Clinical priority resolution — ${cprResult.promotions.length} promotion(s)`);
+      for (const p of cprResult.promotions) {
+        console.log(`  → ${p.reason}`);
+      }
+      recordOversightEvent({
+        event_type: "clinical_priority_resolution",
+        severity: "info",
+        stage: "clinical_priority",
+        message: `Clinical priority: ${cprResult.promotions.length} systemic promotion(s). ${cprResult.promotions.map(p => p.promoted_name).join(", ")} promoted.`,
+        metadata: { promotions: cprResult.promotions, instability: cprInstability, signals: cprSignalCount } as any,
+      });
+    }
+  }
+
   // Enrich every diagnosis with diagnosis_name, canonical_name, rank, source
   // so ALL downstream consumers get self-describing objects.
   // ═══════════════════════════════════════════════════════

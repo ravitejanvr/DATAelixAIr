@@ -21,6 +21,7 @@ export interface FeatureFlags {
   enable_systemic_override: boolean;
   enable_canonical_mapping: boolean;
   enable_bayesian_systemic_likelihood: boolean;
+  enable_clinical_priority_resolution: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -39,6 +40,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_systemic_override: true,
   enable_canonical_mapping: true,
   enable_bayesian_systemic_likelihood: true,
+  enable_clinical_priority_resolution: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -113,4 +115,8 @@ export function isCanonicalMappingEnabled(): boolean {
 
 export function isBayesianSystemicLikelihoodEnabled(): boolean {
   return currentFlags.enable_bayesian_systemic_likelihood;
+}
+
+export function isClinicalPriorityResolutionEnabled(): boolean {
+  return currentFlags.enable_clinical_priority_resolution;
 }
