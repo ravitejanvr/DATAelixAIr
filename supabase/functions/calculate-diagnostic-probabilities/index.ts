@@ -80,6 +80,8 @@ Deno.serve(async (req) => {
       vitals = {},
       duration = null,       // "acute" | "subacute" | "chronic"
       onset_pattern = null,  // "sudden" | "gradual" | "progressive" | "intermittent" | "episodic"
+      enable_systemic_likelihood = false,  // Feature flag: systemic instability conditioning
+      systemic_state = null,               // { instability_level: "LOW"|"MODERATE"|"HIGH", signal_count: number }
     } = body;
 
     // Filter to valid UUIDs only — non-UUID hint IDs (e.g. "hint-phenotype_inference-...")
@@ -336,6 +338,48 @@ Deno.serve(async (req) => {
     // Log active features for debugging
     const activeFeatures = Object.entries(clinicalFeatures).filter(([_, v]) => v).map(([k]) => k);
     console.log("[BayesianEngine] ACTIVE FEATURES:", JSON.stringify(activeFeatures));
+
+    // ════════════════════════════════════════════
+    // SYSTEMIC STATE COMPUTATION (for systemic likelihood conditioning)
+    // ════════════════════════════════════════════
+    // Compute systemic instability from vitals — used when enable_systemic_likelihood = true
+    const systemicSignals = [
+      clinicalFeatures.hypotension,
+      clinicalFeatures.tachycardia,
+      clinicalFeatures.tachypnea,
+      clinicalFeatures.fever,
+      clinicalFeatures.hypoxia,
+    ];
+    const computedSignalCount = systemicSignals.filter(Boolean).length;
+    // Use externally provided systemic_state if available, else compute from vitals
+    const effectiveSystemicState = systemic_state || {
+      instability_level: computedSignalCount >= 4 ? "HIGH" : computedSignalCount >= 2 ? "MODERATE" : "LOW",
+      signal_count: computedSignalCount,
+    };
+    
+    if (enable_systemic_likelihood) {
+      console.log("[BayesianEngine] SYSTEMIC STATE:", JSON.stringify(effectiveSystemicState));
+    }
+
+    // Disease category classification — systemic vs organ-specific
+    const SYSTEMIC_DISEASE_KEYWORDS = [
+      "sepsis", "septic shock", "sirs", "bacteremia", "septicemia",
+      "diabetic ketoacidosis", "dka", "thyroid storm", "addisonian crisis",
+      "anaphylaxis", "disseminated intravascular",
+    ];
+    const ORGAN_DISEASE_KEYWORDS = [
+      "pneumonia", "bronchitis", "asthma", "copd", "pharyngitis",
+      "appendicitis", "gastroenteritis", "urinary tract infection",
+      "pyelonephritis", "migraine", "tension headache", "cluster headache",
+      "otitis", "sinusitis", "cellulitis",
+    ];
+
+    function classifyDiseaseCategory(name: string): "SYSTEMIC" | "ORGAN" | "UNKNOWN" {
+      const lower = name.toLowerCase();
+      if (SYSTEMIC_DISEASE_KEYWORDS.some(k => lower.includes(k))) return "SYSTEMIC";
+      if (ORGAN_DISEASE_KEYWORDS.some(k => lower.includes(k))) return "ORGAN";
+      return "UNKNOWN";
+    }
 
     // ════════════════════════════════════════════
     // DISEASE-SPECIFIC CLINICAL WEIGHT PROFILES
@@ -689,6 +733,43 @@ Deno.serve(async (req) => {
       // get strong positive boosts while others don't
       logScore += clinicalFeatureScore + interactionBonus;
 
+      // ════════════════════════════════════════════
+      // ── 10. SYSTEMIC INSTABILITY CONDITIONING (Feature-flagged) ──
+      // When systemic instability is HIGH, boost systemic diseases and
+      // suppress organ-level diseases BEFORE posterior normalization.
+      // This ensures the Bayesian posterior reflects physiological reality.
+      // ════════════════════════════════════════════
+      let systemicConditioningApplied = 0;
+      if (enable_systemic_likelihood) {
+        const diseaseCategory = classifyDiseaseCategory(diagName);
+        const instabilityLevel = effectiveSystemicState.instability_level;
+        const signalCount = effectiveSystemicState.signal_count || 0;
+
+        if (instabilityLevel === "HIGH") {
+          if (diseaseCategory === "SYSTEMIC") {
+            // Strong boost: ln(4.0) ≈ 1.386 added to log_score
+            // Scaled by signal strength (4 signals = 1.0x, 5 signals = 1.25x)
+            const scaleFactor = Math.min(1.25, signalCount / 4);
+            systemicConditioningApplied = Math.log(4.0) * scaleFactor;
+            logScore += systemicConditioningApplied;
+          } else if (diseaseCategory === "ORGAN") {
+            // Moderate suppression: ln(0.6) ≈ -0.511 added to log_score
+            systemicConditioningApplied = Math.log(0.6);
+            logScore += systemicConditioningApplied;
+          }
+          // UNKNOWN category: no conditioning (neutral 1.0)
+        } else if (instabilityLevel === "MODERATE") {
+          if (diseaseCategory === "SYSTEMIC") {
+            // Mild boost: ln(1.8) ≈ 0.588
+            const scaleFactor = Math.min(1.0, signalCount / 4);
+            systemicConditioningApplied = Math.log(1.8) * scaleFactor;
+            logScore += systemicConditioningApplied;
+          }
+          // No suppression for MODERATE — only boost systemic
+        }
+        // LOW: no conditioning applied
+      }
+
       // Collect supporting evidence
       const evidence: string[] = [];
       if (symLiks.length > 0) evidence.push(`${symLiks.length}/${totalSymptoms} symptoms (coverage ${(coverageRatio * 100).toFixed(0)}%)`);
@@ -701,6 +782,7 @@ Deno.serve(async (req) => {
       if (clusterMod > 1.0) evidence.push(`cluster match ×${clusterMod.toFixed(1)}`);
       if (clinicalFeatureScore > 0) evidence.push(`clinical features +${clinicalFeatureScore.toFixed(1)}`);
       if (interactionBonus > 0) evidence.push(`interactions +${interactionBonus.toFixed(1)}`);
+      if (systemicConditioningApplied !== 0) evidence.push(`systemic conditioning ${systemicConditioningApplied > 0 ? '+' : ''}${systemicConditioningApplied.toFixed(2)}`);
       if (priorData) evidence.push(`prior: ${(adjustedPrior * 100).toFixed(1)}%`);
 
       results.push({
@@ -807,8 +889,10 @@ Deno.serve(async (req) => {
       vitals_signals_applied: Array.from(vitalModMap.values()).flat().length,
       cluster_matches: Array.from(clusterModMap.entries()).filter(([, v]) => v > 1).length,
       clinical_features_detected: Object.entries(clinicalFeatures).filter(([, v]) => v).map(([k]) => k),
+      systemic_conditioning_applied: enable_systemic_likelihood,
+      systemic_state_used: enable_systemic_likelihood ? effectiveSystemicState : null,
       execution_ms: executionMs,
-      source: "bayesian_engine_v5_clinical_weights",
+      source: enable_systemic_likelihood ? "bayesian_engine_v6_systemic_aware" : "bayesian_engine_v5_clinical_weights",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
