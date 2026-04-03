@@ -278,17 +278,25 @@ Deno.serve(async (req) => {
     // EXTRACT CLINICAL FEATURES FROM VITALS/SYMPTOMS
     // ════════════════════════════════════════════
     const tempC = getVitalValue(vitals, "temperature");
-    const hr = getVitalValue(vitals, "heartRate") ?? getVitalValue(vitals, "heart_rate");
+    const hr = getVitalValue(vitals, "heartRate") ?? getVitalValue(vitals, "heart_rate") ?? getVitalValue(vitals, "pulse");
     const rr = getVitalValue(vitals, "respiratoryRate") ?? getVitalValue(vitals, "respiratory_rate");
     const spo2Val = getVitalValue(vitals, "spo2") ?? getVitalValue(vitals, "SpO2");
     let sbpVal: number | null = null;
-    const bpRaw = vitals?.bloodPressure ?? vitals?.blood_pressure;
-    if (typeof bpRaw === "string" && bpRaw.includes("/")) {
-      sbpVal = parseInt(bpRaw.split("/")[0]);
-      if (isNaN(sbpVal)) sbpVal = null;
-    } else if (typeof bpRaw === "number") {
-      sbpVal = bpRaw;
+    // Accept bp_systolic (from orchestrator) or bloodPressure string (from direct calls)
+    const bpSystolicDirect = getVitalValue(vitals, "bp_systolic");
+    if (bpSystolicDirect !== null) {
+      sbpVal = bpSystolicDirect;
+    } else {
+      const bpRaw = vitals?.bloodPressure ?? vitals?.blood_pressure ?? vitals?.bp;
+      if (typeof bpRaw === "string" && bpRaw.includes("/")) {
+        sbpVal = parseInt(bpRaw.split("/")[0]);
+        if (isNaN(sbpVal)) sbpVal = null;
+      } else if (typeof bpRaw === "number") {
+        sbpVal = bpRaw;
+      }
     }
+    
+    console.log("[BayesianEngine] VITALS PARSED:", JSON.stringify({ tempC, hr, rr, spo2: spo2Val, sbp: sbpVal }));
 
     const normalizedSymptomsLower = normalizedSymptomNames.map(s => s.toLowerCase());
     const allInputSymptoms = symptoms.map((s: string) => s.toLowerCase().trim());
