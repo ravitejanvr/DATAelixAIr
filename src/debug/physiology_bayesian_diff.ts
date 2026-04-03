@@ -22,6 +22,7 @@ export interface PhysioBayesianDiff {
   physiology: {
     systemic_state: SystemicState;
     systemic_score: number;
+    confidence: number;
     signals: SystemicSignals;
     affected_systems: string[];
     candidate_diagnosis_ids: string[];
