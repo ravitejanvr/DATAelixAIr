@@ -188,7 +188,7 @@ const TEST_SUITE: PerturbationTestCase[] = [
 // ── Helpers ──
 
 function applyChanges(base: ClinicalContext, changes: Record<string, any>): ClinicalContext {
-  const ctx = { ...base, symptoms: [...base.symptoms] };
+  const ctx = { ...base, symptoms: [...(base.symptoms || [])] };
 
   for (const [key, value] of Object.entries(changes)) {
     if (key === "symptoms_add") {
@@ -196,6 +196,8 @@ function applyChanges(base: ClinicalContext, changes: Record<string, any>): Clin
     } else if (key === "symptoms_remove") {
       const toRemove = new Set((value as string[]).map(s => s.toLowerCase()));
       ctx.symptoms = ctx.symptoms.filter(s => !toRemove.has(s.toLowerCase()));
+    } else if (key === "investigation_results") {
+      ctx.investigation_results = { ...(ctx.investigation_results || {}), ...value };
     } else if (key in ctx) {
       (ctx as any)[key] = value;
     }
