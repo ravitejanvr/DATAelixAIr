@@ -1551,8 +1551,14 @@ export async function runUnifiedClinicalPipeline(
     if (isCognitiveAuthorityLayerEnabled()) {
       const calInput = {
         diagnoses: fusedBayesian.diagnoses as any,
-        vitals: extractedVitals,
-        systemic_state: fusionOutput?.systemic_state ?? null,
+        vitals: {
+          bp_systolic: vitals.bp_systolic,
+          pulse: vitals.pulse,
+          heart_rate: vitals.pulse,
+          respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
+          temperature: vitals.temperature,
+          spo2: vitals.spo2,
+        },
       };
       const calOutput = applyCognitiveAuthority(calInput);
       calMetadata = calOutput.cal_metadata;
