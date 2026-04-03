@@ -2453,6 +2453,7 @@ export async function runUnifiedClinicalPipeline(
     lineage: lineageReport,
     context_graph: { ...contextGraph } as UnifiedClinicalContextGraph,
     cognitive_layer: null, // Populated async — check episodic_case_memory table
+    evidence_engine: evidenceEngineResult,
   };
 }
 

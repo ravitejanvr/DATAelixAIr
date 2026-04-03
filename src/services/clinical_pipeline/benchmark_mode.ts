@@ -736,5 +736,6 @@ export async function runBenchmarkPipeline(
     lineage: null,
     context_graph: null,
     cognitive_layer: null,
+    evidence_engine: null,
   };
 }
