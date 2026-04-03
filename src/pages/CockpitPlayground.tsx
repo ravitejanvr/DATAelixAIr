@@ -1058,22 +1058,35 @@ export default function CockpitPlayground() {
   // ── Command bar handler ──
   const handleCommand = useCallback(() => {
     if (!commandInput.trim()) return;
-    const input = commandInput.trim().toLowerCase();
-    // Simple NLP extraction for common patterns
-    const symptomMatches = COMMON_SYMPTOMS.filter(s => input.includes(s.toLowerCase()));
+    const input = commandInput.trim();
+
+    // Try structured lab command first
+    const labParsed = parseClinicalCommand(input);
+    if (labParsed) {
+      setInvestigationResults(prev => ({
+        ...prev,
+        [labParsed.key]: labParsed.value,
+      }));
+      console.log("[COMMAND] Lab parsed:", labParsed.key, "=", labParsed.value);
+      setCommandInput("");
+      toast({ title: "Lab result added", description: `${formatLabKey(labParsed.key)}: ${formatLabValue(labParsed.key, labParsed.value)}` });
+      return;
+    }
+
+    // Fallback: symptom/modifier extraction
+    const lowerInput = input.toLowerCase();
+    const symptomMatches = COMMON_SYMPTOMS.filter(s => lowerInput.includes(s.toLowerCase()));
     if (symptomMatches.length > 0) {
       setSelectedSymptoms(prev => [...new Set([...prev, ...symptomMatches])]);
       if (!chiefComplaint && symptomMatches.length > 0) {
         setChiefComplaint(symptomMatches[0]);
       }
     }
-    // Extract severity
     for (const sev of SEVERITY_PRESETS) {
-      if (input.includes(sev.toLowerCase())) { setSelectedSeverity(sev); break; }
+      if (lowerInput.includes(sev.toLowerCase())) { setSelectedSeverity(sev); break; }
     }
-    // Extract onset
     for (const on of ONSET_PRESETS) {
-      if (input.includes(on.toLowerCase())) { setSelectedOnset(on); break; }
+      if (lowerInput.includes(on.toLowerCase())) { setSelectedOnset(on); break; }
     }
     setCommandInput("");
     toast({ title: "Context updated", description: `Extracted ${symptomMatches.length} signals from input` });
