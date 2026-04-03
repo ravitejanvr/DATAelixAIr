@@ -1859,7 +1859,7 @@ export default function CockpitPlayground() {
                             <div>
                               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-2">Working Differentials</p>
                               <div className="space-y-1.5">
-                                {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 3).map((d: any, i: number) => {
+                                {mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).slice(0, 2).map((d: any, i: number) => {
                                   const isExpanded = expandedDx.has(d.name);
                                   return (
                                   <div key={i}>
