@@ -2227,7 +2227,9 @@ export async function runUnifiedClinicalPipeline(
   // ── Wave 6 — Clinical Cognitive Layer (async, fire-and-forget) ──
   // Does NOT block the pipeline return. Learning signals are recorded
   // asynchronously for batch calibration.
-  const topDiagnosis = ddxResult?.differential_diagnoses?.[0];
+  // FIX: Use fusedBayesian (SSAL authority) for top diagnosis, not raw ddxResult
+  const topDiagnosis = fusedBayesian?.diagnoses?.[0] as any
+    ?? ddxResult?.differential_diagnoses?.[0];
   if (input.clinic_id && !input.skip_cache) {
     runCognitiveLayer({
       case: {
