@@ -16,7 +16,7 @@ interface SystemicSignals {
 }
 
 type SystemicState = "HIGH" | "MODERATE" | "LOW";
-type DisagreementType = "SYSTEMIC_MISSED" | "ORGAN_MISSED" | "AMBIGUOUS" | "ALIGNED";
+type DisagreementType = "SYSTEMIC_MISSED" | "ORGAN_MISSED" | "ALIGNED_SYSTEMIC" | "ALIGNED_ORGAN" | "ALIGNED";
 
 export interface PhysioBayesianDiff {
   physiology: {
