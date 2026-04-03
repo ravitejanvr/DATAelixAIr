@@ -93,6 +93,7 @@ const TEST_SUITE: PerturbationTestCase[] = [
     changes: {
       symptoms_add: ["elevated lactate"],
       chief_complaint: "High fever with dizziness, breathlessness, and elevated lactate",
+      investigation_results: { lactate: 4.5 },
     },
     expected: {
       primary: "sepsis",
@@ -127,6 +128,7 @@ const TEST_SUITE: PerturbationTestCase[] = [
     changes: {
       symptoms_add: ["chest pain", "elevated troponin"],
       chief_complaint: "High fever with dizziness, breathlessness, and chest pain",
+      investigation_results: { troponin: 0.8 },
     },
     expected: {
       increase: "myocardial infarction",
@@ -145,6 +147,37 @@ const TEST_SUITE: PerturbationTestCase[] = [
     name: "Noise Injection",
     changes: {
       symptoms_add: ["headache", "mild cough"],
+    },
+    expected: {
+      stability: true,
+    },
+  },
+  // ── Lab-specific Evidence Engine tests ──
+  {
+    name: "Procalcitonin Injection (Sepsis Boost)",
+    changes: {
+      investigation_results: { procalcitonin: 5.0, CRP: 180 },
+    },
+    expected: {
+      primary: "sepsis",
+      direction: "increase_confidence",
+      minDelta: 0.01,
+    },
+  },
+  {
+    name: "D-dimer Injection (PE Boost)",
+    changes: {
+      symptoms_add: ["pleuritic chest pain", "tachypnea"],
+      investigation_results: { D_dimer: 3000 },
+    },
+    expected: {
+      increase: "pulmonary embolism",
+    },
+  },
+  {
+    name: "Normal Labs (No Effect)",
+    changes: {
+      investigation_results: { CRP: 3, WBC: 7, lactate: 1.0 },
     },
     expected: {
       stability: true,
