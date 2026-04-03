@@ -509,6 +509,14 @@ Deno.serve(async (req) => {
         },
         interactions: [],
       },
+      "appendicitis": {
+        features: {
+          abdominal_pain: 3.0, fever: 1.2, vomiting: 1.5, tachycardia: 0.5,
+        },
+        interactions: [
+          { conditions: ["abdominal_pain", "fever", "vomiting"], bonus: 2.0 },
+        ],
+      },
     };
 
     // ════════════════════════════════════════════
