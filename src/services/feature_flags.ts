@@ -40,6 +40,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_systemic_override: true,
   enable_canonical_mapping: true,
   enable_bayesian_systemic_likelihood: true,
+  enable_clinical_priority_resolution: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
