@@ -1495,6 +1495,37 @@ export async function runUnifiedClinicalPipeline(
           reason: overrideResult.reason,
         };
       }
+
+      // Re-run physio-bayesian diff AFTER override so debug panel reflects final state
+      try {
+        const { analyzePhysiologyBayesianMismatch: reanalyze } = await import("@/debug/physiology_bayesian_diff");
+        const postOverrideDiff = reanalyze({
+          physiological_states: physiologicalContext?.physiological_states,
+          affected_systems: physiologicalContext?.affected_systems?.map((s: any) => s.system_name || s) || [],
+          candidate_diagnosis_ids: physiologicalContext?.candidate_diagnosis_ids || [],
+          bayesian_diagnoses: fusedBayesian.diagnoses,
+          symptoms,
+          vitals: {
+            temperature: vitals.temperature,
+            pulse: vitals.pulse,
+            bp_systolic: vitals.bp_systolic,
+            bp_diastolic: vitals.bp_diastolic,
+            respiratory_rate: vitals.respiratory_rate,
+            spo2: vitals.spo2,
+          },
+        });
+        console.log("[DEBUG_SOURCE_CHECK]", {
+          source: "post-override fusedBayesian",
+          sepsis_rank: postOverrideDiff.bayesian.sepsis_rank,
+          sepsis_score: postOverrideDiff.bayesian.top_3.find((d: any) => /sepsis/i.test(d.name))?.prob,
+          classification: postOverrideDiff.disagreement.type,
+        });
+        if (typeof window !== "undefined") {
+          (window as any).__PHYSIO_BAYESIAN_DIFF__ = postOverrideDiff;
+        }
+      } catch (e) {
+        console.warn("[Pipeline] Post-override diff reanalysis skipped:", e);
+      }
     }
   }
 
