@@ -944,20 +944,21 @@ export default function CockpitPlayground() {
     });
   }, [pipelineBayesian, pipelineHypotheses, pipelineDDX, renderSource]);
 
-  // ── All recommended tests from DDX + pipeline + management engine ──
-  const allRecommendedTests = useMemo(() => {
+  // ── PRIMARY management: from mergedDiagnoses[0] ONLY ──
+  const primaryManagement = useMemo(() => {
+    const primary = mergedDiagnoses[0];
+    if (!primary) return { tests: [] as string[], medications: [] as any[], instructions: [] as string[], monitoring: [] as string[], diagnosis: "", probability: 0 };
     const tests = new Set<string>();
-    // Direct from DDX engine
+    (primary.tests || []).forEach((t: string) => tests.add(t));
+    // Also include DDX engine tests (they are diagnosis-derived)
     (pipelineDDX?.recommended_labs || []).forEach((l: any) => tests.add(l.test_name));
-    mergedDiagnoses.forEach((d: any) => d.tests?.forEach((t: string) => tests.add(t)));
-    pipelineHypotheses.forEach(h => h.recommended_tests?.forEach(t => tests.add(t)));
-    return Array.from(tests);
-  }, [mergedDiagnoses, pipelineHypotheses, pipelineDDX]);
+    // Include hypothesis-recommended tests for the primary
+    const primaryHyp = pipelineHypotheses.find(h => h.diagnosis.toLowerCase() === (primary.name || "").toLowerCase());
+    primaryHyp?.recommended_tests?.forEach(t => tests.add(t));
 
-  // ── All recommended medications from DDX + management engine ──
-  const allRecommendedMedications = useMemo(() => {
     const seen = new Set<string>();
     const meds: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }> = [];
+    // DDX medications (diagnosis-derived)
     (pipelineDDX?.suggested_medications || []).forEach((m: any) => {
       const name = m.generic_name || m.drug_name || m.drug || "";
       if (name && !seen.has(name)) {
@@ -965,31 +966,46 @@ export default function CockpitPlayground() {
         meds.push({ drug: name, dose: m.dose || "", route: m.route || "PO", freq: m.frequency || "", dur: m.duration || "", line: m.line || "first" });
       }
     });
-    mergedDiagnoses.forEach((d: any) => {
-      d.medications?.forEach((rx: any) => {
-        if (!seen.has(rx.drug)) { seen.add(rx.drug); meds.push(rx); }
-      });
+    (primary.medications || []).forEach((rx: any) => {
+      if (!seen.has(rx.drug)) { seen.add(rx.drug); meds.push(rx); }
     });
-    return meds;
-  }, [mergedDiagnoses, pipelineDDX]);
 
-  // ── All patient instructions from management engine ──
-  const allInstructions = useMemo(() => {
-    const insts = new Set<string>();
-    mergedDiagnoses.forEach((d: any) => {
-      (d.instructions || []).forEach((i: string) => insts.add(i));
-    });
-    return Array.from(insts);
-  }, [mergedDiagnoses]);
+    return {
+      tests: Array.from(tests),
+      medications: meds,
+      instructions: primary.instructions || [],
+      monitoring: primary.monitoring || [],
+      diagnosis: primary.name || "",
+      probability: primary.bayesian?.posterior_probability ?? 0,
+    };
+  }, [mergedDiagnoses, pipelineHypotheses, pipelineDDX]);
 
-  // ── All monitoring parameters from management engine ──
-  const allMonitoring = useMemo(() => {
-    const mons = new Set<string>();
-    mergedDiagnoses.forEach((d: any) => {
-      (d.monitoring || []).forEach((m: string) => mons.add(m));
-    });
-    return Array.from(mons);
-  }, [mergedDiagnoses]);
+  // ── SECONDARY management: from mergedDiagnoses[1..n] ──
+  const secondaryPlans = useMemo(() => {
+    return mergedDiagnoses.slice(1).map((d: any) => {
+      // Deduplicate against primary
+      const primaryTestSet = new Set(primaryManagement.tests);
+      const primaryMedSet = new Set(primaryManagement.medications.map((m: any) => m.drug));
+      const tests = (d.tests || []).filter((t: string) => !primaryTestSet.has(t));
+      const medications = (d.medications || []).filter((rx: any) => !primaryMedSet.has(rx.drug));
+      const instructions = (d.instructions || []).filter((i: string) => !primaryManagement.instructions.includes(i));
+      const monitoring = (d.monitoring || []).filter((m: string) => !primaryManagement.monitoring.includes(m));
+      return {
+        diagnosis: d.name || d.diagnosis_name || "",
+        probability: d.bayesian?.posterior_probability ?? 0,
+        tests,
+        medications,
+        instructions,
+        monitoring,
+      };
+    }).filter((p: any) => p.tests.length > 0 || p.medications.length > 0 || p.instructions.length > 0 || p.monitoring.length > 0);
+  }, [mergedDiagnoses, primaryManagement]);
+
+  // ── Legacy flat lists kept for Plan section population (unchanged behavior) ──
+  const allRecommendedTests = primaryManagement.tests;
+  const allRecommendedMedications = primaryManagement.medications;
+  const allInstructions = primaryManagement.instructions;
+  const allMonitoring = primaryManagement.monitoring;
 
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
