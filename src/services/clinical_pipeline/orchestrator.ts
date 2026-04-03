@@ -1309,32 +1309,10 @@ export async function runUnifiedClinicalPipeline(
       }
     })(),
 
-    // 3c: Direct Guideline Compliance (from DDX diagnoses)
-    (async (): Promise<GuidelineComplianceResult | null> => {
-      if (!ddxResult || ddxResult.differential_diagnoses.length === 0) return null;
-      const t0 = performance.now();
-      try {
-        const result = await withTimeout(
-          checkGuidelineCompliance({
-            diagnoses: ddxResult.differential_diagnoses.slice(0, 5).map(d => d.diagnosis_name),
-            medications: (ddxResult.suggested_medications || []).map(m => ({
-              drug_name: m.generic_name, dose: "", frequency: "", duration: "",
-            })),
-            tests: (ddxResult.recommended_labs || []).map(l => l.test_name),
-            patient_age: ctx.patient_age ?? undefined,
-            patient_sex: ctx.patient_sex ?? undefined,
-            chief_complaint: ctx.chief_complaint,
-          }),
-          TIMEOUT.GUIDELINE_COMPLIANCE,
-          "guideline_compliance_direct",
-        );
-        lat.guideline_compliance = Math.round(performance.now() - t0);
-        return result;
-      } catch {
-        lat.guideline_compliance = Math.round(performance.now() - t0);
-        return null;
-      }
-    })(),
+    // 3c: Guideline Compliance — DEFERRED to post-SSAL
+    // Previously ran here with DDX-wide inputs (all differentials, all meds, all labs).
+    // Now deferred to after SSAL freeze so it evaluates ONLY the primary diagnosis.
+    (async (): Promise<GuidelineComplianceResult | null> => null)(),
 
     // 3d: Hypothesis Engine — DISABLED in pipeline (LLM call, adds ~6s latency)
     // The DDX engine + Bayesian scoring provide graph-based hypothesis generation.
