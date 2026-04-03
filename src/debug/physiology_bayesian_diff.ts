@@ -5,8 +5,14 @@
  * Exposes where physiology signals and Bayesian posteriors disagree.
  * 
  * SSAL-compliant: Uses canonical_name and rank from self-describing diagnosis objects.
- * No external name maps required.
+ * Physiology-First: Uses computeSystemicState for authoritative systemic assessment.
  */
+
+import {
+  computeSystemicState,
+  matchDiseaseProfile,
+  type SystemicState,
+} from "@/services/physiology_engine/systemic_state";
 
 // ── Types ──
 
@@ -18,17 +24,18 @@ interface SystemicSignals {
   hypoxia: boolean;
 }
 
-type SystemicState = "HIGH" | "MODERATE" | "LOW";
+type SystemicSeverity = "HIGH" | "MODERATE" | "LOW";
 type DisagreementType = "SYSTEMIC_MISSED" | "ORGAN_MISSED" | "ALIGNED_SYSTEMIC" | "ALIGNED_ORGAN" | "ALIGNED";
 
 export interface PhysioBayesianDiff {
   physiology: {
-    systemic_state: SystemicState;
+    systemic_state: SystemicSeverity;
     systemic_score: number;
     confidence: number;
     signals: SystemicSignals;
     affected_systems: string[];
     candidate_diagnosis_ids: string[];
+    phenotype: string;
   };
   bayesian: {
     top_3: Array<{ name: string; prob: number }>;
@@ -71,16 +78,6 @@ interface AnalysisInput {
 
 // ── Helpers ──
 
-function countTrue(signals: Record<string, boolean>): number {
-  return Object.values(signals).filter(Boolean).length;
-}
-
-function classifyState(score: number): SystemicState {
-  if (score >= 2) return "HIGH";
-  if (score === 1) return "MODERATE";
-  return "LOW";
-}
-
 function isSepsisLike(name: string): boolean {
   return /sepsis|septic|sirs|bacteremia|urosepsis/i.test(name);
 }
@@ -89,12 +86,10 @@ function isPneumoniaLike(name: string): boolean {
   return /pneumonia|cap\b|community.acquired/i.test(name);
 }
 
-/** Resolve display name from SSAL diagnosis — uses canonical_name/diagnosis_name directly */
+/** Resolve display name from SSAL diagnosis */
 function resolveName(d: SSALDiagnosis, nameMap?: Map<string, string>): string {
-  // SSAL priority: use self-describing fields first
   if (d.diagnosis_name) return d.diagnosis_name;
   if (d.canonical_name) return d.canonical_name;
-  // Legacy fallback: external name map
   if (nameMap && d.diagnosis_id) {
     const mapped = nameMap.get(d.diagnosis_id);
     if (mapped) return mapped;
@@ -130,19 +125,18 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
   const diagnoses = input.bayesian_diagnoses ?? [];
   const nameMap = input.diagnosisNameMap;
 
-  // Step 1: Derive systemic signals from vitals
-  const signals: SystemicSignals = {
-    hypotension: (vitals.bp_systolic ?? 120) < 90,
-    tachycardia: (vitals.pulse ?? 72) > 100,
-    tachypnea: (vitals.respiratory_rate ?? 16) > 22,
-    fever: (vitals.temperature ?? 98.6) > 100.4,
-    hypoxia: (vitals.spo2 ?? 98) < 94,
-  };
+  // ── Physiology-First: Use authoritative systemic state engine ──
+  const systemicState = computeSystemicState({
+    bp_systolic: vitals.bp_systolic,
+    pulse: vitals.pulse,
+    respiratory_rate: vitals.respiratory_rate,
+    temperature: vitals.temperature,
+    spo2: vitals.spo2,
+  });
 
-  const systemicScore = countTrue(signals as unknown as Record<string, boolean>);
-  const systemicState = classifyState(systemicScore);
+  const { signals, signal_count, severity, phenotype, systemic_strength } = systemicState;
 
-  // Step 2: Extract top 3 with resolved names (SSAL: use canonical_name/diagnosis_name)
+  // Extract top 3 with resolved names (SSAL: use canonical_name/diagnosis_name)
   const sorted = [...diagnoses].sort(
     (a, b) => (b.posterior_probability ?? 0) - (a.posterior_probability ?? 0)
   );
@@ -154,29 +148,34 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
   const sepsisRank = findRank(diagnoses, isSepsisLike, nameMap);
   const pneumoniaRank = findRank(diagnoses, isPneumoniaLike, nameMap);
 
-  // Step 3: Confidence from signal density
-  const confidence = systemicScore / 5;
+  // Confidence from signal density
+  const confidence = systemic_strength;
 
-  // Step 4: Classify disagreement using FINAL rankings
+  // Classify disagreement — aligned with Physiology-First architecture
   let type: DisagreementType = "ALIGNED";
-  let explanation = "Physiology and Bayesian rankings are consistent.";
+  let explanation = "Physiology and diagnostic rankings are consistent.";
 
-  if (systemicState === "HIGH") {
-    if (sepsisRank === 1) {
+  // Check if #1 diagnosis is a systemic type
+  const topDiagName = top3[0]?.name || "";
+  const topProfile = matchDiseaseProfile(topDiagName);
+  const topIsSystemic = topProfile?.requires_systemic_instability === true;
+
+  if (severity === "HIGH") {
+    if (sepsisRank === 1 || topIsSystemic) {
       type = "ALIGNED_SYSTEMIC";
       const sepsisEntry = sorted.find(d => isSepsisLike(resolveName(d, nameMap)));
       const sepsisProb = sepsisEntry ? Math.round((sepsisEntry.posterior_probability ?? 0) * 100) : 0;
-      explanation = `${resolveName(sepsisEntry || sorted[0], nameMap)} ranked #1 with ${sepsisProb}% probability — systemic instability correctly prioritized (${systemicScore}/5 signals, confidence ${(confidence * 100).toFixed(0)}%).`;
+      explanation = `${signal_count}/5 systemic signals (${phenotype}) — ${resolveName(sepsisEntry || sorted[0], nameMap)} correctly prioritized at ${sepsisProb}% (confidence ${(confidence * 100).toFixed(0)}%).`;
     } else {
       type = "SYSTEMIC_MISSED";
       const sepsisEntry = sorted.find(d => isSepsisLike(resolveName(d, nameMap)));
       const sepsisScore = sepsisEntry ? Math.round((sepsisEntry.posterior_probability ?? 0) * 100) : 0;
-      explanation = `Strong systemic instability (${systemicScore}/5 signals) but Sepsis ranked #${sepsisRank} at ${sepsisScore}% — organ-level diagnosis prioritized over systemic condition.`;
+      explanation = `HIGH systemic instability (${signal_count}/5 signals, ${phenotype}) but Sepsis ranked #${sepsisRank} at ${sepsisScore}% — organ-level diagnosis prioritized over systemic condition.`;
     }
-  } else if (systemicState === "LOW") {
+  } else if (severity === "LOW") {
     if (pneumoniaRank < sepsisRank) {
       type = "ALIGNED_ORGAN";
-      explanation = `Low systemic instability — organ-level diagnosis correctly prioritized. Pneumonia #${pneumoniaRank}, Sepsis #${sepsisRank}.`;
+      explanation = `Low systemic instability (${phenotype}) — organ-level diagnosis correctly prioritized. Pneumonia #${pneumoniaRank}, Sepsis #${sepsisRank}.`;
     } else if (sepsisRank <= pneumoniaRank) {
       type = "ORGAN_MISSED";
       explanation = `Low systemic instability but Sepsis ranked #${sepsisRank} at or above Pneumonia #${pneumoniaRank}. Organ-specific signals may be under-weighted.`;
@@ -185,18 +184,19 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
     // MODERATE
     if (sepsisRank > pneumoniaRank + 2) {
       type = "SYSTEMIC_MISSED";
-      explanation = `Moderate systemic instability (${systemicScore}/5) but Sepsis ranked #${sepsisRank} well behind Pneumonia #${pneumoniaRank}.`;
+      explanation = `Moderate systemic instability (${signal_count}/5, ${phenotype}) but Sepsis ranked #${sepsisRank} well behind Pneumonia #${pneumoniaRank}.`;
     }
   }
 
   return {
     physiology: {
-      systemic_state: systemicState,
-      systemic_score: systemicScore,
+      systemic_state: severity,
+      systemic_score: signal_count,
       confidence,
       signals,
       affected_systems: input.affected_systems ?? [],
       candidate_diagnosis_ids: input.candidate_diagnosis_ids ?? [],
+      phenotype,
     },
     bayesian: {
       top_3: top3,
