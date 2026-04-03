@@ -399,6 +399,11 @@ export default function GPBenchmarkDashboard() {
     <div className="space-y-6">
       <SEO title="Clinical Reasoning Benchmark" description="Multi-layer diagnostic engine validation" />
 
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-lg font-bold text-foreground">Pipeline Benchmark</h1>
+        <SystemModeIndicator />
+      </div>
+
       <Tabs defaultValue="v10" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="v10" className="flex items-center gap-1.5">
