@@ -812,23 +812,12 @@ export default function CockpitPlayground() {
   const mergedDiagnoses = useMemo(() => {
     console.log("[RENDER SOURCE USED]", renderSource);
 
-    // DEBUG: Trace override marker at render time
-    if (pipelineBayesian?.diagnoses?.length) {
-      const sepsisEntry = pipelineBayesian.diagnoses.find((d: any) => d.debug_override_marker === "OVERRIDE_APPLIED");
-      console.log("[OVERRIDE_TRACE_AT_RENDER]", {
-        marker_present: !!sepsisEntry,
-        probability: sepsisEntry?.posterior_probability,
-        rank: sepsisEntry ? pipelineBayesian.diagnoses.indexOf(sepsisEntry) + 1 : -1,
-        all_top3: pipelineBayesian.diagnoses.slice(0, 3).map((d: any) => ({
-          id: d.diagnosis_id,
-          prob: d.posterior_probability,
-          marker: d.debug_override_marker || "NONE",
-        })),
-      });
-    }
-
-    // Only render when Bayesian is locked
+    // Only render when Bayesian is locked and authority confirmed
     if (renderSource !== "bayesian" || !pipelineBayesian?.diagnoses?.length) return [];
+    if (!pipelineBayesian._authority_ready) {
+      console.log("[RENDER_BLOCKED] authority not ready");
+      return [];
+    }
 
     const ddxNameMap = new Map<string, { name: string; supporting: string[]; mustNotMiss: boolean }>();
     const ddxTraces: any[] = pipelineDDX?.reasoning_traces || [];
