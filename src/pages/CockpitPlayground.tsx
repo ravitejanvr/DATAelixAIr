@@ -1855,11 +1855,11 @@ export default function CockpitPlayground() {
                           )})}
 
                           {/* Working Differentials */}
-                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 3).length > 0 && (
+                          {mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).slice(0, 2).length > 0 && (
                             <div>
                               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-2">Working Differentials</p>
                               <div className="space-y-1.5">
-                                {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 3).map((d: any, i: number) => {
+                                {mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).slice(0, 2).map((d: any, i: number) => {
                                   const isExpanded = expandedDx.has(d.name);
                                   return (
                                   <div key={i}>
@@ -1891,16 +1891,16 @@ export default function CockpitPlayground() {
                           )}
 
                           {/* Show more toggle for additional differentials */}
-                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).length > 3 && (
+                          {mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).length > 2 && (
                             <button
                               onClick={() => setShowMoreDx(prev => !prev)}
                               className="text-[10px] text-primary font-medium hover:underline flex items-center gap-1 mt-1"
                             >
                               {showMoreDx ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                              {showMoreDx ? "Show less" : `Show ${mergedDiagnoses.filter((d: any) => !d.mustNotMiss).length - 3} more`}
+                              {showMoreDx ? "Show less" : `Show ${mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).length - 2} more`}
                             </button>
                           )}
-                          {showMoreDx && mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(3).map((d: any, i: number) => (
+                          {showMoreDx && mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).slice(2).map((d: any, i: number) => (
                             <div key={`more-${i}`} className="rounded-lg border border-border p-2 bg-background/40">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-foreground flex-1">{d.name}</span>
