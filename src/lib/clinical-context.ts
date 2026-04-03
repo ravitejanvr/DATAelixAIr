@@ -33,9 +33,26 @@ export interface ClinicalContext {
   blood_sugar?: number | null;
   family_history?: string[];
   exam_findings?: string[];
+  // Investigation results (lab values) — used by evidence engine
+  investigation_results?: InvestigationResults;
   // Identity fields — used by episodic memory and pipeline tracing
   patient_id?: string | null;
   doctor_id?: string | null;
+}
+
+/**
+ * Structured investigation (lab) results for Bayesian evidence update.
+ * All fields optional — only present values contribute to posterior.
+ */
+export interface InvestigationResults {
+  lactate?: number;
+  troponin?: number;
+  CRP?: number;
+  procalcitonin?: number;
+  WBC?: number;
+  D_dimer?: number;
+  BNP?: number;
+  creatinine?: number;
 }
 
 export const EMPTY_CLINICAL_CONTEXT: ClinicalContext = {
