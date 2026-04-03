@@ -173,6 +173,7 @@ export default function ClinicalCopilot({
   monitoring,
   selectedMonitoring,
   onToggleMonitoring,
+  secondaryPlans,
   hypotheses,
   pipelineEvidence,
   pipelineCompliance,
