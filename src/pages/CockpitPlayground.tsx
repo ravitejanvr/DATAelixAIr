@@ -2044,7 +2044,7 @@ export default function CockpitPlayground() {
                           </div>
                         ) : (
                           <p className="text-xs text-muted-foreground italic">
-                            {allInstructions.length > 0 ? "Select instructions from AI Copilot →" : "Instructions will appear after diagnosis."}
+                            {primaryManagement.instructions.length > 0 ? "Select instructions from AI Copilot →" : "Instructions will appear after diagnosis."}
                           </p>
                         )}
                       </div>
