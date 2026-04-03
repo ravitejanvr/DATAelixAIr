@@ -1460,7 +1460,7 @@ export async function runUnifiedClinicalPipeline(
         physiologicalContext: physiologicalContext,
       });
       if (overrideResult.applied) {
-        fusedBayesian = { ...fusedBayesian, diagnoses: overrideResult.diagnoses };
+        fusedBayesian = { ...fusedBayesian, diagnoses: overrideResult.diagnoses as typeof fusedBayesian.diagnoses };
         console.log("[Pipeline] SYSTEMIC OVERRIDE APPLIED:", overrideResult.reason);
         recordOversightEvent({
           event_type: "systemic_override",
