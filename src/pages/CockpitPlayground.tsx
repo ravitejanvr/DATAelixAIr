@@ -1001,11 +1001,7 @@ export default function CockpitPlayground() {
     }).filter((p: any) => p.tests.length > 0 || p.medications.length > 0 || p.instructions.length > 0 || p.monitoring.length > 0);
   }, [mergedDiagnoses, primaryManagement]);
 
-  // ── Legacy flat lists kept for Plan section population (unchanged behavior) ──
-  const allRecommendedTests = primaryManagement.tests;
-  const allRecommendedMedications = primaryManagement.medications;
-  const allInstructions = primaryManagement.instructions;
-  const allMonitoring = primaryManagement.monitoring;
+  // Legacy aggregation aliases REMOVED — primary isolation enforced
 
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
