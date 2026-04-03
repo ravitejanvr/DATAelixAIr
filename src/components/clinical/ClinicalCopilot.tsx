@@ -64,6 +64,15 @@ export interface PipelineCompliance {
   conflicts_detected?: Array<{ recommendation: string; conflicting_guideline: string; organization: string; severity: string; explanation: string }>;
 }
 
+interface SecondaryPlan {
+  diagnosis: string;
+  probability: number;
+  tests: string[];
+  medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line?: "first" | "alternative" | "emergency" }>;
+  monitoring: string[];
+  instructions: string[];
+}
+
 interface ClinicalCopilotProps {
   diagnoses: string[];
   selectedDiagnoses: string[];
@@ -78,6 +87,7 @@ interface ClinicalCopilotProps {
   patientAge?: number;
   allergies?: string[];
   diagnosis?: string;
+  primaryConfidence?: number;
   chiefComplaint?: string;
   patientSex?: string;
   carePlan?: string;
@@ -87,6 +97,7 @@ interface ClinicalCopilotProps {
   monitoring?: string[];
   selectedMonitoring?: string[];
   onToggleMonitoring?: (m: string) => void;
+  secondaryPlans?: SecondaryPlan[];
   hypotheses?: HypothesisEntry[];
   pipelineEvidence?: PipelineEvidence | null;
   pipelineCompliance?: PipelineCompliance | null;
