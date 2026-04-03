@@ -2193,8 +2193,8 @@ export async function runUnifiedClinicalPipeline(
         } as any : undefined,
         guidelines: guidelineAlignment ? {
           recommendations: (guidelineAlignment as any).recommendations || [],
-        } as any : guidelineCompliance ? {
-          recommendations: (guidelineCompliance.management_steps || []).map((s: any) => ({
+        } as any : guidelineCompliancePostSSAL ? {
+          recommendations: (guidelineCompliancePostSSAL.management_steps || []).map((s: any) => ({
             recommendation: s.step,
             organization: s.source,
           })),
