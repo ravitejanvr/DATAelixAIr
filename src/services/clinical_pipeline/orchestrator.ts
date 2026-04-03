@@ -1422,10 +1422,17 @@ export async function runUnifiedClinicalPipeline(
     lat.score_fusion = Math.round(performance.now() - fusionStart);
   }
 
-  // ── Physiology vs Bayesian disagreement analysis (read-only observability) ──
+  // ── Physiology vs Bayesian disagreement analysis (pre-override snapshot, for logging only) ──
   try {
     const { analyzePhysiologyBayesianMismatch } = await import("@/debug/physiology_bayesian_diff");
     if (fusedBayesian?.diagnoses?.length) {
+      // Build name map early for pre-override logging
+      const preNameMap = new Map<string, string>();
+      if (ddxResult?.differential_diagnoses) {
+        for (const d of ddxResult.differential_diagnoses) {
+          if (d.diagnosis_id && d.diagnosis_name) preNameMap.set(d.diagnosis_id, d.diagnosis_name);
+        }
+      }
       const mismatch = analyzePhysiologyBayesianMismatch({
         physiological_states: physiologicalContext?.physiological_states,
         affected_systems: physiologicalContext?.affected_systems?.map((s: any) => s.system_name || s) || [],
@@ -1440,11 +1447,10 @@ export async function runUnifiedClinicalPipeline(
           respiratory_rate: vitals.respiratory_rate,
           spo2: vitals.spo2,
         },
+        diagnosisNameMap: preNameMap,
       });
-      console.log("=== PHYSIOLOGY vs BAYESIAN ===", mismatch);
-      if (typeof window !== "undefined") {
-        (window as any).__PHYSIO_BAYESIAN_DIFF__ = mismatch;
-      }
+      console.log("=== PHYSIOLOGY vs BAYESIAN (pre-override) ===", mismatch.disagreement.type);
+      // Do NOT set window.__PHYSIO_BAYESIAN_DIFF__ here — post-override will set the final one
     }
   } catch (e) {
     console.warn("[Pipeline] Physio-Bayesian diff skipped:", e);
