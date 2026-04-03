@@ -170,7 +170,7 @@ export async function runBenchmarkPipeline(
     causal_reasoning: null, calibration: null, episodic_memory: null,
     guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
-    cache_stats: cache, lineage: null, context_graph: null, cognitive_layer: null,
+    cache_stats: cache, lineage: null, context_graph: null, cognitive_layer: null, evidence_engine: null,
   };
 
   if (!isNewPipelineEnabled()) return empty;
@@ -736,5 +736,6 @@ export async function runBenchmarkPipeline(
     lineage: null,
     context_graph: null,
     cognitive_layer: null,
+    evidence_engine: null,
   };
 }

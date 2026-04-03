@@ -33,9 +33,26 @@ export interface ClinicalContext {
   blood_sugar?: number | null;
   family_history?: string[];
   exam_findings?: string[];
+  // Investigation results (lab values) — used by evidence engine
+  investigation_results?: InvestigationResults;
   // Identity fields — used by episodic memory and pipeline tracing
   patient_id?: string | null;
   doctor_id?: string | null;
+}
+
+/**
+ * Structured investigation (lab) results for Bayesian evidence update.
+ * All fields optional — only present values contribute to posterior.
+ */
+export interface InvestigationResults {
+  lactate?: number;
+  troponin?: number;
+  CRP?: number;
+  procalcitonin?: number;
+  WBC?: number;
+  D_dimer?: number;
+  BNP?: number;
+  creatinine?: number;
 }
 
 export const EMPTY_CLINICAL_CONTEXT: ClinicalContext = {
@@ -161,6 +178,7 @@ export interface UIContextOverrides {
   exam_findings?: string[];
   medical_history?: string[];
   blood_sugar?: number | null;
+  investigation_results?: InvestigationResults;
 }
 
 /**
@@ -183,6 +201,7 @@ export function buildFullClinicalContext(
   if (overrides.risk_factors && overrides.risk_factors.length > 0) ctx.risk_factors = overrides.risk_factors;
   if (overrides.family_history && overrides.family_history.length > 0) ctx.family_history = overrides.family_history;
   if (overrides.blood_sugar != null) ctx.blood_sugar = overrides.blood_sugar;
+  if (overrides.investigation_results) ctx.investigation_results = overrides.investigation_results;
 
   // Exam findings merge into symptoms (for reasoning) and into exam_findings
   if (overrides.exam_findings && overrides.exam_findings.length > 0) {

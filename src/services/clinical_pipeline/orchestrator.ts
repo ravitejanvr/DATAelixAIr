@@ -148,6 +148,8 @@ export interface PipelineResult {
   context_graph: UnifiedClinicalContextGraph | null;
   /** Wave 6 — Cognitive layer (runs async, populated after pipeline returns) */
   cognitive_layer: CognitiveLayerResult | null;
+  /** Phase 5.7 — Evidence engine (lab likelihood update) */
+  evidence_engine: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null;
 }
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
@@ -446,7 +448,7 @@ export async function runUnifiedClinicalPipeline(
     oversight: null, hybrid_reasoning: null, soap_fallback: null,
     multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, causal_reasoning: null, calibration: null, episodic_memory: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
-    cache_stats: cache, lineage: null, context_graph: null, cognitive_layer: null,
+    cache_stats: cache, lineage: null, context_graph: null, cognitive_layer: null, evidence_engine: null,
   };
 
   if (!isNewPipelineEnabled()) {
@@ -1528,7 +1530,52 @@ export async function runUnifiedClinicalPipeline(
     }
   }
 
-  // Enrich every diagnosis with diagnosis_name, canonical_name, rank, source
+  // ═══════════════════════════════════════════════════════
+  // Phase 5.7 — Bayesian Evidence Engine (Lab Likelihood Update)
+  // Applies investigation (lab) results as likelihood multipliers.
+  // Runs AFTER CPR, BEFORE SSAL freeze. Pure function, no side effects.
+  // ═══════════════════════════════════════════════════════
+  let evidenceEngineResult: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null = null;
+  if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
+    const { applyBayesianEvidence } = await import("@/services/clinical_reasoning/evidenceEngine");
+    const investigationResults = ctx.investigation_results || null;
+    const shockInput = {
+      bp_systolic: vitals.bp_systolic ?? null,
+      heart_rate: vitals.pulse ?? null,
+      lactate: investigationResults?.lactate ?? null,
+    };
+
+    const evStart = performance.now();
+    evidenceEngineResult = applyBayesianEvidence(fusedBayesian, investigationResults, shockInput);
+    lat.evidence_engine = Math.round(performance.now() - evStart);
+
+    // Update fusedBayesian with evidence-updated posteriors
+    if (evidenceEngineResult.labs_applied.length > 0 || evidenceEngineResult.shock_active) {
+      fusedBayesian = {
+        ...fusedBayesian,
+        diagnoses: evidenceEngineResult.diagnoses as any,
+        source: (fusedBayesian.source || "") + "+evidence",
+      };
+      console.log(
+        `[Pipeline] Phase 5.7: Evidence Engine — ${evidenceEngineResult.labs_applied.length} lab(s), ` +
+        `shock=${evidenceEngineResult.shock_active}. ${evidenceEngineResult.execution_ms}ms`,
+      );
+      recordOversightEvent({
+        event_type: "evidence_engine_applied",
+        severity: "info",
+        stage: "evidence_engine",
+        message: `Evidence update: ${evidenceEngineResult.labs_applied.join(", ")} applied. Shock=${evidenceEngineResult.shock_active}.`,
+        metadata: {
+          labs: evidenceEngineResult.labs_applied,
+          shock_score: evidenceEngineResult.shock_score,
+          top_diagnosis: (evidenceEngineResult.diagnoses[0] as any)?.diagnosis_name || evidenceEngineResult.diagnoses[0]?.diagnosis_id,
+          top_delta: evidenceEngineResult.diagnoses[0]?.evidence_delta,
+        } as any,
+      });
+    }
+  }
+
+
   // so ALL downstream consumers get self-describing objects.
   // ═══════════════════════════════════════════════════════
   if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
@@ -2406,6 +2453,7 @@ export async function runUnifiedClinicalPipeline(
     lineage: lineageReport,
     context_graph: { ...contextGraph } as UnifiedClinicalContextGraph,
     cognitive_layer: null, // Populated async — check episodic_case_memory table
+    evidence_engine: evidenceEngineResult,
   };
 }
 

@@ -1,0 +1,394 @@
+/**
+ * Bayesian Evidence Engine
+ *
+ * Applies investigation (lab) results as likelihood multipliers to update
+ * prior diagnostic probabilities into posterior probabilities.
+ *
+ * Pipeline position: AFTER Score Fusion + CPR, BEFORE SSAL Freeze.
+ *
+ * Guarantees:
+ *   - Pure function, no side effects
+ *   - No hard overrides (no diagnosis can reach >0.95 without multi-factor support)
+ *   - Deterministic: same inputs → same outputs
+ *   - Explainable: every contribution is traced
+ */
+
+import type { InvestigationResults } from "@/lib/clinical-context";
+import type { BayesianResult, BayesianDiagnosis } from "@/services/bayesian_engine/client";
+
+// ── Public Types ──
+
+export type EvidenceSource = "symptom" | "vital" | "lab" | "risk" | "shock";
+
+export interface EvidenceContribution {
+  source: EvidenceSource;
+  feature: string;
+  value: any;
+  multiplier: number;
+  direction: "support" | "against" | "neutral";
+}
+
+export interface EvidenceEnrichedDiagnosis extends BayesianDiagnosis {
+  evidence_contributions: EvidenceContribution[];
+  prior_score: number;
+  posterior_score: number;
+  evidence_delta: number;
+}
+
+export interface EvidenceEngineResult {
+  diagnoses: EvidenceEnrichedDiagnosis[];
+  shock_score: number;
+  shock_active: boolean;
+  labs_applied: string[];
+  total_evidence_features: number;
+  execution_ms: number;
+}
+
+// ── Diagnosis Category Helpers ──
+
+const SYSTEMIC_DIAGNOSES = new Set([
+  "sepsis", "severe sepsis", "septic shock", "systemic inflammatory response syndrome",
+  "sirs", "bacteremia", "disseminated intravascular coagulation",
+]);
+
+const CARDIAC_DIAGNOSES = new Set([
+  "myocardial infarction", "acute myocardial infarction", "acute coronary syndrome",
+  "unstable angina", "nstemi", "stemi", "heart failure", "acute heart failure",
+  "congestive heart failure",
+]);
+
+const INFECTION_DIAGNOSES = new Set([
+  "sepsis", "severe sepsis", "septic shock", "community acquired pneumonia",
+  "pneumonia", "urinary tract infection", "pyelonephritis", "meningitis",
+  "cellulitis", "endocarditis", "peritonitis", "abscess",
+]);
+
+const PE_DIAGNOSES = new Set([
+  "pulmonary embolism", "pe", "deep vein thrombosis", "venous thromboembolism",
+]);
+
+function classifyDiagnosis(name: string): { systemic: boolean; cardiac: boolean; infection: boolean; pe: boolean } {
+  const n = name.toLowerCase().trim();
+  return {
+    systemic: SYSTEMIC_DIAGNOSES.has(n),
+    cardiac: CARDIAC_DIAGNOSES.has(n),
+    infection: INFECTION_DIAGNOSES.has(n),
+    pe: PE_DIAGNOSES.has(n),
+  };
+}
+
+// ── Shock Model ──
+
+export interface ShockInput {
+  bp_systolic?: number | null;
+  heart_rate?: number | null;
+  lactate?: number | null;
+}
+
+/**
+ * Compute a shock score (0–1) from hemodynamic + lactate signals.
+ * Influences scoring but does NOT override diagnosis.
+ */
+export function computeShockScore(input: ShockInput): number {
+  let score = 0;
+  let factors = 0;
+
+  if (input.bp_systolic != null) {
+    factors++;
+    if (input.bp_systolic < 90) score += 0.4;
+    else if (input.bp_systolic < 100) score += 0.2;
+  }
+
+  if (input.heart_rate != null) {
+    factors++;
+    if (input.heart_rate > 120) score += 0.3;
+    else if (input.heart_rate > 100) score += 0.15;
+  }
+
+  if (input.lactate != null) {
+    factors++;
+    if (input.lactate >= 4) score += 0.3;
+    else if (input.lactate >= 2) score += 0.15;
+  }
+
+  return factors > 0 ? Math.min(score, 1.0) : 0;
+}
+
+// ── Lab Likelihood Functions ──
+
+function lactateLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
+  let multiplier = 1.0;
+  let direction: EvidenceContribution["direction"] = "neutral";
+
+  if (category.systemic) {
+    if (value >= 4) { multiplier = 3.0; direction = "support"; }
+    else if (value >= 2) { multiplier = 1.8; direction = "support"; }
+    else { multiplier = 0.7; direction = "against"; }
+  } else if (category.infection) {
+    if (value >= 4) { multiplier = 1.5; direction = "support"; }
+    else if (value >= 2) { multiplier = 1.2; direction = "support"; }
+  } else {
+    // Non-shock diagnoses: elevated lactate weakly suppresses
+    if (value >= 4) { multiplier = 0.7; direction = "against"; }
+    else if (value >= 2) { multiplier = 0.85; direction = "against"; }
+  }
+
+  return { source: "lab", feature: "lactate", value, multiplier, direction };
+}
+
+function troponinLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
+  let multiplier = 1.0;
+  let direction: EvidenceContribution["direction"] = "neutral";
+
+  if (category.cardiac) {
+    if (value > 0.4) { multiplier = 4.0; direction = "support"; }
+    else if (value > 0.04) { multiplier = 2.5; direction = "support"; }
+    else { multiplier = 0.6; direction = "against"; }
+  } else if (category.systemic || category.pe) {
+    // Slight elevation in sepsis/PE is possible
+    if (value > 0.04) { multiplier = 1.1; direction = "neutral"; }
+  } else {
+    if (value > 0.4) { multiplier = 0.6; direction = "against"; }
+  }
+
+  return { source: "lab", feature: "troponin", value, multiplier, direction };
+}
+
+function crpLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
+  let multiplier = 1.0;
+  let direction: EvidenceContribution["direction"] = "neutral";
+
+  if (category.infection || category.systemic) {
+    if (value > 100) { multiplier = 2.0; direction = "support"; }
+    else if (value > 50) { multiplier = 1.5; direction = "support"; }
+    else if (value > 10) { multiplier = 1.2; direction = "support"; }
+  } else if (category.cardiac) {
+    if (value > 10) { multiplier = 1.1; direction = "neutral"; }
+  }
+
+  return { source: "lab", feature: "CRP", value, multiplier, direction };
+}
+
+function procalcitoninLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
+  let multiplier = 1.0;
+  let direction: EvidenceContribution["direction"] = "neutral";
+
+  if (category.systemic) {
+    if (value > 2) { multiplier = 3.0; direction = "support"; }
+    else if (value > 0.5) { multiplier = 2.0; direction = "support"; }
+    else { multiplier = 0.5; direction = "against"; }
+  } else if (category.infection) {
+    if (value > 0.5) { multiplier = 1.5; direction = "support"; }
+  } else {
+    if (value > 2) { multiplier = 0.7; direction = "against"; }
+  }
+
+  return { source: "lab", feature: "procalcitonin", value, multiplier, direction };
+}
+
+function wbcLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
+  let multiplier = 1.0;
+  let direction: EvidenceContribution["direction"] = "neutral";
+
+  if (category.infection || category.systemic) {
+    if (value > 15) { multiplier = 1.5; direction = "support"; }
+    else if (value > 11) { multiplier = 1.2; direction = "support"; }
+    else if (value < 4) { multiplier = 1.8; direction = "support"; } // Leukopenia → severe sepsis
+  }
+
+  return { source: "lab", feature: "WBC", value, multiplier, direction };
+}
+
+function dDimerLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
+  let multiplier = 1.0;
+  let direction: EvidenceContribution["direction"] = "neutral";
+
+  if (category.pe) {
+    if (value > 2000) { multiplier = 3.5; direction = "support"; }
+    else if (value > 500) { multiplier = 2.0; direction = "support"; }
+    else { multiplier = 0.3; direction = "against"; } // Normal D-dimer strongly rules out PE
+  } else {
+    // Non-specific marker — weak/no effect on non-PE
+    if (value > 500) { multiplier = 1.05; direction = "neutral"; }
+  }
+
+  return { source: "lab", feature: "D-dimer", value, multiplier, direction };
+}
+
+// ── Shock Modifier ──
+
+function computeShockModifier(shockScore: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution | null {
+  if (shockScore < 0.3) return null;
+
+  let multiplier = 1.0;
+  let direction: EvidenceContribution["direction"] = "neutral";
+
+  if (category.systemic) {
+    multiplier = 1 + shockScore * 2.0; // Up to ×3.0
+    direction = "support";
+  } else if (!category.cardiac && !category.pe) {
+    multiplier = 1 - shockScore * 0.3; // Down to ×0.7
+    direction = "against";
+  }
+
+  if (multiplier === 1.0) return null;
+
+  return { source: "shock", feature: "shock_score", value: shockScore, multiplier, direction };
+}
+
+// ── Feature Gating ──
+
+function isLabClinicallyRelevant(feature: string, value: number): boolean {
+  // Neutral-zone values that should not influence ranking
+  const neutralRanges: Record<string, [number, number]> = {
+    CRP: [0, 5],
+    WBC: [4.5, 11],
+    lactate: [0.5, 1.5],
+    D_dimer: [0, 400],
+  };
+
+  const range = neutralRanges[feature];
+  if (range && value >= range[0] && value <= range[1]) return false;
+  return true;
+}
+
+// ── Main Engine ──
+
+/**
+ * Apply Bayesian evidence update to prior diagnoses.
+ * Pure function: no side effects, no mutations.
+ */
+export function applyBayesianEvidence(
+  bayesianResult: BayesianResult,
+  investigationResults: InvestigationResults | undefined | null,
+  shockInput: ShockInput,
+): EvidenceEngineResult {
+  const t0 = performance.now();
+
+  const shockScore = computeShockScore(shockInput);
+  const shockActive = shockScore >= 0.3;
+  const labsApplied: string[] = [];
+
+  // Determine which labs are present and relevant
+  const labs = investigationResults || {};
+  const labEntries: Array<{ key: string; value: number; fn: (v: number, c: ReturnType<typeof classifyDiagnosis>) => EvidenceContribution }> = [];
+
+  if (labs.lactate != null && isLabClinicallyRelevant("lactate", labs.lactate)) {
+    labEntries.push({ key: "lactate", value: labs.lactate, fn: lactateLikelihood });
+    labsApplied.push("lactate");
+  }
+  if (labs.troponin != null) {
+    labEntries.push({ key: "troponin", value: labs.troponin, fn: troponinLikelihood });
+    labsApplied.push("troponin");
+  }
+  if (labs.CRP != null && isLabClinicallyRelevant("CRP", labs.CRP)) {
+    labEntries.push({ key: "CRP", value: labs.CRP, fn: crpLikelihood });
+    labsApplied.push("CRP");
+  }
+  if (labs.procalcitonin != null) {
+    labEntries.push({ key: "procalcitonin", value: labs.procalcitonin, fn: procalcitoninLikelihood });
+    labsApplied.push("procalcitonin");
+  }
+  if (labs.WBC != null && isLabClinicallyRelevant("WBC", labs.WBC)) {
+    labEntries.push({ key: "WBC", value: labs.WBC, fn: wbcLikelihood });
+    labsApplied.push("WBC");
+  }
+  if (labs.D_dimer != null && isLabClinicallyRelevant("D_dimer", labs.D_dimer)) {
+    labEntries.push({ key: "D-dimer", value: labs.D_dimer, fn: dDimerLikelihood });
+    labsApplied.push("D-dimer");
+  }
+
+  const hasEvidence = labEntries.length > 0 || shockActive;
+
+  // If no evidence to apply, return enriched but unmodified diagnoses
+  if (!hasEvidence) {
+    const passthrough: EvidenceEnrichedDiagnosis[] = bayesianResult.diagnoses.map(d => ({
+      ...d,
+      evidence_contributions: [],
+      prior_score: d.posterior_probability,
+      posterior_score: d.posterior_probability,
+      evidence_delta: 0,
+    }));
+
+    return {
+      diagnoses: passthrough,
+      shock_score: shockScore,
+      shock_active: false,
+      labs_applied: [],
+      total_evidence_features: 0,
+      execution_ms: Math.round(performance.now() - t0),
+    };
+  }
+
+  // Apply evidence multipliers
+  const rawScores: Array<{ diagnosis: BayesianDiagnosis; score: number; contributions: EvidenceContribution[] }> = [];
+
+  for (const d of bayesianResult.diagnoses) {
+    const diagName = (d as any).diagnosis_name || d.diagnosis_id;
+    const category = classifyDiagnosis(diagName);
+    const contributions: EvidenceContribution[] = [];
+    let score = d.posterior_probability;
+    const priorScore = score;
+
+    // Apply lab likelihoods
+    for (const lab of labEntries) {
+      const contrib = lab.fn(lab.value, category);
+      contributions.push(contrib);
+      score *= contrib.multiplier;
+    }
+
+    // Apply shock modifier
+    const shockContrib = computeShockModifier(shockScore, category);
+    if (shockContrib) {
+      contributions.push(shockContrib);
+      score *= shockContrib.multiplier;
+    }
+
+    // Guardrail: no single diagnosis can exceed 0.95 without ≥3 supporting factors
+    const supportCount = contributions.filter(c => c.direction === "support").length;
+    if (score > 0.95 && supportCount < 3) {
+      score = Math.min(score, 0.92);
+    }
+
+    // Guardrail: no NaN or zero collapse
+    if (isNaN(score) || score <= 0) {
+      console.error(`[EvidenceEngine] NaN/zero collapse for ${diagName}, resetting to prior`);
+      score = priorScore;
+    }
+
+    rawScores.push({ diagnosis: d, score, contributions });
+  }
+
+  // Normalize to sum to 1.0
+  const totalRaw = rawScores.reduce((sum, r) => sum + r.score, 0);
+  const enriched: EvidenceEnrichedDiagnosis[] = rawScores.map(r => {
+    const posteriorNorm = totalRaw > 0 ? r.score / totalRaw : r.diagnosis.posterior_probability;
+    return {
+      ...r.diagnosis,
+      posterior_probability: posteriorNorm,
+      evidence_contributions: r.contributions,
+      prior_score: r.diagnosis.posterior_probability,
+      posterior_score: posteriorNorm,
+      evidence_delta: posteriorNorm - r.diagnosis.posterior_probability,
+    };
+  });
+
+  // Sort by posterior descending (preserve stable ranking)
+  enriched.sort((a, b) => b.posterior_probability - a.posterior_probability);
+
+  const executionMs = Math.round(performance.now() - t0);
+  console.log(
+    `[EvidenceEngine] Applied ${labEntries.length} lab(s) + shock=${shockActive}. ` +
+    `Top: ${(enriched[0] as any)?.diagnosis_name || enriched[0]?.diagnosis_id} ` +
+    `(${Math.round(enriched[0]?.posterior_probability * 100)}%). ${executionMs}ms`,
+  );
+
+  return {
+    diagnoses: enriched,
+    shock_score: shockScore,
+    shock_active: shockActive,
+    labs_applied: labsApplied,
+    total_evidence_features: labEntries.length + (shockActive ? 1 : 0),
+    execution_ms: executionMs,
+  };
+}
