@@ -1111,7 +1111,7 @@ export default function CockpitPlayground() {
     }
   }, [selectedTests, pendingRx, selectedInstructions, selectedMonitoring, soapManualEdits]);
 
-  // ── Copilot props — wired tests/medications/monitoring, NO diagnoses ──
+  // ── Copilot props — wired to fusedBayesian (SSOT) ──
   const copilotProps = {
     diagnoses: [] as string[], selectedDiagnoses,
     onToggleDiagnosis: (d: string) => setSelectedDiagnoses(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]),
@@ -1128,7 +1128,8 @@ export default function CockpitPlayground() {
     safetyResults: pendingRx.length > 0 ? safetyResults : null,
     patientAge: mockPatient?.age,
     allergies: mockPatient?.allergies || [],
-    diagnosis: selectedDiagnoses[0],
+    // FIX: Use pipeline primary diagnosis from fusedBayesian, not user selection
+    diagnosis: mergedDiagnoses[0]?.name || selectedDiagnoses[0],
     chiefComplaint,
     instructions: allInstructions, selectedInstructions,
     onToggleInstruction: (inst: string) => setSelectedInstructions(prev => prev.includes(inst) ? prev.filter(x => x !== inst) : [...prev, inst]),
@@ -1139,6 +1140,9 @@ export default function CockpitPlayground() {
     pipelineStage: reasoningLevel !== "doctor" && pipelineRunning ? pipelineStage : null,
     stageLatencies,
     physiologicalContext: pipelinePhysiology,
+    // FIX: Pass fusedBayesian and hypotheses to Copilot for SSOT alignment
+    bayesianResult: pipelineBayesian,
+    hypotheses: pipelineHypotheses,
     isAdmin: reasoningLevel === "debug",
   };
 
