@@ -1403,20 +1403,31 @@ export async function runUnifiedClinicalPipeline(
       ddx: ddxResult,
       physiology: physiologicalContext,
       patternAdjustments: patternPriorityResult,
+      vitals: {
+        bp_systolic: vitals.bp_systolic,
+        pulse: vitals.pulse,
+        heart_rate: vitals.pulse,
+        respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
+        temperature: vitals.temperature,
+        spo2: vitals.spo2,
+      },
     });
     if (fusionOutput.fusion_applied) {
       fusedBayesian = fusionOutput.result;
-      console.log("[Pipeline] Phase 5.5: Score fusion applied —", fusionOutput.diagnostics.length, "diagnoses modulated.");
+      console.log("[Pipeline] Phase 5.5: Physiology-First Score Fusion applied —", fusionOutput.diagnostics.length, "diagnoses modulated.");
+      if (fusionOutput.systemic_state) {
+        console.log("[Pipeline] Systemic state:", fusionOutput.systemic_state.severity, "phenotype:", fusionOutput.systemic_state.phenotype);
+      }
       recordOversightEvent({
         event_type: "score_fusion_applied",
         severity: "info",
         stage: "score_fusion",
-        message: `Fused ${fusionOutput.diagnostics.length} diagnoses. Top: ${fusedBayesian!.diagnoses[0]?.diagnosis_id} (${(fusedBayesian!.diagnoses[0]?.posterior_probability * 100).toFixed(1)}%)`,
-        metadata: { diagnostics: fusionOutput.diagnostics } as any,
+        message: `Physiology-First fusion: ${fusionOutput.diagnostics.length} diagnoses. Systemic: ${fusionOutput.systemic_state?.severity || "N/A"}. Top: ${fusedBayesian!.diagnoses[0]?.diagnosis_id} (${(fusedBayesian!.diagnoses[0]?.posterior_probability * 100).toFixed(1)}%)`,
+        metadata: { diagnostics: fusionOutput.diagnostics, systemic_state: fusionOutput.systemic_state } as any,
       });
       pcieCore.addReasoningTrace(
         "score_fusion" as any,
-        `Score fusion applied: ${fusionOutput.diagnostics.length} dx modulated`,
+        `Physiology-First fusion: ${fusionOutput.diagnostics.length} dx, systemic=${fusionOutput.systemic_state?.severity || "N/A"}`,
       );
     }
     lat.score_fusion = Math.round(performance.now() - fusionStart);
@@ -1449,91 +1460,25 @@ export async function runUnifiedClinicalPipeline(
         },
         diagnosisNameMap: preNameMap,
       });
-      console.log("=== PHYSIOLOGY vs BAYESIAN (pre-override) ===", mismatch.disagreement.type);
-      // Do NOT set window.__PHYSIO_BAYESIAN_DIFF__ here — post-override will set the final one
+      console.log("=== PHYSIOLOGY vs BAYESIAN (post-fusion) ===", mismatch.disagreement.type);
+      // Set the final physio-bayesian diff for debug panel
+      if (typeof window !== "undefined") {
+        (window as any).__PHYSIO_BAYESIAN_DIFF__ = mismatch;
+      }
     }
   } catch (e) {
     console.warn("[Pipeline] Physio-Bayesian diff skipped:", e);
   }
 
-  // ── Systemic Override Layer (feature-flagged, deterministic) ──
-  {
-    const { isSystemicOverrideEnabled } = await import("@/services/feature_flags");
-    if (isSystemicOverrideEnabled() && fusedBayesian && fusedBayesian.diagnoses.length > 0) {
-      const { applySystemicOverride } = await import("@/services/clinical_pipeline/systemic_override_layer");
-      // Build UUID → name map from DDX results
-      const diagnosisNameMap = new Map<string, string>();
-      if (ddxResult?.differential_diagnoses) {
-        for (const d of ddxResult.differential_diagnoses) {
-          if (d.diagnosis_id && d.diagnosis_name) {
-            diagnosisNameMap.set(d.diagnosis_id, d.diagnosis_name);
-          }
-        }
-      }
-      const overrideResult = applySystemicOverride({
-        bayesianDiagnoses: fusedBayesian.diagnoses,
-        physiologicalContext: physiologicalContext,
-        vitals: {
-          temperature: vitals.temperature,
-          pulse: vitals.pulse,
-          bp_systolic: vitals.bp_systolic,
-          respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
-          spo2: vitals.spo2,
-        },
-        diagnosisNameMap,
-      });
-      if (overrideResult.applied) {
-        fusedBayesian = { ...fusedBayesian, diagnoses: overrideResult.diagnoses as typeof fusedBayesian.diagnoses };
-        console.log("[Pipeline] SYSTEMIC OVERRIDE APPLIED:", overrideResult.reason);
-        recordOversightEvent({
-          event_type: "systemic_override",
-          severity: "warning",
-          stage: "systemic_override",
-          message: overrideResult.reason,
-          metadata: { before_top: overrideResult.before_top, after_top: overrideResult.after_top } as any,
-        });
-      } else {
-        console.log("[Pipeline] Systemic override skipped:", overrideResult.reason);
-      }
-      if (typeof window !== "undefined") {
-        (window as any).__SYSTEMIC_OVERRIDE__ = {
-          applied: overrideResult.applied,
-          reason: overrideResult.reason,
-        };
-      }
-
-      // Re-run physio-bayesian diff AFTER override so debug panel reflects final state
-      try {
-        const { analyzePhysiologyBayesianMismatch: reanalyze } = await import("@/debug/physiology_bayesian_diff");
-        const postOverrideDiff = reanalyze({
-          physiological_states: physiologicalContext?.physiological_states,
-          affected_systems: physiologicalContext?.affected_systems?.map((s: any) => s.system_name || s) || [],
-          candidate_diagnosis_ids: physiologicalContext?.candidate_diagnosis_ids || [],
-          bayesian_diagnoses: fusedBayesian.diagnoses,
-          symptoms,
-          vitals: {
-            temperature: vitals.temperature,
-            pulse: vitals.pulse,
-            bp_systolic: vitals.bp_systolic,
-            bp_diastolic: vitals.bp_diastolic,
-            respiratory_rate: vitals.respiratory_rate,
-            spo2: vitals.spo2,
-          },
-          diagnosisNameMap,
-        });
-        console.log("[DEBUG_SOURCE_CHECK]", {
-          source: "post-override fusedBayesian",
-          sepsis_rank: postOverrideDiff.bayesian.sepsis_rank,
-          sepsis_score: postOverrideDiff.bayesian.top_3.find((d: any) => /sepsis/i.test(d.name))?.prob,
-          classification: postOverrideDiff.disagreement.type,
-        });
-        if (typeof window !== "undefined") {
-          (window as any).__PHYSIO_BAYESIAN_DIFF__ = postOverrideDiff;
-        }
-      } catch (e) {
-        console.warn("[Pipeline] Post-override diff reanalysis skipped:", e);
-      }
-    }
+  // ── Systemic Override Layer — DISABLED (Physiology-First Architecture) ──
+  // Override is no longer needed: systemic instability now directly conditions
+  // scores via computePhysioMultiplier in score_fusion.ts.
+  // The systemic_override_layer.ts file is preserved but not invoked.
+  if (typeof window !== "undefined") {
+    (window as any).__SYSTEMIC_OVERRIDE__ = {
+      applied: false,
+      reason: "Disabled: Physiology-First architecture handles systemic conditioning natively via score fusion",
+    };
   }
 
   // ═══════════════════════════════════════════════════════
