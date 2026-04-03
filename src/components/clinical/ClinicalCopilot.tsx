@@ -343,13 +343,15 @@ export default function ClinicalCopilot({
 
     if (hasBayesian) {
       return bayesianResult!.diagnoses.slice(0, 6).map((d) => {
-        const resolvedName = hypotheses?.find(
+        // SSAL: prefer diagnosis_name set by orchestrator (post-CPR, post-fusion)
+        const ssalName = (d as any).diagnosis_name;
+        const resolvedName = ssalName || hypotheses?.find(
           h => h.diagnosis.toLowerCase().includes(d.diagnosis_id.slice(0, 6)) ||
                d.supporting_evidence?.some(e => h.supporting_factors?.includes(e))
         )?.diagnosis || d.diagnosis_id;
         const isUUID = /^[0-9a-f]{8}-/.test(resolvedName);
         const displayName = isUUID ? (d.supporting_evidence?.[0] || resolvedName.slice(0, 12) + "…") : resolvedName;
-        const hyp = hypotheses?.find(h => h.diagnosis === displayName);
+        const hyp = hypotheses?.find(h => h.diagnosis.toLowerCase() === displayName.toLowerCase());
         const exp = explainability?.find(e => e.diagnosis.toLowerCase() === displayName.toLowerCase());
         return {
           id: d.diagnosis_id,
