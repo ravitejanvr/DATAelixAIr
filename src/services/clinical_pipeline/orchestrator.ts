@@ -1309,32 +1309,10 @@ export async function runUnifiedClinicalPipeline(
       }
     })(),
 
-    // 3c: Direct Guideline Compliance (from DDX diagnoses)
-    (async (): Promise<GuidelineComplianceResult | null> => {
-      if (!ddxResult || ddxResult.differential_diagnoses.length === 0) return null;
-      const t0 = performance.now();
-      try {
-        const result = await withTimeout(
-          checkGuidelineCompliance({
-            diagnoses: ddxResult.differential_diagnoses.slice(0, 5).map(d => d.diagnosis_name),
-            medications: (ddxResult.suggested_medications || []).map(m => ({
-              drug_name: m.generic_name, dose: "", frequency: "", duration: "",
-            })),
-            tests: (ddxResult.recommended_labs || []).map(l => l.test_name),
-            patient_age: ctx.patient_age ?? undefined,
-            patient_sex: ctx.patient_sex ?? undefined,
-            chief_complaint: ctx.chief_complaint,
-          }),
-          TIMEOUT.GUIDELINE_COMPLIANCE,
-          "guideline_compliance_direct",
-        );
-        lat.guideline_compliance = Math.round(performance.now() - t0);
-        return result;
-      } catch {
-        lat.guideline_compliance = Math.round(performance.now() - t0);
-        return null;
-      }
-    })(),
+    // 3c: Guideline Compliance — DEFERRED to post-SSAL
+    // Previously ran here with DDX-wide inputs (all differentials, all meds, all labs).
+    // Now deferred to after SSAL freeze so it evaluates ONLY the primary diagnosis.
+    (async (): Promise<GuidelineComplianceResult | null> => null)(),
 
     // 3d: Hypothesis Engine — DISABLED in pipeline (LLM call, adds ~6s latency)
     // The DDX engine + Bayesian scoring provide graph-based hypothesis generation.
@@ -1655,8 +1633,47 @@ export async function runUnifiedClinicalPipeline(
   }
 
   onProgress?.("bayesian", { bayesian: fusedBayesian });
-  onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
-  onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
+
+  // ═══════════════════════════════════════════════════════
+  // POST-SSAL: Primary-Only Guideline Compliance
+  // Runs AFTER SSAL freeze so it uses the authoritative primary diagnosis.
+  // DDX-based compliance was removed from Wave 3 to prevent cross-diagnosis contamination.
+  // ═══════════════════════════════════════════════════════
+  let guidelineCompliancePostSSAL = guidelineCompliance;
+  if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
+    const primaryDiagnosisName = (fusedBayesian.diagnoses[0] as any).diagnosis_name || "";
+    if (primaryDiagnosisName) {
+      const complianceT0 = performance.now();
+      try {
+        console.log("[Pipeline] Post-SSAL Compliance: evaluating PRIMARY ONLY →", primaryDiagnosisName);
+
+        // Runtime guard: exactly one diagnosis
+        const complianceInput = {
+          diagnoses: [primaryDiagnosisName],
+          medications: [] as Array<{ drug_name: string; dose: string; frequency: string; duration: string }>,
+          tests: [] as string[],
+          patient_age: ctx.patient_age ?? undefined,
+          patient_sex: ctx.patient_sex ?? undefined,
+          chief_complaint: ctx.chief_complaint,
+        };
+
+        console.log("COMPLIANCE FINAL INPUT", complianceInput);
+
+        guidelineCompliancePostSSAL = await withTimeout(
+          checkGuidelineCompliance(complianceInput),
+          TIMEOUT.GUIDELINE_COMPLIANCE,
+          "guideline_compliance_primary",
+        );
+        lat.guideline_compliance = Math.round(performance.now() - complianceT0);
+      } catch (e) {
+        console.warn("[Pipeline] Post-SSAL compliance failed:", e);
+        lat.guideline_compliance = Math.round(performance.now() - complianceT0);
+      }
+    }
+  }
+
+  onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliancePostSSAL });
+  onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliancePostSSAL });
 
   // ═══════════════════════════════════════════════════════
   // WAVE 3.5 — Cognitive Controller Pruning + Conflict Resolution
@@ -2176,8 +2193,8 @@ export async function runUnifiedClinicalPipeline(
         } as any : undefined,
         guidelines: guidelineAlignment ? {
           recommendations: (guidelineAlignment as any).recommendations || [],
-        } as any : guidelineCompliance ? {
-          recommendations: (guidelineCompliance.management_steps || []).map((s: any) => ({
+        } as any : guidelineCompliancePostSSAL ? {
+          recommendations: (guidelineCompliancePostSSAL.management_steps || []).map((s: any) => ({
             recommendation: s.step,
             organization: s.source,
           })),
@@ -2276,7 +2293,7 @@ export async function runUnifiedClinicalPipeline(
       })),
     });
   }
-  if (guidelineAlignment || guidelineCompliance) {
+  if (guidelineAlignment || guidelineCompliancePostSSAL) {
     pcieCore.updateReasoning({
       guideline_references: guideline_summary ? {
         sources_used: guideline_summary.guideline_sources_used,
@@ -2360,7 +2377,7 @@ export async function runUnifiedClinicalPipeline(
     uncertainty: uncertaintyResult,
     hypotheses,
     guideline_alignment: guidelineAlignment,
-    guideline_compliance: guidelineCompliance,
+    guideline_compliance: guidelineCompliancePostSSAL,
     evidence,
     oversight,
     hybrid_reasoning: hybridReasoning,
