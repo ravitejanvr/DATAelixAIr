@@ -872,7 +872,7 @@ export default function ClinicalCopilot({
           <CollapsibleContent className="mt-1">
             <ClinicalCard className="p-2.5 space-y-2">
               {!effectiveCompliance ? (
-                <Button size="sm" variant="outline" className="w-full text-xs h-7" onClick={runComplianceCheck} disabled={loadingCompliance || (selectedDiagnoses.length === 0 && selectedMedications.length === 0 && selectedTests.length === 0)}>
+                <Button size="sm" variant="outline" className="w-full text-xs h-7" onClick={runComplianceCheck} disabled={loadingCompliance || !canRunCompliance}>
                   {loadingCompliance && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
                   <Scale className="h-3 w-3 mr-1" />Check Guideline Compliance
                 </Button>
