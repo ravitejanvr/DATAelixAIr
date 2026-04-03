@@ -1879,6 +1879,7 @@ export async function runUnifiedClinicalPipeline(
               signal_coherence: syntheticScore / 100,
             },
             execution_ms: 0,
+            synthetic: true,
           } satisfies UncertaintyResult;
         }
         lat.uncertainty_engine = Math.round(performance.now() - t0);
