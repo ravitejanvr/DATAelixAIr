@@ -1358,6 +1358,63 @@ export default function CockpitPlayground() {
           </div>
         </div>
 
+        {/* ── Physiology vs Bayesian Debug Panel ── */}
+        {physioBayesianDiff && (
+          <div className="shrink-0 border-b border-border bg-card overflow-hidden">
+            <div className="p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Eye className="h-3.5 w-3.5 text-primary" /> Physiology vs Bayesian
+                </p>
+                <div className="flex items-center gap-2">
+                  <Badge variant={
+                    physioBayesianDiff.disagreement.type === "ALIGNED" ? "secondary" :
+                    physioBayesianDiff.disagreement.type === "AMBIGUOUS" ? "outline" : "destructive"
+                  } className="text-[9px] h-4">
+                    {physioBayesianDiff.disagreement.type}
+                  </Badge>
+                  <Button variant="ghost" size="sm" className="h-5 text-[10px]" onClick={() => setPhysioBayesianDiff(null)}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-[10px]">
+                <div className="bg-muted/50 rounded p-2">
+                  <p className="font-semibold text-muted-foreground mb-1">Systemic State</p>
+                  <p className={`font-bold ${
+                    physioBayesianDiff.physiology.systemic_state === "HIGH" ? "text-destructive" :
+                    physioBayesianDiff.physiology.systemic_state === "MODERATE" ? "text-primary" : "text-muted-foreground"
+                  }`}>
+                    {physioBayesianDiff.physiology.systemic_state} ({physioBayesianDiff.physiology.systemic_score}/5)
+                  </p>
+                  <div className="mt-1 space-y-0.5">
+                    {Object.entries(physioBayesianDiff.physiology.signals).map(([k, v]) => (
+                      <p key={k} className={v ? "text-destructive" : "text-muted-foreground/50"}>
+                        {v ? "●" : "○"} {k}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-muted/50 rounded p-2">
+                  <p className="font-semibold text-muted-foreground mb-1">Bayesian Top 3</p>
+                  {physioBayesianDiff.bayesian.top_3.map((d: any, i: number) => (
+                    <p key={i} className="text-foreground">
+                      #{i + 1} {d.name} ({(d.prob * 100).toFixed(1)}%)
+                    </p>
+                  ))}
+                  <p className="mt-1 text-muted-foreground">
+                    Sepsis: #{physioBayesianDiff.bayesian.sepsis_rank} · Pneumonia: #{physioBayesianDiff.bayesian.pneumonia_rank}
+                  </p>
+                </div>
+                <div className="bg-muted/50 rounded p-2">
+                  <p className="font-semibold text-muted-foreground mb-1">Disagreement</p>
+                  <p className="text-foreground">{physioBayesianDiff.disagreement.explanation}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Comparison overlay ── */}
         {showComparison && snapshots.length > 0 && (
           <div className="shrink-0 border-b border-border bg-card overflow-hidden">
