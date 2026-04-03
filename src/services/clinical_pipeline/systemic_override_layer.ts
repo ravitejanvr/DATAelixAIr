@@ -22,6 +22,13 @@ export interface SystemicOverrideInput {
     affected_systems?: any[];
     [key: string]: any;
   } | null;
+  vitals?: {
+    temperature?: number | null;
+    pulse?: number | null;
+    bp_systolic?: number | null;
+    respiratory_rate?: number | null;
+    spo2?: number | null;
+  };
 }
 
 export interface SystemicOverrideResult {
@@ -41,45 +48,62 @@ function isSepsisCandidate(id: string): boolean {
   return SEPSIS_KEYWORDS.some(kw => lower.includes(kw));
 }
 
-function deriveSystemicState(ctx: SystemicOverrideInput["physiologicalContext"]): {
-  state: string;
-  signalCount: number;
-} {
-  if (!ctx) return { state: "LOW", signalCount: 0 };
+function deriveSystemicState(
+  ctx: SystemicOverrideInput["physiologicalContext"],
+  vitals?: SystemicOverrideInput["vitals"],
+): { state: string; signalCount: number } {
+  // Primary: compute directly from vitals (most reliable)
+  if (vitals) {
+    let count = 0;
+    if (vitals.bp_systolic != null && vitals.bp_systolic < 90) count++;
+    if (vitals.pulse != null && vitals.pulse > 100) count++;
+    if (vitals.respiratory_rate != null && vitals.respiratory_rate > 22) count++;
+    if (vitals.temperature != null && vitals.temperature > 100.4) count++;
+    if (vitals.spo2 != null && vitals.spo2 < 94) count++;
 
-  // If already computed upstream, use it
-  if (ctx.systemic_state && typeof ctx.systemic_signal_count === "number") {
+    if (count >= 3) return { state: "HIGH", signalCount: count };
+    if (count >= 1) return { state: "MODERATE", signalCount: count };
+    return { state: "LOW", signalCount: count };
+  }
+
+  // Fallback: upstream-provided fields
+  if (ctx?.systemic_state && typeof ctx.systemic_signal_count === "number") {
     return { state: ctx.systemic_state, signalCount: ctx.systemic_signal_count };
   }
 
-  // Derive from physiological_states if available
-  const states = ctx.physiological_states || [];
-  const systemicIndicators = states.filter((s: any) => {
-    const name = (typeof s === "string" ? s : s?.state_name || "").toLowerCase();
-    return name.includes("shock") || name.includes("sirs") || name.includes("sepsis") ||
-           name.includes("hypotension") || name.includes("tachycardia") ||
-           name.includes("fever") || name.includes("hypoxia");
-  });
+  // Fallback: pattern-match physiological_states
+  if (ctx?.physiological_states?.length) {
+    const states = ctx.physiological_states;
+    const systemicIndicators = states.filter((s: any) => {
+      const name = (typeof s === "string" ? s : s?.state_name || s?.state || s?.name || "").toLowerCase();
+      return name.includes("shock") || name.includes("sirs") || name.includes("sepsis") ||
+             name.includes("hypotension") || name.includes("tachycardia") ||
+             name.includes("fever") || name.includes("hypoxia");
+    });
+    const count = systemicIndicators.length;
+    if (count >= 3) return { state: "HIGH", signalCount: count };
+    if (count >= 1) return { state: "MODERATE", signalCount: count };
+  }
 
-  const count = systemicIndicators.length;
-  const state = count >= 3 ? "HIGH" : count >= 1 ? "MODERATE" : "LOW";
-  return { state, signalCount: count };
+  return { state: "LOW", signalCount: 0 };
 }
 
 export function applySystemicOverride(input: SystemicOverrideInput): SystemicOverrideResult {
-  const { bayesianDiagnoses, physiologicalContext } = input;
+  const { bayesianDiagnoses, physiologicalContext, vitals } = input;
 
   // Guard: no diagnoses
   if (!bayesianDiagnoses || bayesianDiagnoses.length === 0) {
     return { diagnoses: bayesianDiagnoses, applied: false, reason: "No diagnoses to override" };
   }
 
-  // Derive systemic state
-  const { state, signalCount } = deriveSystemicState(physiologicalContext);
+  // Derive systemic state from vitals (primary) or physiology context (fallback)
+  const { state, signalCount } = deriveSystemicState(physiologicalContext, vitals);
+
+  console.log("[SystemicOverride] State:", state, "Signals:", signalCount);
 
   // Guard: only activate on HIGH
   if (state !== "HIGH") {
-    return { diagnoses: bayesianDiagnoses, applied: false, reason: `Systemic state is ${state}, no override needed` };
+    return { diagnoses: bayesianDiagnoses, applied: false, reason: `Systemic state is ${state} (${signalCount} signals), no override needed` };
   }
 
   // Guard: require minimum signal count
@@ -102,10 +126,11 @@ export function applySystemicOverride(input: SystemicOverrideInput): SystemicOve
   const cloned = bayesianDiagnoses.map(d => ({ ...d }));
   const currentTopScore = cloned[0].posterior_probability;
   const sepsisEntry = cloned[sepsisIdx];
+  const originalSepsisScore = sepsisEntry.posterior_probability;
 
   // Boost: max of (top * 1.05) or (sepsis * 2.0), capped at BOOST_CAP
   const boostedScore = Math.min(
-    Math.max(currentTopScore * 1.05, sepsisEntry.posterior_probability * 2.0),
+    Math.max(currentTopScore * 1.05, originalSepsisScore * 2.0),
     BOOST_CAP,
   );
   sepsisEntry.posterior_probability = boostedScore;
@@ -113,10 +138,13 @@ export function applySystemicOverride(input: SystemicOverrideInput): SystemicOve
   // Re-sort by posterior_probability descending
   cloned.sort((a, b) => b.posterior_probability - a.posterior_probability);
 
+  console.log("[SystemicOverride] OVERRIDE_INPUT", bayesianDiagnoses.slice(0, 3).map(d => `${d.diagnosis_id}: ${(d.posterior_probability * 100).toFixed(1)}%`));
+  console.log("[SystemicOverride] OVERRIDE_OUTPUT", cloned.slice(0, 3).map(d => `${d.diagnosis_id}: ${(d.posterior_probability * 100).toFixed(1)}%`));
+
   return {
     diagnoses: cloned,
     applied: true,
-    reason: `HIGH systemic instability (${signalCount} signals) — Sepsis boosted from ${(bayesianDiagnoses[sepsisIdx].posterior_probability * 100).toFixed(1)}% to ${(boostedScore * 100).toFixed(1)}%`,
+    reason: `HIGH systemic instability (${signalCount} signals) — Sepsis boosted from ${(originalSepsisScore * 100).toFixed(1)}% to ${(boostedScore * 100).toFixed(1)}%`,
     before_top: bayesianDiagnoses[0].diagnosis_id,
     after_top: cloned[0].diagnosis_id,
   };
