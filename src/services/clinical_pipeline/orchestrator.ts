@@ -67,9 +67,10 @@ import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_en
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { mergeActivations, expandKG } from "@/services/kg";
-import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled } from "@/services/feature_flags";
+import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
-import { detectPatternPriorities, applyPatternPriority } from "@/services/clinical_pipeline/pattern_priority_layer";
+import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResult } from "@/services/clinical_pipeline/pattern_priority_layer";
+import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
 
 // ── Public Types ──
 
@@ -1106,24 +1107,25 @@ export async function runUnifiedClinicalPipeline(
   // Detects high-signal clinical patterns and adjusts DDX weights
   // before Bayesian scoring. Feature-flagged.
   // ═══════════════════════════════════════════════════════
+  let patternPriorityResult: PatternPriorityResult | null = null;
   if (isPatternPriorityLayerEnabled() && ddxResult && ddxResult.differential_diagnoses.length > 0) {
     const ppStart = performance.now();
-    const patternResult = detectPatternPriorities(ctx);
-    if (patternResult.patterns_detected.length > 0) {
+    patternPriorityResult = detectPatternPriorities(ctx);
+    if (patternPriorityResult.patterns_detected.length > 0) {
       ddxResult = {
         ...ddxResult,
-        differential_diagnoses: applyPatternPriority(ddxResult.differential_diagnoses, patternResult),
+        differential_diagnoses: applyPatternPriority(ddxResult.differential_diagnoses, patternPriorityResult),
       };
       recordOversightEvent({
         event_type: "pattern_priority_applied",
-        severity: patternResult.global_modifiers.risk_level === "critical" ? "warning" : "info",
+        severity: patternPriorityResult.global_modifiers.risk_level === "critical" ? "warning" : "info",
         stage: "pattern_priority_layer",
-        message: `Detected ${patternResult.patterns_detected.length} patterns (dominant: ${patternResult.global_modifiers.dominant_pattern || 'none'}, risk: ${patternResult.global_modifiers.risk_level}). Boosted ${patternResult.priority_adjustments.boost.length}, suppressed ${patternResult.priority_adjustments.suppress.length} diagnoses.`,
-        metadata: patternResult as any,
+        message: `Detected ${patternPriorityResult.patterns_detected.length} patterns (dominant: ${patternPriorityResult.global_modifiers.dominant_pattern || 'none'}, risk: ${patternPriorityResult.global_modifiers.risk_level}). Boosted ${patternPriorityResult.priority_adjustments.boost.length}, suppressed ${patternPriorityResult.priority_adjustments.suppress.length} diagnoses.`,
+        metadata: patternPriorityResult as any,
       });
       pcieCore.addReasoningTrace(
         "pattern_priority" as any,
-        `Patterns: [${patternResult.patterns_detected.map(p => p.pattern_name).join(", ")}] risk=${patternResult.global_modifiers.risk_level}`,
+        `Patterns: [${patternPriorityResult.patterns_detected.map(p => p.pattern_name).join(", ")}] risk=${patternPriorityResult.global_modifiers.risk_level}`,
       );
     }
     lat.pattern_priority = Math.round(performance.now() - ppStart);
@@ -1388,7 +1390,39 @@ export async function runUnifiedClinicalPipeline(
     lab_results: [], risk_flags: ctx.risk_flags || [], patient_age: ctx.patient_age, patient_sex: ctx.patient_sex, context_confidence: 0,
   });
 
-  onProgress?.("bayesian", { bayesian: bayesianResult });
+  // ═══════════════════════════════════════════════════════
+  // Phase 5.5 — Post-Bayesian Score Fusion
+  // Bridges DDX, Pattern, and Physiology intelligence into Bayesian posteriors.
+  // Feature-flagged via enable_score_fusion. Pure, deterministic.
+  // ═══════════════════════════════════════════════════════
+  let fusedBayesian = bayesianResult;
+  if (isScoreFusionEnabled() && bayesianResult && bayesianResult.diagnoses.length > 0) {
+    const fusionStart = performance.now();
+    const fusionOutput = applyScoreFusion({
+      bayesian: bayesianResult,
+      ddx: ddxResult,
+      physiology: physiologicalContext,
+      patternAdjustments: patternPriorityResult,
+    });
+    if (fusionOutput.fusion_applied) {
+      fusedBayesian = fusionOutput.result;
+      console.log("[Pipeline] Phase 5.5: Score fusion applied —", fusionOutput.diagnostics.length, "diagnoses modulated.");
+      recordOversightEvent({
+        event_type: "score_fusion_applied",
+        severity: "info",
+        stage: "score_fusion",
+        message: `Fused ${fusionOutput.diagnostics.length} diagnoses. Top: ${fusedBayesian!.diagnoses[0]?.diagnosis_id} (${(fusedBayesian!.diagnoses[0]?.posterior_probability * 100).toFixed(1)}%)`,
+        metadata: { diagnostics: fusionOutput.diagnostics } as any,
+      });
+      pcieCore.addReasoningTrace(
+        "score_fusion" as any,
+        `Score fusion applied: ${fusionOutput.diagnostics.length} dx modulated`,
+      );
+    }
+    lat.score_fusion = Math.round(performance.now() - fusionStart);
+  }
+
+  onProgress?.("bayesian", { bayesian: fusedBayesian });
   onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
 
@@ -1775,7 +1809,7 @@ export async function runUnifiedClinicalPipeline(
   if (symptoms.length > 0 && (ddxResult || hypotheses)) {
     setReasoningCache(
       symptoms,
-      { ddx: ddxResult, hypotheses, evidence, guideline_alignment: guidelineAlignment, uncertainty: uncertaintyResult, hybrid_reasoning: hybridReasoning, bayesian: bayesianResult },
+      { ddx: ddxResult, hypotheses, evidence, guideline_alignment: guidelineAlignment, uncertainty: uncertaintyResult, hybrid_reasoning: hybridReasoning, bayesian: fusedBayesian },
       uncertaintyResult?.confidence_score || 0,
       6,
     );
@@ -2081,7 +2115,7 @@ export async function runUnifiedClinicalPipeline(
     enabled: true,
     enriched_context: enrichedContext,
     physiological_context: physiologicalContext,
-    bayesian: bayesianResult,
+    bayesian: fusedBayesian,
     ddx: ddxResult,
     uncertainty: uncertaintyResult,
     hypotheses,

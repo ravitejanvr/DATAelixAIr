@@ -17,6 +17,7 @@ export interface FeatureFlags {
   enable_phase10_candidate_completeness: boolean;
   enable_phase5_context_candidates: boolean;
   enable_pattern_priority_layer: boolean;
+  enable_score_fusion: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -31,6 +32,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_phase10_candidate_completeness: false,
   enable_phase5_context_candidates: true,
   enable_pattern_priority_layer: true,
+  enable_score_fusion: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -89,4 +91,8 @@ export function isPhase5ContextCandidatesEnabled(): boolean {
 
 export function isPatternPriorityLayerEnabled(): boolean {
   return currentFlags.enable_pattern_priority_layer;
+}
+
+export function isScoreFusionEnabled(): boolean {
+  return currentFlags.enable_score_fusion;
 }
