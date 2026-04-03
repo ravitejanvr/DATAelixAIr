@@ -1855,7 +1855,7 @@ export default function CockpitPlayground() {
                           )})}
 
                           {/* Working Differentials */}
-                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(1, 3).length > 0 && (
+                          {mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).slice(0, 2).length > 0 && (
                             <div>
                               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-2">Working Differentials</p>
                               <div className="space-y-1.5">
