@@ -110,3 +110,7 @@ export function isSystemicOverrideEnabled(): boolean {
 export function isCanonicalMappingEnabled(): boolean {
   return currentFlags.enable_canonical_mapping;
 }
+
+export function isBayesianSystemicLikelihoodEnabled(): boolean {
+  return currentFlags.enable_bayesian_systemic_likelihood;
+}
