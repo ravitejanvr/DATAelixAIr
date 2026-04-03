@@ -1809,7 +1809,7 @@ export async function runUnifiedClinicalPipeline(
   if (symptoms.length > 0 && (ddxResult || hypotheses)) {
     setReasoningCache(
       symptoms,
-      { ddx: ddxResult, hypotheses, evidence, guideline_alignment: guidelineAlignment, uncertainty: uncertaintyResult, hybrid_reasoning: hybridReasoning, bayesian: bayesianResult },
+      { ddx: ddxResult, hypotheses, evidence, guideline_alignment: guidelineAlignment, uncertainty: uncertaintyResult, hybrid_reasoning: hybridReasoning, bayesian: fusedBayesian },
       uncertaintyResult?.confidence_score || 0,
       6,
     );
