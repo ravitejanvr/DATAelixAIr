@@ -13,8 +13,6 @@ export interface SystemicOverrideInput {
   bayesianDiagnoses: Array<{
     diagnosis_id: string;
     posterior_probability: number;
-    prior_probability?: number;
-    must_not_miss?: boolean;
     [key: string]: any;
   }>;
   physiologicalContext: {
