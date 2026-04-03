@@ -1261,6 +1261,7 @@ export default function CockpitPlayground() {
             </div>
             <span className="text-sm font-bold text-foreground">Clinical Cockpit</span>
             <Badge variant="outline" className="text-[10px]">Playground</Badge>
+            <SystemModeIndicator />
           </div>
 
           <div className="flex items-center gap-1.5">
