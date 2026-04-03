@@ -102,7 +102,7 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
     hypoxia: (vitals.spo2 ?? 98) < 94,
   };
 
-  const systemicScore = countTrue(signals);
+  const systemicScore = countTrue(signals as unknown as Record<string, boolean>);
   const systemicState = classifyState(systemicScore);
 
   // Step 2: Extract Bayesian top 3
