@@ -67,8 +67,9 @@ import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_en
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { mergeActivations, expandKG } from "@/services/kg";
-import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
+import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
+import { detectPatternPriorities, applyPatternPriority } from "@/services/clinical_pipeline/pattern_priority_layer";
 
 // ── Public Types ──
 
