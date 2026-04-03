@@ -688,6 +688,10 @@ export default function CockpitPlayground() {
               console.log("[LOCK] bayesian + DDX names locked");
               return locked;
             });
+            // Capture physiology vs bayesian diff (read-only)
+            if (typeof window !== "undefined" && (window as any).__PHYSIO_BAYESIAN_DIFF__) {
+              setPhysioBayesianDiff((window as any).__PHYSIO_BAYESIAN_DIFF__);
+            }
           }
           if (data.hypotheses?.hypotheses) {
             setPipelineHypotheses(data.hypotheses.hypotheses.map((h: any) => ({
