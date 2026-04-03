@@ -1519,6 +1519,7 @@ export async function runUnifiedClinicalPipeline(
             respiratory_rate: vitals.respiratory_rate,
             spo2: vitals.spo2,
           },
+          diagnosisNameMap,
         });
         console.log("[DEBUG_SOURCE_CHECK]", {
           source: "post-override fusedBayesian",
