@@ -110,3 +110,7 @@ export function isSystemicOverrideEnabled(): boolean {
 export function isCognitiveAuthorityLayerEnabled(): boolean {
   return currentFlags.enable_cognitive_authority_layer;
 }
+
+export function isExecutionAuthorityFixEnabled(): boolean {
+  return currentFlags.enable_execution_authority_fix;
+}
