@@ -17,6 +17,7 @@ export interface FeatureFlags {
   enable_phase10_candidate_completeness: boolean;
   enable_phase5_context_candidates: boolean;
   enable_pattern_priority_layer: boolean;
+  enable_score_fusion: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
