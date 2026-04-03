@@ -1571,6 +1571,85 @@ export default function CockpitPlayground() {
           </div>
         )}
 
+        {/* ── Perturbation Suite Results ── */}
+        {perturbationReport && (
+          <div className="shrink-0 border-b border-border bg-card overflow-hidden">
+            <div className="p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Scale className="h-3.5 w-3.5 text-primary" /> Perturbation Suite Results
+                  <Badge variant={perturbationReport.criticalFailures.length > 0 ? "destructive" : "secondary"} className="text-[9px] h-4">
+                    {Math.round(perturbationReport.overallPassRate * 100)}% Pass
+                  </Badge>
+                </p>
+                <Button variant="ghost" size="sm" className="h-5 text-[10px]" onClick={() => setPerturbationReport(null)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+
+              {/* Baseline */}
+              <div className="bg-muted/50 rounded p-2">
+                <p className="text-[10px] font-semibold text-muted-foreground mb-1">Baseline: {perturbationReport.baseline.primary} ({(perturbationReport.baseline.score * 100).toFixed(1)}%)</p>
+                <div className="flex gap-2 flex-wrap">
+                  {perturbationReport.baseline.top3.map((d: any, i: number) => (
+                    <Badge key={i} variant="outline" className="text-[9px]">#{i + 1} {d.name} ({(d.score * 100).toFixed(1)}%)</Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Test Results */}
+              <div className="space-y-1">
+                {perturbationReport.results.map((r: any, idx: number) => (
+                  <div key={idx} className={`flex items-center justify-between text-[10px] p-1.5 rounded ${r.status === "PASS" ? "bg-green-500/5" : "bg-destructive/5"}`}>
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      {r.status === "PASS"
+                        ? <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+                        : <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
+                      }
+                      <span className="font-medium text-foreground truncate">{r.testName}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-muted-foreground">{r.before.primary} → {r.after.primary}</span>
+                      <Badge variant={r.status === "PASS" ? "secondary" : "destructive"} className="text-[9px] h-4">
+                        {r.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Advanced Checks */}
+              <div className="grid grid-cols-4 gap-1 text-[9px]">
+                {Object.entries(perturbationReport.advancedChecks).map(([key, val]) => (
+                  <div key={key} className={`rounded p-1.5 text-center ${val ? "bg-destructive/10 text-destructive" : "bg-green-500/10 text-green-600"}`}>
+                    {val ? "⚠" : "✓"} {key.replace(/([A-Z])/g, " $1").trim()}
+                  </div>
+                ))}
+              </div>
+
+              {/* Root Causes */}
+              {perturbationReport.suspectedRootCauses.length > 0 && (
+                <div className="bg-destructive/5 rounded p-2">
+                  <p className="text-[10px] font-semibold text-destructive mb-1">Suspected Root Causes:</p>
+                  {perturbationReport.suspectedRootCauses.map((rc: string, i: number) => (
+                    <p key={i} className="text-[9px] text-destructive/80">• {rc}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Perturbation Progress ── */}
+        {perturbationRunning && perturbationProgress && (
+          <div className="shrink-0 border-b border-border bg-card p-2">
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              {perturbationProgress}
+            </div>
+          </div>
+        )}
+
         {/* ── Comparison overlay ── */}
         {showComparison && snapshots.length > 0 && (
           <div className="shrink-0 border-b border-border bg-card overflow-hidden">
