@@ -6,6 +6,7 @@
  */
 
 import { runUnifiedClinicalPipeline, type PipelineResult } from "@/services/clinical_pipeline/orchestrator";
+import { setSystemMode } from "@/services/system_mode";
 import { VALIDATION_SCENARIOS } from "./scenarios";
 import type {
   ValidationScenario, DiagnosisSnapshot, RunSnapshot,

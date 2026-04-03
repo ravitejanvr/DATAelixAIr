@@ -150,6 +150,11 @@ function detectDominantOrganSystem(symptoms: string[]): string | null {
 export async function runBenchmarkPipeline(
   input: PipelineInput,
 ): Promise<PipelineResult> {
+  // ── SYSTEM_MODE enforcement: declare BENCHMARK mode ──
+  const { setSystemMode } = await import("@/services/system_mode");
+  setSystemMode("BENCHMARK", "benchmark_optimized");
+  console.warn("[SYSTEM_MODE] BENCHMARK path active — optimized execution, NOT full pipeline");
+
   const pipelineStart = performance.now();
   const lat: Record<string, number> = {};
   const waveLat: Record<string, number> = {};
