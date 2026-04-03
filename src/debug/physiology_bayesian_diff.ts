@@ -164,7 +164,7 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
   if (severity === "HIGH") {
     if (sepsisRank === 1 || topIsSystemic) {
       type = "ALIGNED_SYSTEMIC";
-      const sepsisEntry = sorted.find(d => isSepsisLike(resolveName(d, nameMap)));
+      const sepsisEntry = ordered.find(d => isSepsisLike(resolveName(d, nameMap)));
       const sepsisProb = sepsisEntry ? Math.round((sepsisEntry.posterior_probability ?? 0) * 100) : 0;
       explanation = `${signal_count}/5 systemic signals (${phenotype}) — ${resolveName(sepsisEntry || sorted[0], nameMap)} correctly prioritized at ${sepsisProb}% (confidence ${(confidence * 100).toFixed(0)}%).`;
     } else {
