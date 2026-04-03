@@ -1564,7 +1564,12 @@ export async function runUnifiedClinicalPipeline(
     });
 
     if (cprResult.applied) {
-      fusedBayesian = cprResult.result;
+      // CRITICAL: Mutate fusedBayesian.diagnoses IN PLACE so SSAL preserves this order
+      fusedBayesian.diagnoses.length = 0;
+      for (const d of cprResult.result.diagnoses) {
+        fusedBayesian.diagnoses.push(d);
+      }
+      cprApplied = true;
       console.log(`[Pipeline] Phase 5.6: Clinical priority resolution — ${cprResult.promotions.length} promotion(s)`);
       for (const p of cprResult.promotions) {
         console.log(`  → ${p.reason}`);
