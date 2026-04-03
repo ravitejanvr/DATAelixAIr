@@ -2293,7 +2293,7 @@ export async function runUnifiedClinicalPipeline(
       })),
     });
   }
-  if (guidelineAlignment || guidelineCompliance) {
+  if (guidelineAlignment || guidelineCompliancePostSSAL) {
     pcieCore.updateReasoning({
       guideline_references: guideline_summary ? {
         sources_used: guideline_summary.guideline_sources_used,
