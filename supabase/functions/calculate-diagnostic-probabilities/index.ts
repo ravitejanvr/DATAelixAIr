@@ -733,6 +733,43 @@ Deno.serve(async (req) => {
       // get strong positive boosts while others don't
       logScore += clinicalFeatureScore + interactionBonus;
 
+      // ════════════════════════════════════════════
+      // ── 10. SYSTEMIC INSTABILITY CONDITIONING (Feature-flagged) ──
+      // When systemic instability is HIGH, boost systemic diseases and
+      // suppress organ-level diseases BEFORE posterior normalization.
+      // This ensures the Bayesian posterior reflects physiological reality.
+      // ════════════════════════════════════════════
+      let systemicConditioningApplied = 0;
+      if (enable_systemic_likelihood) {
+        const diseaseCategory = classifyDiseaseCategory(diagName);
+        const instabilityLevel = effectiveSystemicState.instability_level;
+        const signalCount = effectiveSystemicState.signal_count || 0;
+
+        if (instabilityLevel === "HIGH") {
+          if (diseaseCategory === "SYSTEMIC") {
+            // Strong boost: ln(4.0) ≈ 1.386 added to log_score
+            // Scaled by signal strength (4 signals = 1.0x, 5 signals = 1.25x)
+            const scaleFactor = Math.min(1.25, signalCount / 4);
+            systemicConditioningApplied = Math.log(4.0) * scaleFactor;
+            logScore += systemicConditioningApplied;
+          } else if (diseaseCategory === "ORGAN") {
+            // Moderate suppression: ln(0.6) ≈ -0.511 added to log_score
+            systemicConditioningApplied = Math.log(0.6);
+            logScore += systemicConditioningApplied;
+          }
+          // UNKNOWN category: no conditioning (neutral 1.0)
+        } else if (instabilityLevel === "MODERATE") {
+          if (diseaseCategory === "SYSTEMIC") {
+            // Mild boost: ln(1.8) ≈ 0.588
+            const scaleFactor = Math.min(1.0, signalCount / 4);
+            systemicConditioningApplied = Math.log(1.8) * scaleFactor;
+            logScore += systemicConditioningApplied;
+          }
+          // No suppression for MODERATE — only boost systemic
+        }
+        // LOW: no conditioning applied
+      }
+
       // Collect supporting evidence
       const evidence: string[] = [];
       if (symLiks.length > 0) evidence.push(`${symLiks.length}/${totalSymptoms} symptoms (coverage ${(coverageRatio * 100).toFixed(0)}%)`);
@@ -745,6 +782,7 @@ Deno.serve(async (req) => {
       if (clusterMod > 1.0) evidence.push(`cluster match ×${clusterMod.toFixed(1)}`);
       if (clinicalFeatureScore > 0) evidence.push(`clinical features +${clinicalFeatureScore.toFixed(1)}`);
       if (interactionBonus > 0) evidence.push(`interactions +${interactionBonus.toFixed(1)}`);
+      if (systemicConditioningApplied !== 0) evidence.push(`systemic conditioning ${systemicConditioningApplied > 0 ? '+' : ''}${systemicConditioningApplied.toFixed(2)}`);
       if (priorData) evidence.push(`prior: ${(adjustedPrior * 100).toFixed(1)}%`);
 
       results.push({
