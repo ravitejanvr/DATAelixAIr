@@ -32,6 +32,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_phase10_candidate_completeness: false,
   enable_phase5_context_candidates: true,
   enable_pattern_priority_layer: true,
+  enable_score_fusion: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
