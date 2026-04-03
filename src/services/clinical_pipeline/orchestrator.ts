@@ -2094,12 +2094,13 @@ export async function runUnifiedClinicalPipeline(
         clinic_id: input.clinic_id || "",
       };
 
+      // SSAL: Use fusedBayesian (post-override) for SOAP diagnosis ranking
       const soapDdx = {
-        diagnoses: (ddxResult?.differential_diagnoses || []).map(d => ({
-          diagnosis: d.diagnosis_name,
-          probability_score: d.probability,
+        diagnoses: (fusedBayesian?.diagnoses || ddxResult?.differential_diagnoses || []).map((d: any) => ({
+          diagnosis: d.diagnosis_name || d.diagnosis || d.diagnosis_id,
+          probability_score: d.posterior_probability != null ? Math.round(d.posterior_probability * 100) : d.probability,
           icd10_code: d.icd10_code,
-          supporting_symptoms: d.supporting_symptoms,
+          supporting_symptoms: d.supporting_symptoms || d.supporting_evidence,
           contradicting_factors: d.contradicting_factors,
         })),
         recommended_labs: (ddxResult?.recommended_labs || []).map(l => ({
