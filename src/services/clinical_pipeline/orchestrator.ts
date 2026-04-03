@@ -1454,6 +1454,7 @@ export async function runUnifiedClinicalPipeline(
   {
     const { isSystemicOverrideEnabled } = await import("@/services/feature_flags");
     if (isSystemicOverrideEnabled() && fusedBayesian && fusedBayesian.diagnoses.length > 0) {
+      const { applySystemicOverride } = await import("@/services/clinical_pipeline/systemic_override_layer");
       // Build UUID → name map from DDX results
       const diagnosisNameMap = new Map<string, string>();
       if (ddxResult?.differential_diagnoses) {
