@@ -1528,6 +1528,7 @@ export async function runUnifiedClinicalPipeline(
   // systemic diagnoses are promoted over organ-specific ones.
   // Feature-flagged: enable_clinical_priority_resolution
   // ═══════════════════════════════════════════════════════
+  let cprApplied = false;
   if (isClinicalPriorityResolutionEnabled() && fusedBayesian && fusedBayesian.diagnoses.length >= 2) {
     const { applyClinicalPriorityResolution } = await import("@/services/clinical_pipeline/clinical_priority_resolution");
     
