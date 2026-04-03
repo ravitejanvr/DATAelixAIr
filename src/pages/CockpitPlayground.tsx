@@ -676,6 +676,7 @@ export default function CockpitPlayground() {
           }
           if (data.bayesian) {
             console.log("[BAYESIAN WRITE]", data.bayesian?.diagnoses?.length);
+            console.log("[FINAL_RENDER_SOURCE]", data.bayesian?.diagnoses?.slice(0, 3).map((d: any) => `${d.diagnosis_id}: ${(d.posterior_probability * 100).toFixed(1)}%`));
             setPipelineBayesian(prev => {
               if (prev && prev._locked) {
                 console.log("[LOCK] blocked late bayesian overwrite");
