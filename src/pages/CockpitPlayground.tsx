@@ -704,6 +704,7 @@ export default function CockpitPlayground() {
         exam_findings: selectedExamFindings.length > 0 ? selectedExamFindings : undefined,
         medical_history: selectedMedicalHistory.length > 0 ? selectedMedicalHistory : undefined,
         blood_sugar: patientVitals?.blood_sugar ?? undefined,
+        investigation_results: Object.keys(investigationResults).length > 0 ? investigationResults : undefined,
       });
 
       const result = await runUnifiedClinicalPipeline(
