@@ -1891,7 +1891,7 @@ export default function CockpitPlayground() {
                           )}
 
                           {/* Show more toggle for additional differentials */}
-                          {mergedDiagnoses.filter((d: any) => !d.mustNotMiss).length > 3 && (
+                          {mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).length > 2 && (
                             <button
                               onClick={() => setShowMoreDx(prev => !prev)}
                               className="text-[10px] text-primary font-medium hover:underline flex items-center gap-1 mt-1"
