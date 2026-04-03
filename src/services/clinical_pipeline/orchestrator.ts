@@ -1458,6 +1458,13 @@ export async function runUnifiedClinicalPipeline(
       const overrideResult = applySystemicOverride({
         bayesianDiagnoses: fusedBayesian.diagnoses,
         physiologicalContext: physiologicalContext,
+        vitals: {
+          temperature: vitals.temperature,
+          pulse: vitals.pulse,
+          bp_systolic: vitals.bp_systolic,
+          respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
+          spo2: vitals.spo2,
+        },
       });
       if (overrideResult.applied) {
         fusedBayesian = { ...fusedBayesian, diagnoses: overrideResult.diagnoses as typeof fusedBayesian.diagnoses };
