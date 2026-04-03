@@ -4,7 +4,8 @@
  * Pure observability layer — does NOT modify any scores, rankings, or pipeline state.
  * Exposes where physiology signals and Bayesian posteriors disagree.
  * 
- * IMPORTANT: Uses diagnosisNameMap to resolve UUIDs to clinical names.
+ * SSAL-compliant: Uses canonical_name and rank from self-describing diagnosis objects.
+ * No external name maps required.
  */
 
 // ── Types ──
@@ -40,11 +41,21 @@ export interface PhysioBayesianDiff {
   };
 }
 
+/** SSAL-enriched diagnosis object */
+interface SSALDiagnosis {
+  diagnosis_id?: string;
+  diagnosis_name?: string;
+  canonical_name?: string;
+  rank?: number;
+  posterior_probability?: number;
+  [key: string]: any;
+}
+
 interface AnalysisInput {
   physiological_states?: any[];
   affected_systems?: string[];
   candidate_diagnosis_ids?: string[];
-  bayesian_diagnoses?: Array<{ diagnosis_id?: string; diagnosis_name?: string; posterior_probability?: number }>;
+  bayesian_diagnoses?: SSALDiagnosis[];
   symptoms?: string[];
   vitals?: {
     temperature?: number;
@@ -54,7 +65,7 @@ interface AnalysisInput {
     respiratory_rate?: number;
     spo2?: number;
   };
-  /** UUID → clinical name map from DDX engine */
+  /** @deprecated Use canonical_name from diagnosis objects instead */
   diagnosisNameMap?: Map<string, string>;
 }
 
@@ -71,18 +82,19 @@ function classifyState(score: number): SystemicState {
 }
 
 function isSepsisLike(name: string): boolean {
-  return /sepsis|septic|sirs/i.test(name);
+  return /sepsis|septic|sirs|bacteremia|urosepsis/i.test(name);
 }
 
 function isPneumoniaLike(name: string): boolean {
   return /pneumonia|cap\b|community.acquired/i.test(name);
 }
 
-function resolveName(
-  d: { diagnosis_id?: string; diagnosis_name?: string },
-  nameMap?: Map<string, string>
-): string {
+/** Resolve display name from SSAL diagnosis — uses canonical_name/diagnosis_name directly */
+function resolveName(d: SSALDiagnosis, nameMap?: Map<string, string>): string {
+  // SSAL priority: use self-describing fields first
   if (d.diagnosis_name) return d.diagnosis_name;
+  if (d.canonical_name) return d.canonical_name;
+  // Legacy fallback: external name map
   if (nameMap && d.diagnosis_id) {
     const mapped = nameMap.get(d.diagnosis_id);
     if (mapped) return mapped;
@@ -91,10 +103,16 @@ function resolveName(
 }
 
 function findRank(
-  diagnoses: Array<{ diagnosis_id?: string; diagnosis_name?: string; posterior_probability?: number }>,
+  diagnoses: SSALDiagnosis[],
   matcher: (name: string) => boolean,
   nameMap?: Map<string, string>
 ): number {
+  // SSAL: if diagnoses have rank field, use it directly
+  for (const d of diagnoses) {
+    const name = resolveName(d, nameMap);
+    if (matcher(name) && d.rank != null) return d.rank;
+  }
+  // Fallback: compute from sorted order
   const sorted = [...diagnoses].sort(
     (a, b) => (b.posterior_probability ?? 0) - (a.posterior_probability ?? 0)
   );
@@ -124,7 +142,7 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
   const systemicScore = countTrue(signals as unknown as Record<string, boolean>);
   const systemicState = classifyState(systemicScore);
 
-  // Step 2: Extract top 3 with resolved names
+  // Step 2: Extract top 3 with resolved names (SSAL: use canonical_name/diagnosis_name)
   const sorted = [...diagnoses].sort(
     (a, b) => (b.posterior_probability ?? 0) - (a.posterior_probability ?? 0)
   );
@@ -146,7 +164,9 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
   if (systemicState === "HIGH") {
     if (sepsisRank === 1) {
       type = "ALIGNED_SYSTEMIC";
-      explanation = `Sepsis ranked #1 with ${top3[0]?.prob ? Math.round(top3[0].prob * 100) : '?'}% probability — systemic instability correctly prioritized (${systemicScore}/5 signals, confidence ${(confidence * 100).toFixed(0)}%).`;
+      const sepsisEntry = sorted.find(d => isSepsisLike(resolveName(d, nameMap)));
+      const sepsisProb = sepsisEntry ? Math.round((sepsisEntry.posterior_probability ?? 0) * 100) : 0;
+      explanation = `${resolveName(sepsisEntry || sorted[0], nameMap)} ranked #1 with ${sepsisProb}% probability — systemic instability correctly prioritized (${systemicScore}/5 signals, confidence ${(confidence * 100).toFixed(0)}%).`;
     } else {
       type = "SYSTEMIC_MISSED";
       const sepsisEntry = sorted.find(d => isSepsisLike(resolveName(d, nameMap)));
