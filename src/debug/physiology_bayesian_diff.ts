@@ -126,12 +126,12 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
   let explanation = "Physiology and Bayesian rankings are consistent.";
 
   if (systemicState === "HIGH") {
-    if (sepsisRank > pneumoniaRank) {
-      type = "SYSTEMIC_MISSED";
-      explanation = `Strong systemic instability (${systemicScore}/5 signals, confidence ${(confidence * 100).toFixed(0)}%) but Bayesian ranks Sepsis #${sepsisRank} behind Pneumonia #${pneumoniaRank}. Physiology shows strong systemic instability but Bayesian favors organ-level diagnosis.`;
-    } else {
+    if (sepsisRank === 1) {
       type = "ALIGNED_SYSTEMIC";
-      explanation = `Systemic instability (${systemicScore}/5 signals) and Bayesian both favor systemic diagnosis. Sepsis #${sepsisRank}, Pneumonia #${pneumoniaRank}.`;
+      explanation = `Systemic instability correctly prioritizes Sepsis at rank #1 (${systemicScore}/5 signals, confidence ${(confidence * 100).toFixed(0)}%).`;
+    } else {
+      type = "SYSTEMIC_MISSED";
+      explanation = `Strong systemic instability (${systemicScore}/5 signals, confidence ${(confidence * 100).toFixed(0)}%) but Bayesian ranks Sepsis #${sepsisRank} — not top. Bayesian favors organ-level diagnosis despite systemic instability.`;
     }
   } else if (systemicState === "LOW") {
     if (pneumoniaRank < sepsisRank) {
