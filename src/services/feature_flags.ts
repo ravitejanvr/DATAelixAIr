@@ -20,6 +20,7 @@ export interface FeatureFlags {
   enable_score_fusion: boolean;
   enable_systemic_override: boolean;
   enable_canonical_mapping: boolean;
+  enable_bayesian_systemic_likelihood: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
