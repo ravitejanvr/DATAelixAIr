@@ -24,7 +24,8 @@ export interface OversightEvent {
     | "phase5_context_expansion"
     | "context_aware_safety"
     | "pattern_priority_applied"
-    | "score_fusion_applied";
+    | "score_fusion_applied"
+    | "systemic_override";
   severity: "info" | "warning" | "critical";
   stage: string;
   message: string;
