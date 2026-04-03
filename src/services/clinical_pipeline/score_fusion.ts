@@ -192,11 +192,11 @@ function buildPatternWeightMap(
   const map = new Map<string, number>();
   if (!patterns || patterns.patterns_detected.length === 0) return map;
 
-  const boostLookup = new Map(
-    patterns.priority_adjustments.boost.map(b => [b.diagnosis.toLowerCase(), b.weight_multiplier])
+  const boostLookup = new Map<string, number>(
+    patterns.priority_adjustments.boost.map(b => [b.diagnosis.toLowerCase(), b.weight_multiplier] as [string, number])
   );
-  const suppressLookup = new Map(
-    patterns.priority_adjustments.suppress.map(s => [s.diagnosis.toLowerCase(), s.weight_multiplier])
+  const suppressLookup = new Map<string, number>(
+    patterns.priority_adjustments.suppress.map(s => [s.diagnosis.toLowerCase(), s.weight_multiplier] as [string, number])
   );
 
   // FIX 2: Detect if a critical infection+instability pattern is active
