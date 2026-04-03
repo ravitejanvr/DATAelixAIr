@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import ClinicalCopilot from "@/components/clinical/ClinicalCopilot";
 import AiDisclosureBadge from "@/components/AiDisclosureBadge";
+import SystemModeIndicator from "@/components/SystemModeIndicator";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, FileText, AlertTriangle, CheckCircle,
