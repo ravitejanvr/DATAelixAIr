@@ -44,6 +44,8 @@ export interface UncertaintyResult {
     safety_penalty?: number;
   };
   execution_ms: number;
+  /** True when the score was derived from DDX spread fallback, not the real uncertainty engine */
+  synthetic?: boolean;
 }
 
 export interface UncertaintyInput {
