@@ -832,8 +832,8 @@ export default function CockpitPlayground() {
     symptoms: selectedSymptoms, duration: selectedDuration, onset: selectedOnset,
     severity: selectedSeverity, location: selectedBodyLocation, risks: selectedRiskFactors,
     history: selectedMedicalHistory, family: selectedFamilyHistory, exam: selectedExamFindings,
-    vitals: patientVitals, cc: chiefComplaint,
-  }), [selectedSymptoms, selectedDuration, selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors, selectedMedicalHistory, selectedFamilyHistory, selectedExamFindings, patientVitals, chiefComplaint]);
+    vitals: patientVitals, cc: chiefComplaint, labs: investigationResults,
+  }), [selectedSymptoms, selectedDuration, selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors, selectedMedicalHistory, selectedFamilyHistory, selectedExamFindings, patientVitals, chiefComplaint, investigationResults]);
 
   useEffect(() => {
     if (!mockPatient || selectedSymptoms.length === 0) return;
