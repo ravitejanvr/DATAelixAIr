@@ -340,6 +340,48 @@ Deno.serve(async (req) => {
     console.log("[BayesianEngine] ACTIVE FEATURES:", JSON.stringify(activeFeatures));
 
     // ════════════════════════════════════════════
+    // SYSTEMIC STATE COMPUTATION (for systemic likelihood conditioning)
+    // ════════════════════════════════════════════
+    // Compute systemic instability from vitals — used when enable_systemic_likelihood = true
+    const systemicSignals = [
+      clinicalFeatures.hypotension,
+      clinicalFeatures.tachycardia,
+      clinicalFeatures.tachypnea,
+      clinicalFeatures.fever,
+      clinicalFeatures.hypoxia,
+    ];
+    const computedSignalCount = systemicSignals.filter(Boolean).length;
+    // Use externally provided systemic_state if available, else compute from vitals
+    const effectiveSystemicState = systemic_state || {
+      instability_level: computedSignalCount >= 4 ? "HIGH" : computedSignalCount >= 2 ? "MODERATE" : "LOW",
+      signal_count: computedSignalCount,
+    };
+    
+    if (enable_systemic_likelihood) {
+      console.log("[BayesianEngine] SYSTEMIC STATE:", JSON.stringify(effectiveSystemicState));
+    }
+
+    // Disease category classification — systemic vs organ-specific
+    const SYSTEMIC_DISEASE_KEYWORDS = [
+      "sepsis", "septic shock", "sirs", "bacteremia", "septicemia",
+      "diabetic ketoacidosis", "dka", "thyroid storm", "addisonian crisis",
+      "anaphylaxis", "disseminated intravascular",
+    ];
+    const ORGAN_DISEASE_KEYWORDS = [
+      "pneumonia", "bronchitis", "asthma", "copd", "pharyngitis",
+      "appendicitis", "gastroenteritis", "urinary tract infection",
+      "pyelonephritis", "migraine", "tension headache", "cluster headache",
+      "otitis", "sinusitis", "cellulitis",
+    ];
+
+    function classifyDiseaseCategory(name: string): "SYSTEMIC" | "ORGAN" | "UNKNOWN" {
+      const lower = name.toLowerCase();
+      if (SYSTEMIC_DISEASE_KEYWORDS.some(k => lower.includes(k))) return "SYSTEMIC";
+      if (ORGAN_DISEASE_KEYWORDS.some(k => lower.includes(k))) return "ORGAN";
+      return "UNKNOWN";
+    }
+
+    // ════════════════════════════════════════════
     // DISEASE-SPECIFIC CLINICAL WEIGHT PROFILES
     // ════════════════════════════════════════════
     // Keys are lowercase disease name fragments matched against diagnosis names
