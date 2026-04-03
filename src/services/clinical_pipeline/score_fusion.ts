@@ -236,7 +236,7 @@ function buildLegacyPhysioWeightMap(
  * are naturally suppressed during systemic instability.
  */
 export function applyScoreFusion(input: ScoreFusionInput): ScoreFusionOutput {
-  const { bayesian, ddx, physiology, patternAdjustments, vitals } = input;
+  const { bayesian, ddx, physiology, patternAdjustments, vitals, diagnosisNameMap } = input;
 
   // Guard: if no Bayesian result or no diagnoses, pass through
   if (!bayesian?.diagnoses?.length) {
