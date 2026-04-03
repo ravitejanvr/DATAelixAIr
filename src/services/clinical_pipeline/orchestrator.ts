@@ -1403,20 +1403,31 @@ export async function runUnifiedClinicalPipeline(
       ddx: ddxResult,
       physiology: physiologicalContext,
       patternAdjustments: patternPriorityResult,
+      vitals: {
+        bp_systolic: vitals.bp_systolic,
+        pulse: vitals.pulse,
+        heart_rate: vitals.pulse,
+        respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
+        temperature: vitals.temperature,
+        spo2: vitals.spo2,
+      },
     });
     if (fusionOutput.fusion_applied) {
       fusedBayesian = fusionOutput.result;
-      console.log("[Pipeline] Phase 5.5: Score fusion applied —", fusionOutput.diagnostics.length, "diagnoses modulated.");
+      console.log("[Pipeline] Phase 5.5: Physiology-First Score Fusion applied —", fusionOutput.diagnostics.length, "diagnoses modulated.");
+      if (fusionOutput.systemic_state) {
+        console.log("[Pipeline] Systemic state:", fusionOutput.systemic_state.severity, "phenotype:", fusionOutput.systemic_state.phenotype);
+      }
       recordOversightEvent({
         event_type: "score_fusion_applied",
         severity: "info",
         stage: "score_fusion",
-        message: `Fused ${fusionOutput.diagnostics.length} diagnoses. Top: ${fusedBayesian!.diagnoses[0]?.diagnosis_id} (${(fusedBayesian!.diagnoses[0]?.posterior_probability * 100).toFixed(1)}%)`,
-        metadata: { diagnostics: fusionOutput.diagnostics } as any,
+        message: `Physiology-First fusion: ${fusionOutput.diagnostics.length} diagnoses. Systemic: ${fusionOutput.systemic_state?.severity || "N/A"}. Top: ${fusedBayesian!.diagnoses[0]?.diagnosis_id} (${(fusedBayesian!.diagnoses[0]?.posterior_probability * 100).toFixed(1)}%)`,
+        metadata: { diagnostics: fusionOutput.diagnostics, systemic_state: fusionOutput.systemic_state } as any,
       });
       pcieCore.addReasoningTrace(
         "score_fusion" as any,
-        `Score fusion applied: ${fusionOutput.diagnostics.length} dx modulated`,
+        `Physiology-First fusion: ${fusionOutput.diagnostics.length} dx, systemic=${fusionOutput.systemic_state?.severity || "N/A"}`,
       );
     }
     lat.score_fusion = Math.round(performance.now() - fusionStart);
