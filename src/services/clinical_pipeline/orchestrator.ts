@@ -1542,6 +1542,31 @@ export async function runUnifiedClinicalPipeline(
 
     fusedBayesian = { ...fusedBayesian, diagnoses: enrichedDiagnoses as any };
 
+    // ═══════════════════════════════════════════════════════
+    // CAL — Cognitive Authority Layer (feature-flagged)
+    // Applies clinician-like systemic reasoning AFTER SSAL enrichment.
+    // Uses ONLY existing physiology engine + disease taxonomy.
+    // ═══════════════════════════════════════════════════════
+    let calMetadata: CALMetadata | null = null;
+    if (isCognitiveAuthorityLayerEnabled()) {
+      const calInput = {
+        diagnoses: fusedBayesian.diagnoses as any,
+        vitals: extractedVitals,
+        systemic_state: fusionOutput?.systemic_state ?? null,
+      };
+      const calOutput = applyCognitiveAuthority(calInput);
+      calMetadata = calOutput.cal_metadata;
+
+      if (calOutput.cal_metadata.applied) {
+        fusedBayesian = { ...fusedBayesian, diagnoses: calOutput.diagnoses as any };
+        console.log("[CAL] Authority applied — final ranking updated");
+      } else {
+        console.log("[CAL] Not applied:", calOutput.cal_metadata.skip_reason || "below threshold");
+      }
+    } else {
+      console.log("[CAL] DISABLED — feature flag off");
+    }
+
     // Freeze to prevent downstream mutation
     try {
       Object.freeze(fusedBayesian);
