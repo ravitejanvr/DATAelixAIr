@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
 import ClinicalCopilot from "@/components/clinical/ClinicalCopilot";
 import AiDisclosureBadge from "@/components/AiDisclosureBadge";
+import SystemModeIndicator from "@/components/SystemModeIndicator";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, FileText, AlertTriangle, CheckCircle,
@@ -1260,6 +1261,7 @@ export default function CockpitPlayground() {
             </div>
             <span className="text-sm font-bold text-foreground">Clinical Cockpit</span>
             <Badge variant="outline" className="text-[10px]">Playground</Badge>
+            <SystemModeIndicator />
           </div>
 
           <div className="flex items-center gap-1.5">
