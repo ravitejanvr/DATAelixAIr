@@ -80,6 +80,8 @@ Deno.serve(async (req) => {
       vitals = {},
       duration = null,       // "acute" | "subacute" | "chronic"
       onset_pattern = null,  // "sudden" | "gradual" | "progressive" | "intermittent" | "episodic"
+      enable_systemic_likelihood = false,  // Feature flag: systemic instability conditioning
+      systemic_state = null,               // { instability_level: "LOW"|"MODERATE"|"HIGH", signal_count: number }
     } = body;
 
     // Filter to valid UUIDs only — non-UUID hint IDs (e.g. "hint-phenotype_inference-...")
