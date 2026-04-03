@@ -1528,6 +1528,7 @@ export async function runUnifiedClinicalPipeline(
   // systemic diagnoses are promoted over organ-specific ones.
   // Feature-flagged: enable_clinical_priority_resolution
   // ═══════════════════════════════════════════════════════
+  let cprApplied = false;
   if (isClinicalPriorityResolutionEnabled() && fusedBayesian && fusedBayesian.diagnoses.length >= 2) {
     const { applyClinicalPriorityResolution } = await import("@/services/clinical_pipeline/clinical_priority_resolution");
     
@@ -1564,7 +1565,12 @@ export async function runUnifiedClinicalPipeline(
     });
 
     if (cprResult.applied) {
-      fusedBayesian = cprResult.result;
+      // CRITICAL: Mutate fusedBayesian.diagnoses IN PLACE so SSAL preserves this order
+      fusedBayesian.diagnoses.length = 0;
+      for (const d of cprResult.result.diagnoses) {
+        fusedBayesian.diagnoses.push(d);
+      }
+      cprApplied = true;
       console.log(`[Pipeline] Phase 5.6: Clinical priority resolution — ${cprResult.promotions.length} promotion(s)`);
       for (const p of cprResult.promotions) {
         console.log(`  → ${p.reason}`);
@@ -1610,9 +1616,13 @@ export async function runUnifiedClinicalPipeline(
       }
     }
 
-    // Sort by posterior descending and assign rank + names
-    const enrichedDiagnoses = [...fusedBayesian.diagnoses]
-      .sort((a, b) => b.posterior_probability - a.posterior_probability)
+    // If CPR was applied, preserve its ordering (clinical priority).
+    // Otherwise sort by posterior descending (default numeric ordering).
+    const orderedDiagnoses = cprApplied
+      ? [...fusedBayesian.diagnoses]
+      : [...fusedBayesian.diagnoses].sort((a, b) => b.posterior_probability - a.posterior_probability);
+
+    const enrichedDiagnoses = orderedDiagnoses
       .map((d, idx) => {
         const resolvedName = ssalNameMap.get(d.diagnosis_id)
           || (d as any).diagnosis_name
@@ -1634,6 +1644,10 @@ export async function runUnifiedClinicalPipeline(
       if (!d.canonical_name) console.error("[SSAL_ERROR] Missing canonical_name for", d.diagnosis_id);
     }
     console.log("[SSAL_VALID]", enrichedDiagnoses.map(d => ({ id: d.diagnosis_id, name: d.diagnosis_name, rank: d.rank, prob: Math.round(d.posterior_probability * 100) + "%" })));
+    if (cprApplied) {
+      console.log("[SSAL] CPR ordering preserved — no re-sort applied");
+    }
+    console.log("FINAL_ORDER_BEFORE_FREEZE", enrichedDiagnoses.map(d => `#${d.rank} ${d.diagnosis_name} (${Math.round(d.posterior_probability * 100)}%)`));
 
     fusedBayesian = { ...fusedBayesian, diagnoses: enrichedDiagnoses as any };
 
