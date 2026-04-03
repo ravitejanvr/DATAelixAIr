@@ -1644,6 +1644,10 @@ export async function runUnifiedClinicalPipeline(
       if (!d.canonical_name) console.error("[SSAL_ERROR] Missing canonical_name for", d.diagnosis_id);
     }
     console.log("[SSAL_VALID]", enrichedDiagnoses.map(d => ({ id: d.diagnosis_id, name: d.diagnosis_name, rank: d.rank, prob: Math.round(d.posterior_probability * 100) + "%" })));
+    if (cprApplied) {
+      console.log("[SSAL] CPR ordering preserved — no re-sort applied");
+    }
+    console.log("FINAL_ORDER_BEFORE_FREEZE", enrichedDiagnoses.map(d => `#${d.rank} ${d.diagnosis_name} (${Math.round(d.posterior_probability * 100)}%)`));
 
     fusedBayesian = { ...fusedBayesian, diagnoses: enrichedDiagnoses as any };
 
