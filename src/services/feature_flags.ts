@@ -19,6 +19,7 @@ export interface FeatureFlags {
   enable_pattern_priority_layer: boolean;
   enable_score_fusion: boolean;
   enable_systemic_override: boolean;
+  enable_cognitive_authority_layer: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
