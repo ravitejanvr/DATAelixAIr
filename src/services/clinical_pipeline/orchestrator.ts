@@ -1568,7 +1568,10 @@ export async function runUnifiedClinicalPipeline(
 
   // ═══════════════════════════════════════════════════════
   // WAVE 3.5 — Cognitive Controller Pruning + Conflict Resolution
-  // The cognitive controller now runs INLINE to influence final diagnoses.
+  // ⚠️ ARCHITECTURAL NOTE: This wave modifies ddxResult AFTER fusedBayesian
+  // has been frozen by SSAL. Changes here do NOT affect the final UI ranking.
+  // They only affect downstream SOAP fallback and monitoring. This is a known
+  // limitation — fixing it requires pipeline reorder which violates invariants.
   // ═══════════════════════════════════════════════════════
   let conflictResult: ConflictResolution | null = null;
 
