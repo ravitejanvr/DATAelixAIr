@@ -136,11 +136,12 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
 
   const { signals, signal_count, severity, phenotype, systemic_strength } = systemicState;
 
-  // Extract top 3 with resolved names (SSAL: use canonical_name/diagnosis_name)
-  const sorted = [...diagnoses].sort(
-    (a, b) => (b.posterior_probability ?? 0) - (a.posterior_probability ?? 0)
-  );
-  const top3 = sorted.slice(0, 3).map(d => ({
+  // Extract top 3 with resolved names — SSAL-compliant: use rank field if available
+  const hasRanks = diagnoses.some(d => d.rank != null);
+  const ordered = hasRanks
+    ? [...diagnoses].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
+    : [...diagnoses].sort((a, b) => (b.posterior_probability ?? 0) - (a.posterior_probability ?? 0));
+  const top3 = ordered.slice(0, 3).map(d => ({
     name: resolveName(d, nameMap),
     prob: Math.round((d.posterior_probability ?? 0) * 10000) / 10000,
   }));
@@ -163,12 +164,12 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
   if (severity === "HIGH") {
     if (sepsisRank === 1 || topIsSystemic) {
       type = "ALIGNED_SYSTEMIC";
-      const sepsisEntry = sorted.find(d => isSepsisLike(resolveName(d, nameMap)));
+      const sepsisEntry = ordered.find(d => isSepsisLike(resolveName(d, nameMap)));
       const sepsisProb = sepsisEntry ? Math.round((sepsisEntry.posterior_probability ?? 0) * 100) : 0;
-      explanation = `${signal_count}/5 systemic signals (${phenotype}) — ${resolveName(sepsisEntry || sorted[0], nameMap)} correctly prioritized at ${sepsisProb}% (confidence ${(confidence * 100).toFixed(0)}%).`;
+      explanation = `${signal_count}/5 systemic signals (${phenotype}) — ${resolveName(sepsisEntry || ordered[0], nameMap)} correctly prioritized at ${sepsisProb}% (confidence ${(confidence * 100).toFixed(0)}%).`;
     } else {
       type = "SYSTEMIC_MISSED";
-      const sepsisEntry = sorted.find(d => isSepsisLike(resolveName(d, nameMap)));
+      const sepsisEntry = ordered.find(d => isSepsisLike(resolveName(d, nameMap)));
       const sepsisScore = sepsisEntry ? Math.round((sepsisEntry.posterior_probability ?? 0) * 100) : 0;
       explanation = `HIGH systemic instability (${signal_count}/5 signals, ${phenotype}) but Sepsis ranked #${sepsisRank} at ${sepsisScore}% — organ-level diagnosis prioritized over systemic condition.`;
     }
