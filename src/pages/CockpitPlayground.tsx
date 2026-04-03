@@ -1036,9 +1036,10 @@ export default function CockpitPlayground() {
     ddxTraces.forEach((t: any) => { if (t.diagnosis_id && t.diagnosis) nameMap.set(t.diagnosis_id, t.diagnosis); });
     ddxDiffs.forEach((d: any) => { if (d.diagnosis_id && d.diagnosis_name) nameMap.set(d.diagnosis_id, d.diagnosis_name); });
 
+    // SSAL: prefer diagnosis_name from the object, fallback to DDX name map
     const results = pipelineBayesian.diagnoses.slice(0, 8).map((d: any, i: number) => ({
       rank: i + 1,
-      name: nameMap.get(d.diagnosis_id) || d.diagnosis_id,
+      name: d.diagnosis_name || nameMap.get(d.diagnosis_id) || d.diagnosis_id,
       pct: Math.round((d.posterior_probability || 0) * 100),
     }));
 
