@@ -1219,28 +1219,51 @@ export async function runUnifiedClinicalPipeline(
       const t0 = performance.now();
       try {
         const result = await withRetry(
-          () => calculateDiagnosticProbabilities({
-            candidate_diagnosis_ids: candidateIds,
-            symptoms,
-            physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
-            risk_factors: ctx.risk_factors || [],
-            medical_history: ctx.medical_history || [],
-            patient_age: ctx.patient_age,
-            patient_sex: ctx.patient_sex,
-            region: "south_asia",
-            vitals: {
-              temperature: vitals.temperature,
-              spo2: vitals.spo2,
-              pulse: vitals.pulse,
-              bp_systolic: vitals.bp_systolic,
-              bp_diastolic: vitals.bp_diastolic,
-              respiratory_rate: vitals.respiratory_rate,
-            },
-            duration: ctx.symptom_duration || null,
-            onset_pattern: ctx.onset_pattern || null,
-            severity: ctx.severity || null,
-            body_location: ctx.body_location || null,
-          }),
+          () => {
+            // Compute systemic state from vitals for Bayesian conditioning
+            const useSystemicLikelihood = isBayesianSystemicLikelihoodEnabled();
+            let systemicState: { instability_level: "LOW" | "MODERATE" | "HIGH"; signal_count: number } | undefined;
+            if (useSystemicLikelihood) {
+              const signals = [
+                vitals.bp_systolic != null && vitals.bp_systolic < 100,
+                vitals.pulse != null && vitals.pulse > 100,
+                vitals.respiratory_rate != null && vitals.respiratory_rate > 22,
+                vitals.temperature != null && (vitals.temperature >= 38 || vitals.temperature >= 100.4),
+                vitals.spo2 != null && vitals.spo2 < 94,
+              ];
+              const signalCount = signals.filter(Boolean).length;
+              systemicState = {
+                instability_level: signalCount >= 4 ? "HIGH" : signalCount >= 2 ? "MODERATE" : "LOW",
+                signal_count: signalCount,
+              };
+              console.log(`[Pipeline] Bayesian systemic conditioning: ${systemicState.instability_level} (${signalCount} signals)`);
+            }
+
+            return calculateDiagnosticProbabilities({
+              candidate_diagnosis_ids: candidateIds,
+              symptoms,
+              physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
+              risk_factors: ctx.risk_factors || [],
+              medical_history: ctx.medical_history || [],
+              patient_age: ctx.patient_age,
+              patient_sex: ctx.patient_sex,
+              region: "south_asia",
+              vitals: {
+                temperature: vitals.temperature,
+                spo2: vitals.spo2,
+                pulse: vitals.pulse,
+                bp_systolic: vitals.bp_systolic,
+                bp_diastolic: vitals.bp_diastolic,
+                respiratory_rate: vitals.respiratory_rate,
+              },
+              duration: ctx.symptom_duration || null,
+              onset_pattern: ctx.onset_pattern || null,
+              severity: ctx.severity || null,
+              body_location: ctx.body_location || null,
+              enable_systemic_likelihood: useSystemicLikelihood,
+              systemic_state: systemicState || null,
+            });
+          },
           TIMEOUT.BAYESIAN,
           "bayesian_engine",
         );
