@@ -201,6 +201,7 @@ export function buildFullClinicalContext(
   if (overrides.risk_factors && overrides.risk_factors.length > 0) ctx.risk_factors = overrides.risk_factors;
   if (overrides.family_history && overrides.family_history.length > 0) ctx.family_history = overrides.family_history;
   if (overrides.blood_sugar != null) ctx.blood_sugar = overrides.blood_sugar;
+  if (overrides.investigation_results) ctx.investigation_results = overrides.investigation_results;
 
   // Exam findings merge into symptoms (for reasoning) and into exam_findings
   if (overrides.exam_findings && overrides.exam_findings.length > 0) {
