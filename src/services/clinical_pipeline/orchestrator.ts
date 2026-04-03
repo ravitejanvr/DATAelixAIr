@@ -1861,6 +1861,7 @@ export async function runUnifiedClinicalPipeline(
             ? topProb - ddxResult.differential_diagnoses[1].probability
             : topProb;
           const syntheticScore = Math.min(95, Math.max(30, Math.round(spread * 1.5 + 20)));
+          console.warn("[Pipeline] ⚠️ SYNTHETIC_UNCERTAINTY: Real uncertainty engine failed/timed out — using DDX-spread fallback");
           return {
             confidence_score: syntheticScore,
             confidence_label: syntheticScore >= 70 ? "high" : syntheticScore >= 40 ? "moderate" : "low",
