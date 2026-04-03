@@ -280,9 +280,21 @@ export function applyScoreFusion(input: ScoreFusionInput): ScoreFusionOutput {
     const legacyPhysioW = legacyPhysioMap.get(d.diagnosis_id) ?? 1.0;
 
     // ── PHYSIOLOGY-FIRST: Compute multiplier from systemic state + disease profile ──
-    const diagName = ((d as any).diagnosis_name || d.diagnosis_id || "").toLowerCase();
+    // Resolve name: prefer diagnosis_name on object, then DDX name map, then UUID fallback
+    const diagName = (
+      (d as any).diagnosis_name
+      || (diagnosisNameMap?.get(d.diagnosis_id))
+      || d.diagnosis_id
+      || ""
+    ).toLowerCase();
     const profile = matchDiseaseProfile(diagName);
     const physioMultiplier = computePhysioMultiplier(systemicState, profile);
+
+    if (!profile && diagnosisNameMap?.has(d.diagnosis_id)) {
+      console.warn(`[ScoreFusion] SEMANTIC_MISS: resolved name "${diagName}" did not match any disease profile`);
+    } else if (!profile && !diagnosisNameMap?.has(d.diagnosis_id)) {
+      console.warn(`[ScoreFusion] SEMANTIC_VIOLATION: diagnosis_id=${d.diagnosis_id} has no name resolution — using UUID for matching (will fail)`);
+    }
 
     // Final formula: base × physio_multiplier × (1 + ddx) × pattern × legacy_physio
     const rawFused = base * physioMultiplier * (1 + ddxW) * patternW * legacyPhysioW;
