@@ -552,6 +552,11 @@ export default function CockpitPlayground() {
   const [sepsisRunCount, setSepsisRunCount] = useState(0);
   const sepsisLastResultRef = useRef<Array<{ name: string; pct: number }> | null>(null);
 
+  // ── Perturbation Test Harness state ──
+  const [perturbationRunning, setPerturbationRunning] = useState(false);
+  const [perturbationReport, setPerturbationReport] = useState<any>(null);
+  const [perturbationProgress, setPerturbationProgress] = useState<string>("");
+
   const [editingCategory, setEditingCategory] = useState<ContextCategory | null>(null);
   const [expandedDx, setExpandedDx] = useState<Set<string>>(new Set());
   const [showMoreDx, setShowMoreDx] = useState(false);
