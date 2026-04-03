@@ -1171,13 +1171,13 @@ export default function CockpitPlayground() {
     }
   }, [selectedTests, pendingRx, selectedInstructions, selectedMonitoring, soapManualEdits]);
 
-  // ── Copilot props — wired to fusedBayesian (SSOT) ──
+  // ── Copilot props — wired to fusedBayesian (SSOT) with Primary/Secondary authority ──
   const copilotProps = {
     diagnoses: [] as string[], selectedDiagnoses,
     onToggleDiagnosis: (d: string) => setSelectedDiagnoses(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]),
-    tests: allRecommendedTests, selectedTests,
+    tests: primaryManagement.tests, selectedTests,
     onToggleTest: (t: string) => setSelectedTests(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]),
-    medications: allRecommendedMedications, selectedMedications: pendingRx,
+    medications: primaryManagement.medications, selectedMedications: pendingRx,
     onToggleMedication: (rx: any) => {
       if (pendingRx.some(p => p.drug_name === rx.drug)) {
         setPendingRx(prev => prev.filter(p => p.drug_name !== rx.drug));
@@ -1188,19 +1188,19 @@ export default function CockpitPlayground() {
     safetyResults: pendingRx.length > 0 ? safetyResults : null,
     patientAge: mockPatient?.age,
     allergies: mockPatient?.allergies || [],
-    // FIX: Use pipeline primary diagnosis from fusedBayesian, not user selection
-    diagnosis: mergedDiagnoses[0]?.name || selectedDiagnoses[0],
+    diagnosis: primaryManagement.diagnosis || selectedDiagnoses[0],
+    primaryConfidence: primaryManagement.probability,
     chiefComplaint,
-    instructions: allInstructions, selectedInstructions,
+    instructions: primaryManagement.instructions, selectedInstructions,
     onToggleInstruction: (inst: string) => setSelectedInstructions(prev => prev.includes(inst) ? prev.filter(x => x !== inst) : [...prev, inst]),
-    monitoring: allMonitoring, selectedMonitoring,
+    monitoring: primaryManagement.monitoring, selectedMonitoring,
     onToggleMonitoring: (m: string) => setSelectedMonitoring(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]),
+    secondaryPlans,
     pipelineEvidence, pipelineCompliance,
     visitId: null, consultationId: null, clinicId: null,
     pipelineStage: reasoningLevel !== "doctor" && pipelineRunning ? pipelineStage : null,
     stageLatencies,
     physiologicalContext: pipelinePhysiology,
-    // FIX: Pass fusedBayesian and hypotheses to Copilot for SSOT alignment
     bayesianResult: pipelineBayesian,
     hypotheses: pipelineHypotheses,
     isAdmin: reasoningLevel === "debug",
