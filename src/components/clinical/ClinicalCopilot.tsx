@@ -205,8 +205,8 @@ export default function ClinicalCopilot({
   const [showMoreMonitoring, setShowMoreMonitoring] = useState(false);
   const [showMoreInstructions, setShowMoreInstructions] = useState(false);
 
-  // Manual compliance results take priority over pipeline (pipeline may use stale/DDX data)
-  const effectiveCompliance = complianceResults || pipelineCompliance?.results;
+  // STRICT: Manual results first, then pipeline post-SSAL results. Never use stale DDX data.
+  const effectiveCompliance = complianceResults || (pipelineCompliance?.results && pipelineCompliance.results.length > 0 ? pipelineCompliance.results : null);
   const effectiveSources = (complianceResults ? complianceSources : null) || pipelineCompliance?.guidelines_sources || [];
 
   const safetyAlertCount = safetyResults
