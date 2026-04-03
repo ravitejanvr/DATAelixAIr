@@ -1477,6 +1477,40 @@ export default function CockpitPlayground() {
               <Beaker className="h-2.5 w-2.5" />
               Run System Tests
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-[10px] rounded-full gap-1 border-primary/30 text-primary hover:bg-primary/10"
+              disabled={perturbationRunning}
+              onClick={async () => {
+                try {
+                  setPerturbationRunning(true);
+                  setPerturbationReport(null);
+                  setPerturbationProgress("Initializing...");
+                  const { runPerturbationSuite } = await import("@/services/validation_suite/perturbation_harness");
+                  const report = await runPerturbationSuite((p) => {
+                    setPerturbationProgress(p.message);
+                  });
+                  setPerturbationReport(report);
+                  console.log("=== PERTURBATION SUITE REPORT ===", report);
+                  (window as any).__PERTURBATION_REPORT__ = report;
+                  toast({
+                    title: `Perturbation Suite: ${Math.round(report.overallPassRate * 100)}% Pass`,
+                    description: `${report.results.filter((r: any) => r.status === "PASS").length}/${report.results.length} tests passed. ${report.criticalFailures.length} critical failures.`,
+                    variant: report.criticalFailures.length > 0 ? "destructive" : "default",
+                  });
+                } catch (err) {
+                  console.error("Perturbation suite failed:", err);
+                  toast({ title: "Perturbation suite failed", description: String(err), variant: "destructive" });
+                } finally {
+                  setPerturbationRunning(false);
+                  setPerturbationProgress("");
+                }
+              }}
+            >
+              {perturbationRunning ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Scale className="h-2.5 w-2.5" />}
+              {perturbationRunning ? "Running..." : "Perturbation Suite"}
+            </Button>
           </div>
         </div>
 
