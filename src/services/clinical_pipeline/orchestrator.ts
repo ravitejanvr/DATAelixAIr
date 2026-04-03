@@ -1536,6 +1536,76 @@ export async function runUnifiedClinicalPipeline(
     }
   }
 
+  // ═══════════════════════════════════════════════════════
+  // SSAL — Single Semantic Authority Layer
+  // Enrich every diagnosis with diagnosis_name, canonical_name, rank, source
+  // so ALL downstream consumers get self-describing objects.
+  // ═══════════════════════════════════════════════════════
+  if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
+    // Build UUID → name map from DDX results (primary source)
+    const ssalNameMap = new Map<string, string>();
+    if (ddxResult?.differential_diagnoses) {
+      for (const d of ddxResult.differential_diagnoses) {
+        if (d.diagnosis_id && d.diagnosis_name) {
+          ssalNameMap.set(d.diagnosis_id, d.diagnosis_name);
+        }
+      }
+    }
+    // Also pull from reasoning traces
+    if ((ddxResult as any)?.reasoning_traces) {
+      for (const t of (ddxResult as any).reasoning_traces) {
+        if (t.diagnosis_id && t.diagnosis && !ssalNameMap.has(t.diagnosis_id)) {
+          ssalNameMap.set(t.diagnosis_id, t.diagnosis);
+        }
+      }
+    }
+    // Also pull from hypothesis names
+    if (hypotheses?.hypotheses) {
+      for (const h of hypotheses.hypotheses) {
+        const hId = (h as any).diagnosis_id;
+        if (hId && (h as any).diagnosis && !ssalNameMap.has(hId)) {
+          ssalNameMap.set(hId, (h as any).diagnosis);
+        }
+      }
+    }
+
+    // Sort by posterior descending and assign rank + names
+    const enrichedDiagnoses = [...fusedBayesian.diagnoses]
+      .sort((a, b) => b.posterior_probability - a.posterior_probability)
+      .map((d, idx) => {
+        const resolvedName = ssalNameMap.get(d.diagnosis_id)
+          || (d as any).diagnosis_name
+          || d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e))
+          || d.diagnosis_id;
+        const canonical = resolvedName.toLowerCase().replace(/[^a-z0-9\s\-]/g, "").trim();
+        return {
+          ...d,
+          diagnosis_name: resolvedName,
+          canonical_name: canonical,
+          rank: idx + 1,
+          source: ((fusedBayesian!.source || "").includes("fused") ? "fused" : "bayesian") as "bayesian" | "fused" | "override",
+        };
+      });
+
+    // SSAL invariant checks
+    for (const d of enrichedDiagnoses) {
+      if (!d.diagnosis_name) console.error("[SSAL_ERROR] Missing diagnosis_name for", d.diagnosis_id);
+      if (!d.canonical_name) console.error("[SSAL_ERROR] Missing canonical_name for", d.diagnosis_id);
+    }
+    console.log("[SSAL_VALID]", enrichedDiagnoses.map(d => ({ id: d.diagnosis_id, name: d.diagnosis_name, rank: d.rank, prob: Math.round(d.posterior_probability * 100) + "%" })));
+
+    fusedBayesian = { ...fusedBayesian, diagnoses: enrichedDiagnoses as any };
+
+    // Freeze to prevent downstream mutation
+    try {
+      Object.freeze(fusedBayesian);
+      Object.freeze(fusedBayesian.diagnoses);
+    } catch (e) {
+      // Non-critical — log but don't fail pipeline
+      console.warn("[SSAL] Object.freeze failed:", e);
+    }
+  }
+
   onProgress?.("bayesian", { bayesian: fusedBayesian });
   onProgress?.("guidelines", { guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
   onProgress?.("hypotheses", { hypotheses, guideline_alignment: guidelineAlignment, guideline_compliance: guidelineCompliance });
