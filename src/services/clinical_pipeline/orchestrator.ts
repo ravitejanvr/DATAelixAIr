@@ -1398,6 +1398,16 @@ export async function runUnifiedClinicalPipeline(
   let fusedBayesian = bayesianResult;
   if (isScoreFusionEnabled() && bayesianResult && bayesianResult.diagnoses.length > 0) {
     const fusionStart = performance.now();
+    // Build UUID → name map from DDX for semantic resolution in Score Fusion
+    const fusionNameMap = new Map<string, string>();
+    if (ddxResult?.differential_diagnoses) {
+      for (const d of ddxResult.differential_diagnoses) {
+        if (d.diagnosis_id && d.diagnosis_name) {
+          fusionNameMap.set(d.diagnosis_id, d.diagnosis_name);
+        }
+      }
+    }
+    console.log(`[Pipeline] Score Fusion: name map has ${fusionNameMap.size} entries for ${bayesianResult.diagnoses.length} Bayesian diagnoses`);
     const fusionOutput = applyScoreFusion({
       bayesian: bayesianResult,
       ddx: ddxResult,
@@ -1411,6 +1421,7 @@ export async function runUnifiedClinicalPipeline(
         temperature: vitals.temperature,
         spo2: vitals.spo2,
       },
+      diagnosisNameMap: fusionNameMap,
     });
     if (fusionOutput.fusion_applied) {
       fusedBayesian = fusionOutput.result;
@@ -1557,7 +1568,10 @@ export async function runUnifiedClinicalPipeline(
 
   // ═══════════════════════════════════════════════════════
   // WAVE 3.5 — Cognitive Controller Pruning + Conflict Resolution
-  // The cognitive controller now runs INLINE to influence final diagnoses.
+  // ⚠️ ARCHITECTURAL NOTE: This wave modifies ddxResult AFTER fusedBayesian
+  // has been frozen by SSAL. Changes here do NOT affect the final UI ranking.
+  // They only affect downstream SOAP fallback and monitoring. This is a known
+  // limitation — fixing it requires pipeline reorder which violates invariants.
   // ═══════════════════════════════════════════════════════
   let conflictResult: ConflictResolution | null = null;
 
@@ -1850,6 +1864,7 @@ export async function runUnifiedClinicalPipeline(
             ? topProb - ddxResult.differential_diagnoses[1].probability
             : topProb;
           const syntheticScore = Math.min(95, Math.max(30, Math.round(spread * 1.5 + 20)));
+          console.warn("[Pipeline] ⚠️ SYNTHETIC_UNCERTAINTY: Real uncertainty engine failed/timed out — using DDX-spread fallback");
           return {
             confidence_score: syntheticScore,
             confidence_label: syntheticScore >= 70 ? "high" : syntheticScore >= 40 ? "moderate" : "low",
@@ -1867,6 +1882,7 @@ export async function runUnifiedClinicalPipeline(
               signal_coherence: syntheticScore / 100,
             },
             execution_ms: 0,
+            synthetic: true,
           } satisfies UncertaintyResult;
         }
         lat.uncertainty_engine = Math.round(performance.now() - t0);
@@ -2216,7 +2232,9 @@ export async function runUnifiedClinicalPipeline(
   // ── Wave 6 — Clinical Cognitive Layer (async, fire-and-forget) ──
   // Does NOT block the pipeline return. Learning signals are recorded
   // asynchronously for batch calibration.
-  const topDiagnosis = ddxResult?.differential_diagnoses?.[0];
+  // FIX: Use fusedBayesian (SSAL authority) for top diagnosis, not raw ddxResult
+  const topDiagnosis = fusedBayesian?.diagnoses?.[0] as any
+    ?? ddxResult?.differential_diagnoses?.[0];
   if (input.clinic_id && !input.skip_cache) {
     runCognitiveLayer({
       case: {
@@ -2226,8 +2244,8 @@ export async function runUnifiedClinicalPipeline(
         doctor_id: input.clinical_context.doctor_id || "",
         symptom_vector: symptoms,
         chief_complaint: ctx.chief_complaint,
-        final_diagnosis: topDiagnosis?.diagnosis_name,
-        ai_top_diagnosis: topDiagnosis?.diagnosis_name,
+        final_diagnosis: topDiagnosis?.diagnosis_name ?? topDiagnosis?.diagnosis,
+        ai_top_diagnosis: topDiagnosis?.diagnosis_name ?? topDiagnosis?.diagnosis,
         organ_system: dominantSystem || undefined,
         confidence_score: uncertaintyResult?.confidence_score,
         differential_diagnoses: ddxResult?.differential_diagnoses?.slice(0, 5),
