@@ -1384,7 +1384,7 @@ export default function CockpitPlayground() {
                 </p>
                 <div className="flex items-center gap-2">
                   <Badge variant={
-                    physioBayesianDiff.disagreement.type === "ALIGNED" ? "secondary" :
+                    physioBayesianDiff.disagreement.type === "ALIGNED" || physioBayesianDiff.disagreement.type === "ALIGNED_SYSTEMIC" || physioBayesianDiff.disagreement.type === "ALIGNED_ORGAN" ? "secondary" :
                     physioBayesianDiff.disagreement.type === "AMBIGUOUS" ? "outline" : "destructive"
                   } className="text-[9px] h-4">
                     {physioBayesianDiff.disagreement.type}
