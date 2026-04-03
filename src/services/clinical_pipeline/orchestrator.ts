@@ -1454,7 +1454,15 @@ export async function runUnifiedClinicalPipeline(
   {
     const { isSystemicOverrideEnabled } = await import("@/services/feature_flags");
     if (isSystemicOverrideEnabled() && fusedBayesian && fusedBayesian.diagnoses.length > 0) {
-      const { applySystemicOverride } = await import("@/services/clinical_pipeline/systemic_override_layer");
+      // Build UUID → name map from DDX results
+      const diagnosisNameMap = new Map<string, string>();
+      if (ddxResult?.differential_diagnoses) {
+        for (const d of ddxResult.differential_diagnoses) {
+          if (d.diagnosis_id && d.diagnosis_name) {
+            diagnosisNameMap.set(d.diagnosis_id, d.diagnosis_name);
+          }
+        }
+      }
       const overrideResult = applySystemicOverride({
         bayesianDiagnoses: fusedBayesian.diagnoses,
         physiologicalContext: physiologicalContext,
@@ -1465,6 +1473,7 @@ export async function runUnifiedClinicalPipeline(
           respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
           spo2: vitals.spo2,
         },
+        diagnosisNameMap,
       });
       if (overrideResult.applied) {
         fusedBayesian = { ...fusedBayesian, diagnoses: overrideResult.diagnoses as typeof fusedBayesian.diagnoses };
