@@ -153,6 +153,7 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
     physiology: {
       systemic_state: systemicState,
       systemic_score: systemicScore,
+      confidence,
       signals,
       affected_systems: input.affected_systems ?? [],
       candidate_diagnosis_ids: input.candidate_diagnosis_ids ?? [],
