@@ -104,3 +104,7 @@ export function isScoreFusionEnabled(): boolean {
 export function isSystemicOverrideEnabled(): boolean {
   return currentFlags.enable_systemic_override;
 }
+
+export function isCognitiveAuthorityLayerEnabled(): boolean {
+  return currentFlags.enable_cognitive_authority_layer;
+}
