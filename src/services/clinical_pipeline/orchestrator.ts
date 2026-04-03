@@ -67,10 +67,11 @@ import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_en
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { mergeActivations, expandKG } from "@/services/kg";
-import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled } from "@/services/feature_flags";
+import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCanonicalMappingEnabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResult } from "@/services/clinical_pipeline/pattern_priority_layer";
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
+import { applyCanonicalScoreFusion } from "@/services/clinical_pipeline/canonical_fusion";
 
 // ── Public Types ──
 
@@ -1408,7 +1409,8 @@ export async function runUnifiedClinicalPipeline(
       }
     }
     console.log(`[Pipeline] Score Fusion: name map has ${fusionNameMap.size} entries for ${bayesianResult.diagnoses.length} Bayesian diagnoses`);
-    const fusionOutput = applyScoreFusion({
+
+    const fusionInput = {
       bayesian: bayesianResult,
       ddx: ddxResult,
       physiology: physiologicalContext,
@@ -1422,7 +1424,12 @@ export async function runUnifiedClinicalPipeline(
         spo2: vitals.spo2,
       },
       diagnosisNameMap: fusionNameMap,
-    });
+    };
+
+    // Feature flag: use canonical ID-based fusion or legacy string-based fusion
+    const fusionOutput = isCanonicalMappingEnabled()
+      ? applyCanonicalScoreFusion(fusionInput)
+      : applyScoreFusion(fusionInput);
     if (fusionOutput.fusion_applied) {
       fusedBayesian = fusionOutput.result;
       console.log("[Pipeline] Phase 5.5: Physiology-First Score Fusion applied —", fusionOutput.diagnostics.length, "diagnoses modulated.");
