@@ -1398,6 +1398,16 @@ export async function runUnifiedClinicalPipeline(
   let fusedBayesian = bayesianResult;
   if (isScoreFusionEnabled() && bayesianResult && bayesianResult.diagnoses.length > 0) {
     const fusionStart = performance.now();
+    // Build UUID → name map from DDX for semantic resolution in Score Fusion
+    const fusionNameMap = new Map<string, string>();
+    if (ddxResult?.differential_diagnoses) {
+      for (const d of ddxResult.differential_diagnoses) {
+        if (d.diagnosis_id && d.diagnosis_name) {
+          fusionNameMap.set(d.diagnosis_id, d.diagnosis_name);
+        }
+      }
+    }
+    console.log(`[Pipeline] Score Fusion: name map has ${fusionNameMap.size} entries for ${bayesianResult.diagnoses.length} Bayesian diagnoses`);
     const fusionOutput = applyScoreFusion({
       bayesian: bayesianResult,
       ddx: ddxResult,
@@ -1411,6 +1421,7 @@ export async function runUnifiedClinicalPipeline(
         temperature: vitals.temperature,
         spo2: vitals.spo2,
       },
+      diagnosisNameMap: fusionNameMap,
     });
     if (fusionOutput.fusion_applied) {
       fusedBayesian = fusionOutput.result;
