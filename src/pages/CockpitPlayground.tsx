@@ -1897,7 +1897,7 @@ export default function CockpitPlayground() {
                               className="text-[10px] text-primary font-medium hover:underline flex items-center gap-1 mt-1"
                             >
                               {showMoreDx ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                              {showMoreDx ? "Show less" : `Show ${mergedDiagnoses.filter((d: any) => !d.mustNotMiss).length - 3} more`}
+                              {showMoreDx ? "Show less" : `Show ${mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).length - 2} more`}
                             </button>
                           )}
                           {showMoreDx && mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(3).map((d: any, i: number) => (
