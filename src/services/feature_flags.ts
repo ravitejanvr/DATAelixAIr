@@ -38,6 +38,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_score_fusion: true,
   enable_systemic_override: true,
   enable_canonical_mapping: true,
+  enable_bayesian_systemic_likelihood: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
