@@ -20,6 +20,7 @@ export interface FeatureFlags {
   enable_score_fusion: boolean;
   enable_systemic_override: boolean;
   enable_canonical_mapping: boolean;
+  enable_bayesian_systemic_likelihood: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -37,6 +38,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_score_fusion: true,
   enable_systemic_override: true,
   enable_canonical_mapping: true,
+  enable_bayesian_systemic_likelihood: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -107,4 +109,8 @@ export function isSystemicOverrideEnabled(): boolean {
 
 export function isCanonicalMappingEnabled(): boolean {
   return currentFlags.enable_canonical_mapping;
+}
+
+export function isBayesianSystemicLikelihoodEnabled(): boolean {
+  return currentFlags.enable_bayesian_systemic_likelihood;
 }

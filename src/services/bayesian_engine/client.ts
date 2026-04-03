@@ -1,5 +1,5 @@
 /**
- * Bayesian Diagnostic Probability Engine v4 — Client Service
+ * Bayesian Diagnostic Probability Engine v6 — Client Service
  *
  * Computes posterior probabilities for candidate diagnoses using:
  *   - Disease priors (prevalence × demographic modifiers)
@@ -10,6 +10,7 @@
  *   - Duration & onset temporal modifiers
  *   - Vital sign modifiers (disease-specific)
  *   - Symptom cluster modifiers
+ *   - Systemic instability conditioning (v6)
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -42,8 +43,15 @@ export interface BayesianResult {
   onset_pattern?: string | null;
   vitals_signals_applied?: number;
   cluster_matches?: number;
+  systemic_conditioning_applied?: boolean;
+  systemic_state_used?: SystemicStateInput | null;
   execution_ms: number;
   source: string;
+}
+
+export interface SystemicStateInput {
+  instability_level: "LOW" | "MODERATE" | "HIGH";
+  signal_count: number;
 }
 
 export interface BayesianInput {
@@ -60,6 +68,8 @@ export interface BayesianInput {
   onset_pattern?: string | null;
   severity?: string | null;
   body_location?: string | null;
+  enable_systemic_likelihood?: boolean;
+  systemic_state?: SystemicStateInput | null;
 }
 
 /**
@@ -68,7 +78,8 @@ export interface BayesianInput {
 export async function calculateDiagnosticProbabilities(
   input: BayesianInput
 ): Promise<BayesianResult | null> {
-  console.log("[BayesianEngine] Computing diagnostic probabilities...");
+  console.log("[BayesianEngine] Computing diagnostic probabilities...", 
+    input.enable_systemic_likelihood ? "(systemic conditioning ON)" : "(standard mode)");
 
   try {
     const { data, error } = await supabase.functions.invoke("calculate-diagnostic-probabilities", {
