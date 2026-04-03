@@ -1597,7 +1597,7 @@ export async function runUnifiedClinicalPipeline(
     }
 
     // Mark authority ready BEFORE freeze so downstream can verify
-    fusedBayesian = { ...fusedBayesian, _authority_ready: true };
+    (fusedBayesian as any)._authority_ready = true;
 
     // Freeze to prevent downstream mutation
     try {
