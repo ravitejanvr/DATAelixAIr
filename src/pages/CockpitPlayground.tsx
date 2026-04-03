@@ -564,6 +564,8 @@ export default function CockpitPlayground() {
 
   // Command bar
   const [commandInput, setCommandInput] = useState("");
+  // Investigation results (labs)
+  const [investigationResults, setInvestigationResults] = useState<InvestigationResults>({});
 
   // Pipeline run ref for debouncing
   const pipelineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
