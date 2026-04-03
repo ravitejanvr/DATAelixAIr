@@ -333,6 +333,10 @@ Deno.serve(async (req) => {
         h.includes("hypertension") || h.includes("high blood pressure")),
     };
 
+    // Log active features for debugging
+    const activeFeatures = Object.entries(clinicalFeatures).filter(([_, v]) => v).map(([k]) => k);
+    console.log("[BayesianEngine] ACTIVE FEATURES:", JSON.stringify(activeFeatures));
+
     // ════════════════════════════════════════════
     // DISEASE-SPECIFIC CLINICAL WEIGHT PROFILES
     // ════════════════════════════════════════════
