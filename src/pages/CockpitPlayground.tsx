@@ -892,7 +892,7 @@ export default function CockpitPlayground() {
       }
     });
 
-    const ddxLabs: string[] = (pipelineDDX?.recommended_labs || []).map((l: any) => l.test_name);
+    const ddxLabsRaw: Array<{ test_name: string; for_diagnosis?: string }> = pipelineDDX?.recommended_labs || [];
     const ddxMeds: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency"; forDiagnosis: string }> = [];
     (pipelineDDX?.suggested_medications || []).forEach((m: any) => {
       ddxMeds.push({
