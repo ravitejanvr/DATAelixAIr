@@ -1528,7 +1528,52 @@ export async function runUnifiedClinicalPipeline(
     }
   }
 
-  // Enrich every diagnosis with diagnosis_name, canonical_name, rank, source
+  // ═══════════════════════════════════════════════════════
+  // Phase 5.7 — Bayesian Evidence Engine (Lab Likelihood Update)
+  // Applies investigation (lab) results as likelihood multipliers.
+  // Runs AFTER CPR, BEFORE SSAL freeze. Pure function, no side effects.
+  // ═══════════════════════════════════════════════════════
+  let evidenceEngineResult: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null = null;
+  if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
+    const { applyBayesianEvidence } = await import("@/services/clinical_reasoning/evidenceEngine");
+    const investigationResults = ctx.investigation_results || null;
+    const shockInput = {
+      bp_systolic: vitals.bp_systolic ?? null,
+      heart_rate: vitals.pulse ?? null,
+      lactate: investigationResults?.lactate ?? null,
+    };
+
+    const evStart = performance.now();
+    evidenceEngineResult = applyBayesianEvidence(fusedBayesian, investigationResults, shockInput);
+    lat.evidence_engine = Math.round(performance.now() - evStart);
+
+    // Update fusedBayesian with evidence-updated posteriors
+    if (evidenceEngineResult.labs_applied.length > 0 || evidenceEngineResult.shock_active) {
+      fusedBayesian = {
+        ...fusedBayesian,
+        diagnoses: evidenceEngineResult.diagnoses as any,
+        source: (fusedBayesian.source || "") + "+evidence",
+      };
+      console.log(
+        `[Pipeline] Phase 5.7: Evidence Engine — ${evidenceEngineResult.labs_applied.length} lab(s), ` +
+        `shock=${evidenceEngineResult.shock_active}. ${evidenceEngineResult.execution_ms}ms`,
+      );
+      recordOversightEvent({
+        event_type: "evidence_engine_applied",
+        severity: "info",
+        stage: "evidence_engine",
+        message: `Evidence update: ${evidenceEngineResult.labs_applied.join(", ")} applied. Shock=${evidenceEngineResult.shock_active}.`,
+        metadata: {
+          labs: evidenceEngineResult.labs_applied,
+          shock_score: evidenceEngineResult.shock_score,
+          top_diagnosis: (evidenceEngineResult.diagnoses[0] as any)?.diagnosis_name || evidenceEngineResult.diagnoses[0]?.diagnosis_id,
+          top_delta: evidenceEngineResult.diagnoses[0]?.evidence_delta,
+        } as any,
+      });
+    }
+  }
+
+
   // so ALL downstream consumers get self-describing objects.
   // ═══════════════════════════════════════════════════════
   if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
