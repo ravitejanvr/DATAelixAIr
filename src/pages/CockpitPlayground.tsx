@@ -1900,7 +1900,7 @@ export default function CockpitPlayground() {
                               {showMoreDx ? "Show less" : `Show ${mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).length - 2} more`}
                             </button>
                           )}
-                          {showMoreDx && mergedDiagnoses.filter((d: any) => !d.mustNotMiss).slice(3).map((d: any, i: number) => (
+                          {showMoreDx && mergedDiagnoses.slice(1).filter((d: any) => !d.mustNotMiss).slice(2).map((d: any, i: number) => (
                             <div key={`more-${i}`} className="rounded-lg border border-border p-2 bg-background/40">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-foreground flex-1">{d.name}</span>
