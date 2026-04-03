@@ -30,6 +30,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_phase9_safety_decoupling: false,
   enable_phase10_candidate_completeness: false,
   enable_phase5_context_candidates: true,
+  enable_pattern_priority_layer: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
