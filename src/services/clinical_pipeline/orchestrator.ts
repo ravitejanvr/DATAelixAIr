@@ -2377,7 +2377,7 @@ export async function runUnifiedClinicalPipeline(
     uncertainty: uncertaintyResult,
     hypotheses,
     guideline_alignment: guidelineAlignment,
-    guideline_compliance: guidelineCompliance,
+    guideline_compliance: guidelineCompliancePostSSAL,
     evidence,
     oversight,
     hybrid_reasoning: hybridReasoning,
