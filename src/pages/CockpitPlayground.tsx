@@ -866,7 +866,9 @@ export default function CockpitPlayground() {
         return ddxEntry && hName === ddxEntry.name.toLowerCase();
       }) || pipelineHypotheses[idx];
 
-      const displayName = ddxEntry?.name
+      // SSAL: prefer diagnosis_name from the object itself (set by orchestrator)
+      const displayName = d.diagnosis_name
+        || ddxEntry?.name
         || hyp?.diagnosis
         || (d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e)) || `Diagnosis ${idx + 1}`);
 
