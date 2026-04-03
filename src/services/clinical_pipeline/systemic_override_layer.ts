@@ -113,8 +113,9 @@ export function applySystemicOverride(input: SystemicOverrideInput): SystemicOve
   const cloned = bayesianDiagnoses.map(d => ({ ...d }));
   const originalSepsisScore = cloned[sepsisIdx].posterior_probability;
 
-  // FIX 3: Hard clinical override — ensure sepsis floor at 0.55
-  cloned[sepsisIdx].posterior_probability = Math.max(cloned[sepsisIdx].posterior_probability, SEPSIS_FLOOR);
+  // DEBUG MARKER: force 0.99 to trace overwrites
+  cloned[sepsisIdx].posterior_probability = 0.99;
+  (cloned[sepsisIdx] as any).debug_override_marker = "OVERRIDE_APPLIED";
 
   // FIX 4: Suppress pneumonia candidates
   for (let i = 0; i < cloned.length; i++) {
