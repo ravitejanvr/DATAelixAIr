@@ -36,6 +36,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_pattern_priority_layer: true,
   enable_score_fusion: true,
   enable_systemic_override: true,
+  enable_canonical_mapping: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
