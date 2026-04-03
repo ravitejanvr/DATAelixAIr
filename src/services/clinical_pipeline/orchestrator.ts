@@ -1574,6 +1574,31 @@ export async function runUnifiedClinicalPipeline(
       console.log("[CAL] DISABLED — feature flag off");
     }
 
+    // ═══════════════════════════════════════════════════════
+    // ENFORCER — Clinical Authority Enforcer (must-not-miss priority)
+    // Ensures dangerous systemic conditions meet minimum probability floors.
+    // ═══════════════════════════════════════════════════════
+    if (isExecutionAuthorityFixEnabled()) {
+      const enforcerOutput = enforceClinicalPriority({
+        diagnoses: fusedBayesian.diagnoses as any,
+        vitals: {
+          bp_systolic: vitals.bp_systolic,
+          pulse: vitals.pulse,
+          heart_rate: vitals.pulse,
+          respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
+          temperature: vitals.temperature,
+          spo2: vitals.spo2,
+        },
+      });
+      if (enforcerOutput.enforcer_metadata.applied) {
+        fusedBayesian = { ...fusedBayesian, diagnoses: enforcerOutput.diagnoses as any };
+        console.log("[AUTHORITY_ENFORCER] Priority enforced — ranking updated");
+      }
+    }
+
+    // Mark authority ready BEFORE freeze so downstream can verify
+    fusedBayesian = { ...fusedBayesian, _authority_ready: true };
+
     // Freeze to prevent downstream mutation
     try {
       Object.freeze(fusedBayesian);
