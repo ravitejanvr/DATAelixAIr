@@ -3,6 +3,8 @@
  * 
  * Pure observability layer — does NOT modify any scores, rankings, or pipeline state.
  * Exposes where physiology signals and Bayesian posteriors disagree.
+ * 
+ * IMPORTANT: Uses diagnosisNameMap to resolve UUIDs to clinical names.
  */
 
 // ── Types ──
@@ -52,6 +54,8 @@ interface AnalysisInput {
     respiratory_rate?: number;
     spo2?: number;
   };
+  /** UUID → clinical name map from DDX engine */
+  diagnosisNameMap?: Map<string, string>;
 }
 
 // ── Helpers ──
@@ -74,15 +78,28 @@ function isPneumoniaLike(name: string): boolean {
   return /pneumonia|cap\b|community.acquired/i.test(name);
 }
 
+function resolveName(
+  d: { diagnosis_id?: string; diagnosis_name?: string },
+  nameMap?: Map<string, string>
+): string {
+  if (d.diagnosis_name) return d.diagnosis_name;
+  if (nameMap && d.diagnosis_id) {
+    const mapped = nameMap.get(d.diagnosis_id);
+    if (mapped) return mapped;
+  }
+  return d.diagnosis_id ?? "unknown";
+}
+
 function findRank(
   diagnoses: Array<{ diagnosis_id?: string; diagnosis_name?: string; posterior_probability?: number }>,
-  matcher: (name: string) => boolean
+  matcher: (name: string) => boolean,
+  nameMap?: Map<string, string>
 ): number {
   const sorted = [...diagnoses].sort(
     (a, b) => (b.posterior_probability ?? 0) - (a.posterior_probability ?? 0)
   );
   for (let i = 0; i < sorted.length; i++) {
-    const name = sorted[i].diagnosis_name ?? sorted[i].diagnosis_id ?? "";
+    const name = resolveName(sorted[i], nameMap);
     if (matcher(name)) return i + 1;
   }
   return sorted.length + 1;
@@ -93,6 +110,7 @@ function findRank(
 export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioBayesianDiff {
   const vitals = input.vitals ?? {};
   const diagnoses = input.bayesian_diagnoses ?? [];
+  const nameMap = input.diagnosisNameMap;
 
   // Step 1: Derive systemic signals from vitals
   const signals: SystemicSignals = {
@@ -106,46 +124,48 @@ export function analyzePhysiologyBayesianMismatch(input: AnalysisInput): PhysioB
   const systemicScore = countTrue(signals as unknown as Record<string, boolean>);
   const systemicState = classifyState(systemicScore);
 
-  // Step 2: Extract Bayesian top 3
+  // Step 2: Extract top 3 with resolved names
   const sorted = [...diagnoses].sort(
     (a, b) => (b.posterior_probability ?? 0) - (a.posterior_probability ?? 0)
   );
   const top3 = sorted.slice(0, 3).map(d => ({
-    name: d.diagnosis_name ?? d.diagnosis_id ?? "unknown",
+    name: resolveName(d, nameMap),
     prob: Math.round((d.posterior_probability ?? 0) * 10000) / 10000,
   }));
 
-  const sepsisRank = findRank(diagnoses, isSepsisLike);
-  const pneumoniaRank = findRank(diagnoses, isPneumoniaLike);
+  const sepsisRank = findRank(diagnoses, isSepsisLike, nameMap);
+  const pneumoniaRank = findRank(diagnoses, isPneumoniaLike, nameMap);
 
   // Step 3: Confidence from signal density
   const confidence = systemicScore / 5;
 
-  // Step 4: Detect disagreement — systemic HIGH always resolves definitively
+  // Step 4: Classify disagreement using FINAL rankings
   let type: DisagreementType = "ALIGNED";
   let explanation = "Physiology and Bayesian rankings are consistent.";
 
   if (systemicState === "HIGH") {
     if (sepsisRank === 1) {
       type = "ALIGNED_SYSTEMIC";
-      explanation = `Systemic instability correctly prioritizes Sepsis at rank #1 (${systemicScore}/5 signals, confidence ${(confidence * 100).toFixed(0)}%).`;
+      explanation = `Sepsis ranked #1 with ${top3[0]?.prob ? Math.round(top3[0].prob * 100) : '?'}% probability — systemic instability correctly prioritized (${systemicScore}/5 signals, confidence ${(confidence * 100).toFixed(0)}%).`;
     } else {
       type = "SYSTEMIC_MISSED";
-      explanation = `Strong systemic instability (${systemicScore}/5 signals, confidence ${(confidence * 100).toFixed(0)}%) but Bayesian ranks Sepsis #${sepsisRank} — not top. Bayesian favors organ-level diagnosis despite systemic instability.`;
+      const sepsisEntry = sorted.find(d => isSepsisLike(resolveName(d, nameMap)));
+      const sepsisScore = sepsisEntry ? Math.round((sepsisEntry.posterior_probability ?? 0) * 100) : 0;
+      explanation = `Strong systemic instability (${systemicScore}/5 signals) but Sepsis ranked #${sepsisRank} at ${sepsisScore}% — organ-level diagnosis prioritized over systemic condition.`;
     }
   } else if (systemicState === "LOW") {
     if (pneumoniaRank < sepsisRank) {
       type = "ALIGNED_ORGAN";
-      explanation = `Low systemic instability and Bayesian correctly favors organ-level diagnosis. Pneumonia #${pneumoniaRank}, Sepsis #${sepsisRank}.`;
+      explanation = `Low systemic instability — organ-level diagnosis correctly prioritized. Pneumonia #${pneumoniaRank}, Sepsis #${sepsisRank}.`;
     } else if (sepsisRank <= pneumoniaRank) {
       type = "ORGAN_MISSED";
-      explanation = `Low systemic instability but Bayesian ranks Sepsis #${sepsisRank} at or above Pneumonia #${pneumoniaRank}. Organ-specific signals may be under-weighted.`;
+      explanation = `Low systemic instability but Sepsis ranked #${sepsisRank} at or above Pneumonia #${pneumoniaRank}. Organ-specific signals may be under-weighted.`;
     }
   } else {
-    // MODERATE — keep aligned unless clear mismatch
+    // MODERATE
     if (sepsisRank > pneumoniaRank + 2) {
       type = "SYSTEMIC_MISSED";
-      explanation = `Moderate systemic instability (${systemicScore}/5) but Bayesian ranks Sepsis #${sepsisRank} well behind Pneumonia #${pneumoniaRank}.`;
+      explanation = `Moderate systemic instability (${systemicScore}/5) but Sepsis ranked #${sepsisRank} well behind Pneumonia #${pneumoniaRank}.`;
     }
   }
 
