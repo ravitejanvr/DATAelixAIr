@@ -116,3 +116,7 @@ export function isCanonicalMappingEnabled(): boolean {
 export function isBayesianSystemicLikelihoodEnabled(): boolean {
   return currentFlags.enable_bayesian_systemic_likelihood;
 }
+
+export function isClinicalPriorityResolutionEnabled(): boolean {
+  return currentFlags.enable_clinical_priority_resolution;
+}
