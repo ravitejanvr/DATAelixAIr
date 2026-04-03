@@ -295,14 +295,58 @@ const MANAGEMENT_MAP: Record<string, { tests: string[]; medications: Array<{ dru
     monitoring: ["Peak flow BD — target >80% predicted", "SpO₂ monitoring", "Reassess after 3 nebulizations", "Step-down plan after acute phase"],
     instructions: ["Use rescue inhaler as prescribed", "Complete steroid course", "Identify and avoid triggers", "Seek emergency care if no improvement with nebulization"],
   },
+  "sepsis": {
+    tests: ["Blood culture x2 (before antibiotics)", "CBC with differential", "CRP", "Procalcitonin", "Lactate (serum)", "Renal function", "Liver function", "Coagulation profile", "ABG", "Urinalysis", "Chest X-ray"],
+    medications: [
+      { drug: "IV Fluids (NS/RL)", dose: "30 ml/kg", route: "IV", freq: "STAT", dur: "Within 1 hour", line: "emergency" },
+      { drug: "Piperacillin-Tazobactam", dose: "4.5g", route: "IV", freq: "Q6H", dur: "7-14 days", line: "first" },
+      { drug: "Meropenem", dose: "1g", route: "IV", freq: "Q8H", dur: "7-14 days", line: "alternative" },
+      { drug: "Noradrenaline", dose: "0.1-0.3 mcg/kg/min", route: "IV", freq: "Infusion", dur: "Until MAP ≥65", line: "emergency" },
+    ],
+    monitoring: ["MAP target ≥65 mmHg", "Lactate Q2-4H until normalizing", "Urine output ≥0.5 ml/kg/hr", "Central venous access", "SpO₂ continuous monitoring", "GCS Q2H", "Fluid balance Q1H", "Repeat cultures at 48-72H"],
+    instructions: ["EMERGENCY: Antibiotics within 1 hour of recognition (Surviving Sepsis Campaign)", "Aggressive IV fluid resuscitation — 30 ml/kg crystalloid in first 3 hours", "Vasopressors if MAP <65 despite fluids", "ICU admission required for septic shock", "Source identification and control", "Reassess clinical status Q1H"],
+  },
+  "septic shock": {
+    tests: ["Blood culture x2", "CBC", "Lactate (serum)", "Procalcitonin", "ABG", "Renal function", "Liver function", "Coagulation profile", "Chest X-ray", "CT as indicated for source"],
+    medications: [
+      { drug: "IV Fluids (NS/RL)", dose: "30 ml/kg", route: "IV", freq: "STAT", dur: "Within 1 hour", line: "emergency" },
+      { drug: "Noradrenaline", dose: "0.1-0.5 mcg/kg/min", route: "IV", freq: "Infusion", dur: "Until MAP ≥65", line: "emergency" },
+      { drug: "Meropenem", dose: "1g", route: "IV", freq: "Q8H", dur: "7-14 days", line: "emergency" },
+      { drug: "Hydrocortisone", dose: "50mg", route: "IV", freq: "Q6H", dur: "7 days", line: "first" },
+    ],
+    monitoring: ["MAP target ≥65 mmHg continuously", "Lactate Q2H", "CVP monitoring", "ScvO₂ target ≥70%", "Urine output Q1H", "Fluid balance Q1H", "ICU level monitoring"],
+    instructions: ["EMERGENCY: ICU admission mandatory", "Hour-1 Bundle: cultures, antibiotics, fluids, lactate, vasopressors", "Source control within 6-12 hours", "Consider stress-dose steroids if refractory shock"],
+  },
+  "sirs": {
+    tests: ["CBC", "CRP", "Blood culture", "Lactate", "Urinalysis", "Chest X-ray"],
+    medications: [
+      { drug: "IV Fluids", dose: "1L NS", route: "IV", freq: "STAT", dur: "Per assessment", line: "first" },
+      { drug: "Paracetamol", dose: "1g", route: "IV", freq: "Q6H", dur: "As needed", line: "first" },
+    ],
+    monitoring: ["Vital signs Q1H", "Lactate at 0 and 6 hours", "Assess for infection source", "Watch for progression to sepsis"],
+    instructions: ["Monitor closely for sepsis progression", "Identify underlying cause", "Serial reassessment of clinical status"],
+  },
 };
 
 function resolveManagement(diagnosisName: string): { tests: string[]; medications: Array<{ drug: string; dose: string; route: string; freq: string; dur: string; line: "first" | "alternative" | "emergency" }>; instructions: string[]; monitoring: string[] } {
-  const key = diagnosisName.toLowerCase().trim();
-  if (MANAGEMENT_MAP[key]) return { ...MANAGEMENT_MAP[key], instructions: MANAGEMENT_MAP[key].instructions || [], monitoring: MANAGEMENT_MAP[key].monitoring || [] };
-  for (const [mapKey, val] of Object.entries(MANAGEMENT_MAP)) {
-    if (key.includes(mapKey) || mapKey.includes(key)) return { ...val, instructions: val.instructions || [], monitoring: val.monitoring || [] };
+  if (!diagnosisName || diagnosisName.trim() === "") {
+    console.warn("[AUTHORITY_VIOLATION: BLOCKED_NO_AUTHORITY] resolveManagement called with empty diagnosis");
+    return { tests: [], medications: [], instructions: [], monitoring: [] };
   }
+  const key = diagnosisName.toLowerCase().trim();
+  // Exact match first
+  if (MANAGEMENT_MAP[key]) {
+    console.log(`[MANAGEMENT_AUTHORITY] Resolved "${diagnosisName}" → exact match "${key}"`);
+    return { ...MANAGEMENT_MAP[key], instructions: MANAGEMENT_MAP[key].instructions || [], monitoring: MANAGEMENT_MAP[key].monitoring || [] };
+  }
+  // Substring match (deterministic fallback)
+  for (const [mapKey, val] of Object.entries(MANAGEMENT_MAP)) {
+    if (key.includes(mapKey) || mapKey.includes(key)) {
+      console.log(`[MANAGEMENT_AUTHORITY] Resolved "${diagnosisName}" → substring match "${mapKey}"`);
+      return { ...val, instructions: val.instructions || [], monitoring: val.monitoring || [] };
+    }
+  }
+  console.warn(`[MANAGEMENT_AUTHORITY] No protocol found for diagnosis: "${diagnosisName}" — returning empty (no symptom fallback)`);
   return { tests: [], medications: [], instructions: [], monitoring: [] };
 }
 
