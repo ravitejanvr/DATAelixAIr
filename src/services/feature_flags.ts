@@ -92,3 +92,7 @@ export function isPhase5ContextCandidatesEnabled(): boolean {
 export function isPatternPriorityLayerEnabled(): boolean {
   return currentFlags.enable_pattern_priority_layer;
 }
+
+export function isScoreFusionEnabled(): boolean {
+  return currentFlags.enable_score_fusion;
+}
