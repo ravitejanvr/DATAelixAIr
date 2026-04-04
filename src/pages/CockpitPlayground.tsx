@@ -46,6 +46,21 @@ function getLabInterpretation(key: string, value: number): string {
   return interps[key]?.(value) || "";
 }
 
+function formatEvidenceFeature(feature: string): string {
+  const labels: Record<string, string> = {
+    lactate: "Lactate",
+    lactate_clinical_boost: "Clinical boost",
+    troponin: "Troponin",
+    CRP: "CRP",
+    procalcitonin: "Procalcitonin",
+    WBC: "WBC",
+    D_dimer: "D-dimer",
+    shock_score: "Shock",
+  };
+
+  return labels[feature] || feature.replace(/_/g, " ");
+}
+
 // ── Presets ──
 const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain", "Dizziness", "Back pain", "Dysuria", "Rash", "Joint pain", "Palpitations", "Neck stiffness", "Syncope", "Sweating", "Nausea", "Photophobia"];
 const DURATION_PRESETS = ["Today", "2 days", "3 days", "5 days", "1 week", "2 weeks", "1 month"];
@@ -2141,6 +2156,14 @@ export default function CockpitPlayground() {
                           {/* Primary Diagnosis */}
                           {mergedDiagnoses.slice(0, 1).map((d: any, i: number) => {
                             const isExpanded = expandedDx.has(d.name);
+                            const evidenceContributions = Array.isArray(d.bayesian?.evidence_contributions)
+                              ? d.bayesian.evidence_contributions
+                              : [];
+                            const lactateContribution = evidenceContributions.find((entry: any) => entry.feature === "lactate");
+                            const lactateClinicalBoost = evidenceContributions.find((entry: any) => entry.feature === "lactate_clinical_boost");
+                            const evidenceShiftVisible = typeof d.bayesian?.prior_score === "number"
+                              && typeof d.bayesian?.posterior_score === "number"
+                              && Math.abs((d.bayesian?.evidence_delta || 0)) > 0.001;
                             return (
                             <div key={i}>
                               <p className="text-[9px] font-bold text-primary uppercase tracking-wider mb-1.5">Primary Diagnosis</p>
@@ -2158,6 +2181,22 @@ export default function CockpitPlayground() {
                                 <div className="h-1.5 rounded-full bg-muted">
                                   <div className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
                                 </div>
+                                {evidenceShiftVisible && (
+                                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[9px]">
+                                    <span className="rounded-full border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-foreground">
+                                      {(d.bayesian.prior_score * 100).toFixed(1)}% → {(d.bayesian.posterior_score * 100).toFixed(1)}%
+                                    </span>
+                                    <span className="rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-medium text-primary">
+                                      {(d.bayesian.evidence_delta >= 0 ? "+" : "")}{(d.bayesian.evidence_delta * 100).toFixed(1)} pts from evidence
+                                    </span>
+                                  </div>
+                                )}
+                                {lactateContribution && (
+                                  <p className="mt-1 text-[9px] leading-snug text-primary">
+                                    Lactate {Number(lactateContribution.value).toFixed(Number(lactateContribution.value) % 1 === 0 ? 0 : 1)} mmol/L applied · likelihood ×{Number(lactateContribution.multiplier).toFixed(1)}
+                                    {lactateClinicalBoost?.additive_boost ? ` · clinical boost +${(Number(lactateClinicalBoost.additive_boost) * 100).toFixed(0)} pts` : ""}
+                                  </p>
+                                )}
                                 {/* Inline diagnostic explanation */}
                                 {d.supporting.length > 0 && (
                                   <p className="text-[9px] text-muted-foreground mt-1 leading-snug">
@@ -2234,6 +2273,27 @@ export default function CockpitPlayground() {
                                         {d.bayesian.cluster_modifier != null && d.bayesian.cluster_modifier !== 1 && <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(2)}</span>}
                                         {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && <span>Vitals: ×{d.bayesian.vital_modifier?.toFixed(2)}</span>}
                                       </div>
+                                      {Array.isArray(d.bayesian.evidence_contributions) && d.bayesian.evidence_contributions.length > 0 && (
+                                        <>
+                                          <p className="mt-2 text-[9px] text-muted-foreground font-semibold uppercase mb-1">Evidence Contributions</p>
+                                          <div className="flex flex-wrap gap-1">
+                                            {d.bayesian.evidence_contributions.map((entry: any, entryIdx: number) => {
+                                              const tone = entry.direction === "support"
+                                                ? "border-primary/20 bg-primary/10 text-primary"
+                                                : entry.direction === "against"
+                                                  ? "border-destructive/20 bg-destructive/10 text-destructive"
+                                                  : "border-border bg-muted/40 text-muted-foreground";
+
+                                              return (
+                                                <span key={`${entry.feature}-${entryIdx}`} className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium ${tone}`}>
+                                                  {formatEvidenceFeature(entry.feature)} {entry.multiplier !== 1 ? `×${Number(entry.multiplier).toFixed(1)}` : ""}
+                                                  {entry.additive_boost ? ` · +${(Number(entry.additive_boost) * 100).toFixed(0)} pts` : ""}
+                                                </span>
+                                              );
+                                            })}
+                                          </div>
+                                        </>
+                                      )}
                                     </div>
                                   )}
                                   {reasoningLevel === "debug" && d.bayesian && (
@@ -2246,6 +2306,8 @@ export default function CockpitPlayground() {
                                         <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(3)}</span>
                                         <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(3)}</span>
                                         <span>Vital: ×{d.bayesian.vital_modifier?.toFixed(3)}</span>
+                                        {d.bayesian.prior_score != null && <span>Pre-evidence: {(d.bayesian.prior_score * 100).toFixed(1)}%</span>}
+                                        {d.bayesian.evidence_delta != null && <span>Evidence Δ: {(d.bayesian.evidence_delta * 100).toFixed(1)} pts</span>}
                                         <span className="col-span-2 font-bold text-primary">Posterior: {d.bayesian.posterior_probability?.toFixed(4)}</span>
                                       </div>
                                     </div>
