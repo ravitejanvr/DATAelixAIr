@@ -1352,7 +1352,7 @@ export default function CockpitPlayground() {
     return { signals, vitals, labs, context };
   }, [mergedDiagnoses, investigationResults, selectedRiskFactors]);
 
-  // ── Clinical Status derived from vitals ──
+  // ── Clinical Status + Time Criticality derived from vitals ──
   const clinicalStatus = useMemo(() => {
     if (!patientVitals) return null;
     const criticals: string[] = [];
@@ -1360,7 +1360,7 @@ export default function CockpitPlayground() {
     if (patientVitals.spo2 && patientVitals.spo2 < 92) criticals.push("hypoxia");
     if (patientVitals.temperature && patientVitals.temperature > 103) criticals.push("high fever");
     if (patientVitals.pulse && patientVitals.pulse > 120) criticals.push("severe tachycardia");
-    if (criticals.length >= 2) return { level: "critical" as const, label: "CRITICAL", explanation: `${criticals.join(", ")} detected — immediate intervention required` };
+    if (criticals.length >= 2) return { level: "critical" as const, label: "CRITICAL", explanation: `${criticals.join(", ")} detected — immediate intervention required`, timeWindow: "ACTION REQUIRED WITHIN 1 HOUR" };
     
     const abnormals: string[] = [];
     if (patientVitals.bp_systolic && patientVitals.bp_systolic < 100) abnormals.push("low BP");
@@ -1368,10 +1368,10 @@ export default function CockpitPlayground() {
     if (patientVitals.temperature && patientVitals.temperature > 100.4) abnormals.push("fever");
     if (patientVitals.pulse && patientVitals.pulse > 100) abnormals.push("tachycardia");
     if (patientVitals.respiratory_rate && patientVitals.respiratory_rate > 20) abnormals.push("tachypnea");
-    if (criticals.length > 0 || abnormals.length >= 2) return { level: "moderate" as const, label: "MODERATE", explanation: `${[...criticals, ...abnormals].join(", ")} — close monitoring required` };
+    if (criticals.length > 0 || abnormals.length >= 2) return { level: "moderate" as const, label: "MODERATE", explanation: `${[...criticals, ...abnormals].join(", ")} — close monitoring required`, timeWindow: "Review within 4 hours" };
     
-    if (abnormals.length > 0) return { level: "moderate" as const, label: "MODERATE", explanation: `${abnormals.join(", ")} — monitor closely` };
-    return { level: "stable" as const, label: "STABLE", explanation: "Vitals within normal limits" };
+    if (abnormals.length > 0) return { level: "moderate" as const, label: "MODERATE", explanation: `${abnormals.join(", ")} — monitor closely`, timeWindow: "Review within 4 hours" };
+    return { level: "stable" as const, label: "STABLE", explanation: "Vitals within normal limits", timeWindow: null };
   }, [patientVitals]);
 
   // ── Copilot props — wired to fusedBayesian (SSOT) with Primary/Secondary authority ──
