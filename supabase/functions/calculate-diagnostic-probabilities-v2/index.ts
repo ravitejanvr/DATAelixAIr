@@ -239,12 +239,32 @@ Deno.serve(async (req) => {
       hypertension_history: normalizedHistory.some((h: string) => h.includes("hypertension") || h.includes("high blood pressure")),
     };
 
-    const activeFeatureNames = Object.entries(activeFeatures).filter(([_, v]) => v).map(([k]) => k);
-    console.log("[ProbEngineV2] Active features:", JSON.stringify(activeFeatureNames));
+    // ── NEGATIVE EVIDENCE: derive "no_X" features from absence of positive features ──
+    // These activate negative log-LRs stored in feature_state_likelihoods
+    const negativeFeatures: Record<string, boolean> = {
+      no_fever: !activeFeatures.fever,
+      no_hypotension: !activeFeatures.hypotension,
+      no_tachycardia: !activeFeatures.tachycardia,
+      no_chest_pain: !activeFeatures.chest_pain,
+      no_dyspnea: !activeFeatures.dyspnea,
+      no_cough: !activeFeatures.cough,
+      no_hypoxia: !activeFeatures.hypoxia,
+      no_altered_mental_status: !activeFeatures.altered_mental_status,
+      no_headache: !activeFeatures.headache,
+      no_sweating: !activeFeatures.sweating,
+      no_joint_pain: !activeFeatures.joint_pain,
+    };
+
+    // Merge positive + negative into unified feature set
+    const allFeatures: Record<string, boolean> = { ...activeFeatures, ...negativeFeatures };
+
+    const activeFeatureNames = Object.entries(allFeatures).filter(([_, v]) => v).map(([k]) => k);
+    console.log("[ProbEngineV2] Active features (pos+neg):", JSON.stringify(activeFeatureNames));
 
     // ════════════════════════════════════════════
     // STEP 2: COMPUTE LATENT STATE POSTERIORS
     // Evidence → Latent States via DB-driven log-LRs
+    // With bounded calibration: clamp posteriors to [0.01, 0.99]
     // ════════════════════════════════════════════
     const latentStates = latentStatesRes.data || [];
     const featureStateLRs = featureStateRes.data || [];
@@ -258,9 +278,10 @@ Deno.serve(async (req) => {
       featureStateMap.get(fsl.latent_state_id)!.set(fsl.feature_name, fsl.log_likelihood_ratio);
     }
 
-    // Compute latent state log-odds from uniform prior (0.5 → logOdds = 0)
+    // Compute latent state log-odds from uninformative prior (0.5 → logOdds = 0)
     const latentStatePosteriors = new Map<string, number>(); // stateId → posterior prob
     const latentStateLogOdds = new Map<string, number>();
+    const LOG_ODDS_CLAMP = 4.6; // clamp to ±4.6 → posterior bounded to [0.01, 0.99]
 
     for (const state of latentStates) {
       let logOdds = 0; // Prior = 0.5 (uninformative)
@@ -268,12 +289,15 @@ Deno.serve(async (req) => {
 
       if (stateFeatures) {
         for (const [featureName, logLR] of stateFeatures) {
-          if (activeFeatures[featureName]) {
+          // Apply BOTH positive features (logLR > 0) AND negative features (logLR < 0)
+          if (allFeatures[featureName]) {
             logOdds += logLR;
           }
         }
       }
 
+      // Clamp log-odds to prevent numerical extremes
+      logOdds = Math.max(-LOG_ODDS_CLAMP, Math.min(LOG_ODDS_CLAMP, logOdds));
       latentStateLogOdds.set(state.id, logOdds);
       const posterior = 1 / (1 + Math.exp(-logOdds));
       latentStatePosteriors.set(state.id, posterior);
