@@ -1523,7 +1523,10 @@ export default function CockpitPlayground() {
               <Beaker className="h-3.5 w-3.5 text-primary" />
             </div>
             <span className="text-xs font-bold text-foreground">Clinical Cockpit</span>
-            <SystemModeIndicator />
+            {reasoningLevel !== "doctor" && <SystemModeIndicator />}
+            {reasoningLevel === "doctor" && (
+              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">● Running</span>
+            )}
 
             {/* Scenario Dropdown */}
             <DropdownMenu>
