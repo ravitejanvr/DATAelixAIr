@@ -865,7 +865,7 @@ export default function CockpitPlayground() {
         setTimeout(() => setPipelineStage(null), 2000);
       }
     }
-  }, [selectedSymptoms, selectedDuration, selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors, selectedMedicalHistory, selectedFamilyHistory, selectedExamFindings, chiefComplaint, mockPatient, patientVitals, pipelineComplete, pipelineHypotheses, pipelineBayesian, soapSections, selectedScenario, soapManualEdits]);
+  }, [selectedSymptoms, selectedDuration, selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors, selectedMedicalHistory, selectedFamilyHistory, selectedExamFindings, chiefComplaint, mockPatient, patientVitals, pipelineComplete, pipelineHypotheses, pipelineBayesian, soapSections, selectedScenario, soapManualEdits, investigationResults]);
 
   // ── Auto-trigger pipeline on any context change ──
   const contextFingerprint = useMemo(() => JSON.stringify({
