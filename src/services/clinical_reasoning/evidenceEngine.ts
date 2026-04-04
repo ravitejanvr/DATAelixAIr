@@ -450,6 +450,28 @@ export function applyBayesianEvidence(
     };
   });
 
+  // Post-normalization floor: sepsis must NEVER decrease after lactate ≥ 4
+  if (hasExplicitLactate && labs.lactate! >= 4) {
+    for (const d of enriched) {
+      if (isSepsisDiagnosis(d) && d.posterior_score < d.prior_score) {
+        const floor = d.prior_score + 0.15;
+        console.log(`[EvidenceEngine] Floor protection: sepsis ${(d.posterior_score * 100).toFixed(1)}% < prior ${(d.prior_score * 100).toFixed(1)}%, lifting to ${(floor * 100).toFixed(1)}%`);
+        d.posterior_score = floor;
+        d.posterior_probability = floor;
+        d.evidence_delta = floor - d.prior_score;
+      }
+    }
+    // Re-normalize after floor lift
+    const floorTotal = enriched.reduce((s, d) => s + d.posterior_probability, 0);
+    if (floorTotal > 0 && Math.abs(floorTotal - 1.0) > 0.001) {
+      for (const d of enriched) {
+        d.posterior_probability /= floorTotal;
+        d.posterior_score = d.posterior_probability;
+        d.evidence_delta = d.posterior_score - d.prior_score;
+      }
+    }
+  }
+
   // Sort by posterior descending (preserve stable ranking)
   enriched.sort((a, b) => b.posterior_probability - a.posterior_probability);
 
