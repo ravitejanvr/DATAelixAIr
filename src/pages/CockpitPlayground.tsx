@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Chip, ChipGroup } from "@/components/ui/chip";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ClinicalCard } from "@/components/ui/clinical-card";
 import { useToast } from "@/hooks/use-toast";
 import SEO from "@/components/SEO";
