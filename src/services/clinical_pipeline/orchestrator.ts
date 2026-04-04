@@ -2626,8 +2626,23 @@ export async function runUnifiedClinicalPipeline(
     cache_stats: cache,
     lineage: lineageReport,
     context_graph: { ...contextGraph } as UnifiedClinicalContextGraph,
-    cognitive_layer: null, // Populated async — check episodic_case_memory table
+    cognitive_layer: null,
     evidence_engine: evidenceEngineResult,
+    engine_audit: {
+      engine_version: (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "v2" as const : "v1" as const,
+      fallback_used: v2FallbackUsed,
+      fallback_reason: v2FallbackReason,
+      cache_hit: cache.reasoning_hit,
+      cache_status: input.skip_cache ? "BYPASSED" as const : (cache.reasoning_hit ? "HIT" as const : "MISS" as const),
+      rollout_bucket: rolloutBucket,
+      rollout_percentage: rolloutConfig.rollout_percentage,
+      is_internal_user: isInternalUser,
+      v1_top_score: bayesianResult?.diagnoses?.[0]?.posterior_probability ?? null,
+      v2_top_score: v2Result?.diagnoses?.[0]?.posterior_probability ?? null,
+      v1_top_diagnosis: bayesianResult?.diagnoses?.[0]?.diagnosis_id ?? null,
+      v2_top_diagnosis: v2Result?.diagnoses?.[0]?.diagnosis_id ?? null,
+      primary_engine: (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "v2" as const : "v1" as const,
+    },
   };
 }
 
