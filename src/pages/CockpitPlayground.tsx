@@ -2467,9 +2467,9 @@ export default function CockpitPlayground() {
 
         {/* ══════════ FLOATING COMMAND BAR ══════════ */}
         {mockPatient && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[480px] max-w-[90vw]">
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[520px] max-w-[90vw]">
             <div className="flex items-center gap-2 glass-card rounded-full px-4 h-10 border shadow-lg ring-1 ring-primary/5 focus-within:ring-primary/20 focus-within:shadow-[0_0_30px_hsl(198_93%_59%/0.12)] transition-all duration-300">
-              <Sparkles className="h-3.5 w-3.5 text-primary/60 shrink-0" />
+              <Brain className="h-3.5 w-3.5 text-primary/60 shrink-0" />
               <input
                 type="text"
                 value={commandInput}
@@ -2484,7 +2484,29 @@ export default function CockpitPlayground() {
               >
                 <Send className="h-3 w-3 text-primary" />
               </button>
+              <button
+                onClick={async () => {
+                  if (isVoiceRecording) {
+                    setIsVoiceRecording(false);
+                  } else {
+                    try {
+                      await navigator.mediaDevices.getUserMedia({ audio: true });
+                      setIsVoiceRecording(true);
+                    } catch {
+                      toast({ title: "Microphone access required", variant: "destructive" });
+                    }
+                  }
+                }}
+                className={`h-6 w-6 rounded-full flex items-center justify-center transition-colors ${isVoiceRecording ? "bg-destructive/20 text-destructive animate-pulse" : "bg-primary/10 hover:bg-primary/20 text-primary"}`}
+              >
+                {isVoiceRecording ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+              </button>
             </div>
+            {isVoiceRecording && voiceTranscript && (
+              <div className="mt-1 glass-card rounded-lg px-3 py-1.5 text-[10px] text-muted-foreground italic border">
+                🎙 {voiceTranscript}
+              </div>
+            )}
           </div>
         )}
       </div>
