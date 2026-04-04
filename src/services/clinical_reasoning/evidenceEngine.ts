@@ -319,9 +319,17 @@ export function applyBayesianEvidence(
 ): EvidenceEngineResult {
   const t0 = performance.now();
 
-  const shockScore = computeShockScore(shockInput);
+  // Detect explicit lactate to prevent double-counting with shock model
+  const labs = investigationResults || {};
+  const hasExplicitLactate = labs.lactate != null && isLabClinicallyRelevant("lactate", labs.lactate);
+
+  const shockScore = computeShockScore(shockInput, hasExplicitLactate);
   const shockActive = shockScore >= 0.3;
   const labsApplied: string[] = [];
+
+  if (hasExplicitLactate) {
+    console.log("[EvidenceEngine] Explicit lactate detected — excluded from shock score to prevent double-counting");
+  }
 
   // Determine which labs are present and relevant
   const labs = investigationResults || {};
