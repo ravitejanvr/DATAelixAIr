@@ -1504,7 +1504,7 @@ export async function runUnifiedClinicalPipeline(
   // Bridges DDX, Pattern, and Physiology intelligence into Bayesian posteriors.
   // Feature-flagged via enable_score_fusion. Pure, deterministic.
   // ═══════════════════════════════════════════════════════
-  let fusedBayesian = bayesianResult;
+  let fusedBayesian = (useV2AsPrimary && v2Result) ? v2Result : bayesianResult;
   if (isScoreFusionEnabled() && bayesianResult && bayesianResult.diagnoses.length > 0) {
     const fusionStart = performance.now();
     // Build UUID → name map from DDX for semantic resolution in Score Fusion
