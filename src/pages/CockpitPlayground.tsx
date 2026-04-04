@@ -1686,7 +1686,7 @@ export default function CockpitPlayground() {
         )}
 
         {/* ── Comparison overlay ── */}
-        {showComparison && snapshots.length > 0 && (
+        {reasoningLevel !== "doctor" && showComparison && snapshots.length > 0 && (
           <div className="shrink-0 border-b border-border bg-card overflow-hidden">
             <div className="p-3 space-y-2">
               <div className="flex items-center justify-between">
