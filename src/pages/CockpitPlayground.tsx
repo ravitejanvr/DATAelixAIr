@@ -2346,20 +2346,25 @@ export default function CockpitPlayground() {
           </div>
         </div>
 
-        {/* ══════════ COMMAND BAR ══════════ */}
+        {/* ══════════ FLOATING COMMAND BAR ══════════ */}
         {mockPatient && (
-          <div className="shrink-0 border-t border-border bg-card/80 backdrop-blur-sm px-2 py-0.5">
-            <div className="flex items-center gap-2 max-w-xl mx-auto rounded-md border border-border bg-background/80 px-2 h-7">
-              <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[480px] max-w-[90vw]">
+            <div className="flex items-center gap-2 glass-card rounded-full px-4 h-10 border shadow-lg ring-1 ring-primary/5 focus-within:ring-primary/20 focus-within:shadow-[0_0_30px_hsl(198_93%_59%/0.12)] transition-all duration-300">
+              <Sparkles className="h-3.5 w-3.5 text-primary/60 shrink-0" />
               <input
                 type="text"
                 value={commandInput}
                 onChange={e => setCommandInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleCommand(); }}
-                placeholder="lactate 5 · troponin 200 · remove fever · add diabetes"
-                className="flex-1 text-[10px] bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
+                placeholder="Try: lactate 5 · troponin 200 · remove fever"
+                className="flex-1 text-xs bg-transparent border-none outline-none placeholder:text-muted-foreground/40 text-foreground"
               />
-              <kbd className="hidden sm:inline text-[8px] text-muted-foreground/60 bg-muted px-1 py-0.5 rounded border border-border">↵</kbd>
+              <button
+                onClick={handleCommand}
+                className="h-6 w-6 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
+              >
+                <Send className="h-3 w-3 text-primary" />
+              </button>
             </div>
           </div>
         )}
