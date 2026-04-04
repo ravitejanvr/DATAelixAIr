@@ -73,6 +73,13 @@ interface SecondaryPlan {
   instructions: string[];
 }
 
+interface EvidenceSummaryData {
+  signals: string[];
+  vitals: string[];
+  labs: Array<{ key: string; value: number; unit: string; abnormal: boolean; interpretation?: string }>;
+  context: string[];
+}
+
 interface ClinicalCopilotProps {
   diagnoses: string[];
   selectedDiagnoses: string[];
@@ -112,6 +119,10 @@ interface ClinicalCopilotProps {
   bayesianResult?: BayesianResult | null;
   /** Whether user is a platform admin (enables debug mode) */
   isAdmin?: boolean;
+  /** Evidence summary grouped by category — passed from CockpitPlayground */
+  evidenceSummary?: EvidenceSummaryData | null;
+  /** Clinical status derived from vitals/severity */
+  clinicalStatus?: { level: "critical" | "moderate" | "stable"; label: string; explanation: string } | null;
 }
 
 const fadeIn = {
@@ -187,6 +198,8 @@ export default function ClinicalCopilot({
   physiologicalContext,
   bayesianResult,
   isAdmin = false,
+  evidenceSummary,
+  clinicalStatus,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -504,27 +517,105 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* ═══ PRIMARY AUTHORITY HEADER ═══ */}
-      {diagnosis && (
+      {/* ═══ CLINICAL STATUS STRIP ═══ */}
+      {clinicalStatus && (
         <motion.div {...fadeIn}>
-          <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-primary/5 border border-primary/20">
-            <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center">
-              <Target className="h-3 w-3 text-primary" />
-            </div>
+          <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border ${
+            clinicalStatus.level === "critical" ? "bg-destructive/10 border-destructive/30" :
+            clinicalStatus.level === "moderate" ? "bg-amber-500/10 border-amber-500/30" :
+            "bg-emerald-500/10 border-emerald-500/30"
+          }`}>
+            <span className="text-sm">
+              {clinicalStatus.level === "critical" ? "⚠️" : clinicalStatus.level === "moderate" ? "🟡" : "🟢"}
+            </span>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold text-primary uppercase tracking-widest">Primary Recommendation</p>
-              <p className="text-xs font-semibold text-foreground truncate">{diagnosis}</p>
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                clinicalStatus.level === "critical" ? "text-destructive" :
+                clinicalStatus.level === "moderate" ? "text-amber-600 dark:text-amber-400" :
+                "text-emerald-600 dark:text-emerald-400"
+              }`}>{clinicalStatus.label}</span>
+              <p className="text-[9px] text-muted-foreground leading-tight">{clinicalStatus.explanation}</p>
             </div>
-            {primaryConfidence != null && primaryConfidence > 0 && (
-              <Badge variant="outline" className="text-[9px] shrink-0 border-primary/30 text-primary">
-                {Math.round(primaryConfidence * 100)}%
-              </Badge>
-            )}
           </div>
         </motion.div>
       )}
 
-      {/* Recommended Investigations — top 5 with show more */}
+      {/* ═══ PRIMARY DIAGNOSIS — UNIFIED HEADER ═══ */}
+      {diagnosis && (
+        <motion.div {...fadeIn}>
+          <div className="rounded-md border-l-[3px] border-primary bg-primary/[0.04] border border-primary/15 p-2.5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center">
+                <Target className="h-3 w-3 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] font-bold text-primary uppercase tracking-widest">Primary Diagnosis</p>
+                <p className="text-sm font-bold text-foreground truncate">{diagnosis}</p>
+              </div>
+              {primaryConfidence != null && primaryConfidence > 0 && (
+                <Badge variant="outline" className="text-[10px] shrink-0 border-primary/30 text-primary font-mono">
+                  {Math.round(primaryConfidence * 100)}%
+                </Badge>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ═══ EVIDENCE SUMMARY — Grouped by category ═══ */}
+      {evidenceSummary && (evidenceSummary.signals.length > 0 || evidenceSummary.vitals.length > 0 || evidenceSummary.labs.length > 0 || evidenceSummary.context.length > 0) && (
+        <motion.div {...fadeIn}>
+          <ClinicalCard className="p-2 border-primary/10">
+            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+              <Eye className="h-3 w-3 text-primary" /> Evidence Summary
+            </p>
+            <div className="space-y-1.5">
+              {evidenceSummary.signals.length > 0 && (
+                <div className="flex items-start gap-1.5">
+                  <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-11">Signals</span>
+                  <div className="flex flex-wrap gap-1">
+                    {evidenceSummary.signals.map((s, i) => (
+                      <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {evidenceSummary.vitals.length > 0 && (
+                <div className="flex items-start gap-1.5">
+                  <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-11">Vitals</span>
+                  <div className="flex flex-wrap gap-1">
+                    {evidenceSummary.vitals.map((v, i) => (
+                      <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">{v}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {evidenceSummary.labs.length > 0 && (
+                <div className="flex items-start gap-1.5">
+                  <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-11">Labs</span>
+                  <div className="flex flex-wrap gap-1">
+                    {evidenceSummary.labs.map((lab, i) => (
+                      <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full border ${lab.abnormal ? "bg-destructive/10 text-destructive border-destructive/20" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"}`}>
+                        {lab.key}: {lab.value} {lab.unit}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {evidenceSummary.context.length > 0 && (
+                <div className="flex items-start gap-1.5">
+                  <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-11">Context</span>
+                  <div className="flex flex-wrap gap-1">
+                    {evidenceSummary.context.map((c, i) => (
+                      <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{c}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </ClinicalCard>
+        </motion.div>
+      )}
       {tests.length > 0 && (() => {
         const unselectedTests = tests.filter(t => !selectedTests.includes(t));
         const visibleTests = unselectedTests.slice(0, showMoreTests ? unselectedTests.length : 5);
