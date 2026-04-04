@@ -1837,7 +1837,7 @@ export default function CockpitPlayground() {
                   )}
 
                   {/* SECTION 3: Clinical Context Tree */}
-                  <ClinicalCard className="p-3">
+                   <ClinicalCard className="p-2.5">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
                       <TreePine className="h-3.5 w-3.5 text-primary" /> Clinical Context
                     </p>
