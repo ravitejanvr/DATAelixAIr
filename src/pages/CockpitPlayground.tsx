@@ -1715,7 +1715,7 @@ export default function CockpitPlayground() {
 
           {/* ═══ LEFT: Patient Context ═══ */}
           <div className="overflow-y-auto border-r border-border">
-            <div className="p-3 space-y-3">
+            <div className="p-2 space-y-2">
 
               {/* Empty state */}
               {!mockPatient ? (
