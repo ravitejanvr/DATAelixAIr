@@ -1645,6 +1645,35 @@ export type Database = {
         }
         Relationships: []
       }
+      diagnosis_category_tags: {
+        Row: {
+          category: string
+          created_at: string
+          diagnosis_id: string
+          id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnosis_category_tags_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diagnosis_drug_map: {
         Row: {
           created_at: string
@@ -1761,6 +1790,45 @@ export type Database = {
             columns: ["lab_test_id"]
             isOneToOne: false
             referencedRelation: "lab_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diagnosis_state_likelihoods: {
+        Row: {
+          created_at: string
+          diagnosis_id: string
+          id: string
+          latent_state_id: string
+          log_likelihood_ratio: number
+        }
+        Insert: {
+          created_at?: string
+          diagnosis_id: string
+          id?: string
+          latent_state_id: string
+          log_likelihood_ratio?: number
+        }
+        Update: {
+          created_at?: string
+          diagnosis_id?: string
+          id?: string
+          latent_state_id?: string
+          log_likelihood_ratio?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnosis_state_likelihoods_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "diagnosis_state_likelihoods_latent_state_id_fkey"
+            columns: ["latent_state_id"]
+            isOneToOne: false
+            referencedRelation: "latent_clinical_states"
             referencedColumns: ["id"]
           },
         ]
@@ -2948,6 +3016,41 @@ export type Database = {
         }
         Relationships: []
       }
+      feature_state_likelihoods: {
+        Row: {
+          context_notes: string | null
+          created_at: string
+          feature_name: string
+          id: string
+          latent_state_id: string
+          log_likelihood_ratio: number
+        }
+        Insert: {
+          context_notes?: string | null
+          created_at?: string
+          feature_name: string
+          id?: string
+          latent_state_id: string
+          log_likelihood_ratio?: number
+        }
+        Update: {
+          context_notes?: string | null
+          created_at?: string
+          feature_name?: string
+          id?: string
+          latent_state_id?: string
+          log_likelihood_ratio?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_state_likelihoods_latent_state_id_fkey"
+            columns: ["latent_state_id"]
+            isOneToOne: false
+            referencedRelation: "latent_clinical_states"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guideline_authorities: {
         Row: {
           authority_name: string
@@ -3822,6 +3925,27 @@ export type Database = {
           created_at?: string
           id?: string
           test_name?: string
+        }
+        Relationships: []
+      }
+      latent_clinical_states: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          state_name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          state_name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          state_name?: string
         }
         Relationships: []
       }
