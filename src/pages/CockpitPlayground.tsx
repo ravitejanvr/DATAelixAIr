@@ -1731,7 +1731,7 @@ export default function CockpitPlayground() {
               ) : (
                 <>
                   {/* SECTION 1: Patient Demographics */}
-                  <ClinicalCard className="p-3">
+                   <ClinicalCard className="p-2.5">
                     <div className="flex items-center gap-2.5 mb-2.5">
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
                         {mockPatient.name.charAt(0)}
