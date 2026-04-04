@@ -73,6 +73,7 @@ import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResu
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
 import { applyCanonicalScoreFusion } from "@/services/clinical_pipeline/canonical_fusion";
 import { calculateDiagnosticProbabilitiesV2, comparePipelineOutputs } from "@/services/bayesian_engine/client_v2";
+import { shouldUseV2, shouldAuditLog, logV2Audit } from "@/services/rollout_controller";
 
 // ── Public Types ──
 
@@ -1396,10 +1397,18 @@ export async function runUnifiedClinicalPipeline(
   });
 
   // ═══════════════════════════════════════════════════════
-  // Shadow Mode: Probabilistic Engine V2 (Latent State Architecture)
-  // Runs in parallel, does NOT affect production output.
-  // Logs comparison for validation.
+  // Staged Rollout: Probabilistic Engine V2 (Latent State Architecture)
+  // Uses rollout controller for user-level targeting + percentage bucketing.
+  // When selected for V2: runs V2 as PRIMARY, V1 as shadow comparison.
+  // Otherwise: runs V1 as primary, V2 as shadow (fire-and-forget).
   // ═══════════════════════════════════════════════════════
+  const useV2AsPrimary = isProbabilisticEngineV2Enabled() && shouldUseV2(
+    input.clinic_id ?? undefined,
+    input.visit_id ?? undefined,
+  );
+
+  let v2Result: import("@/services/bayesian_engine/client_v2").V2Result | null = null;
+
   if (isProbabilisticEngineV2Enabled() && bayesianResult) {
     const v2Input = {
       candidate_diagnosis_ids: ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [],
@@ -1422,24 +1431,80 @@ export async function runUnifiedClinicalPipeline(
       onset_pattern: ctx.onset_pattern || null,
     };
 
-    // Fire-and-forget — does not block production pipeline
-    calculateDiagnosticProbabilitiesV2(v2Input).then(v2Result => {
-      const nameMap = new Map<string, string>();
-      if (ddxResult?.differential_diagnoses) {
-        for (const d of ddxResult.differential_diagnoses) {
-          if (d.diagnosis_id && d.diagnosis_name) nameMap.set(d.diagnosis_id, d.diagnosis_name);
+    if (useV2AsPrimary) {
+      // V2 is primary — run synchronously and use its output
+      console.log("[Pipeline] V2 ACTIVE as primary engine for this session");
+      try {
+        v2Result = await calculateDiagnosticProbabilitiesV2(v2Input);
+        if (v2Result) {
+          // Compare and log audit
+          const nameMap = new Map<string, string>();
+          if (ddxResult?.differential_diagnoses) {
+            for (const d of ddxResult.differential_diagnoses) {
+              if (d.diagnosis_id && d.diagnosis_name) nameMap.set(d.diagnosis_id, d.diagnosis_name);
+            }
+          }
+          comparePipelineOutputs(bayesianResult, v2Result, nameMap);
+
+          const v2Top = v2Result.diagnoses[0];
+          const v1Top = bayesianResult.diagnoses[0];
+          const rankChanged = v2Top?.diagnosis_id !== v1Top?.diagnosis_id;
+
+          if (v2Top && shouldAuditLog(v2Top.posterior_probability)) {
+            logV2Audit({
+              visit_id: input.visit_id || "unknown",
+              engine: "v2",
+              top_diagnosis_id: v2Top.diagnosis_id,
+              top_confidence: v2Top.posterior_probability,
+              v1_v2_delta: v1Top ? Math.abs(v2Top.posterior_probability - v1Top.posterior_probability) : undefined,
+              ranking_changed: rankChanged,
+              timestamp: new Date().toISOString(),
+            });
+          }
+
+          // V2 promoted — downstream fusedBayesian will pick this up
+          v2Result = v2Result; // kept for audit; actual swap happens at fusedBayesian
+        } else {
+          console.warn("[Pipeline] V2 returned null — falling back to V1");
         }
+      } catch (err) {
+        console.error("[Pipeline] V2 primary failed — falling back to V1:", err);
       }
-      comparePipelineOutputs(bayesianResult, v2Result, nameMap);
-    }).catch(err => {
-      console.warn("[Pipeline] V2 shadow comparison failed (non-blocking):", err);
-    });
+    } else {
+      // Shadow mode: fire-and-forget comparison
+      calculateDiagnosticProbabilitiesV2(v2Input).then(shadowV2 => {
+        const nameMap = new Map<string, string>();
+        if (ddxResult?.differential_diagnoses) {
+          for (const d of ddxResult.differential_diagnoses) {
+            if (d.diagnosis_id && d.diagnosis_name) nameMap.set(d.diagnosis_id, d.diagnosis_name);
+          }
+        }
+        comparePipelineOutputs(bayesianResult, shadowV2, nameMap);
+
+        // Audit log for shadow mode too
+        if (shadowV2?.diagnoses[0] && shouldAuditLog(shadowV2.diagnoses[0].posterior_probability)) {
+          logV2Audit({
+            visit_id: input.visit_id || "unknown",
+            engine: "v2",
+            top_diagnosis_id: shadowV2.diagnoses[0].diagnosis_id,
+            top_confidence: shadowV2.diagnoses[0].posterior_probability,
+            v1_v2_delta: bayesianResult?.diagnoses[0]
+              ? Math.abs(shadowV2.diagnoses[0].posterior_probability - bayesianResult.diagnoses[0].posterior_probability)
+              : undefined,
+            ranking_changed: shadowV2.diagnoses[0].diagnosis_id !== bayesianResult?.diagnoses[0]?.diagnosis_id,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }).catch(err => {
+        console.warn("[Pipeline] V2 shadow comparison failed (non-blocking):", err);
+      });
+    }
   }
 
   // Bridges DDX, Pattern, and Physiology intelligence into Bayesian posteriors.
   // Feature-flagged via enable_score_fusion. Pure, deterministic.
   // ═══════════════════════════════════════════════════════
-  let fusedBayesian = bayesianResult;
+  let fusedBayesian = (useV2AsPrimary && v2Result) ? v2Result : bayesianResult;
   if (isScoreFusionEnabled() && bayesianResult && bayesianResult.diagnoses.length > 0) {
     const fusionStart = performance.now();
     // Build UUID → name map from DDX for semantic resolution in Score Fusion

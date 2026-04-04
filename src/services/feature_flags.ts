@@ -42,7 +42,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_canonical_mapping: true,
   enable_bayesian_systemic_likelihood: true,
   enable_clinical_priority_resolution: true,
-  enable_probabilistic_engine_v2: false,
+  enable_probabilistic_engine_v2: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
