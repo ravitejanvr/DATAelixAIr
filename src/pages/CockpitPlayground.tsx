@@ -1918,8 +1918,8 @@ export default function CockpitPlayground() {
           {/* ═══ CENTER: SOAP Output ═══ */}
           <div className="overflow-y-auto border-r border-border">
             {mockPatient && (
-              <div className="p-4 space-y-4">
-                <ClinicalCard className="p-4 border-primary/15">
+              <div className="p-2 space-y-2">
+                <ClinicalCard className="p-3 border-primary/15">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center">
