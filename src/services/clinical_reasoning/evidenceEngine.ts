@@ -25,6 +25,7 @@ export interface EvidenceContribution {
   feature: string;
   value: any;
   multiplier: number;
+  additive_boost?: number;
   direction: "support" | "against" | "neutral";
 }
 
@@ -67,14 +68,45 @@ const PE_DIAGNOSES = new Set([
   "pulmonary embolism", "pe", "deep vein thrombosis", "venous thromboembolism",
 ]);
 
+const SYSTEMIC_DIAGNOSIS_KEYWORDS = [
+  "sepsis", "septic", "urosepsis", "systemic inflammatory", "sirs", "bacteremia",
+  "disseminated intravascular coagulation",
+];
+
+const CARDIAC_DIAGNOSIS_KEYWORDS = [
+  "myocardial infarction", "acute coronary", "unstable angina", "nstemi", "stemi", "heart failure",
+];
+
+const INFECTION_DIAGNOSIS_KEYWORDS = [
+  "sepsis", "septic", "pneumonia", "urinary tract infection", "pyelonephritis", "meningitis",
+  "cellulitis", "endocarditis", "peritonitis", "abscess",
+];
+
+const PE_DIAGNOSIS_KEYWORDS = [
+  "pulmonary embol", "deep vein thrombosis", "venous thromboembol",
+];
+
+function hasDiagnosisKeyword(name: string, keywords: string[]): boolean {
+  return keywords.some(keyword => name.includes(keyword));
+}
+
 function classifyDiagnosis(name: string): { systemic: boolean; cardiac: boolean; infection: boolean; pe: boolean } {
   const n = name.toLowerCase().trim();
   return {
-    systemic: SYSTEMIC_DIAGNOSES.has(n),
-    cardiac: CARDIAC_DIAGNOSES.has(n),
-    infection: INFECTION_DIAGNOSES.has(n),
-    pe: PE_DIAGNOSES.has(n),
+    systemic: SYSTEMIC_DIAGNOSES.has(n) || hasDiagnosisKeyword(n, SYSTEMIC_DIAGNOSIS_KEYWORDS),
+    cardiac: CARDIAC_DIAGNOSES.has(n) || hasDiagnosisKeyword(n, CARDIAC_DIAGNOSIS_KEYWORDS),
+    infection: INFECTION_DIAGNOSES.has(n) || hasDiagnosisKeyword(n, INFECTION_DIAGNOSIS_KEYWORDS),
+    pe: PE_DIAGNOSES.has(n) || hasDiagnosisKeyword(n, PE_DIAGNOSIS_KEYWORDS),
   };
+}
+
+function getDiagnosisLabel(diagnosis: BayesianDiagnosis | EvidenceEnrichedDiagnosis): string {
+  return (((diagnosis as any).diagnosis_name || diagnosis.diagnosis_id || "") as string).toLowerCase().trim();
+}
+
+function isSepsisDiagnosis(diagnosis: BayesianDiagnosis | EvidenceEnrichedDiagnosis): boolean {
+  const label = getDiagnosisLabel(diagnosis);
+  return label.includes("sepsis") || label.includes("septic shock") || label.includes("severe sepsis") || label.includes("urosepsis");
 }
 
 // ── Shock Model ──
@@ -121,19 +153,39 @@ function lactateLikelihood(value: number, category: ReturnType<typeof classifyDi
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.systemic) {
-    if (value >= 4) { multiplier = 3.0; direction = "support"; }
-    else if (value >= 2) { multiplier = 1.8; direction = "support"; }
-    else { multiplier = 0.7; direction = "against"; }
+    if (value >= 4) {
+      multiplier = Math.min(12, 8 + Math.max(0, value - 4) * 1.5);
+      direction = "support";
+    }
+    else if (value >= 2) {
+      multiplier = Math.min(5, 2.5 + Math.max(0, value - 2) * 1.25);
+      direction = "support";
+    }
+    else { multiplier = 0.55; direction = "against"; }
   } else if (category.infection) {
-    if (value >= 4) { multiplier = 1.5; direction = "support"; }
-    else if (value >= 2) { multiplier = 1.2; direction = "support"; }
+    if (value >= 4) { multiplier = 2.4; direction = "support"; }
+    else if (value >= 2) { multiplier = 1.6; direction = "support"; }
   } else {
     // Non-shock diagnoses: elevated lactate weakly suppresses
-    if (value >= 4) { multiplier = 0.7; direction = "against"; }
-    else if (value >= 2) { multiplier = 0.85; direction = "against"; }
+    if (value >= 4) { multiplier = 0.6; direction = "against"; }
+    else if (value >= 2) { multiplier = 0.8; direction = "against"; }
   }
 
   return { source: "lab", feature: "lactate", value, multiplier, direction };
+}
+
+function lactateClinicalBoost(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution | null {
+  if (!category.systemic || value < 4) return null;
+
+  const additiveBoost = Math.min(0.2, 0.12 + Math.max(0, value - 4) * 0.03);
+  return {
+    source: "lab",
+    feature: "lactate_clinical_boost",
+    value,
+    multiplier: 1,
+    additive_boost: additiveBoost,
+    direction: "support",
+  };
 }
 
 function troponinLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
@@ -335,6 +387,14 @@ export function applyBayesianEvidence(
       const contrib = lab.fn(lab.value, category);
       contributions.push(contrib);
       score *= contrib.multiplier;
+
+      if (lab.key === "lactate") {
+        const boost = lactateClinicalBoost(lab.value, category);
+        if (boost) {
+          contributions.push(boost);
+          score += boost.additive_boost || 0;
+        }
+      }
     }
 
     // Apply shock modifier
@@ -375,6 +435,21 @@ export function applyBayesianEvidence(
 
   // Sort by posterior descending (preserve stable ranking)
   enriched.sort((a, b) => b.posterior_probability - a.posterior_probability);
+
+  const sepsisBefore = bayesianResult.diagnoses.find(isSepsisDiagnosis);
+  const sepsisAfter = enriched.find(isSepsisDiagnosis);
+  if (sepsisBefore || sepsisAfter) {
+    const lactateContribution = sepsisAfter?.evidence_contributions.find(c => c.feature === "lactate");
+    const lactateBoost = sepsisAfter?.evidence_contributions.find(c => c.feature === "lactate_clinical_boost");
+    console.log("[EvidenceEngine] Sepsis posterior shift", {
+      before: sepsisBefore?.posterior_probability ?? null,
+      after: sepsisAfter?.posterior_probability ?? null,
+      delta: (sepsisAfter?.posterior_probability ?? 0) - (sepsisBefore?.posterior_probability ?? 0),
+      lactate: labs.lactate ?? null,
+      lactate_multiplier: lactateContribution?.multiplier ?? null,
+      lactate_additive_boost: lactateBoost?.additive_boost ?? null,
+    });
+  }
 
   const executionMs = Math.round(performance.now() - t0);
   console.log(
