@@ -623,6 +623,11 @@ export default function CockpitPlayground() {
   // Pipeline run ref for debouncing
   const pipelineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pipelineRunIdRef = useRef(0);
+  const investigationResultsRef = useRef<InvestigationResults>({});
+
+  useEffect(() => {
+    investigationResultsRef.current = investigationResults;
+  }, [investigationResults]);
 
   // ── Scenario loader ──
   const loadScenario = useCallback((scenarioName: string) => {
@@ -716,6 +721,9 @@ export default function CockpitPlayground() {
   const runPipeline = useCallback(async () => {
     if (selectedSymptoms.length === 0) return;
     const runId = ++pipelineRunIdRef.current;
+    const currentInvestigationResults = investigationResultsRef.current;
+
+    console.log("[RUN_PIPELINE_LABS]", currentInvestigationResults);
 
     // Snapshot previous
     if (pipelineComplete && pipelineHypotheses.length > 0) {
@@ -757,10 +765,13 @@ export default function CockpitPlayground() {
         exam_findings: selectedExamFindings.length > 0 ? selectedExamFindings : undefined,
         medical_history: selectedMedicalHistory.length > 0 ? selectedMedicalHistory : undefined,
         blood_sugar: patientVitals?.blood_sugar ?? undefined,
-        investigation_results: Object.keys(investigationResults).length > 0 ? investigationResults : undefined,
+        investigation_results: currentInvestigationResults,
       });
 
-      console.log("[CONTEXT_LABS]", pipelineContext.investigation_results);
+      console.log("[CONTEXT_LABS]", {
+        state: currentInvestigationResults,
+        context: pipelineContext.investigation_results,
+      });
 
       const result = await runUnifiedClinicalPipeline(
         {
@@ -876,11 +887,12 @@ export default function CockpitPlayground() {
       toast({ title: "Pipeline failed", description: err.message, variant: "destructive" });
     } finally {
       if (runId === pipelineRunIdRef.current) {
+        console.log("[RUN_PIPELINE_LABS_POST]", investigationResultsRef.current);
         setPipelineRunning(false);
         setTimeout(() => setPipelineStage(null), 2000);
       }
     }
-  }, [selectedSymptoms, selectedDuration, selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors, selectedMedicalHistory, selectedFamilyHistory, selectedExamFindings, chiefComplaint, mockPatient, patientVitals, pipelineComplete, pipelineHypotheses, pipelineBayesian, soapSections, selectedScenario, soapManualEdits, investigationResults]);
+  }, [selectedSymptoms, selectedDuration, selectedOnset, selectedSeverity, selectedBodyLocation, selectedRiskFactors, selectedMedicalHistory, selectedFamilyHistory, selectedExamFindings, chiefComplaint, mockPatient, patientVitals, pipelineComplete, pipelineHypotheses, pipelineBayesian, soapSections, selectedScenario, soapManualEdits]);
 
   // ── Auto-trigger pipeline on any context change ──
   const contextFingerprint = useMemo(() => JSON.stringify({
@@ -1118,10 +1130,17 @@ export default function CockpitPlayground() {
     // Try structured lab command first
     const labParsed = parseClinicalCommand(input);
     if (labParsed) {
-      setInvestigationResults(prev => ({
-        ...prev,
-        [labParsed.key]: labParsed.value,
-      }));
+      setInvestigationResults(prev => {
+        const next = {
+          ...prev,
+          [labParsed.key]: labParsed.value,
+        };
+        console.log("[INVESTIGATION_RESULTS_AFTER_SET]", {
+          source: "command",
+          next,
+        });
+        return next;
+      });
       console.log("[COMMAND] Lab parsed:", labParsed.key, "=", labParsed.value);
       setCommandInput("");
       toast({ title: "Lab result added", description: `${formatLabKey(labParsed.key)}: ${formatLabValue(labParsed.key, labParsed.value)}` });
@@ -1156,7 +1175,14 @@ export default function CockpitPlayground() {
       const candidate = `${words[i]} ${words[i + 1]}`;
       const parsed = parseClinicalCommand(candidate);
       if (parsed) {
-        setInvestigationResults(prev => ({ ...prev, [parsed.key]: parsed.value }));
+        setInvestigationResults(prev => {
+          const next = { ...prev, [parsed.key]: parsed.value };
+          console.log("[INVESTIGATION_RESULTS_AFTER_SET]", {
+            source: "voice",
+            next,
+          });
+          return next;
+        });
         toast({ title: "Voice → Lab", description: `${formatLabKey(parsed.key)}: ${formatLabValue(parsed.key, parsed.value)}` });
       }
     }
@@ -1977,6 +2003,10 @@ export default function CockpitPlayground() {
                                 onClick={() => setInvestigationResults(prev => {
                                   const next = { ...prev };
                                   delete (next as any)[key];
+                                  console.log("[INVESTIGATION_RESULTS_AFTER_SET]", {
+                                    source: "remove",
+                                    next,
+                                  });
                                   return next;
                                 })}
                                 className="text-muted-foreground hover:text-destructive shrink-0 mt-0.5"
@@ -1988,7 +2018,7 @@ export default function CockpitPlayground() {
                         })}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground">No investigations added</p>
+                      <p className="text-xs text-muted-foreground">Nil</p>
                     )}
                   </ClinicalCard>
 
