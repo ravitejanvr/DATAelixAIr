@@ -1768,7 +1768,7 @@ export default function CockpitPlayground() {
                   </ClinicalCard>
 
                   {/* SECTION 2: Vitals (always visible) */}
-                  <ClinicalCard className="p-3">
+                   <ClinicalCard className="p-2.5">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
                       <HeartPulse className="h-3.5 w-3.5 text-primary" /> Vital Signs
                       {pipelineRunning && <Loader2 className="h-3 w-3 animate-spin text-primary ml-auto" />}
