@@ -1539,12 +1539,6 @@ export async function runUnifiedClinicalPipeline(
   if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
     const { applyBayesianEvidence } = await import("@/services/clinical_reasoning/evidenceEngine");
     const investigationResults = ctx.investigation_results || null;
-    console.log("[Pipeline] Phase 5.7 EVIDENCE_INPUT:", {
-      labs: investigationResults,
-      has_labs: investigationResults != null && Object.keys(investigationResults).length > 0,
-      prior_top: (fusedBayesian.diagnoses[0] as any)?.diagnosis_name || fusedBayesian.diagnoses[0]?.diagnosis_id,
-      prior_top_score: fusedBayesian.diagnoses[0]?.posterior_probability,
-    });
     const shockInput = {
       bp_systolic: vitals.bp_systolic ?? null,
       heart_rate: vitals.pulse ?? null,
@@ -1554,14 +1548,6 @@ export async function runUnifiedClinicalPipeline(
     const evStart = performance.now();
     evidenceEngineResult = applyBayesianEvidence(fusedBayesian, investigationResults, shockInput);
     lat.evidence_engine = Math.round(performance.now() - evStart);
-
-    console.log("[Pipeline] Phase 5.7 UPDATED_DIAGNOSES:", {
-      labs_applied: evidenceEngineResult.labs_applied,
-      shock_active: evidenceEngineResult.shock_active,
-      top: (evidenceEngineResult.diagnoses[0] as any)?.diagnosis_name || evidenceEngineResult.diagnoses[0]?.diagnosis_id,
-      top_score: evidenceEngineResult.diagnoses[0]?.posterior_probability,
-      delta: evidenceEngineResult.diagnoses[0]?.evidence_delta,
-    });
 
     // Update fusedBayesian with evidence-updated posteriors
     if (evidenceEngineResult.labs_applied.length > 0 || evidenceEngineResult.shock_active) {
