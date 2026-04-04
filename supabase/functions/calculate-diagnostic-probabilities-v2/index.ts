@@ -282,19 +282,25 @@ Deno.serve(async (req) => {
     const latentStatePosteriors = new Map<string, number>(); // stateId → posterior prob
     const latentStateLogOdds = new Map<string, number>();
     const LOG_ODDS_CLAMP = 4.6; // clamp to ±4.6 → posterior bounded to [0.01, 0.99]
+    const STATE_TEMPERATURE = 1.2; // >1.0 = softer, prevents overconfident states
 
     for (const state of latentStates) {
       let logOdds = 0; // Prior = 0.5 (uninformative)
       const stateFeatures = featureStateMap.get(state.id);
+      let featureCount = 0;
 
       if (stateFeatures) {
         for (const [featureName, logLR] of stateFeatures) {
-          // Apply BOTH positive features (logLR > 0) AND negative features (logLR < 0)
           if (allFeatures[featureName]) {
             logOdds += logLR;
+            featureCount++;
           }
         }
       }
+
+      // Temperature scaling: prevents overconfident states from sparse evidence
+      // With T=1.2, a single strong feature won't push posterior above ~0.88
+      logOdds = logOdds / STATE_TEMPERATURE;
 
       // Clamp log-odds to prevent numerical extremes
       logOdds = Math.max(-LOG_ODDS_CLAMP, Math.min(LOG_ODDS_CLAMP, logOdds));
