@@ -551,6 +551,7 @@ export default function CockpitPlayground() {
   const [pipelineDDX, setPipelineDDX] = useState<any>(null);
   const [safetyResults, setSafetyResults] = useState<SafetyResults | null>(null);
   const [physioBayesianDiff, setPhysioBayesianDiff] = useState<any>(null);
+  const [engineAudit, setEngineAudit] = useState<any>(null);
 
   // ── RENDER SOURCE LOCK — single deterministic render path ──
   const [renderSource, setRenderSource] = useState<"none" | "bayesian">("none");
@@ -660,6 +661,7 @@ export default function CockpitPlayground() {
     setPipelineStage(null); setStageLatencies({}); setEditingCategory(null);
     setCommandInput("");
     setInvestigationResults({});
+    setEngineAudit(null);
   };
 
   // ── Generate SOAP Subjective from all selections ──
@@ -853,6 +855,10 @@ export default function CockpitPlayground() {
           }));
         }
         setStageLatencies(result.stage_latencies);
+        if (result.engine_audit) {
+          setEngineAudit(result.engine_audit);
+          console.log("[ENGINE_AUDIT_UI]", result.engine_audit);
+        }
       }
       setPipelineStage("complete");
       setPipelineComplete(true);
@@ -2453,6 +2459,45 @@ export default function CockpitPlayground() {
                           {stage}: <span className={`font-semibold ${(ms as number) > 3000 ? "text-destructive" : "text-foreground"}`}>{ms as number}ms</span>
                         </span>
                       ))}
+                    </div>
+                  </ClinicalCard>
+                )}
+
+                {/* Debug: Engine Audit Panel */}
+                {reasoningLevel === "debug" && engineAudit && (
+                  <ClinicalCard className="p-2.5">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
+                      <GitCompare className="h-3 w-3" /> Engine Audit
+                    </p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-mono">
+                      <span className="text-muted-foreground">Engine:</span>
+                      <span className={`font-bold ${engineAudit.engine_version === "v2" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
+                        {engineAudit.engine_version.toUpperCase()}
+                      </span>
+                      <span className="text-muted-foreground">Primary:</span>
+                      <span className="text-foreground">{engineAudit.primary_engine.toUpperCase()}</span>
+                      <span className="text-muted-foreground">Fallback:</span>
+                      <span className={engineAudit.fallback_used ? "text-destructive font-bold" : "text-foreground"}>
+                        {engineAudit.fallback_used ? `YES (${engineAudit.fallback_reason})` : "No"}
+                      </span>
+                      <span className="text-muted-foreground">Cache:</span>
+                      <span className="text-foreground">{engineAudit.cache_status}</span>
+                      <span className="text-muted-foreground">Rollout:</span>
+                      <span className="text-foreground">{engineAudit.rollout_percentage}% (bucket: {engineAudit.rollout_bucket})</span>
+                      <span className="text-muted-foreground">Internal:</span>
+                      <span className="text-foreground">{engineAudit.is_internal_user ? "Yes" : "No"}</span>
+                      {engineAudit.v1_top_score != null && (
+                        <>
+                          <span className="text-muted-foreground">V1 Top:</span>
+                          <span className="text-foreground">{(engineAudit.v1_top_score * 100).toFixed(1)}%</span>
+                        </>
+                      )}
+                      {engineAudit.v2_top_score != null && (
+                        <>
+                          <span className="text-muted-foreground">V2 Top:</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">{(engineAudit.v2_top_score * 100).toFixed(1)}%</span>
+                        </>
+                      )}
                     </div>
                   </ClinicalCard>
                 )}
