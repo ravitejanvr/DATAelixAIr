@@ -12,6 +12,10 @@ import AiDisclosureBadge from "@/components/AiDisclosureBadge";
 import SystemModeIndicator from "@/components/SystemModeIndicator";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import {
   Loader2, FileText, AlertTriangle, CheckCircle,
   HeartPulse, User, Sparkles, RotateCcw, ClipboardCheck, Brain,
   Zap, Activity, Stethoscope, Eye, Search,
