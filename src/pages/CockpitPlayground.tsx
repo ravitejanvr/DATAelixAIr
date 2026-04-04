@@ -22,7 +22,7 @@ import {
   Heart, Wind, Droplets, Shield, ChevronDown, ChevronUp,
   Beaker, GitCompare, Layers, Thermometer, X,
   TreePine, Edit3, FlaskConical, Pill, Scale, Send, MessageSquare, Target,
-  Maximize2, Minimize2, Moon, Sun
+  Maximize2, Minimize2, Moon, Sun, Mic, MicOff
 } from "lucide-react";
 import type { SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_SOAP } from "@/layers/ai-agents/api";
@@ -30,6 +30,21 @@ import type { SafetyResults } from "@/layers/safety/api";
 import { AI_DRAFT_LABEL } from "@/layers/safety/api";
 import { type ClinicalContext, type InvestigationResults, EMPTY_CLINICAL_CONTEXT, buildClinicalContext, buildFullClinicalContext } from "@/lib/clinical-context";
 import { parseClinicalCommand, formatLabKey, formatLabValue } from "@/utils/clinicalCommandParser";
+
+// ── Lab interpretation helper (pure, deterministic) ──
+function getLabInterpretation(key: string, value: number): string {
+  const interps: Record<string, (v: number) => string> = {
+    lactate: (v) => v >= 4 ? "Severe hypoperfusion — septic shock likely" : v >= 2 ? "Elevated — tissue hypoperfusion" : "Normal range",
+    troponin: (v) => v >= 0.4 ? "Significantly elevated — myocardial injury" : v >= 0.04 ? "Elevated — possible cardiac damage" : "Normal range",
+    CRP: (v) => v >= 100 ? "Markedly elevated — severe inflammation/infection" : v >= 10 ? "Elevated — active inflammation" : "Normal range",
+    procalcitonin: (v) => v >= 2 ? "High — bacterial infection likely" : v >= 0.5 ? "Elevated — possible bacterial infection" : "Low — bacterial infection unlikely",
+    WBC: (v) => v >= 15 ? "Leukocytosis — infection/inflammation" : v < 4 ? "Leukopenia — immunosuppression" : "Normal range",
+    D_dimer: (v) => v >= 500 ? "Elevated — consider PE/DVT" : "Normal range",
+    creatinine: (v) => v >= 2 ? "Elevated — renal impairment" : v >= 1.2 ? "Mildly elevated" : "Normal range",
+    BNP: (v) => v >= 400 ? "Elevated — heart failure likely" : v >= 100 ? "Borderline — possible cardiac stress" : "Normal range",
+  };
+  return interps[key]?.(value) || "";
+}
 
 // ── Presets ──
 const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain", "Dizziness", "Back pain", "Dysuria", "Rash", "Joint pain", "Palpitations", "Neck stiffness", "Syncope", "Sweating", "Nausea", "Photophobia"];
@@ -577,6 +592,11 @@ export default function CockpitPlayground() {
   // Fullscreen & dark mode
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
+  // Voice recording
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  // Plan collapsible
+  const [planCollapsed, setPlanCollapsed] = useState(true);
 
   // Sync fullscreen state with browser
   useEffect(() => {
@@ -1112,6 +1132,21 @@ export default function CockpitPlayground() {
     toast({ title: "Context updated", description: `Extracted ${symptomMatches.length} signals from input` });
   }, [commandInput, chiefComplaint, toast]);
 
+  // ── Voice transcript handler ──
+  const handleVoiceTranscript = useCallback((transcript: string) => {
+    setVoiceTranscript(transcript);
+    // Auto-parse lab commands from voice
+    const words = transcript.trim().split(/\s+/);
+    for (let i = 0; i < words.length - 1; i++) {
+      const candidate = `${words[i]} ${words[i + 1]}`;
+      const parsed = parseClinicalCommand(candidate);
+      if (parsed) {
+        setInvestigationResults(prev => ({ ...prev, [parsed.key]: parsed.value }));
+        toast({ title: "Voice → Lab", description: `${formatLabKey(parsed.key)}: ${formatLabValue(parsed.key, parsed.value)}` });
+      }
+    }
+  }, [toast]);
+
   // ── Sepsis Validation Test ──
   const runSepsisTest = useCallback(() => {
     const runNum = sepsisRunCount + 1;
@@ -1248,6 +1283,67 @@ export default function CockpitPlayground() {
     }
   }, [selectedTests, pendingRx, selectedInstructions, selectedMonitoring, soapManualEdits]);
 
+  // ── Evidence Summary: grouped by category for Copilot ──
+  const evidenceSummary = useMemo(() => {
+    if (!mergedDiagnoses[0]) return null;
+    const primary = mergedDiagnoses[0];
+    const vitalKeywords = ["hypotension", "tachycardia", "tachypnea", "hypertension", "fever", "hypothermia", "desaturation", "bradycardia", "bp", "heart rate", "spo2", "respiratory rate", "temperature"];
+    const contextKeywords = ["immunocompromised", "diabetes", "smoking", "obesity", "pregnancy", "recent surgery", "recent travel", "hypertension", "copd", "asthma", "cancer", "age"];
+    const signals: string[] = [];
+    const vitals: string[] = [];
+    const context: string[] = [];
+    (primary.supporting || []).forEach((e: string) => {
+      const lower = e.toLowerCase();
+      if (vitalKeywords.some(k => lower.includes(k))) vitals.push(e);
+      else if (contextKeywords.some(k => lower.includes(k))) context.push(e);
+      else signals.push(e);
+    });
+    // Add risk factors and medical history to context
+    selectedRiskFactors.forEach(rf => { if (!context.some(c => c.toLowerCase() === rf.toLowerCase())) context.push(rf); });
+
+    // Labs from investigation results
+    const LAB_NORMALS: Record<string, { unit: string; max: number }> = {
+      lactate: { unit: "mmol/L", max: 2 }, troponin: { unit: "ng/mL", max: 0.04 },
+      CRP: { unit: "mg/L", max: 10 }, procalcitonin: { unit: "ng/mL", max: 0.5 },
+      WBC: { unit: "×10³/μL", max: 11 }, D_dimer: { unit: "ng/mL", max: 500 },
+      creatinine: { unit: "mg/dL", max: 1.2 }, BNP: { unit: "pg/mL", max: 100 },
+    };
+    const labs = Object.entries(investigationResults).map(([key, value]) => {
+      const norm = LAB_NORMALS[key] || { unit: "", max: Infinity };
+      return {
+        key: formatLabKey(key as any),
+        value: value as number,
+        unit: norm.unit,
+        abnormal: (value as number) > norm.max,
+        interpretation: getLabInterpretation(key, value as number),
+      };
+    });
+
+    return { signals, vitals, labs, context };
+  }, [mergedDiagnoses, investigationResults, selectedRiskFactors]);
+
+  // ── Clinical Status derived from vitals ──
+  const clinicalStatus = useMemo(() => {
+    if (!patientVitals) return null;
+    const criticals: string[] = [];
+    if (patientVitals.bp_systolic && patientVitals.bp_systolic < 90) criticals.push("hypotension");
+    if (patientVitals.spo2 && patientVitals.spo2 < 92) criticals.push("hypoxia");
+    if (patientVitals.temperature && patientVitals.temperature > 103) criticals.push("high fever");
+    if (patientVitals.pulse && patientVitals.pulse > 120) criticals.push("severe tachycardia");
+    if (criticals.length >= 2) return { level: "critical" as const, label: "CRITICAL", explanation: `${criticals.join(", ")} detected — immediate intervention required` };
+    
+    const abnormals: string[] = [];
+    if (patientVitals.bp_systolic && patientVitals.bp_systolic < 100) abnormals.push("low BP");
+    if (patientVitals.spo2 && patientVitals.spo2 < 95) abnormals.push("low SpO₂");
+    if (patientVitals.temperature && patientVitals.temperature > 100.4) abnormals.push("fever");
+    if (patientVitals.pulse && patientVitals.pulse > 100) abnormals.push("tachycardia");
+    if (patientVitals.respiratory_rate && patientVitals.respiratory_rate > 20) abnormals.push("tachypnea");
+    if (criticals.length > 0 || abnormals.length >= 2) return { level: "moderate" as const, label: "MODERATE", explanation: `${[...criticals, ...abnormals].join(", ")} — close monitoring required` };
+    
+    if (abnormals.length > 0) return { level: "moderate" as const, label: "MODERATE", explanation: `${abnormals.join(", ")} — monitor closely` };
+    return { level: "stable" as const, label: "STABLE", explanation: "Vitals within normal limits" };
+  }, [patientVitals]);
+
   // ── Copilot props — wired to fusedBayesian (SSOT) with Primary/Secondary authority ──
   const copilotProps = {
     diagnoses: [] as string[], selectedDiagnoses,
@@ -1281,6 +1377,8 @@ export default function CockpitPlayground() {
     bayesianResult: pipelineBayesian,
     hypotheses: pipelineHypotheses,
     isAdmin: reasoningLevel === "debug",
+    evidenceSummary,
+    clinicalStatus,
   };
 
   // ── Likelihood badge ──
@@ -1823,31 +1921,45 @@ export default function CockpitPlayground() {
                     </div>
                   </ClinicalCard>
 
-                  {/* Investigation Results (Labs) */}
+                  {/* Investigation Results (Labs) — Enhanced with interpretations */}
                   {Object.keys(investigationResults).length > 0 && (
                      <ClinicalCard className="p-2.5">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
                         <FlaskConical className="h-3.5 w-3.5 text-primary" /> Investigation Results
                       </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {Object.entries(investigationResults).map(([key, value]) => (
-                          <Badge
-                            key={key}
-                            variant="outline"
-                            className="text-[10px] gap-1 cursor-pointer hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
-                            onClick={() => setInvestigationResults(prev => {
-                              const next = { ...prev };
-                              delete (next as any)[key];
-                              return next;
-                            })}
-                          >
-                            <Beaker className="h-2.5 w-2.5" />
-                            {formatLabKey(key as keyof InvestigationResults)}: {formatLabValue(key as keyof InvestigationResults, value as number)}
-                            <X className="h-2.5 w-2.5 ml-0.5 text-muted-foreground" />
-                          </Badge>
-                        ))}
+                      <div className="space-y-1.5">
+                        {Object.entries(investigationResults).map(([key, value]) => {
+                          const interpretation = getLabInterpretation(key, value as number);
+                          const LAB_NORMALS: Record<string, number> = { lactate: 2, troponin: 0.04, CRP: 10, procalcitonin: 0.5, WBC: 11, D_dimer: 500, creatinine: 1.2, BNP: 100 };
+                          const isAbnormal = (value as number) > (LAB_NORMALS[key] || Infinity);
+                          return (
+                            <div key={key} className={`flex items-start gap-2 px-2.5 py-1.5 rounded-md border transition-colors ${isAbnormal ? "bg-destructive/5 border-destructive/20" : "bg-emerald-500/5 border-emerald-500/20"}`}>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-xs font-bold ${isAbnormal ? "text-destructive" : "text-emerald-700 dark:text-emerald-400"}`}>
+                                    {formatLabKey(key as keyof InvestigationResults)}: {formatLabValue(key as keyof InvestigationResults, value as number)}
+                                  </span>
+                                  <span className="text-[9px]">{isAbnormal ? "🔴" : "🟢"}</span>
+                                </div>
+                                {interpretation && (
+                                  <p className="text-[9px] text-muted-foreground mt-0.5">→ {interpretation}</p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => setInvestigationResults(prev => {
+                                  const next = { ...prev };
+                                  delete (next as any)[key];
+                                  return next;
+                                })}
+                                className="text-muted-foreground hover:text-destructive shrink-0 mt-0.5"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <p className="text-[9px] text-muted-foreground mt-1.5">Click to remove · Type "lactate 5" in command bar to add</p>
+                      <p className="text-[9px] text-muted-foreground mt-1.5">Type "lactate 5" in command bar or use 🎙 voice</p>
                     </ClinicalCard>
                   )}
 
@@ -2355,9 +2467,9 @@ export default function CockpitPlayground() {
 
         {/* ══════════ FLOATING COMMAND BAR ══════════ */}
         {mockPatient && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[480px] max-w-[90vw]">
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[520px] max-w-[90vw]">
             <div className="flex items-center gap-2 glass-card rounded-full px-4 h-10 border shadow-lg ring-1 ring-primary/5 focus-within:ring-primary/20 focus-within:shadow-[0_0_30px_hsl(198_93%_59%/0.12)] transition-all duration-300">
-              <Sparkles className="h-3.5 w-3.5 text-primary/60 shrink-0" />
+              <Brain className="h-3.5 w-3.5 text-primary/60 shrink-0" />
               <input
                 type="text"
                 value={commandInput}
@@ -2372,7 +2484,29 @@ export default function CockpitPlayground() {
               >
                 <Send className="h-3 w-3 text-primary" />
               </button>
+              <button
+                onClick={async () => {
+                  if (isVoiceRecording) {
+                    setIsVoiceRecording(false);
+                  } else {
+                    try {
+                      await navigator.mediaDevices.getUserMedia({ audio: true });
+                      setIsVoiceRecording(true);
+                    } catch {
+                      toast({ title: "Microphone access required", variant: "destructive" });
+                    }
+                  }
+                }}
+                className={`h-6 w-6 rounded-full flex items-center justify-center transition-colors ${isVoiceRecording ? "bg-destructive/20 text-destructive animate-pulse" : "bg-primary/10 hover:bg-primary/20 text-primary"}`}
+              >
+                {isVoiceRecording ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+              </button>
             </div>
+            {isVoiceRecording && voiceTranscript && (
+              <div className="mt-1 glass-card rounded-lg px-3 py-1.5 text-[10px] text-muted-foreground italic border">
+                🎙 {voiceTranscript}
+              </div>
+            )}
           </div>
         )}
       </div>
