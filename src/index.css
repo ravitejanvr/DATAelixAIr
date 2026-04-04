@@ -111,6 +111,11 @@
     --shadow-2xl: 0 25px 50px -12px hsl(0 0% 0% / 0.15);
     --tracking-normal: 0em;
     --spacing: 0.25rem;
+
+    /* Glass UI tokens — light */
+    --glass-card: 0 0% 100% / 0.7;
+    --glass-border: 215 28% 17% / 0.08;
+    --glass-hover: 0 0% 100% / 0.85;
   }
 
   .dark {
