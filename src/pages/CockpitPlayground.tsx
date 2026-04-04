@@ -22,7 +22,7 @@ import {
   Heart, Wind, Droplets, Shield, ChevronDown, ChevronUp,
   Beaker, GitCompare, Layers, Thermometer, X,
   TreePine, Edit3, FlaskConical, Pill, Scale, Send, MessageSquare, Target,
-  Maximize2, Minimize2, Moon, Sun
+  Maximize2, Minimize2, Moon, Sun, Mic, MicOff
 } from "lucide-react";
 import type { SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_SOAP } from "@/layers/ai-agents/api";
