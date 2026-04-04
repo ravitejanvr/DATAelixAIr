@@ -1425,7 +1425,7 @@ export default function CockpitPlayground() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-5 text-[9px] rounded-full gap-1 px-2">
                   <Stethoscope className="h-2.5 w-2.5" />
-                  {selectedScenario || "Scenario"}
+                  {selectedScenario || "Scenarios"}
                   <ChevronDown className="h-2 w-2" />
                 </Button>
               </DropdownMenuTrigger>
