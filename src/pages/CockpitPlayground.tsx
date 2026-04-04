@@ -574,6 +574,10 @@ export default function CockpitPlayground() {
   // Investigation results (labs)
   const [investigationResults, setInvestigationResults] = useState<InvestigationResults>({});
 
+  // Fullscreen & dark mode
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
+
   // Pipeline run ref for debouncing
   const pipelineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pipelineRunIdRef = useRef(0);
