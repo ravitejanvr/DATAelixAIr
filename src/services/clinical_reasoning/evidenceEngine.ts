@@ -155,6 +155,7 @@ function lactateLikelihood(value: number, category: ReturnType<typeof classifyDi
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.systemic) {
+    // Sepsis/SIRS: strong discriminator
     if (value >= 4) {
       multiplier = Math.min(12, 8 + Math.max(0, value - 4) * 1.5);
       direction = "support";
@@ -165,12 +166,16 @@ function lactateLikelihood(value: number, category: ReturnType<typeof classifyDi
     }
     else { multiplier = 0.55; direction = "against"; }
   } else if (category.infection) {
-    if (value >= 4) { multiplier = 2.4; direction = "support"; }
-    else if (value >= 2) { multiplier = 1.6; direction = "support"; }
+    // Non-systemic infections: lactate is mildly relevant, NOT a strong signal
+    if (value >= 4) { multiplier = 1.15; direction = "neutral"; }
+    else if (value >= 2) { multiplier = 1.05; direction = "neutral"; }
+  } else if (category.pe) {
+    // PE: lactate weakly relevant
+    if (value >= 4) { multiplier = 1.1; direction = "neutral"; }
   } else {
-    // Non-shock diagnoses: elevated lactate weakly suppresses
-    if (value >= 4) { multiplier = 0.6; direction = "against"; }
-    else if (value >= 2) { multiplier = 0.8; direction = "against"; }
+    // All other diagnoses: elevated lactate suppresses
+    if (value >= 4) { multiplier = 0.5; direction = "against"; }
+    else if (value >= 2) { multiplier = 0.7; direction = "against"; }
   }
 
   return { source: "lab", feature: "lactate", value, multiplier, direction };
