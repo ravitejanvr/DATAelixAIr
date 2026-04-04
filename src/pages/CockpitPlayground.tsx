@@ -1711,11 +1711,11 @@ export default function CockpitPlayground() {
         )}
 
         {/* ══════════ MAIN CONTENT — BALANCED 3 COLUMNS ══════════ */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3">
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[30%_40%_30%]">
 
           {/* ═══ LEFT: Patient Context ═══ */}
           <div className="overflow-y-auto border-r border-border">
-            <div className="p-2 space-y-2">
+            <div className="p-1.5 space-y-1.5">
 
               {/* Empty state */}
               {!mockPatient ? (
