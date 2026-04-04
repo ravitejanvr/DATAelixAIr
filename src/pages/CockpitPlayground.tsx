@@ -2305,18 +2305,18 @@ export default function CockpitPlayground() {
 
         {/* ══════════ COMMAND BAR ══════════ */}
         {mockPatient && (
-          <div className="shrink-0 border-t border-border bg-card px-3 py-1.5">
-            <div className="flex items-center gap-2 max-w-3xl mx-auto rounded-lg border border-border bg-background px-3 py-1.5">
-              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <div className="shrink-0 border-t border-border bg-card px-3 py-1">
+            <div className="flex items-center gap-2 max-w-2xl mx-auto rounded-md border border-border bg-background px-2.5 h-8">
+              <Search className="h-3 w-3 text-muted-foreground shrink-0" />
               <input
                 type="text"
                 value={commandInput}
                 onChange={e => setCommandInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleCommand(); }}
-                placeholder="Type symptoms, labs (e.g. lactate 5), or clinical notes…"
-                className="flex-1 text-xs bg-transparent border-none outline-none placeholder:text-muted-foreground"
+                placeholder="Try: lactate 5, troponin 200, remove fever"
+                className="flex-1 text-[11px] bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
               />
-              <kbd className="hidden sm:inline text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">↵</kbd>
+              <kbd className="hidden sm:inline text-[8px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">↵</kbd>
             </div>
           </div>
         )}
