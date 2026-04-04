@@ -73,7 +73,7 @@ import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResu
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
 import { applyCanonicalScoreFusion } from "@/services/clinical_pipeline/canonical_fusion";
 import { calculateDiagnosticProbabilitiesV2, comparePipelineOutputs } from "@/services/bayesian_engine/client_v2";
-import { shouldUseV2, shouldAuditLog, logV2Audit } from "@/services/rollout_controller";
+import { shouldUseV2, shouldAuditLog, logV2Audit, getRolloutConfig } from "@/services/rollout_controller";
 
 // ── Public Types ──
 
