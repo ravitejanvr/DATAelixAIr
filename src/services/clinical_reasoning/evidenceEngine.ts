@@ -118,10 +118,11 @@ export interface ShockInput {
 }
 
 /**
- * Compute a shock score (0–1) from hemodynamic + lactate signals.
- * Influences scoring but does NOT override diagnosis.
+ * Compute a shock score (0–1) from hemodynamic signals.
+ * When explicit lactate lab is available, lactate is excluded from shock
+ * to prevent double-counting (lactate likelihood handles it instead).
  */
-export function computeShockScore(input: ShockInput): number {
+export function computeShockScore(input: ShockInput, hasExplicitLactate = false): number {
   let score = 0;
   let factors = 0;
 
@@ -137,7 +138,8 @@ export function computeShockScore(input: ShockInput): number {
     else if (input.heart_rate > 100) score += 0.15;
   }
 
-  if (input.lactate != null) {
+  // Only include lactate in shock if no explicit lab result exists
+  if (!hasExplicitLactate && input.lactate != null) {
     factors++;
     if (input.lactate >= 4) score += 0.3;
     else if (input.lactate >= 2) score += 0.15;
