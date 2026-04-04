@@ -1430,7 +1430,7 @@ export default function CockpitPlayground() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuLabel className="text-[10px]">Clinical Scenarios</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-[10px]">Scenarios</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {SCENARIOS.map(s => (
                   <DropdownMenuItem key={s.name} onClick={() => loadScenario(s.name)} className="text-xs">
