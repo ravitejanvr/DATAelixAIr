@@ -121,8 +121,7 @@ interface ClinicalCopilotProps {
   isAdmin?: boolean;
   /** Evidence summary grouped by category — passed from CockpitPlayground */
   evidenceSummary?: EvidenceSummaryData | null;
-  /** Clinical status derived from vitals/severity */
-  clinicalStatus?: { level: "critical" | "moderate" | "stable"; label: string; explanation: string } | null;
+  clinicalStatus?: { level: "critical" | "moderate" | "stable"; label: string; explanation: string; timeWindow?: string | null } | null;
 }
 
 const fadeIn = {
