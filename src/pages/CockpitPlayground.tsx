@@ -2312,20 +2312,18 @@ export default function CockpitPlayground() {
 
         {/* ══════════ COMMAND BAR ══════════ */}
         {mockPatient && (
-          <div className="shrink-0 border-t border-border bg-card px-4 py-2.5">
-            <div className="flex items-center gap-2.5 max-w-4xl mx-auto rounded-xl border border-border bg-background px-4 py-2 shadow-sm">
-              <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="shrink-0 border-t border-border bg-card px-3 py-1.5">
+            <div className="flex items-center gap-2 max-w-3xl mx-auto rounded-lg border border-border bg-background px-3 py-1.5">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <input
                 type="text"
                 value={commandInput}
                 onChange={e => setCommandInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleCommand(); }}
-                placeholder="Type clinical notes, symptoms, or ask AI…"
-                className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
+                placeholder="Type symptoms, labs (e.g. lactate 5), or clinical notes…"
+                className="flex-1 text-xs bg-transparent border-none outline-none placeholder:text-muted-foreground"
               />
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" title="Voice input">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-              </Button>
+              <kbd className="hidden sm:inline text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">↵</kbd>
             </div>
           </div>
         )}
