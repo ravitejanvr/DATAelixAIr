@@ -1549,8 +1549,8 @@ export default function CockpitPlayground() {
           )}
         </div>
 
-        {/* ── Physiology vs Bayesian Debug Panel ── */}
-        {physioBayesianDiff && (
+        {/* ── Physiology vs Bayesian Debug Panel (debug/explain only) ── */}
+        {reasoningLevel !== "doctor" && physioBayesianDiff && (
           <div className="shrink-0 border-b border-border bg-card overflow-hidden">
             <div className="p-3 space-y-2">
               <div className="flex items-center justify-between">
