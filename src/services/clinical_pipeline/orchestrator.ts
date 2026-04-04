@@ -1558,7 +1558,7 @@ export async function runUnifiedClinicalPipeline(
     console.log("[Pipeline] Phase 5.7 UPDATED_DIAGNOSES:", {
       labs_applied: evidenceEngineResult.labs_applied,
       shock_active: evidenceEngineResult.shock_active,
-      top: evidenceEngineResult.diagnoses[0]?.diagnosis_name || evidenceEngineResult.diagnoses[0]?.diagnosis_id,
+      top: (evidenceEngineResult.diagnoses[0] as any)?.diagnosis_name || evidenceEngineResult.diagnoses[0]?.diagnosis_id,
       top_score: evidenceEngineResult.diagnoses[0]?.posterior_probability,
       delta: evidenceEngineResult.diagnoses[0]?.evidence_delta,
     });
