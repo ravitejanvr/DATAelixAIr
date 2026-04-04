@@ -114,26 +114,26 @@
   }
 
   .dark {
-    --background: 224 20% 8%;
+    --background: 222 30% 7%;
     --foreground: 210 40% 98%;
-    --card: 224 18% 12%;
+    --card: 222 20% 10%;
     --card-foreground: 210 40% 98%;
-    --popover: 224 18% 12%;
+    --popover: 222 20% 10%;
     --popover-foreground: 210 40% 98%;
     --primary: 198 93% 59%;
-    --primary-foreground: 224 20% 8%;
-    --secondary: 224 14% 18%;
+    --primary-foreground: 222 30% 7%;
+    --secondary: 222 14% 16%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 224 14% 18%;
-    --muted-foreground: 220 10% 60%;
-    --accent: 224 14% 18%;
+    --muted: 222 14% 16%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 222 14% 16%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 38 92% 90%;
-    --border: 224 14% 20%;
-    --input: 224 14% 20%;
+    --border: 222 14% 16%;
+    --input: 222 14% 16%;
     --ring: 198 93% 59%;
 
     --chip-symptom: 214 60% 20%;
@@ -156,24 +156,30 @@
     --chip-alert-text: 0 70% 70%;
     --chip-alert-border: 0 40% 28%;
 
-    --chip-neutral: 224 14% 18%;
+    --chip-neutral: 222 14% 16%;
     --chip-neutral-text: 220 10% 65%;
-    --chip-neutral-border: 224 14% 25%;
+    --chip-neutral-border: 222 14% 22%;
 
-    --sidebar-background: 224 20% 8%;
+    --sidebar-background: 222 30% 7%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 198 93% 59%;
-    --sidebar-primary-foreground: 224 20% 8%;
-    --sidebar-accent: 224 14% 18%;
+    --sidebar-primary-foreground: 222 30% 7%;
+    --sidebar-accent: 222 14% 16%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 224 14% 20%;
+    --sidebar-border: 222 14% 16%;
     --sidebar-ring: 198 93% 59%;
     --chart-1: 199 95% 73%;
     --chart-2: 211 96% 78%;
     --chart-3: 215 20% 65%;
     --chart-4: 215 16% 46%;
     --chart-5: 215 19% 34%;
-    --sidebar: 224 18% 12%;
+    --sidebar: 222 20% 10%;
+
+    /* Glass UI tokens */
+    --glass-card: 0 0% 100% / 0.04;
+    --glass-border: 0 0% 100% / 0.08;
+    --glass-hover: 0 0% 100% / 0.06;
+
     --shadow-2xs: 0 1px 2px 0px hsl(0 0% 0% / 0.1);
     --shadow-xs: 0 1px 2px 0px hsl(0 0% 0% / 0.15);
     --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.2), 0 1px 2px -1px hsl(0 0% 0% / 0.15);
@@ -328,11 +334,22 @@
 
   /* Clinical card */
   .clinical-card {
-    @apply bg-card rounded-xl border border-border shadow-card p-4 transition-shadow duration-200;
+    @apply bg-card rounded-md border border-border p-3 transition-shadow duration-200;
   }
 
   .clinical-card:hover {
-    @apply shadow-card-hover;
+    @apply shadow-xs;
+  }
+
+  /* Glass UI */
+  .glass-card {
+    background: hsl(var(--glass-card, 0 0% 100% / 0.04));
+    border-color: hsl(var(--glass-border, 0 0% 100% / 0.08));
+    backdrop-filter: blur(12px);
+  }
+
+  .glass-card:hover {
+    background: hsl(var(--glass-hover, 0 0% 100% / 0.06));
   }
 }
 

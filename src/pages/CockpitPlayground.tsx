@@ -1410,9 +1410,9 @@ export default function CockpitPlayground() {
     <>
       <SEO title="Cockpit Playground — Admin" description="Test clinical cockpit UI with mock data" />
 
-      <div className={`${isFullscreen ? "fixed inset-0 z-50" : "h-[calc(100vh-3.5rem)]"} flex flex-col overflow-hidden bg-background`}>
+      <div className={`${isFullscreen ? "fixed inset-0 z-50 w-screen h-screen" : "h-[calc(100vh-3.5rem)]"} flex flex-col overflow-hidden bg-background`}>
         {/* ── Header ── */}
-        <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-border bg-card">
+        <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-border bg-card/80 backdrop-blur-sm">
           <div className="flex items-center gap-2">
             <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
               <Beaker className="h-3.5 w-3.5 text-primary" />
@@ -1425,12 +1425,12 @@ export default function CockpitPlayground() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-5 text-[9px] rounded-full gap-1 px-2">
                   <Stethoscope className="h-2.5 w-2.5" />
-                  {selectedScenario || "Scenario"}
+                  {selectedScenario || "Scenarios"}
                   <ChevronDown className="h-2 w-2" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuLabel className="text-[10px]">Clinical Scenarios</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-[10px]">Scenarios</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {SCENARIOS.map(s => (
                   <DropdownMenuItem key={s.name} onClick={() => loadScenario(s.name)} className="text-xs">
@@ -1711,11 +1711,11 @@ export default function CockpitPlayground() {
         )}
 
         {/* ══════════ MAIN CONTENT — BALANCED 3 COLUMNS ══════════ */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3">
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[30%_40%_30%]">
 
           {/* ═══ LEFT: Patient Context ═══ */}
           <div className="overflow-y-auto border-r border-border">
-            <div className="p-2 space-y-2">
+            <div className="p-1.5 space-y-1.5">
 
               {/* Empty state */}
               {!mockPatient ? (
@@ -1731,7 +1731,7 @@ export default function CockpitPlayground() {
               ) : (
                 <>
                   {/* SECTION 1: Patient Demographics */}
-                  <ClinicalCard className="p-3">
+                   <ClinicalCard className="p-2.5">
                     <div className="flex items-center gap-2.5 mb-2.5">
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
                         {mockPatient.name.charAt(0)}
@@ -1768,7 +1768,7 @@ export default function CockpitPlayground() {
                   </ClinicalCard>
 
                   {/* SECTION 2: Vitals (always visible) */}
-                  <ClinicalCard className="p-3">
+                   <ClinicalCard className="p-2.5">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
                       <HeartPulse className="h-3.5 w-3.5 text-primary" /> Vital Signs
                       {pipelineRunning && <Loader2 className="h-3 w-3 animate-spin text-primary ml-auto" />}
@@ -1810,7 +1810,7 @@ export default function CockpitPlayground() {
 
                   {/* Investigation Results (Labs) */}
                   {Object.keys(investigationResults).length > 0 && (
-                    <ClinicalCard className="p-3">
+                     <ClinicalCard className="p-2.5">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
                         <FlaskConical className="h-3.5 w-3.5 text-primary" /> Investigation Results
                       </p>
@@ -1837,7 +1837,7 @@ export default function CockpitPlayground() {
                   )}
 
                   {/* SECTION 3: Clinical Context Tree */}
-                  <ClinicalCard className="p-3">
+                   <ClinicalCard className="p-2.5">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
                       <TreePine className="h-3.5 w-3.5 text-primary" /> Clinical Context
                     </p>
@@ -1918,8 +1918,8 @@ export default function CockpitPlayground() {
           {/* ═══ CENTER: SOAP Output ═══ */}
           <div className="overflow-y-auto border-r border-border">
             {mockPatient && (
-              <div className="p-2 space-y-2">
-                <ClinicalCard className="p-3 border-primary/15">
+              <div className="p-1.5 space-y-1.5">
+                <ClinicalCard className="p-2.5 border-primary/15">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -1937,9 +1937,9 @@ export default function CockpitPlayground() {
                     </div>
                   </div>
 
-                  <div className="space-y-5">
+                  <div className="space-y-3">
                     {/* ── Subjective ── */}
-                    <div className="rounded-xl border p-3.5 bg-primary/[0.03] border-primary/15">
+                    <div className="rounded-md border p-2.5 bg-primary/[0.03] border-primary/15">
                       <button
                         onClick={() => setSoapSubjectiveCollapsed(prev => !prev)}
                         className="flex items-center gap-1.5 w-full text-left"
@@ -1964,7 +1964,7 @@ export default function CockpitPlayground() {
                     </div>
 
                     {/* ── Objective ── */}
-                    <div className="rounded-xl border p-3.5 bg-emerald-500/5 border-emerald-500/15">
+                    <div className="rounded-md border p-2.5 bg-emerald-500/5 border-emerald-500/15">
                       <button
                         onClick={() => setSoapObjectiveCollapsed(prev => !prev)}
                         className="flex items-center gap-1.5 w-full text-left"
@@ -1989,7 +1989,7 @@ export default function CockpitPlayground() {
                     </div>
 
                     {/* ── Assessment (Differential Diagnoses) ── */}
-                    <div className="rounded-xl border p-3.5 bg-amber-500/5 border-amber-500/15">
+                    <div className="rounded-md border p-2.5 bg-amber-500/5 border-amber-500/15">
                       <div className="flex items-center gap-1.5 mb-2.5">
                         <Brain className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                         <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Assessment</span>
@@ -2025,17 +2025,54 @@ export default function CockpitPlayground() {
                                 )}
                               </button>
                               {isExpanded && (
-                                <div className="mt-1.5 rounded-lg border border-border p-2.5 bg-muted/20 space-y-2">
-                                  {d.supporting.length > 0 && (
-                                    <div>
-                                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Supporting Evidence</p>
-                                      <div className="flex flex-wrap gap-1">
-                                        {d.supporting.map((e: string, ei: number) => (
-                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
-                                        ))}
+                                <div className="mt-1.5 rounded-md border border-border p-2 bg-muted/20 space-y-2">
+                                  {d.supporting.length > 0 && (() => {
+                                    const vitalKeywords = ["hypotension", "tachycardia", "tachypnea", "hypertension", "fever", "hypothermia", "desaturation", "bradycardia", "bp", "heart rate", "spo2", "respiratory rate", "temperature"];
+                                    const contextKeywords = ["immunocompromised", "diabetes", "smoking", "obesity", "pregnancy", "recent surgery", "recent travel", "hypertension", "copd", "asthma", "cancer"];
+                                    const signals: string[] = [];
+                                    const vitals: string[] = [];
+                                    const context: string[] = [];
+                                    d.supporting.forEach((e: string) => {
+                                      const lower = e.toLowerCase();
+                                      if (vitalKeywords.some(k => lower.includes(k))) vitals.push(e);
+                                      else if (contextKeywords.some(k => lower.includes(k))) context.push(e);
+                                      else signals.push(e);
+                                    });
+                                    return (
+                                      <div className="grid grid-cols-1 gap-1.5">
+                                        {signals.length > 0 && (
+                                          <div className="flex items-start gap-1.5">
+                                            <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-12">Signals</span>
+                                            <div className="flex flex-wrap gap-1">
+                                              {signals.map((e: string, ei: number) => (
+                                                <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                        {vitals.length > 0 && (
+                                          <div className="flex items-start gap-1.5">
+                                            <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-12">Vitals</span>
+                                            <div className="flex flex-wrap gap-1">
+                                              {vitals.map((e: string, ei: number) => (
+                                                <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">✓ {e}</span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                        {context.length > 0 && (
+                                          <div className="flex items-start gap-1.5">
+                                            <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-12">Context</span>
+                                            <div className="flex flex-wrap gap-1">
+                                              {context.map((e: string, ei: number) => (
+                                                <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">✓ {e}</span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
-                                    </div>
-                                  )}
+                                    );
+                                  })()}
                                   {d.contradicting.length > 0 && (
                                     <div>
                                       <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Against</p>
@@ -2167,7 +2204,7 @@ export default function CockpitPlayground() {
                     </div>
 
                     {/* ── Plan (Structured subsections) ── */}
-                    <div className="rounded-xl border p-3.5 bg-purple-500/5 border-purple-500/15">
+                    <div className="rounded-md border p-2.5 bg-purple-500/5 border-purple-500/15">
                       <div className="flex items-center gap-1.5 mb-3">
                         <ClipboardCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
                         <span className="text-xs font-bold uppercase tracking-wide text-purple-700 dark:text-purple-400">Plan</span>
@@ -2265,7 +2302,7 @@ export default function CockpitPlayground() {
 
                 {/* Debug: Stage Latencies */}
                 {reasoningLevel === "debug" && Object.keys(stageLatencies).length > 0 && (
-                  <ClinicalCard className="p-3">
+                  <ClinicalCard className="p-2.5">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                       <Zap className="h-3 w-3" /> Pipeline Latency
                     </p>
@@ -2283,8 +2320,8 @@ export default function CockpitPlayground() {
           </div>
 
           {/* ═══ RIGHT: AI Copilot ═══ */}
-          <div className="overflow-y-auto bg-card/30 hidden lg:block">
-            <div className="p-2 space-y-2">
+          <div className="overflow-y-auto bg-card/20 hidden lg:block">
+            <div className="p-1.5 space-y-1.5">
               <div className="flex items-center gap-1.5 px-0.5">
                 <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center relative">
                   <Zap className="h-3 w-3 text-primary" />
@@ -2303,18 +2340,18 @@ export default function CockpitPlayground() {
 
         {/* ══════════ COMMAND BAR ══════════ */}
         {mockPatient && (
-          <div className="shrink-0 border-t border-border bg-card px-3 py-1">
-            <div className="flex items-center gap-2 max-w-2xl mx-auto rounded-md border border-border bg-background px-2.5 h-8">
+          <div className="shrink-0 border-t border-border bg-card/80 backdrop-blur-sm px-2 py-0.5">
+            <div className="flex items-center gap-2 max-w-xl mx-auto rounded-md border border-border bg-background/80 px-2 h-7">
               <Search className="h-3 w-3 text-muted-foreground shrink-0" />
               <input
                 type="text"
                 value={commandInput}
                 onChange={e => setCommandInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleCommand(); }}
-                placeholder="Try: lactate 5, troponin 200, remove fever"
-                className="flex-1 text-[11px] bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
+                placeholder="lactate 5 · troponin 200 · remove fever · add diabetes"
+                className="flex-1 text-[10px] bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
               />
-              <kbd className="hidden sm:inline text-[8px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">↵</kbd>
+              <kbd className="hidden sm:inline text-[8px] text-muted-foreground/60 bg-muted px-1 py-0.5 rounded border border-border">↵</kbd>
             </div>
           </div>
         )}
