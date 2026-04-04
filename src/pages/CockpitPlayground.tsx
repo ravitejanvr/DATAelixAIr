@@ -1560,10 +1560,6 @@ export default function CockpitPlayground() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-52">
-                <DropdownMenuItem onClick={runSepsisTest} className="text-xs gap-1.5">
-                  <FlaskConical className="h-3 w-3 text-destructive" />
-                  Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
-                </DropdownMenuItem>
                 <DropdownMenuItem className="text-xs gap-1.5" onClick={async () => {
                   try {
                     const { runSystemicVsOrganTests } = await import("@/tests/systemic_vs_organ_diagnostic_tests");
