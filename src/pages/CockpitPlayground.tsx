@@ -2360,99 +2360,110 @@ export default function CockpitPlayground() {
                       )}
                     </div>
 
-                    {/* ── Plan (Structured subsections) ── */}
+                    {/* ── Plan (Collapsible, Auto-generated) ── */}
                     <div className="rounded-md border p-2.5 bg-purple-500/5 border-purple-500/15">
-                      <div className="flex items-center gap-1.5 mb-3">
+                      <button
+                        onClick={() => setPlanCollapsed(prev => !prev)}
+                        className="flex items-center gap-1.5 w-full text-left"
+                      >
                         <ClipboardCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-                        <span className="text-xs font-bold uppercase tracking-wide text-purple-700 dark:text-purple-400">Plan</span>
-                      </div>
-
-                      {/* Investigations */}
-                      <div className="mb-3">
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
-                          <FlaskConical className="h-3 w-3" /> Investigations
-                        </p>
-                        {planInvestigations.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {planInvestigations.map(t => (
-                              <Chip key={t} variant="lab" size="sm" selected
-                                onClick={() => setSelectedTests(prev => prev.filter(x => x !== t))}>
-                                ✓ {t}
-                              </Chip>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground italic">Select investigations from AI Copilot →</p>
+                        <span className="text-xs font-bold uppercase tracking-wide text-purple-700 dark:text-purple-400 flex-1">Plan</span>
+                        {(planInvestigations.length + planTreatments.length + selectedMonitoring.length + selectedInstructions.length) > 0 && (
+                          <Badge variant="outline" className="text-[9px] border-purple-500/20 text-purple-600 dark:text-purple-400">
+                            {planInvestigations.length + planTreatments.length + selectedMonitoring.length + selectedInstructions.length} items
+                          </Badge>
                         )}
-                      </div>
+                        {planCollapsed ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronUp className="h-3 w-3 text-muted-foreground" />}
+                      </button>
 
-                      {/* Treatment — with Drug/Dose/Route/Freq format */}
-                      <div className="mb-3">
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
-                          <Pill className="h-3 w-3" /> Treatment
-                        </p>
-                        {planTreatments.length > 0 ? (
-                          <div className="space-y-1.5">
-                            {planTreatments.map((rx, i) => (
-                              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-foreground">{rx.drug_name}</p>
-                                  <p className="text-[10px] text-muted-foreground">
-                                    {rx.dose} {(rx as any).route ? `${(rx as any).route} ` : ""}{rx.frequency} × {rx.duration}
-                                  </p>
-                                </div>
-                                <button onClick={() => setPendingRx(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
+                      {!planCollapsed && (
+                        <div className="mt-2.5 space-y-3">
+                          {/* Investigations */}
+                          <div>
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
+                              <FlaskConical className="h-3 w-3" /> Investigations
+                            </p>
+                            {planInvestigations.length > 0 ? (
+                              <div className="space-y-1">
+                                {planInvestigations.map(t => (
+                                  <div key={t} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
+                                    <Checkbox checked onCheckedChange={() => setSelectedTests(prev => prev.filter(x => x !== t))} className="h-3.5 w-3.5" />
+                                    <span className="flex-1 text-foreground">{t}</span>
+                                    <button onClick={() => setSelectedTests(prev => prev.filter(x => x !== t))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">Auto-populated when diagnosis available</p>
+                            )}
                           </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground italic">Select prescriptions from AI Copilot →</p>
-                        )}
-                      </div>
 
-                      {/* Monitoring & Follow-up — selected only */}
-                      <div className="mb-3">
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
-                          <Activity className="h-3 w-3" /> Monitoring & Follow-up
-                        </p>
-                        {selectedMonitoring.length > 0 ? (
-                          <div className="space-y-1">
-                            {selectedMonitoring.map((m, i) => (
-                              <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
-                                <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                <span className="flex-1 text-foreground">{m}</span>
-                                <button onClick={() => setSelectedMonitoring(prev => prev.filter(x => x !== m))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
+                          {/* Treatment */}
+                          <div>
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
+                              <Pill className="h-3 w-3" /> Treatment
+                            </p>
+                            {planTreatments.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {planTreatments.map((rx, i) => (
+                                  <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                                    <Checkbox checked onCheckedChange={() => setPendingRx(prev => prev.filter((_, idx) => idx !== i))} className="h-3.5 w-3.5" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-semibold text-foreground">{rx.drug_name}</p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {rx.dose} {(rx as any).route ? `${(rx as any).route} ` : ""}{rx.frequency} × {rx.duration}
+                                      </p>
+                                    </div>
+                                    <button onClick={() => setPendingRx(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">Auto-populated when diagnosis available</p>
+                            )}
                           </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground italic">
-                            {primaryManagement.monitoring.length > 0 ? "Select monitoring from AI Copilot →" : "Monitoring parameters will appear after diagnosis."}
-                          </p>
-                        )}
-                      </div>
 
-                      {/* Patient Instructions */}
-                      <div>
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
-                          <MessageSquare className="h-3 w-3" /> Instructions to Patient
-                        </p>
-                        {selectedInstructions.length > 0 ? (
-                          <div className="space-y-1">
-                            {selectedInstructions.map((inst, i) => (
-                              <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
-                                <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                <span className="flex-1 text-foreground">{inst}</span>
-                                <button onClick={() => setSelectedInstructions(prev => prev.filter(x => x !== inst))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
+                          {/* Monitoring */}
+                          <div>
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
+                              <Activity className="h-3 w-3" /> Monitoring & Follow-up
+                            </p>
+                            {selectedMonitoring.length > 0 ? (
+                              <div className="space-y-1">
+                                {selectedMonitoring.map((m, i) => (
+                                  <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
+                                    <Checkbox checked onCheckedChange={() => setSelectedMonitoring(prev => prev.filter(x => x !== m))} className="h-3.5 w-3.5" />
+                                    <span className="flex-1 text-foreground">{m}</span>
+                                    <button onClick={() => setSelectedMonitoring(prev => prev.filter(x => x !== m))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">Auto-populated when diagnosis available</p>
+                            )}
                           </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground italic">
-                            {primaryManagement.instructions.length > 0 ? "Select instructions from AI Copilot →" : "Instructions will appear after diagnosis."}
-                          </p>
-                        )}
-                      </div>
+
+                          {/* Instructions */}
+                          <div>
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
+                              <MessageSquare className="h-3 w-3" /> Instructions to Patient
+                            </p>
+                            {selectedInstructions.length > 0 ? (
+                              <div className="space-y-1">
+                                {selectedInstructions.map((inst, i) => (
+                                  <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
+                                    <Checkbox checked onCheckedChange={() => setSelectedInstructions(prev => prev.filter(x => x !== inst))} className="h-3.5 w-3.5" />
+                                    <span className="flex-1 text-foreground">{inst}</span>
+                                    <button onClick={() => setSelectedInstructions(prev => prev.filter(x => x !== inst))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">Auto-populated when diagnosis available</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </ClinicalCard>
