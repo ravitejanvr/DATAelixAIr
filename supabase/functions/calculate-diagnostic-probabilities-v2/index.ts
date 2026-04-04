@@ -676,8 +676,39 @@ Deno.serve(async (req) => {
     const flatDistribution = results.length >= 5 &&
       (results[0].posterior_probability - results[4].posterior_probability) < 0.05;
     const overconfident = topPosterior > 0.95;
-    const stateOverconfidence = Array.from(latentStatePosteriors.values()).filter(p => p > 0.98).length;
+    const stateOverconfidence = Array.from(latentStatePosteriors.values()).filter(p => p > 0.97).length;
     const mappedDiagCount = results.filter(r => r.latent_state_activations.length > 0).length;
+
+    // Calibration curve: bucket posteriors by decile and compute metrics
+    const calibrationBuckets: Array<{ bucket: string; count: number; mean_posterior: number; max_posterior: number }> = [];
+    const bucketRanges = [
+      [0, 0.1], [0.1, 0.2], [0.2, 0.3], [0.3, 0.5], [0.5, 0.7], [0.7, 0.9], [0.9, 1.01],
+    ];
+    for (const [lo, hi] of bucketRanges) {
+      const inBucket = results.filter(r => r.posterior_probability >= lo && r.posterior_probability < hi);
+      if (inBucket.length > 0) {
+        calibrationBuckets.push({
+          bucket: `${(lo * 100).toFixed(0)}-${(hi * 100).toFixed(0)}%`,
+          count: inBucket.length,
+          mean_posterior: parseFloat((inBucket.reduce((s, r) => s + r.posterior_probability, 0) / inBucket.length).toFixed(4)),
+          max_posterior: parseFloat(Math.max(...inBucket.map(r => r.posterior_probability)).toFixed(4)),
+        });
+      }
+    }
+
+    // State activation summary for calibration
+    const stateCalibration = latentStates.map(s => {
+      const sName = stateIdToName.get(s.id) || s.state_name;
+      const posterior = latentStatePosteriors.get(s.id) || 0.5;
+      const logOdds = latentStateLogOdds.get(s.id) || 0;
+      return {
+        state: sName,
+        posterior: parseFloat(posterior.toFixed(4)),
+        log_odds: parseFloat(logOdds.toFixed(3)),
+        temperature: PER_STATE_TEMPERATURE[sName] || DEFAULT_STATE_TEMPERATURE,
+        overconfident: posterior > 0.97,
+      };
+    });
 
     const calibration = {
       top1_posterior: parseFloat(topPosterior.toFixed(4)),
@@ -687,8 +718,12 @@ Deno.serve(async (req) => {
       state_overconfidence_count: stateOverconfidence,
       latent_mapped_diagnoses: mappedDiagCount,
       unmapped_diagnoses: results.length - mappedDiagCount,
-      state_temperature: STATE_TEMPERATURE,
+      per_state_temperatures: PER_STATE_TEMPERATURE,
       diagnosis_temperature: TEMPERATURE,
+      calibration_buckets: calibrationBuckets,
+      state_calibration: stateCalibration,
+      diminishing_returns_applied: true,
+      state_competition_applied: true,
     };
 
     // Trace
