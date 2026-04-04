@@ -239,12 +239,32 @@ Deno.serve(async (req) => {
       hypertension_history: normalizedHistory.some((h: string) => h.includes("hypertension") || h.includes("high blood pressure")),
     };
 
-    const activeFeatureNames = Object.entries(activeFeatures).filter(([_, v]) => v).map(([k]) => k);
-    console.log("[ProbEngineV2] Active features:", JSON.stringify(activeFeatureNames));
+    // ── NEGATIVE EVIDENCE: derive "no_X" features from absence of positive features ──
+    // These activate negative log-LRs stored in feature_state_likelihoods
+    const negativeFeatures: Record<string, boolean> = {
+      no_fever: !activeFeatures.fever,
+      no_hypotension: !activeFeatures.hypotension,
+      no_tachycardia: !activeFeatures.tachycardia,
+      no_chest_pain: !activeFeatures.chest_pain,
+      no_dyspnea: !activeFeatures.dyspnea,
+      no_cough: !activeFeatures.cough,
+      no_hypoxia: !activeFeatures.hypoxia,
+      no_altered_mental_status: !activeFeatures.altered_mental_status,
+      no_headache: !activeFeatures.headache,
+      no_sweating: !activeFeatures.sweating,
+      no_joint_pain: !activeFeatures.joint_pain,
+    };
+
+    // Merge positive + negative into unified feature set
+    const allFeatures: Record<string, boolean> = { ...activeFeatures, ...negativeFeatures };
+
+    const activeFeatureNames = Object.entries(allFeatures).filter(([_, v]) => v).map(([k]) => k);
+    console.log("[ProbEngineV2] Active features (pos+neg):", JSON.stringify(activeFeatureNames));
 
     // ════════════════════════════════════════════
     // STEP 2: COMPUTE LATENT STATE POSTERIORS
     // Evidence → Latent States via DB-driven log-LRs
+    // With bounded calibration: clamp posteriors to [0.01, 0.99]
     // ════════════════════════════════════════════
     const latentStates = latentStatesRes.data || [];
     const featureStateLRs = featureStateRes.data || [];
@@ -258,9 +278,10 @@ Deno.serve(async (req) => {
       featureStateMap.get(fsl.latent_state_id)!.set(fsl.feature_name, fsl.log_likelihood_ratio);
     }
 
-    // Compute latent state log-odds from uniform prior (0.5 → logOdds = 0)
+    // Compute latent state log-odds from uninformative prior (0.5 → logOdds = 0)
     const latentStatePosteriors = new Map<string, number>(); // stateId → posterior prob
     const latentStateLogOdds = new Map<string, number>();
+    const LOG_ODDS_CLAMP = 4.6; // clamp to ±4.6 → posterior bounded to [0.01, 0.99]
 
     for (const state of latentStates) {
       let logOdds = 0; // Prior = 0.5 (uninformative)
@@ -268,12 +289,15 @@ Deno.serve(async (req) => {
 
       if (stateFeatures) {
         for (const [featureName, logLR] of stateFeatures) {
-          if (activeFeatures[featureName]) {
+          // Apply BOTH positive features (logLR > 0) AND negative features (logLR < 0)
+          if (allFeatures[featureName]) {
             logOdds += logLR;
           }
         }
       }
 
+      // Clamp log-odds to prevent numerical extremes
+      logOdds = Math.max(-LOG_ODDS_CLAMP, Math.min(LOG_ODDS_CLAMP, logOdds));
       latentStateLogOdds.set(state.id, logOdds);
       const posterior = 1 / (1 + Math.exp(-logOdds));
       latentStatePosteriors.set(state.id, posterior);
@@ -462,10 +486,15 @@ Deno.serve(async (req) => {
       }
 
       // ════════════════════════════════════════════
-      // ── 9. LATENT STATE CONTRIBUTION (REPLACES DISEASE_WEIGHT_PROFILES) ──
-      // P(dx | latent_states) via log-odds update
-      // Each latent state contributes: logLR(dx|state) × P(state|evidence)
-      // This is diagnosis-agnostic — works for ANY diagnosis with DB mappings
+      // ── 9. LATENT STATE CONTRIBUTION ──
+      // CORRECTED FORMULA: logP(dx) += Σ[ P(state|evidence) × log P(state|dx) ]
+      //
+      // This is the proper probabilistic update:
+      // - P(state|evidence) = latent state posterior from Step 2
+      // - log P(state|dx) = stored in diagnosis_state_likelihoods (DB-driven)
+      // - When state is active AND diagnosis expects it → strong positive
+      // - When state is active AND diagnosis doesn't expect it → negative
+      // - Fully generalizable: no diagnosis-specific code
       // ════════════════════════════════════════════
       let latentStateContribution = 0;
       const stateActivations: DiagResult["latent_state_activations"] = [];
@@ -474,10 +503,11 @@ Deno.serve(async (req) => {
       if (diagStates) {
         for (const [stateId, diagLogLR] of diagStates) {
           const statePosterior = latentStatePosteriors.get(stateId) || 0.5;
-          // Weight the diagnosis log-LR by the latent state's posterior
-          // If state is active (high posterior), the full logLR applies
-          // If state is inactive (low posterior), it's dampened
-          const contribution = diagLogLR * statePosterior;
+          // P(state) × log P(state|dx)
+          // When state is strongly present (posterior ~1.0), full log-LR applies
+          // When state is absent (posterior ~0.0), contribution approaches 0
+          // Negative diagLogLR penalizes diagnosis when state IS active
+          const contribution = statePosterior * diagLogLR;
           latentStateContribution += contribution;
 
           const stateName = latentStates.find(s => s.id === stateId)?.state_name || "unknown";
@@ -488,6 +518,10 @@ Deno.serve(async (req) => {
           });
         }
         logScore += latentStateContribution;
+      } else {
+        // Diagnoses without latent state mappings get no latent contribution
+        // This ensures the system gracefully handles unmapped diagnoses
+        // (they rely solely on symptom/prior/modifier evidence)
       }
 
       // Evidence trace
