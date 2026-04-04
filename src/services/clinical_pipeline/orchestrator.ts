@@ -1462,8 +1462,8 @@ export async function runUnifiedClinicalPipeline(
             });
           }
 
-          // Replace V1 bayesian result with V2 for downstream consumption
-          bayesianResult = v2Result;
+          // V2 promoted — downstream fusedBayesian will pick this up
+          v2Result = v2Result; // kept for audit; actual swap happens at fusedBayesian
         } else {
           console.warn("[Pipeline] V2 returned null — falling back to V1");
         }
