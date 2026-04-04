@@ -67,11 +67,12 @@ import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_en
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { mergeActivations, expandKG } from "@/services/kg";
-import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCanonicalMappingEnabled, isBayesianSystemicLikelihoodEnabled, isClinicalPriorityResolutionEnabled } from "@/services/feature_flags";
+import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCanonicalMappingEnabled, isBayesianSystemicLikelihoodEnabled, isClinicalPriorityResolutionEnabled, isProbabilisticEngineV2Enabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResult } from "@/services/clinical_pipeline/pattern_priority_layer";
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
 import { applyCanonicalScoreFusion } from "@/services/clinical_pipeline/canonical_fusion";
+import { calculateDiagnosticProbabilitiesV2, comparePipelineOutputs } from "@/services/bayesian_engine/client_v2";
 
 // ── Public Types ──
 
@@ -1395,7 +1396,46 @@ export async function runUnifiedClinicalPipeline(
   });
 
   // ═══════════════════════════════════════════════════════
-  // Phase 5.5 — Post-Bayesian Score Fusion
+  // Shadow Mode: Probabilistic Engine V2 (Latent State Architecture)
+  // Runs in parallel, does NOT affect production output.
+  // Logs comparison for validation.
+  // ═══════════════════════════════════════════════════════
+  if (isProbabilisticEngineV2Enabled() && bayesianResult) {
+    const v2Input = {
+      candidate_diagnosis_ids: ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [],
+      symptoms,
+      physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
+      risk_factors: ctx.risk_factors || [],
+      medical_history: ctx.medical_history || [],
+      patient_age: ctx.patient_age,
+      patient_sex: ctx.patient_sex,
+      region: "south_asia" as string,
+      vitals: {
+        temperature: vitals.temperature,
+        spo2: vitals.spo2,
+        pulse: vitals.pulse,
+        bp_systolic: vitals.bp_systolic,
+        bp_diastolic: vitals.bp_diastolic,
+        respiratory_rate: vitals.respiratory_rate,
+      },
+      duration: ctx.symptom_duration || null,
+      onset_pattern: ctx.onset_pattern || null,
+    };
+
+    // Fire-and-forget — does not block production pipeline
+    calculateDiagnosticProbabilitiesV2(v2Input).then(v2Result => {
+      const nameMap = new Map<string, string>();
+      if (ddxResult?.differential_diagnoses) {
+        for (const d of ddxResult.differential_diagnoses) {
+          if (d.diagnosis_id && d.diagnosis_name) nameMap.set(d.diagnosis_id, d.diagnosis_name);
+        }
+      }
+      comparePipelineOutputs(bayesianResult, v2Result, nameMap);
+    }).catch(err => {
+      console.warn("[Pipeline] V2 shadow comparison failed (non-blocking):", err);
+    });
+  }
+
   // Bridges DDX, Pattern, and Physiology intelligence into Bayesian posteriors.
   // Feature-flagged via enable_score_fusion. Pure, deterministic.
   // ═══════════════════════════════════════════════════════
