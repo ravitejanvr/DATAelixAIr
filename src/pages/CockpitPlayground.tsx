@@ -1672,7 +1672,7 @@ export default function CockpitPlayground() {
 
         {/* ── Perturbation Progress (debug/explain only) ── */}
         {reasoningLevel !== "doctor" && perturbationRunning && perturbationProgress && (
-          <div className="shrink-0 border-b border-border bg-card p-2">
+          <div className="shrink-0 border-b border-border glass-card p-2">
             <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin text-primary" />
               {perturbationProgress}
