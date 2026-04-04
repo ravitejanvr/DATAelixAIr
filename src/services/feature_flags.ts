@@ -122,3 +122,8 @@ export function isBayesianSystemicLikelihoodEnabled(): boolean {
 export function isClinicalPriorityResolutionEnabled(): boolean {
   return currentFlags.enable_clinical_priority_resolution;
 }
+
+export function isProbabilisticEngineV2Enabled(): boolean {
+  return currentFlags.enable_probabilistic_engine_v2;
+}
+}
