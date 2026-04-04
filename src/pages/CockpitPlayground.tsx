@@ -2302,7 +2302,7 @@ export default function CockpitPlayground() {
 
                 {/* Debug: Stage Latencies */}
                 {reasoningLevel === "debug" && Object.keys(stageLatencies).length > 0 && (
-                  <ClinicalCard className="p-3">
+                  <ClinicalCard className="p-2.5">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                       <Zap className="h-3 w-3" /> Pipeline Latency
                     </p>
