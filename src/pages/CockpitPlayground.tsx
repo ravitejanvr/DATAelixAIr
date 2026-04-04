@@ -709,6 +709,8 @@ export default function CockpitPlayground() {
         investigation_results: Object.keys(investigationResults).length > 0 ? investigationResults : undefined,
       });
 
+      console.log("[CONTEXT_LABS]", pipelineContext.investigation_results);
+
       const result = await runUnifiedClinicalPipeline(
         {
           clinical_context: pipelineContext,
