@@ -578,6 +578,13 @@ export default function CockpitPlayground() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
 
+  // Sync fullscreen state with browser
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
   // Pipeline run ref for debouncing
   const pipelineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pipelineRunIdRef = useRef(0);
@@ -1412,7 +1419,7 @@ export default function CockpitPlayground() {
 
       <div className={`${isFullscreen ? "fixed inset-0 z-50 w-screen h-screen" : "h-[calc(100vh-3.5rem)]"} flex flex-col overflow-hidden bg-background`}>
         {/* ── Header ── */}
-        <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b glass-card">
           <div className="flex items-center gap-2">
             <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
               <Beaker className="h-3.5 w-3.5 text-primary" />
@@ -1524,8 +1531,16 @@ export default function CockpitPlayground() {
               {isDarkMode ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
             </Button>
 
-            {/* Fullscreen toggle */}
-            <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setIsFullscreen(prev => !prev)}>
+            {/* Fullscreen toggle — browser API */}
+            <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                setIsFullscreen(true);
+              } else {
+                document.exitFullscreen().catch(() => {});
+                setIsFullscreen(false);
+              }
+            }}>
               {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
             </Button>
 
@@ -1538,7 +1553,7 @@ export default function CockpitPlayground() {
 
         {/* ── Physiology vs Bayesian Debug Panel (debug/explain only) ── */}
         {reasoningLevel !== "doctor" && physioBayesianDiff && (
-          <div className="shrink-0 border-b border-border bg-card overflow-hidden">
+           <div className="shrink-0 border-b border-border glass-card overflow-hidden">
             <div className="p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -1595,7 +1610,7 @@ export default function CockpitPlayground() {
 
         {/* ── Perturbation Suite Results (debug/explain only) ── */}
         {reasoningLevel !== "doctor" && perturbationReport && (
-          <div className="shrink-0 border-b border-border bg-card overflow-hidden">
+           <div className="shrink-0 border-b border-border glass-card overflow-hidden">
             <div className="p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -1664,7 +1679,7 @@ export default function CockpitPlayground() {
 
         {/* ── Perturbation Progress (debug/explain only) ── */}
         {reasoningLevel !== "doctor" && perturbationRunning && perturbationProgress && (
-          <div className="shrink-0 border-b border-border bg-card p-2">
+          <div className="shrink-0 border-b border-border glass-card p-2">
             <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin text-primary" />
               {perturbationProgress}
@@ -1674,7 +1689,7 @@ export default function CockpitPlayground() {
 
         {/* ── Comparison overlay ── */}
         {reasoningLevel !== "doctor" && showComparison && snapshots.length > 0 && (
-          <div className="shrink-0 border-b border-border bg-card overflow-hidden">
+          <div className="shrink-0 border-b border-border glass-card overflow-hidden">
             <div className="p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -2320,7 +2335,7 @@ export default function CockpitPlayground() {
           </div>
 
           {/* ═══ RIGHT: AI Copilot ═══ */}
-          <div className="overflow-y-auto bg-card/20 hidden lg:block">
+          <div className="overflow-y-auto glass-card hidden lg:block">
             <div className="p-1.5 space-y-1.5">
               <div className="flex items-center gap-1.5 px-0.5">
                 <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center relative">
@@ -2338,20 +2353,25 @@ export default function CockpitPlayground() {
           </div>
         </div>
 
-        {/* ══════════ COMMAND BAR ══════════ */}
+        {/* ══════════ FLOATING COMMAND BAR ══════════ */}
         {mockPatient && (
-          <div className="shrink-0 border-t border-border bg-card/80 backdrop-blur-sm px-2 py-0.5">
-            <div className="flex items-center gap-2 max-w-xl mx-auto rounded-md border border-border bg-background/80 px-2 h-7">
-              <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[480px] max-w-[90vw]">
+            <div className="flex items-center gap-2 glass-card rounded-full px-4 h-10 border shadow-lg ring-1 ring-primary/5 focus-within:ring-primary/20 focus-within:shadow-[0_0_30px_hsl(198_93%_59%/0.12)] transition-all duration-300">
+              <Sparkles className="h-3.5 w-3.5 text-primary/60 shrink-0" />
               <input
                 type="text"
                 value={commandInput}
                 onChange={e => setCommandInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleCommand(); }}
-                placeholder="lactate 5 · troponin 200 · remove fever · add diabetes"
-                className="flex-1 text-[10px] bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
+                placeholder="Try: lactate 5 · troponin 200 · remove fever"
+                className="flex-1 text-xs bg-transparent border-none outline-none placeholder:text-muted-foreground/40 text-foreground"
               />
-              <kbd className="hidden sm:inline text-[8px] text-muted-foreground/60 bg-muted px-1 py-0.5 rounded border border-border">↵</kbd>
+              <button
+                onClick={handleCommand}
+                className="h-6 w-6 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors"
+              >
+                <Send className="h-3 w-3 text-primary" />
+              </button>
             </div>
           </div>
         )}
