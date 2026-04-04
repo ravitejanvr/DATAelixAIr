@@ -1921,31 +1921,45 @@ export default function CockpitPlayground() {
                     </div>
                   </ClinicalCard>
 
-                  {/* Investigation Results (Labs) */}
+                  {/* Investigation Results (Labs) — Enhanced with interpretations */}
                   {Object.keys(investigationResults).length > 0 && (
                      <ClinicalCard className="p-2.5">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
                         <FlaskConical className="h-3.5 w-3.5 text-primary" /> Investigation Results
                       </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {Object.entries(investigationResults).map(([key, value]) => (
-                          <Badge
-                            key={key}
-                            variant="outline"
-                            className="text-[10px] gap-1 cursor-pointer hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
-                            onClick={() => setInvestigationResults(prev => {
-                              const next = { ...prev };
-                              delete (next as any)[key];
-                              return next;
-                            })}
-                          >
-                            <Beaker className="h-2.5 w-2.5" />
-                            {formatLabKey(key as keyof InvestigationResults)}: {formatLabValue(key as keyof InvestigationResults, value as number)}
-                            <X className="h-2.5 w-2.5 ml-0.5 text-muted-foreground" />
-                          </Badge>
-                        ))}
+                      <div className="space-y-1.5">
+                        {Object.entries(investigationResults).map(([key, value]) => {
+                          const interpretation = getLabInterpretation(key, value as number);
+                          const LAB_NORMALS: Record<string, number> = { lactate: 2, troponin: 0.04, CRP: 10, procalcitonin: 0.5, WBC: 11, D_dimer: 500, creatinine: 1.2, BNP: 100 };
+                          const isAbnormal = (value as number) > (LAB_NORMALS[key] || Infinity);
+                          return (
+                            <div key={key} className={`flex items-start gap-2 px-2.5 py-1.5 rounded-md border transition-colors ${isAbnormal ? "bg-destructive/5 border-destructive/20" : "bg-emerald-500/5 border-emerald-500/20"}`}>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-xs font-bold ${isAbnormal ? "text-destructive" : "text-emerald-700 dark:text-emerald-400"}`}>
+                                    {formatLabKey(key as keyof InvestigationResults)}: {formatLabValue(key as keyof InvestigationResults, value as number)}
+                                  </span>
+                                  <span className="text-[9px]">{isAbnormal ? "🔴" : "🟢"}</span>
+                                </div>
+                                {interpretation && (
+                                  <p className="text-[9px] text-muted-foreground mt-0.5">→ {interpretation}</p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => setInvestigationResults(prev => {
+                                  const next = { ...prev };
+                                  delete (next as any)[key];
+                                  return next;
+                                })}
+                                className="text-muted-foreground hover:text-destructive shrink-0 mt-0.5"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <p className="text-[9px] text-muted-foreground mt-1.5">Click to remove · Type "lactate 5" in command bar to add</p>
+                      <p className="text-[9px] text-muted-foreground mt-1.5">Type "lactate 5" in command bar or use 🎙 voice</p>
                     </ClinicalCard>
                   )}
 
