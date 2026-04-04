@@ -1388,7 +1388,7 @@ export default function CockpitPlayground() {
         setPendingRx(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur, route: rx.route || "PO" }]);
       }
     },
-    safetyResults: pendingRx.length > 0 ? safetyResults : null,
+    safetyResults: safetyResults,  // Always-on safety — Block 6
     patientAge: mockPatient?.age,
     allergies: mockPatient?.allergies || [],
     diagnosis: primaryManagement.diagnosis || selectedDiagnoses[0],
