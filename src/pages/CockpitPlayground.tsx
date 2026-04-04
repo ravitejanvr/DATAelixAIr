@@ -1091,6 +1091,36 @@ export default function CockpitPlayground() {
 
   // Legacy aggregation aliases REMOVED — primary isolation enforced
 
+  // ── AUTO-PLAN GENERATION ENGINE (Block 4) ──
+  // When primary diagnosis changes, auto-populate plan selections
+  const prevPrimaryRef = useRef<string>("");
+  useEffect(() => {
+    if (!primaryManagement.diagnosis || primaryManagement.diagnosis === prevPrimaryRef.current) return;
+    prevPrimaryRef.current = primaryManagement.diagnosis;
+
+    // Auto-select all investigations
+    if (primaryManagement.tests.length > 0) {
+      setSelectedTests(primaryManagement.tests);
+    }
+    // Auto-select all medications
+    if (primaryManagement.medications.length > 0) {
+      setPendingRx(primaryManagement.medications.map(rx => ({
+        drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur, route: rx.route || "PO",
+      })));
+    }
+    // Auto-select monitoring
+    if (primaryManagement.monitoring.length > 0) {
+      setSelectedMonitoring(primaryManagement.monitoring);
+    }
+    // Auto-select instructions
+    if (primaryManagement.instructions.length > 0) {
+      setSelectedInstructions(primaryManagement.instructions);
+    }
+    // Auto-expand plan when populated
+    setPlanCollapsed(false);
+    console.log("[AUTO_PLAN] Generated plan for:", primaryManagement.diagnosis);
+  }, [primaryManagement.diagnosis, primaryManagement.tests, primaryManagement.medications, primaryManagement.monitoring, primaryManagement.instructions]);
+
   // ── Plan sections derived from selections ──
   const planInvestigations = selectedTests;
   const planTreatments = pendingRx;
