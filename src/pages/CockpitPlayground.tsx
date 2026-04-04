@@ -1444,7 +1444,6 @@ export default function CockpitPlayground() {
             <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1" onClick={resetCase}>
               <RotateCcw className="h-2.5 w-2.5" /> Reset
             </Button>
-            </Button>
           </div>
         </div>
 
