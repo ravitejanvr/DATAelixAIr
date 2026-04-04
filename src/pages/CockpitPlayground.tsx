@@ -2303,70 +2303,7 @@ export default function CockpitPlayground() {
                 </Badge>
               </div>
 
-              {/* ═══ PRIMARY RECOMMENDATION BLOCK ═══ */}
-              {pipelineComplete && primaryManagement.diagnosis && (
-                <ClinicalCard className="p-3 border-primary/25 bg-primary/[0.04] shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="h-5 w-5 rounded-md bg-primary/15 flex items-center justify-center">
-                      <Target className="h-3 w-3 text-primary" />
-                    </div>
-                    <span className="text-xs font-bold text-foreground flex-1">{primaryManagement.diagnosis}</span>
-                    <Badge className="text-[10px] font-mono bg-primary/10 text-primary border-primary/20">
-                      {Math.round(primaryManagement.probability * 100)}%
-                    </Badge>
-                  </div>
-
-                  {/* Evidence contributions from Bayesian Evidence Engine */}
-                  {mergedDiagnoses[0]?.bayesian?.evidence_contributions?.length > 0 && (
-                    <div className="mb-2 p-2 rounded-lg bg-background/60 border border-border">
-                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Evidence Contributions</p>
-                      <div className="space-y-0.5">
-                        {mergedDiagnoses[0].bayesian.evidence_contributions.map((c: any, i: number) => (
-                          <div key={i} className="flex items-center gap-1.5 text-[10px]">
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.direction === "support" ? "bg-emerald-500" : c.direction === "against" ? "bg-destructive" : "bg-muted-foreground"}`} />
-                            <span className="text-muted-foreground">{c.feature}</span>
-                            <span className="font-mono text-foreground ml-auto">×{c.multiplier.toFixed(2)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Key recommendations summary */}
-                  <div className="space-y-1.5">
-                    {primaryManagement.tests.length > 0 && (
-                      <div>
-                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-0.5">Investigations</p>
-                        <div className="flex flex-wrap gap-1">
-                          {primaryManagement.tests.slice(0, 5).map((t: string) => (
-                            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{t}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {primaryManagement.medications.length > 0 && (
-                      <div>
-                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-0.5">Medications</p>
-                        <div className="flex flex-wrap gap-1">
-                          {primaryManagement.medications.slice(0, 4).map((m: any) => (
-                            <span key={m.drug} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{m.drug} {m.dose}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {primaryManagement.monitoring.length > 0 && (
-                      <div>
-                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-0.5">Monitoring</p>
-                        <div className="flex flex-wrap gap-1">
-                          {primaryManagement.monitoring.slice(0, 3).map((m: string) => (
-                            <span key={m} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{m}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </ClinicalCard>
-              )}
+              {/* Primary recommendation is rendered inside ClinicalCopilot — no duplicate block */}
 
               {mockPatient && <ClinicalCopilot {...copilotProps} />}
             </div>
