@@ -8,7 +8,7 @@ interface ClinicalCardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function ClinicalCard({ children, className, noPadding, ...props }: ClinicalCardProps) {
   return (
-    <div className={cn("clinical-card", noPadding && "p-0", className)} {...props}>
+    <div className={cn("glass-card rounded-md border p-3 transition-all duration-200", noPadding && "p-0", className)} {...props}>
       {children}
     </div>
   );
