@@ -851,7 +851,7 @@ export default function ClinicalCopilot({
 
       {/* Guideline Compliance */}
       <motion.div {...fadeIn}>
-        <Collapsible open={complianceExpanded || !!pipelineCompliance} onOpenChange={setComplianceExpanded}>
+        <Collapsible open={complianceExpanded} onOpenChange={setComplianceExpanded}>
           <CollapsibleTrigger asChild>
             <button className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors text-left">
               <Scale className="h-3 w-3 text-primary shrink-0" />
@@ -867,7 +867,7 @@ export default function ClinicalCopilot({
                   {reviewCount > 0 && <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-200 dark:border-amber-800">{reviewCount} review</Badge>}
                 </div>
               )}
-              {complianceExpanded || pipelineCompliance ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              {complianceExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1">
