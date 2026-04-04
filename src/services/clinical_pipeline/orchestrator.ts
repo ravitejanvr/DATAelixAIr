@@ -1419,12 +1419,30 @@ export async function runUnifiedClinicalPipeline(
   // When selected for V2: runs V2 as PRIMARY, V1 as shadow comparison.
   // Otherwise: runs V1 as primary, V2 as shadow (fire-and-forget).
   // ═══════════════════════════════════════════════════════
+  const rolloutConfig = getRolloutConfig();
+  const rolloutHashSource = input.visit_id || input.clinic_id || "";
+  const rolloutBucket = rolloutHashSource ? (Math.abs([...rolloutHashSource].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)) % 100) : -1;
+  const isInternalUser = !!(input.clinic_id && rolloutConfig.internal_user_ids.includes(input.clinic_id));
   const useV2AsPrimary = isProbabilisticEngineV2Enabled() && shouldUseV2(
     input.clinic_id ?? undefined,
     input.visit_id ?? undefined,
   );
 
-  let v2Result: import("@/services/bayesian_engine/client_v2").V2Result | null = null;
+  console.log(`[ENGINE_AUDIT] ══════════════════════════════════`);
+  console.log(`[ENGINE_AUDIT] Rollout decision:`, {
+    engine_selected: useV2AsPrimary ? "V2" : "V1",
+    rollout_percentage: rolloutConfig.rollout_percentage,
+    rollout_bucket: rolloutBucket,
+    is_internal_user: isInternalUser,
+    v2_feature_flag: isProbabilisticEngineV2Enabled(),
+    visit_id: input.visit_id || "null",
+    cache_bypassed: !!input.skip_cache,
+  });
+  console.log(`[ENGINE_AUDIT] ENGINE_SELECTED: ${useV2AsPrimary ? "V2" : "V1"}`);
+  console.log(`[ENGINE_AUDIT] CACHE_STATUS: ${input.skip_cache ? "BYPASSED" : (cache.reasoning_hit ? "HIT" : "MISS")}`);
+
+  let v2FallbackUsed = false;
+  let v2FallbackReason: string | null = null;
 
   if (isProbabilisticEngineV2Enabled() && bayesianResult) {
     const v2Input = {
