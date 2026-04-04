@@ -1412,7 +1412,7 @@ export default function CockpitPlayground() {
 
       <div className={`${isFullscreen ? "fixed inset-0 z-50 w-screen h-screen" : "h-[calc(100vh-3.5rem)]"} flex flex-col overflow-hidden bg-background`}>
         {/* ── Header ── */}
-        <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b glass-card">
           <div className="flex items-center gap-2">
             <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
               <Beaker className="h-3.5 w-3.5 text-primary" />
