@@ -2025,17 +2025,54 @@ export default function CockpitPlayground() {
                                 )}
                               </button>
                               {isExpanded && (
-                                <div className="mt-1.5 rounded-lg border border-border p-2.5 bg-muted/20 space-y-2">
-                                  {d.supporting.length > 0 && (
-                                    <div>
-                                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Supporting Evidence</p>
-                                      <div className="flex flex-wrap gap-1">
-                                        {d.supporting.map((e: string, ei: number) => (
-                                          <span key={ei} className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
-                                        ))}
+                                <div className="mt-1.5 rounded-md border border-border p-2 bg-muted/20 space-y-2">
+                                  {d.supporting.length > 0 && (() => {
+                                    const vitalKeywords = ["hypotension", "tachycardia", "tachypnea", "hypertension", "fever", "hypothermia", "desaturation", "bradycardia", "bp", "heart rate", "spo2", "respiratory rate", "temperature"];
+                                    const contextKeywords = ["immunocompromised", "diabetes", "smoking", "obesity", "pregnancy", "recent surgery", "recent travel", "hypertension", "copd", "asthma", "cancer"];
+                                    const signals: string[] = [];
+                                    const vitals: string[] = [];
+                                    const context: string[] = [];
+                                    d.supporting.forEach((e: string) => {
+                                      const lower = e.toLowerCase();
+                                      if (vitalKeywords.some(k => lower.includes(k))) vitals.push(e);
+                                      else if (contextKeywords.some(k => lower.includes(k))) context.push(e);
+                                      else signals.push(e);
+                                    });
+                                    return (
+                                      <div className="grid grid-cols-1 gap-1.5">
+                                        {signals.length > 0 && (
+                                          <div className="flex items-start gap-1.5">
+                                            <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-12">Signals</span>
+                                            <div className="flex flex-wrap gap-1">
+                                              {signals.map((e: string, ei: number) => (
+                                                <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                        {vitals.length > 0 && (
+                                          <div className="flex items-start gap-1.5">
+                                            <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-12">Vitals</span>
+                                            <div className="flex flex-wrap gap-1">
+                                              {vitals.map((e: string, ei: number) => (
+                                                <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">✓ {e}</span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                        {context.length > 0 && (
+                                          <div className="flex items-start gap-1.5">
+                                            <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-12">Context</span>
+                                            <div className="flex flex-wrap gap-1">
+                                              {context.map((e: string, ei: number) => (
+                                                <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">✓ {e}</span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
-                                    </div>
-                                  )}
+                                    );
+                                  })()}
                                   {d.contradicting.length > 0 && (
                                     <div>
                                       <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Against</p>
