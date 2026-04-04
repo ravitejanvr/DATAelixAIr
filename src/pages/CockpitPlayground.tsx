@@ -1939,7 +1939,7 @@ export default function CockpitPlayground() {
 
                   <div className="space-y-3">
                     {/* ── Subjective ── */}
-                    <div className="rounded-xl border p-3.5 bg-primary/[0.03] border-primary/15">
+                    <div className="rounded-md border p-2.5 bg-primary/[0.03] border-primary/15">
                       <button
                         onClick={() => setSoapSubjectiveCollapsed(prev => !prev)}
                         className="flex items-center gap-1.5 w-full text-left"
