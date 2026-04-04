@@ -1963,10 +1963,17 @@ export default function CockpitPlayground() {
 
                     {/* ── Objective ── */}
                     <div className="rounded-xl border p-3.5 bg-emerald-500/5 border-emerald-500/15">
-                      <div className="flex items-center gap-1.5 mb-2">
+                      <button
+                        onClick={() => setSoapObjectiveCollapsed(prev => !prev)}
+                        className="flex items-center gap-1.5 w-full text-left"
+                      >
                         <Eye className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                        <span className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Objective</span>
-                      </div>
+                        <span className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400 flex-1">Objective</span>
+                        {soapObjectiveCollapsed
+                          ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                          : <ChevronUp className="h-3 w-3 text-muted-foreground" />}
+                      </button>
+                      {!soapObjectiveCollapsed && (
                       <Textarea
                         value={soapManualEdits["Findings"] ? soapSections["Findings"] : (soapSections["Findings"] || generatedObjective)}
                         onChange={e => {
@@ -1974,8 +1981,9 @@ export default function CockpitPlayground() {
                           setSoapManualEdits(prev => ({ ...prev, "Findings": true }));
                         }}
                         rows={2}
-                        className="text-xs min-h-[32px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
+                        className="text-xs min-h-[32px] resize-y rounded-lg bg-background/80 border-none shadow-sm mt-2"
                       />
+                      )}
                     </div>
 
                     {/* ── Assessment (Differential Diagnoses) ── */}
