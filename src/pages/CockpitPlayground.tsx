@@ -31,6 +31,21 @@ import { AI_DRAFT_LABEL } from "@/layers/safety/api";
 import { type ClinicalContext, type InvestigationResults, EMPTY_CLINICAL_CONTEXT, buildClinicalContext, buildFullClinicalContext } from "@/lib/clinical-context";
 import { parseClinicalCommand, formatLabKey, formatLabValue } from "@/utils/clinicalCommandParser";
 
+// ── Lab interpretation helper (pure, deterministic) ──
+function getLabInterpretation(key: string, value: number): string {
+  const interps: Record<string, (v: number) => string> = {
+    lactate: (v) => v >= 4 ? "Severe hypoperfusion — septic shock likely" : v >= 2 ? "Elevated — tissue hypoperfusion" : "Normal range",
+    troponin: (v) => v >= 0.4 ? "Significantly elevated — myocardial injury" : v >= 0.04 ? "Elevated — possible cardiac damage" : "Normal range",
+    CRP: (v) => v >= 100 ? "Markedly elevated — severe inflammation/infection" : v >= 10 ? "Elevated — active inflammation" : "Normal range",
+    procalcitonin: (v) => v >= 2 ? "High — bacterial infection likely" : v >= 0.5 ? "Elevated — possible bacterial infection" : "Low — bacterial infection unlikely",
+    WBC: (v) => v >= 15 ? "Leukocytosis — infection/inflammation" : v < 4 ? "Leukopenia — immunosuppression" : "Normal range",
+    D_dimer: (v) => v >= 500 ? "Elevated — consider PE/DVT" : "Normal range",
+    creatinine: (v) => v >= 2 ? "Elevated — renal impairment" : v >= 1.2 ? "Mildly elevated" : "Normal range",
+    BNP: (v) => v >= 400 ? "Elevated — heart failure likely" : v >= 100 ? "Borderline — possible cardiac stress" : "Normal range",
+  };
+  return interps[key]?.(value) || "";
+}
+
 // ── Presets ──
 const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain", "Dizziness", "Back pain", "Dysuria", "Rash", "Joint pain", "Palpitations", "Neck stiffness", "Syncope", "Sweating", "Nausea", "Photophobia"];
 const DURATION_PRESETS = ["Today", "2 days", "3 days", "5 days", "1 week", "2 weeks", "1 month"];
