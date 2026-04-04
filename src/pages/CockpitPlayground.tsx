@@ -1937,7 +1937,7 @@ export default function CockpitPlayground() {
                     </div>
                   </div>
 
-                  <div className="space-y-5">
+                  <div className="space-y-3">
                     {/* ── Subjective ── */}
                     <div className="rounded-xl border p-3.5 bg-primary/[0.03] border-primary/15">
                       <button
