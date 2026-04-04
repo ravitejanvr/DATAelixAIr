@@ -1410,26 +1410,95 @@ export default function CockpitPlayground() {
     <>
       <SEO title="Cockpit Playground — Admin" description="Test clinical cockpit UI with mock data" />
 
-      <div className="h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden bg-background">
+      <div className={`${isFullscreen ? "fixed inset-0 z-50" : "h-[calc(100vh-3.5rem)]"} flex flex-col overflow-hidden bg-background`}>
         {/* ── Header ── */}
-        <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-border bg-card">
+        <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-border bg-card">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Beaker className="h-4 w-4 text-primary" />
+            <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
+              <Beaker className="h-3.5 w-3.5 text-primary" />
             </div>
-            <span className="text-sm font-bold text-foreground">Clinical Cockpit</span>
-            <Badge variant="outline" className="text-[10px]">Playground</Badge>
+            <span className="text-xs font-bold text-foreground">Clinical Cockpit</span>
             <SystemModeIndicator />
+
+            {/* Scenario Dropdown — moved here */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-5 text-[9px] rounded-full gap-1 px-2">
+                  <Stethoscope className="h-2.5 w-2.5" />
+                  {selectedScenario || "Scenario"}
+                  <ChevronDown className="h-2 w-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel className="text-[10px]">Clinical Scenarios</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {SCENARIOS.map(s => (
+                  <DropdownMenuItem key={s.name} onClick={() => loadScenario(s.name)} className="text-xs">
+                    <span className="flex-1">{s.name}</span>
+                    {selectedScenario === s.name && <CheckCircle className="h-3 w-3 text-primary" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Test Actions Dropdown — moved here */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-5 text-[9px] rounded-full gap-1 px-2">
+                  <FlaskConical className="h-2.5 w-2.5" />
+                  Tests
+                  <ChevronDown className="h-2 w-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                <DropdownMenuItem onClick={runSepsisTest} className="text-xs gap-1.5">
+                  <FlaskConical className="h-3 w-3 text-destructive" />
+                  Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-xs gap-1.5" onClick={async () => {
+                  try {
+                    const { runSystemicVsOrganTests } = await import("@/tests/systemic_vs_organ_diagnostic_tests");
+                    const results = await runSystemicVsOrganTests();
+                    console.table(results.results);
+                    (window as any).__SYSTEM_TEST_RESULTS__ = results;
+                    alert(`System Tests: ${results.summary.passed}/${results.summary.total_cases} passed`);
+                  } catch (err) { alert("System test failed"); }
+                }}>
+                  <Beaker className="h-3 w-3" />
+                  System Tests
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-xs gap-1.5" disabled={perturbationRunning} onClick={async () => {
+                  try {
+                    setPerturbationRunning(true); setPerturbationReport(null); setPerturbationProgress("Initializing...");
+                    const { runPerturbationSuite } = await import("@/services/validation_suite/perturbation_harness");
+                    const report = await runPerturbationSuite((p) => setPerturbationProgress(p.message));
+                    setPerturbationReport(report);
+                    (window as any).__PERTURBATION_REPORT__ = report;
+                    toast({ title: `Perturbation: ${Math.round(report.overallPassRate * 100)}%`, description: `${report.results.filter((r: any) => r.status === "PASS").length}/${report.results.length} passed`, variant: report.criticalFailures.length > 0 ? "destructive" : "default" });
+                  } catch (err) { toast({ title: "Failed", description: String(err), variant: "destructive" }); }
+                  finally { setPerturbationRunning(false); setPerturbationProgress(""); }
+                }}>
+                  {perturbationRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Scale className="h-3 w-3" />}
+                  {perturbationRunning ? "Running..." : "Perturbation Suite"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* System status badge */}
+            <Badge variant="outline" className={`text-[9px] h-4 gap-1 ${pipelineRunning ? "border-primary/30 text-primary" : pipelineComplete ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+              <span className={`inline-block h-1.5 w-1.5 rounded-full ${pipelineRunning ? "bg-primary animate-pulse" : pipelineComplete ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+              {pipelineRunning ? (pipelineStage || "Running") : pipelineComplete ? "Ready" : "Idle"}
+            </Badge>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {/* Reasoning Level Toggle */}
             <div className="flex items-center bg-muted rounded-full p-0.5 gap-0.5">
               {(["doctor", "explanation", "debug"] as const).map(level => (
                 <button
                   key={level}
                   onClick={() => setReasoningLevel(level)}
-                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+                  className={`px-2 py-0.5 rounded-full text-[9px] font-medium transition-all ${
                     reasoningLevel === level
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
@@ -1441,12 +1510,26 @@ export default function CockpitPlayground() {
             </div>
 
             {reasoningLevel !== "doctor" && snapshots.length > 0 && (
-              <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={() => setShowComparison(!showComparison)}>
-                <GitCompare className="h-2.5 w-2.5" /> Compare ({snapshots.length})
+              <Button variant="outline" size="sm" className="h-5 text-[9px] gap-1 px-2" onClick={() => setShowComparison(!showComparison)}>
+                <GitCompare className="h-2.5 w-2.5" /> ({snapshots.length})
               </Button>
             )}
 
-            <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1" onClick={resetCase}>
+            {/* Dark mode toggle */}
+            <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => {
+              const next = !isDarkMode;
+              setIsDarkMode(next);
+              document.documentElement.classList.toggle("dark", next);
+            }}>
+              {isDarkMode ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+            </Button>
+
+            {/* Fullscreen toggle */}
+            <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setIsFullscreen(prev => !prev)}>
+              {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+            </Button>
+
+            <Button variant="ghost" size="sm" className="h-5 text-[9px] gap-1 px-2" onClick={resetCase}>
               <RotateCcw className="h-2.5 w-2.5" /> Reset
             </Button>
           </div>
