@@ -67,11 +67,12 @@ import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_en
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { mergeActivations, expandKG } from "@/services/kg";
-import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCanonicalMappingEnabled, isBayesianSystemicLikelihoodEnabled, isClinicalPriorityResolutionEnabled } from "@/services/feature_flags";
+import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCanonicalMappingEnabled, isBayesianSystemicLikelihoodEnabled, isClinicalPriorityResolutionEnabled, isProbabilisticEngineV2Enabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResult } from "@/services/clinical_pipeline/pattern_priority_layer";
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
 import { applyCanonicalScoreFusion } from "@/services/clinical_pipeline/canonical_fusion";
+import { calculateDiagnosticProbabilitiesV2, comparePipelineOutputs } from "@/services/bayesian_engine/client_v2";
 
 // ── Public Types ──
 
