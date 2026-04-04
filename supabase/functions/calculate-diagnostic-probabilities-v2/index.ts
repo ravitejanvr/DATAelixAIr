@@ -281,32 +281,106 @@ Deno.serve(async (req) => {
     // Compute latent state log-odds from uninformative prior (0.5 → logOdds = 0)
     const latentStatePosteriors = new Map<string, number>(); // stateId → posterior prob
     const latentStateLogOdds = new Map<string, number>();
-    const LOG_ODDS_CLAMP = 4.6; // clamp to ±4.6 → posterior bounded to [0.01, 0.99]
-    const STATE_TEMPERATURE = 1.2; // >1.0 = softer, prevents overconfident states
+    const LOG_ODDS_CLAMP = 3.5; // tighter clamp → posterior bounded to [0.03, 0.97]
 
+    // Per-state temperature scaling — higher T = softer (less confident)
+    // Clinical rationale: infection & inflammation are easy to over-activate;
+    // neurological & cardiac require stronger evidence
+    const PER_STATE_TEMPERATURE: Record<string, number> = {
+      "infection": 1.4,           // High false-positive rate — soften
+      "perfusion_deficit": 1.2,   // Moderate — keep balanced
+      "inflammation": 1.5,        // Very common, easy to over-activate
+      "cardiac_compromise": 1.1,  // Specific — allow sharper activation
+      "respiratory_failure": 1.2, // Moderate
+      "neurological_compromise": 1.1, // Specific signals
+    };
+    const DEFAULT_STATE_TEMPERATURE = 1.3;
+
+    // Mutual exclusivity groups for state competition
+    // States within a group compete: their combined posterior is softmax-normalized
+    const STATE_COMPETITION_GROUPS = [
+      ["infection", "cardiac_compromise", "metabolic_derangement"],
+      ["respiratory_failure", "cardiac_compromise"],
+    ];
+
+    const stateNameToId = new Map<string, string>();
+    const stateIdToName = new Map<string, string>();
+    for (const s of latentStates) {
+      stateNameToId.set(s.state_name.toLowerCase().replace(/\s+/g, "_"), s.id);
+      stateIdToName.set(s.id, s.state_name.toLowerCase().replace(/\s+/g, "_"));
+    }
+
+    // Phase 1: Compute raw log-odds with diminishing returns
     for (const state of latentStates) {
-      let logOdds = 0; // Prior = 0.5 (uninformative)
+      let logOdds = 0;
       const stateFeatures = featureStateMap.get(state.id);
-      let featureCount = 0;
+      let positiveCount = 0;
+      let negativeCount = 0;
 
       if (stateFeatures) {
+        // Collect contributions, sorted by absolute magnitude (strongest first)
+        const contributions: number[] = [];
         for (const [featureName, logLR] of stateFeatures) {
           if (allFeatures[featureName]) {
-            logOdds += logLR;
-            featureCount++;
+            contributions.push(logLR);
+            if (logLR > 0) positiveCount++;
+            else negativeCount++;
           }
+        }
+
+        // Sort by absolute value descending — strongest evidence first
+        contributions.sort((a, b) => Math.abs(b) - Math.abs(a));
+
+        // DIMINISHING RETURNS: each additional feature contributing to the
+        // same state gets a decreasing weight: 1st=100%, 2nd=75%, 3rd=56%, etc.
+        // This prevents state saturation from redundant correlated features
+        for (let i = 0; i < contributions.length; i++) {
+          const diminishingFactor = 1 / Math.sqrt(1 + i); // 1.0, 0.71, 0.58, 0.50...
+          logOdds += contributions[i] * diminishingFactor;
         }
       }
 
-      // Temperature scaling: prevents overconfident states from sparse evidence
-      // With T=1.2, a single strong feature won't push posterior above ~0.88
-      logOdds = logOdds / STATE_TEMPERATURE;
+      // Per-state temperature scaling
+      const stateName = stateIdToName.get(state.id) || "";
+      const stateTemp = PER_STATE_TEMPERATURE[stateName] || DEFAULT_STATE_TEMPERATURE;
+      logOdds = logOdds / stateTemp;
 
-      // Clamp log-odds to prevent numerical extremes
+      // Tighter clamp
       logOdds = Math.max(-LOG_ODDS_CLAMP, Math.min(LOG_ODDS_CLAMP, logOdds));
       latentStateLogOdds.set(state.id, logOdds);
       const posterior = 1 / (1 + Math.exp(-logOdds));
       latentStatePosteriors.set(state.id, posterior);
+    }
+
+    // Phase 2: State competition — normalize mutually exclusive groups
+    // For states in a competition group, apply softmax re-normalization
+    // so they can't all be high simultaneously
+    for (const group of STATE_COMPETITION_GROUPS) {
+      const groupIds = group
+        .map(name => stateNameToId.get(name))
+        .filter(Boolean) as string[];
+      if (groupIds.length < 2) continue;
+
+      // Only apply competition if multiple states are active (>0.5)
+      const activeInGroup = groupIds.filter(id => (latentStatePosteriors.get(id) || 0.5) > 0.55);
+      if (activeInGroup.length < 2) continue;
+
+      // Softmax competition: redistribute posteriors within group
+      const groupLogOdds = activeInGroup.map(id => latentStateLogOdds.get(id) || 0);
+      const maxLO = Math.max(...groupLogOdds);
+      const expScores = groupLogOdds.map(lo => Math.exp(lo - maxLO));
+      const sumExp = expScores.reduce((s, e) => s + e, 0);
+
+      for (let i = 0; i < activeInGroup.length; i++) {
+        // Blend: 70% original posterior + 30% competitive share
+        const competitiveShare = expScores[i] / sumExp;
+        const originalPosterior = latentStatePosteriors.get(activeInGroup[i])!;
+        const blended = 0.7 * originalPosterior + 0.3 * competitiveShare;
+        latentStatePosteriors.set(activeInGroup[i], blended);
+        // Update log-odds for consistency
+        const newLogOdds = Math.log(blended / (1 - blended + 1e-10));
+        latentStateLogOdds.set(activeInGroup[i], Math.max(-LOG_ODDS_CLAMP, Math.min(LOG_ODDS_CLAMP, newLogOdds)));
+      }
     }
 
     console.log("[ProbEngineV2] Latent state posteriors:", JSON.stringify(
@@ -602,8 +676,39 @@ Deno.serve(async (req) => {
     const flatDistribution = results.length >= 5 &&
       (results[0].posterior_probability - results[4].posterior_probability) < 0.05;
     const overconfident = topPosterior > 0.95;
-    const stateOverconfidence = Array.from(latentStatePosteriors.values()).filter(p => p > 0.98).length;
+    const stateOverconfidence = Array.from(latentStatePosteriors.values()).filter(p => p > 0.97).length;
     const mappedDiagCount = results.filter(r => r.latent_state_activations.length > 0).length;
+
+    // Calibration curve: bucket posteriors by decile and compute metrics
+    const calibrationBuckets: Array<{ bucket: string; count: number; mean_posterior: number; max_posterior: number }> = [];
+    const bucketRanges = [
+      [0, 0.1], [0.1, 0.2], [0.2, 0.3], [0.3, 0.5], [0.5, 0.7], [0.7, 0.9], [0.9, 1.01],
+    ];
+    for (const [lo, hi] of bucketRanges) {
+      const inBucket = results.filter(r => r.posterior_probability >= lo && r.posterior_probability < hi);
+      if (inBucket.length > 0) {
+        calibrationBuckets.push({
+          bucket: `${(lo * 100).toFixed(0)}-${(hi * 100).toFixed(0)}%`,
+          count: inBucket.length,
+          mean_posterior: parseFloat((inBucket.reduce((s, r) => s + r.posterior_probability, 0) / inBucket.length).toFixed(4)),
+          max_posterior: parseFloat(Math.max(...inBucket.map(r => r.posterior_probability)).toFixed(4)),
+        });
+      }
+    }
+
+    // State activation summary for calibration
+    const stateCalibration = latentStates.map(s => {
+      const sName = stateIdToName.get(s.id) || s.state_name;
+      const posterior = latentStatePosteriors.get(s.id) || 0.5;
+      const logOdds = latentStateLogOdds.get(s.id) || 0;
+      return {
+        state: sName,
+        posterior: parseFloat(posterior.toFixed(4)),
+        log_odds: parseFloat(logOdds.toFixed(3)),
+        temperature: PER_STATE_TEMPERATURE[sName] || DEFAULT_STATE_TEMPERATURE,
+        overconfident: posterior > 0.97,
+      };
+    });
 
     const calibration = {
       top1_posterior: parseFloat(topPosterior.toFixed(4)),
@@ -613,8 +718,12 @@ Deno.serve(async (req) => {
       state_overconfidence_count: stateOverconfidence,
       latent_mapped_diagnoses: mappedDiagCount,
       unmapped_diagnoses: results.length - mappedDiagCount,
-      state_temperature: STATE_TEMPERATURE,
+      per_state_temperatures: PER_STATE_TEMPERATURE,
       diagnosis_temperature: TEMPERATURE,
+      calibration_buckets: calibrationBuckets,
+      state_calibration: stateCalibration,
+      diminishing_returns_applied: true,
+      state_competition_applied: true,
     };
 
     // Trace
