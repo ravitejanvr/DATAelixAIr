@@ -1,8 +1,9 @@
 /**
- * Bayesian Evidence Engine
+ * Bayesian Evidence Engine (Phase 5.7)
  *
- * Applies investigation (lab) results as likelihood multipliers to update
- * prior diagnostic probabilities into posterior probabilities.
+ * Applies investigation (lab) results as log-likelihood-ratio updates
+ * to diagnostic posteriors. Uses log-odds arithmetic to prevent
+ * normalization washout.
  *
  * Pipeline position: AFTER Score Fusion + CPR, BEFORE SSAL Freeze.
  *
@@ -11,6 +12,8 @@
  *   - No hard overrides (no diagnosis can reach >0.95 without multi-factor support)
  *   - Deterministic: same inputs → same outputs
  *   - Explainable: every contribution is traced
+ *   - Diagnosis-conditional: likelihood depends on diagnosis category
+ *   - No double counting: explicit lab disables inferred shock proxy
  */
 
 import type { InvestigationResults } from "@/lib/clinical-context";
@@ -25,6 +28,7 @@ export interface EvidenceContribution {
   feature: string;
   value: any;
   multiplier: number;
+  logLR: number;
   direction: "support" | "against" | "neutral";
 }
 
@@ -67,13 +71,20 @@ const PE_DIAGNOSES = new Set([
   "pulmonary embolism", "pe", "deep vein thrombosis", "venous thromboembolism",
 ]);
 
-function classifyDiagnosis(name: string): { systemic: boolean; cardiac: boolean; infection: boolean; pe: boolean } {
+export interface DiagnosisCategory {
+  systemic: boolean;
+  cardiac: boolean;
+  infection: boolean;
+  pe: boolean;
+}
+
+function classifyDiagnosis(name: string): DiagnosisCategory {
   const n = name.toLowerCase().trim();
   return {
-    systemic: SYSTEMIC_DIAGNOSES.has(n),
-    cardiac: CARDIAC_DIAGNOSES.has(n),
-    infection: INFECTION_DIAGNOSES.has(n),
-    pe: PE_DIAGNOSES.has(n),
+    systemic: SYSTEMIC_DIAGNOSES.has(n) || n.includes("sepsis") || n.includes("septic") || n.includes("sirs"),
+    cardiac: CARDIAC_DIAGNOSES.has(n) || n.includes("myocardial") || n.includes("coronary") || n.includes("heart failure"),
+    infection: INFECTION_DIAGNOSES.has(n) || n.includes("pneumonia") || n.includes("infection") || n.includes("sepsis"),
+    pe: PE_DIAGNOSES.has(n) || n.includes("pulmonary embolism") || n.includes("thromboembolism"),
   };
 }
 
@@ -86,10 +97,11 @@ export interface ShockInput {
 }
 
 /**
- * Compute a shock score (0–1) from hemodynamic + lactate signals.
- * Influences scoring but does NOT override diagnosis.
+ * Compute a shock score (0–1) from hemodynamic signals ONLY.
+ * Lactate is excluded from shock score when explicit lab is present
+ * to prevent double counting.
  */
-export function computeShockScore(input: ShockInput): number {
+export function computeShockScore(input: ShockInput, hasExplicitLactate: boolean): number {
   let score = 0;
   let factors = 0;
 
@@ -105,7 +117,8 @@ export function computeShockScore(input: ShockInput): number {
     else if (input.heart_rate > 100) score += 0.15;
   }
 
-  if (input.lactate != null) {
+  // Only use inferred lactate signal if no explicit lab value exists
+  if (!hasExplicitLactate && input.lactate != null) {
     factors++;
     if (input.lactate >= 4) score += 0.3;
     else if (input.lactate >= 2) score += 0.15;
@@ -114,132 +127,137 @@ export function computeShockScore(input: ShockInput): number {
   return factors > 0 ? Math.min(score, 1.0) : 0;
 }
 
-// ── Lab Likelihood Functions ──
+// ── Log-Likelihood Ratio Functions ──
+// Each returns a logLR (natural log of likelihood ratio) that is diagnosis-conditional.
+// Positive logLR = evidence supports diagnosis. Negative = evidence against.
 
-function lactateLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
-  let multiplier = 1.0;
+function lactateLikelihood(value: number, category: DiagnosisCategory): EvidenceContribution {
+  let logLR = 0;
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.systemic) {
-    if (value >= 4) { multiplier = 3.0; direction = "support"; }
-    else if (value >= 2) { multiplier = 1.8; direction = "support"; }
-    else { multiplier = 0.7; direction = "against"; }
+    // Sepsis/SIRS: lactate is a HIGH-signal marker
+    if (value >= 4) { logLR = Math.log(12); direction = "support"; }      // ~2.48
+    else if (value >= 2) { logLR = Math.log(3); direction = "support"; }   // ~1.10
+    else { logLR = Math.log(0.5); direction = "against"; }                 // ~-0.69
   } else if (category.infection) {
-    if (value >= 4) { multiplier = 1.5; direction = "support"; }
-    else if (value >= 2) { multiplier = 1.2; direction = "support"; }
+    // Non-systemic infection: moderate signal
+    if (value >= 4) { logLR = Math.log(2.5); direction = "support"; }
+    else if (value >= 2) { logLR = Math.log(1.5); direction = "support"; }
+  } else if (category.cardiac) {
+    // Cardiac: lactate elevation is mildly suggestive of cardiogenic shock
+    if (value >= 4) { logLR = Math.log(1.3); direction = "neutral"; }
+    else { logLR = 0; }
   } else {
-    // Non-shock diagnoses: elevated lactate weakly suppresses
-    if (value >= 4) { multiplier = 0.7; direction = "against"; }
-    else if (value >= 2) { multiplier = 0.85; direction = "against"; }
+    // Non-shock, non-infection: elevated lactate argues against
+    if (value >= 4) { logLR = Math.log(0.4); direction = "against"; }
+    else if (value >= 2) { logLR = Math.log(0.7); direction = "against"; }
   }
 
-  return { source: "lab", feature: "lactate", value, multiplier, direction };
+  return { source: "lab", feature: "lactate", value, multiplier: Math.exp(logLR), logLR, direction };
 }
 
-function troponinLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
-  let multiplier = 1.0;
+function troponinLikelihood(value: number, category: DiagnosisCategory): EvidenceContribution {
+  let logLR = 0;
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.cardiac) {
-    if (value > 0.4) { multiplier = 4.0; direction = "support"; }
-    else if (value > 0.04) { multiplier = 2.5; direction = "support"; }
-    else { multiplier = 0.6; direction = "against"; }
+    if (value > 0.4) { logLR = Math.log(8); direction = "support"; }
+    else if (value > 0.04) { logLR = Math.log(4); direction = "support"; }
+    else { logLR = Math.log(0.4); direction = "against"; }
   } else if (category.systemic || category.pe) {
-    // Slight elevation in sepsis/PE is possible
-    if (value > 0.04) { multiplier = 1.1; direction = "neutral"; }
+    if (value > 0.04) { logLR = Math.log(1.2); direction = "neutral"; }
   } else {
-    if (value > 0.4) { multiplier = 0.6; direction = "against"; }
+    if (value > 0.4) { logLR = Math.log(0.5); direction = "against"; }
   }
 
-  return { source: "lab", feature: "troponin", value, multiplier, direction };
+  return { source: "lab", feature: "troponin", value, multiplier: Math.exp(logLR), logLR, direction };
 }
 
-function crpLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
-  let multiplier = 1.0;
+function crpLikelihood(value: number, category: DiagnosisCategory): EvidenceContribution {
+  let logLR = 0;
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.infection || category.systemic) {
-    if (value > 100) { multiplier = 2.0; direction = "support"; }
-    else if (value > 50) { multiplier = 1.5; direction = "support"; }
-    else if (value > 10) { multiplier = 1.2; direction = "support"; }
+    if (value > 100) { logLR = Math.log(3); direction = "support"; }
+    else if (value > 50) { logLR = Math.log(2); direction = "support"; }
+    else if (value > 10) { logLR = Math.log(1.3); direction = "support"; }
   } else if (category.cardiac) {
-    if (value > 10) { multiplier = 1.1; direction = "neutral"; }
+    if (value > 10) { logLR = Math.log(1.1); direction = "neutral"; }
   }
 
-  return { source: "lab", feature: "CRP", value, multiplier, direction };
+  return { source: "lab", feature: "CRP", value, multiplier: Math.exp(logLR), logLR, direction };
 }
 
-function procalcitoninLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
-  let multiplier = 1.0;
+function procalcitoninLikelihood(value: number, category: DiagnosisCategory): EvidenceContribution {
+  let logLR = 0;
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.systemic) {
-    if (value > 2) { multiplier = 3.0; direction = "support"; }
-    else if (value > 0.5) { multiplier = 2.0; direction = "support"; }
-    else { multiplier = 0.5; direction = "against"; }
+    if (value > 2) { logLR = Math.log(5); direction = "support"; }
+    else if (value > 0.5) { logLR = Math.log(2.5); direction = "support"; }
+    else { logLR = Math.log(0.4); direction = "against"; }
   } else if (category.infection) {
-    if (value > 0.5) { multiplier = 1.5; direction = "support"; }
+    if (value > 0.5) { logLR = Math.log(2); direction = "support"; }
   } else {
-    if (value > 2) { multiplier = 0.7; direction = "against"; }
+    if (value > 2) { logLR = Math.log(0.5); direction = "against"; }
   }
 
-  return { source: "lab", feature: "procalcitonin", value, multiplier, direction };
+  return { source: "lab", feature: "procalcitonin", value, multiplier: Math.exp(logLR), logLR, direction };
 }
 
-function wbcLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
-  let multiplier = 1.0;
+function wbcLikelihood(value: number, category: DiagnosisCategory): EvidenceContribution {
+  let logLR = 0;
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.infection || category.systemic) {
-    if (value > 15) { multiplier = 1.5; direction = "support"; }
-    else if (value > 11) { multiplier = 1.2; direction = "support"; }
-    else if (value < 4) { multiplier = 1.8; direction = "support"; } // Leukopenia → severe sepsis
+    if (value > 15) { logLR = Math.log(2); direction = "support"; }
+    else if (value > 11) { logLR = Math.log(1.3); direction = "support"; }
+    else if (value < 4) { logLR = Math.log(2.5); direction = "support"; } // Leukopenia → severe sepsis
   }
 
-  return { source: "lab", feature: "WBC", value, multiplier, direction };
+  return { source: "lab", feature: "WBC", value, multiplier: Math.exp(logLR), logLR, direction };
 }
 
-function dDimerLikelihood(value: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution {
-  let multiplier = 1.0;
+function dDimerLikelihood(value: number, category: DiagnosisCategory): EvidenceContribution {
+  let logLR = 0;
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.pe) {
-    if (value > 2000) { multiplier = 3.5; direction = "support"; }
-    else if (value > 500) { multiplier = 2.0; direction = "support"; }
-    else { multiplier = 0.3; direction = "against"; } // Normal D-dimer strongly rules out PE
+    if (value > 2000) { logLR = Math.log(6); direction = "support"; }
+    else if (value > 500) { logLR = Math.log(3); direction = "support"; }
+    else { logLR = Math.log(0.15); direction = "against"; } // Normal D-dimer strongly rules out PE
   } else {
-    // Non-specific marker — weak/no effect on non-PE
-    if (value > 500) { multiplier = 1.05; direction = "neutral"; }
+    if (value > 500) { logLR = Math.log(1.05); direction = "neutral"; }
   }
 
-  return { source: "lab", feature: "D-dimer", value, multiplier, direction };
+  return { source: "lab", feature: "D-dimer", value, multiplier: Math.exp(logLR), logLR, direction };
 }
 
 // ── Shock Modifier ──
 
-function computeShockModifier(shockScore: number, category: ReturnType<typeof classifyDiagnosis>): EvidenceContribution | null {
+function computeShockModifier(shockScore: number, category: DiagnosisCategory): EvidenceContribution | null {
   if (shockScore < 0.3) return null;
 
-  let multiplier = 1.0;
+  let logLR = 0;
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.systemic) {
-    multiplier = 1 + shockScore * 2.0; // Up to ×3.0
+    logLR = Math.log(1 + shockScore * 2.0); // Up to log(3.0)
     direction = "support";
   } else if (!category.cardiac && !category.pe) {
-    multiplier = 1 - shockScore * 0.3; // Down to ×0.7
+    logLR = Math.log(1 - shockScore * 0.3); // Down to log(0.7)
     direction = "against";
   }
 
-  if (multiplier === 1.0) return null;
+  if (Math.abs(logLR) < 0.01) return null;
 
-  return { source: "shock", feature: "shock_score", value: shockScore, multiplier, direction };
+  return { source: "shock", feature: "shock_score", value: shockScore, multiplier: Math.exp(logLR), logLR, direction };
 }
 
 // ── Feature Gating ──
 
 function isLabClinicallyRelevant(feature: string, value: number): boolean {
-  // Neutral-zone values that should not influence ranking
   const neutralRanges: Record<string, [number, number]> = {
     CRP: [0, 5],
     WBC: [4.5, 11],
@@ -255,26 +273,33 @@ function isLabClinicallyRelevant(feature: string, value: number): boolean {
 // ── Main Engine ──
 
 /**
- * Apply Bayesian evidence update to prior diagnoses.
+ * Apply Bayesian evidence update to prior diagnoses using log-odds arithmetic.
  * Pure function: no side effects, no mutations.
+ *
+ * @param diagnosisNameMap Optional UUID→name map for resolving diagnosis identities
+ *        when diagnosis_name is not yet set on the object (pre-SSAL).
  */
 export function applyBayesianEvidence(
   bayesianResult: BayesianResult,
   investigationResults: InvestigationResults | undefined | null,
   shockInput: ShockInput,
+  diagnosisNameMap?: Map<string, string>,
 ): EvidenceEngineResult {
   const t0 = performance.now();
 
-  const shockScore = computeShockScore(shockInput);
+  // Determine which labs are present and relevant
+  const labs = investigationResults || {};
+  const hasExplicitLactate = labs.lactate != null && isLabClinicallyRelevant("lactate", labs.lactate);
+
+  // DOUBLE-COUNTING GUARD: exclude lactate from shock when explicit lab exists
+  const shockScore = computeShockScore(shockInput, hasExplicitLactate);
   const shockActive = shockScore >= 0.3;
   const labsApplied: string[] = [];
 
-  // Determine which labs are present and relevant
-  const labs = investigationResults || {};
-  const labEntries: Array<{ key: string; value: number; fn: (v: number, c: ReturnType<typeof classifyDiagnosis>) => EvidenceContribution }> = [];
+  const labEntries: Array<{ key: string; value: number; fn: (v: number, c: DiagnosisCategory) => EvidenceContribution }> = [];
 
-  if (labs.lactate != null && isLabClinicallyRelevant("lactate", labs.lactate)) {
-    labEntries.push({ key: "lactate", value: labs.lactate, fn: lactateLikelihood });
+  if (hasExplicitLactate) {
+    labEntries.push({ key: "lactate", value: labs.lactate!, fn: lactateLikelihood });
     labsApplied.push("lactate");
   }
   if (labs.troponin != null) {
@@ -320,60 +345,94 @@ export function applyBayesianEvidence(
     };
   }
 
-  // Apply evidence multipliers
-  const rawScores: Array<{ diagnosis: BayesianDiagnosis; score: number; contributions: EvidenceContribution[] }> = [];
+  // ── Log-odds update ──
+  // Convert each diagnosis prior to log-odds, accumulate log-LR, convert back.
+  // Then normalize across the differential.
+
+  const rawScores: Array<{ diagnosis: BayesianDiagnosis; logOdds: number; contributions: EvidenceContribution[]; priorProb: number }> = [];
 
   for (const d of bayesianResult.diagnoses) {
-    const diagName = (d as any).diagnosis_name || d.diagnosis_id;
+    // Resolve diagnosis name: object field → external map → UUID fallback
+    const diagName = (d as any).diagnosis_name
+      || diagnosisNameMap?.get(d.diagnosis_id)
+      || d.diagnosis_id;
     const category = classifyDiagnosis(diagName);
     const contributions: EvidenceContribution[] = [];
-    let score = d.posterior_probability;
-    const priorScore = score;
+    const priorProb = Math.max(d.posterior_probability, 0.001); // Floor to prevent log(0)
 
-    // Apply lab likelihoods
+    // Convert prior probability to log-odds
+    let logOdds = Math.log(priorProb / (1 - Math.min(priorProb, 0.999)));
+
+    // Apply lab log-likelihood ratios
     for (const lab of labEntries) {
       const contrib = lab.fn(lab.value, category);
       contributions.push(contrib);
-      score *= contrib.multiplier;
+      logOdds += contrib.logLR;
     }
 
-    // Apply shock modifier
+    // Apply shock modifier (only from hemodynamic signals, not lab lactate)
     const shockContrib = computeShockModifier(shockScore, category);
     if (shockContrib) {
       contributions.push(shockContrib);
-      score *= shockContrib.multiplier;
+      logOdds += shockContrib.logLR;
     }
+
+    // Convert back to probability
+    let posteriorProb = 1 / (1 + Math.exp(-logOdds));
 
     // Guardrail: no single diagnosis can exceed 0.95 without ≥3 supporting factors
     const supportCount = contributions.filter(c => c.direction === "support").length;
-    if (score > 0.95 && supportCount < 3) {
-      score = Math.min(score, 0.92);
+    if (posteriorProb > 0.95 && supportCount < 3) {
+      posteriorProb = Math.min(posteriorProb, 0.92);
     }
 
     // Guardrail: no NaN or zero collapse
-    if (isNaN(score) || score <= 0) {
+    if (isNaN(posteriorProb) || posteriorProb <= 0) {
       console.error(`[EvidenceEngine] NaN/zero collapse for ${diagName}, resetting to prior`);
-      score = priorScore;
+      posteriorProb = priorProb;
     }
 
-    rawScores.push({ diagnosis: d, score, contributions });
+    rawScores.push({ diagnosis: d, logOdds, contributions, priorProb });
   }
 
-  // Normalize to sum to 1.0
-  const totalRaw = rawScores.reduce((sum, r) => sum + r.score, 0);
-  const enriched: EvidenceEnrichedDiagnosis[] = rawScores.map(r => {
-    const posteriorNorm = totalRaw > 0 ? r.score / totalRaw : r.diagnosis.posterior_probability;
+  // ── Normalize to sum to 1.0 ──
+  // Convert log-odds back to probabilities and normalize across the differential
+  const rawProbs = rawScores.map(r => 1 / (1 + Math.exp(-r.logOdds)));
+  const totalRaw = rawProbs.reduce((sum, p) => sum + p, 0);
+
+  const enriched: EvidenceEnrichedDiagnosis[] = rawScores.map((r, i) => {
+    const posteriorNorm = totalRaw > 0 ? rawProbs[i] / totalRaw : r.priorProb;
+
+    // Clinical floor: if a high-acuity lab strongly supports this diagnosis
+    // but normalization would push it BELOW its prior, lift to prior + boost
+    const hasStrongSupport = r.contributions.some(c => c.direction === "support" && c.logLR > 1.5);
+    let finalPosterior = posteriorNorm;
+    if (hasStrongSupport && finalPosterior < r.priorProb) {
+      finalPosterior = Math.min(r.priorProb + 0.15, 0.92);
+      console.log(`[EvidenceEngine] Clinical floor applied for ${(r.diagnosis as any).diagnosis_name || r.diagnosis.diagnosis_id}: ${(posteriorNorm * 100).toFixed(1)}% → ${(finalPosterior * 100).toFixed(1)}%`);
+    }
+
     return {
       ...r.diagnosis,
-      posterior_probability: posteriorNorm,
+      posterior_probability: finalPosterior,
       evidence_contributions: r.contributions,
-      prior_score: r.diagnosis.posterior_probability,
-      posterior_score: posteriorNorm,
-      evidence_delta: posteriorNorm - r.diagnosis.posterior_probability,
+      prior_score: r.priorProb,
+      posterior_score: finalPosterior,
+      evidence_delta: finalPosterior - r.priorProb,
     };
   });
 
-  // Sort by posterior descending (preserve stable ranking)
+  // Re-normalize after clinical floor adjustments
+  const postFloorTotal = enriched.reduce((sum, d) => sum + d.posterior_probability, 0);
+  if (postFloorTotal > 0 && Math.abs(postFloorTotal - 1.0) > 0.01) {
+    for (const d of enriched) {
+      d.posterior_probability /= postFloorTotal;
+      d.posterior_score = d.posterior_probability;
+      d.evidence_delta = d.posterior_probability - d.prior_score;
+    }
+  }
+
+  // Sort by posterior descending
   enriched.sort((a, b) => b.posterior_probability - a.posterior_probability);
 
   const executionMs = Math.round(performance.now() - t0);
