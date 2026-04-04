@@ -561,6 +561,8 @@ export default function CockpitPlayground() {
   const [editingCategory, setEditingCategory] = useState<ContextCategory | null>(null);
   const [expandedDx, setExpandedDx] = useState<Set<string>>(new Set());
   const [showMoreDx, setShowMoreDx] = useState(false);
+  const [soapSubjectiveCollapsed, setSoapSubjectiveCollapsed] = useState(true);
+  const [soapObjectiveCollapsed, setSoapObjectiveCollapsed] = useState(true);
 
   // Command bar
   const [commandInput, setCommandInput] = useState("");
