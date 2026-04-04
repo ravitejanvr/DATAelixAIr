@@ -1445,6 +1445,7 @@ export async function runUnifiedClinicalPipeline(
   let v2FallbackReason: string | null = null;
   let v2Result: import("@/services/bayesian_engine/client_v2").V2Result | null = null;
 
+  if (isProbabilisticEngineV2Enabled() && bayesianResult) {
     const v2Input = {
       candidate_diagnosis_ids: ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [],
       symptoms,
