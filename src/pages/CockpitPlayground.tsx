@@ -1171,7 +1171,7 @@ export default function CockpitPlayground() {
 
     // Step 2: Inject sepsis test case
     const sepsisPatient = {
-      name: "Test Patient (Sepsis)", age: 58, gender: "Male",
+      name: "Test Patient", age: 58, gender: "Male",
       location: "Delhi", occupation: "Retired", diet: "Non-vegetarian",
       allergies: [] as string[], pregnancyStatus: undefined,
     };
