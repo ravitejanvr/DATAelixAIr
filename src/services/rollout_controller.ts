@@ -2,13 +2,14 @@
  * V2 Engine Rollout Controller
  * 
  * Controls staged activation of the probabilistic engine V2.
- * Supports: user-level targeting, percentage-based rollout, audit logging.
+ * ALL users are deterministically bucketed — no exceptions.
+ * Admins/internal users get rollout_percentage = 100 (always V2).
  */
 
 export interface RolloutConfig {
   /** Current rollout percentage (0-100) */
   rollout_percentage: number;
-  /** User IDs that always get V2 (internal testers) */
+  /** User IDs that always get 100% rollout */
   internal_user_ids: string[];
   /** Whether rollout is active at all */
   enabled: boolean;
@@ -38,24 +39,87 @@ export function updateRolloutConfig(patch: Partial<RolloutConfig>): void {
   });
 }
 
-/**
- * Determine whether a given user/session should use V2.
- * Priority: internal user list > percentage-based hash.
- */
-export function shouldUseV2(userId?: string, visitId?: string): boolean {
-  if (!currentConfig.enabled) return false;
+// ── Engine Selection ──
 
-  // Internal users always get V2
-  if (userId && currentConfig.internal_user_ids.includes(userId)) {
-    return true;
+export type EngineVersion = "v1" | "v2";
+
+export interface RolloutDecision {
+  engine_selected: EngineVersion;
+  primary_engine: EngineVersion;
+  bucket: number;
+  rollout_percentage: number;
+  is_internal: boolean;
+  is_admin: boolean;
+  force_override: EngineVersion | null;
+  fallback_reason: string | null;
+}
+
+export interface RolloutInput {
+  userId?: string;
+  sessionId?: string;
+  isAdmin?: boolean;
+  isInternalUser?: boolean;
+  force_engine?: EngineVersion;
+}
+
+/**
+ * Determine engine version for a given user/session.
+ * Every caller is deterministically bucketed — no exceptions.
+ */
+export function selectEngine(input: RolloutInput): RolloutDecision {
+  const { userId, sessionId, isAdmin = false, isInternalUser = false, force_engine } = input;
+
+  // 1. Deterministic bucket — MANDATORY for all users
+  const identifier = userId || sessionId || "anonymous";
+  const bucket = simpleHash(identifier) % 100;
+
+  if (bucket < 0 || bucket > 99) {
+    throw new Error(`[Rollout] FATAL: Invalid bucket ${bucket} for identifier "${identifier}"`);
   }
 
-  // Percentage-based: deterministic hash from visitId or random
-  const hashSource = visitId || userId || crypto.randomUUID();
-  const hash = simpleHash(hashSource);
-  const bucket = hash % 100;
+  // 2. Effective rollout percentage — admins/internal always get 100%
+  const effectivePercentage = (isAdmin || isInternalUser || currentConfig.internal_user_ids.includes(identifier))
+    ? 100
+    : currentConfig.rollout_percentage;
 
-  return bucket < currentConfig.rollout_percentage;
+  // 3. Engine selection
+  let engine: EngineVersion;
+  let forceOverride: EngineVersion | null = null;
+
+  if (force_engine === "v2" || force_engine === "v1") {
+    engine = force_engine;
+    forceOverride = force_engine;
+  } else if (!currentConfig.enabled) {
+    engine = "v1";
+  } else if (bucket < effectivePercentage) {
+    engine = "v2";
+  } else {
+    engine = "v1";
+  }
+
+  const decision: RolloutDecision = {
+    engine_selected: engine,
+    primary_engine: engine,
+    bucket,
+    rollout_percentage: effectivePercentage,
+    is_internal: isInternalUser || currentConfig.internal_user_ids.includes(identifier),
+    is_admin: isAdmin,
+    force_override: forceOverride,
+    fallback_reason: null,
+  };
+
+  // 4. Audit log
+  console.log(`[ENGINE_ROLLOUT]`, JSON.stringify(decision));
+
+  return decision;
+}
+
+/**
+ * Legacy API — delegates to selectEngine.
+ */
+export function shouldUseV2(userId?: string, visitId?: string): boolean {
+  const decision = selectEngine({ userId, sessionId: visitId });
+  return decision.engine_selected === "v2";
 }
 
 /**
@@ -71,7 +135,7 @@ function simpleHash(str: string): number {
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit int
+    hash = hash & hash;
   }
   return Math.abs(hash);
 }
@@ -80,7 +144,7 @@ function simpleHash(str: string): number {
 
 export interface V2AuditEntry {
   visit_id: string;
-  engine: "v1" | "v2";
+  engine: EngineVersion;
   top_diagnosis_id: string;
   top_confidence: number;
   v1_v2_delta?: number;
@@ -112,5 +176,4 @@ async function flushAuditBuffer(): Promise<void> {
   if (auditBuffer.length === 0) return;
   const batch = auditBuffer.splice(0, auditBuffer.length);
   console.log(`[V2Audit] Flushed ${batch.length} audit entries`);
-  // Future: persist to supabase table
 }
