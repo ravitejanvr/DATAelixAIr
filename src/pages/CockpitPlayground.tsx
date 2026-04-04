@@ -578,6 +578,13 @@ export default function CockpitPlayground() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
 
+  // Sync fullscreen state with browser
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
   // Pipeline run ref for debouncing
   const pipelineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pipelineRunIdRef = useRef(0);
