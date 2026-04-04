@@ -1989,7 +1989,7 @@ export default function CockpitPlayground() {
                     </div>
 
                     {/* ── Assessment (Differential Diagnoses) ── */}
-                    <div className="rounded-xl border p-3.5 bg-amber-500/5 border-amber-500/15">
+                    <div className="rounded-md border p-2.5 bg-amber-500/5 border-amber-500/15">
                       <div className="flex items-center gap-1.5 mb-2.5">
                         <Brain className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                         <span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Assessment</span>
