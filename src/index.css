@@ -334,11 +334,22 @@
 
   /* Clinical card */
   .clinical-card {
-    @apply bg-card rounded-xl border border-border shadow-card p-4 transition-shadow duration-200;
+    @apply bg-card rounded-md border border-border p-3 transition-shadow duration-200;
   }
 
   .clinical-card:hover {
-    @apply shadow-card-hover;
+    @apply shadow-xs;
+  }
+
+  /* Glass UI */
+  .glass-card {
+    background: hsl(var(--glass-card, 0 0% 100% / 0.04));
+    border-color: hsl(var(--glass-border, 0 0% 100% / 0.08));
+    backdrop-filter: blur(12px);
+  }
+
+  .glass-card:hover {
+    background: hsl(var(--glass-hover, 0 0% 100% / 0.06));
   }
 }
 
