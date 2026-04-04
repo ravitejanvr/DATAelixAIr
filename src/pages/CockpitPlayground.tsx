@@ -1525,18 +1525,22 @@ export default function CockpitPlayground() {
             <span className="text-xs font-bold text-foreground">Clinical Cockpit</span>
             <SystemModeIndicator />
 
-            {/* Scenario Dropdown — moved here */}
+            {/* Scenario Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-5 text-[9px] rounded-full gap-1 px-2">
                   <Stethoscope className="h-2.5 w-2.5" />
-                  {selectedScenario || "Scenarios"}
+                  {selectedScenario === "Sepsis (Validation)" ? "Sepsis" : selectedScenario || "Scenarios"}
                   <ChevronDown className="h-2 w-2" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
                 <DropdownMenuLabel className="text-[10px]">Scenarios</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={runSepsisTest} className="text-xs">
+                  <span className="flex-1">Sepsis {sepsisRunCount > 0 ? `(#${sepsisRunCount})` : ""}</span>
+                  {selectedScenario === "Sepsis (Validation)" && <CheckCircle className="h-3 w-3 text-primary" />}
+                </DropdownMenuItem>
                 {SCENARIOS.map(s => (
                   <DropdownMenuItem key={s.name} onClick={() => loadScenario(s.name)} className="text-xs">
                     <span className="flex-1">{s.name}</span>
