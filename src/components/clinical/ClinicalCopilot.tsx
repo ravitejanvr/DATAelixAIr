@@ -198,6 +198,8 @@ export default function ClinicalCopilot({
   physiologicalContext,
   bayesianResult,
   isAdmin = false,
+  evidenceSummary,
+  clinicalStatus,
 }: ClinicalCopilotProps) {
   const [evidenceExpanded, setEvidenceExpanded] = useState(false);
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
