@@ -2167,7 +2167,7 @@ export default function CockpitPlayground() {
                     </div>
 
                     {/* ── Plan (Structured subsections) ── */}
-                    <div className="rounded-xl border p-3.5 bg-purple-500/5 border-purple-500/15">
+                    <div className="rounded-md border p-2.5 bg-purple-500/5 border-purple-500/15">
                       <div className="flex items-center gap-1.5 mb-3">
                         <ClipboardCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
                         <span className="text-xs font-bold uppercase tracking-wide text-purple-700 dark:text-purple-400">Plan</span>
