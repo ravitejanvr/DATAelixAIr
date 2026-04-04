@@ -1410,7 +1410,7 @@ export default function CockpitPlayground() {
     <>
       <SEO title="Cockpit Playground — Admin" description="Test clinical cockpit UI with mock data" />
 
-      <div className={`${isFullscreen ? "fixed inset-0 z-50" : "h-[calc(100vh-3.5rem)]"} flex flex-col overflow-hidden bg-background`}>
+      <div className={`${isFullscreen ? "fixed inset-0 z-50 w-screen h-screen" : "h-[calc(100vh-3.5rem)]"} flex flex-col overflow-hidden bg-background`}>
         {/* ── Header ── */}
         <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-border bg-card">
           <div className="flex items-center gap-2">
