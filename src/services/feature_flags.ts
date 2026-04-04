@@ -22,6 +22,7 @@ export interface FeatureFlags {
   enable_canonical_mapping: boolean;
   enable_bayesian_systemic_likelihood: boolean;
   enable_clinical_priority_resolution: boolean;
+  enable_probabilistic_engine_v2: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
