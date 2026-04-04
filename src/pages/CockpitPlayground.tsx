@@ -2283,8 +2283,8 @@ export default function CockpitPlayground() {
           </div>
 
           {/* ═══ RIGHT: AI Copilot ═══ */}
-          <div className="overflow-y-auto bg-card/30 hidden lg:block">
-            <div className="p-2 space-y-2">
+          <div className="overflow-y-auto bg-card/20 hidden lg:block">
+            <div className="p-1.5 space-y-1.5">
               <div className="flex items-center gap-1.5 px-0.5">
                 <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center relative">
                   <Zap className="h-3 w-3 text-primary" />
