@@ -1854,7 +1854,7 @@ export default function CockpitPlayground() {
                     </div>
 
                     <div className="space-y-1">
-                      <ContextTreeNode label="Symptoms" icon={Stethoscope} items={selectedSymptoms} color="text-blue-600 dark:text-blue-400" category="symptoms" editPresets={COMMON_SYMPTOMS} variant="symptom" />
+                      <ContextTreeNode label="Symptoms" icon={Stethoscope} items={selectedSymptoms.filter(s => s.toLowerCase() !== chiefComplaint.toLowerCase())} color="text-blue-600 dark:text-blue-400" category="symptoms" editPresets={COMMON_SYMPTOMS} variant="symptom" />
 
                       {/* Modifiers */}
                       {(selectedDuration || selectedOnset || selectedSeverity || selectedBodyLocation) && (
