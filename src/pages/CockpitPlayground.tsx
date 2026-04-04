@@ -1938,10 +1938,17 @@ export default function CockpitPlayground() {
                   <div className="space-y-5">
                     {/* ── Subjective ── */}
                     <div className="rounded-xl border p-3.5 bg-primary/[0.03] border-primary/15">
-                      <div className="flex items-center gap-1.5 mb-2">
+                      <button
+                        onClick={() => setSoapSubjectiveCollapsed(prev => !prev)}
+                        className="flex items-center gap-1.5 w-full text-left"
+                      >
                         <User className="h-3.5 w-3.5 text-primary" />
-                        <span className="text-xs font-bold uppercase tracking-wide text-primary">Subjective (HPI)</span>
-                      </div>
+                        <span className="text-xs font-bold uppercase tracking-wide text-primary flex-1">Subjective (HPI)</span>
+                        {soapSubjectiveCollapsed
+                          ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                          : <ChevronUp className="h-3 w-3 text-muted-foreground" />}
+                      </button>
+                      {!soapSubjectiveCollapsed && (
                       <Textarea
                         value={soapManualEdits["Visit Summary"] ? soapSections["Visit Summary"] : (soapSections["Visit Summary"] || generatedSubjective)}
                         onChange={e => {
@@ -1949,8 +1956,9 @@ export default function CockpitPlayground() {
                           setSoapManualEdits(prev => ({ ...prev, "Visit Summary": true }));
                         }}
                         rows={4}
-                        className="text-xs min-h-[60px] resize-y rounded-lg bg-background/80 border-none shadow-sm leading-relaxed"
+                        className="text-xs min-h-[60px] resize-y rounded-lg bg-background/80 border-none shadow-sm leading-relaxed mt-2"
                       />
+                      )}
                     </div>
 
                     {/* ── Objective ── */}
