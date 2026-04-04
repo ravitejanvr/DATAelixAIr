@@ -1888,24 +1888,7 @@ export default function CockpitPlayground() {
                       </div>
                     )}
 
-                    {/* Symptom search */}
-                    <div className="relative mt-3">
-                      <div className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg border border-border bg-background focus-within:ring-1 focus-within:ring-primary/30">
-                        <Search className="h-3.5 w-3.5 text-muted-foreground" />
-                        <input type="text" value={symptomSearch} onChange={e => setSymptomSearch(e.target.value)}
-                          onKeyDown={e => { if (e.key === "Enter" && symptomSearch.trim()) { toggleSymptom(symptomSearch.trim()); setSymptomSearch(""); } }}
-                          placeholder="Search or add symptom…"
-                          className="flex-1 text-xs bg-transparent border-none outline-none"
-                        />
-                      </div>
-                      {filteredSymptoms.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-0.5 bg-popover border border-border rounded-lg shadow-md z-10 max-h-32 overflow-y-auto">
-                          {filteredSymptoms.map(s => (
-                            <button key={s} className="w-full text-left px-2.5 py-1.5 text-xs text-foreground hover:bg-muted transition-colors" onClick={() => { toggleSymptom(s); setSymptomSearch(""); }}>{s}</button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {/* Symptom search removed — use bottom command bar */}
 
                     {/* Add modifiers prompt */}
                     {selectedSymptoms.length > 0 && !selectedDuration && !selectedOnset && !selectedSeverity && !selectedBodyLocation && (
