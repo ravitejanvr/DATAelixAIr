@@ -1934,12 +1934,12 @@ export default function CockpitPlayground() {
                     </div>
                   </ClinicalCard>
 
-                  {/* Investigation Results (Labs) — Enhanced with interpretations */}
-                  {Object.keys(investigationResults).length > 0 && (
-                     <ClinicalCard className="p-2.5">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                        <FlaskConical className="h-3.5 w-3.5 text-primary" /> Investigation Results
-                      </p>
+                  {/* Investigation Results (Labs) — Always visible */}
+                  <ClinicalCard className="p-2.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                      <FlaskConical className="h-3.5 w-3.5 text-primary" /> Investigation Results
+                    </p>
+                    {Object.keys(investigationResults).length > 0 ? (
                       <div className="space-y-1.5">
                         {Object.entries(investigationResults).map(([key, value]) => {
                           const interpretation = getLabInterpretation(key, value as number);
@@ -1972,9 +1972,10 @@ export default function CockpitPlayground() {
                           );
                         })}
                       </div>
-                      <p className="text-[9px] text-muted-foreground mt-1.5">Type "lactate 5" in command bar or use 🎙 voice</p>
-                    </ClinicalCard>
-                  )}
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No investigations added</p>
+                    )}
+                  </ClinicalCard>
 
                   {/* SECTION 3: Clinical Context Tree */}
                    <ClinicalCard className="p-2.5">
