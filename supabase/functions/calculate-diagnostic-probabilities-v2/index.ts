@@ -282,19 +282,25 @@ Deno.serve(async (req) => {
     const latentStatePosteriors = new Map<string, number>(); // stateId → posterior prob
     const latentStateLogOdds = new Map<string, number>();
     const LOG_ODDS_CLAMP = 4.6; // clamp to ±4.6 → posterior bounded to [0.01, 0.99]
+    const STATE_TEMPERATURE = 1.2; // >1.0 = softer, prevents overconfident states
 
     for (const state of latentStates) {
       let logOdds = 0; // Prior = 0.5 (uninformative)
       const stateFeatures = featureStateMap.get(state.id);
+      let featureCount = 0;
 
       if (stateFeatures) {
         for (const [featureName, logLR] of stateFeatures) {
-          // Apply BOTH positive features (logLR > 0) AND negative features (logLR < 0)
           if (allFeatures[featureName]) {
             logOdds += logLR;
+            featureCount++;
           }
         }
       }
+
+      // Temperature scaling: prevents overconfident states from sparse evidence
+      // With T=1.2, a single strong feature won't push posterior above ~0.88
+      logOdds = logOdds / STATE_TEMPERATURE;
 
       // Clamp log-odds to prevent numerical extremes
       logOdds = Math.max(-LOG_ODDS_CLAMP, Math.min(LOG_ODDS_CLAMP, logOdds));
@@ -561,7 +567,8 @@ Deno.serve(async (req) => {
     }
 
     // ════════════════════════════════════════════
-    // TEMPERATURE-SCALED SOFTMAX
+    // TEMPERATURE-SCALED SOFTMAX (Diagnosis Level)
+    // T=0.7 sharpens distribution for clinical ranking clarity
     // ════════════════════════════════════════════
     const TEMPERATURE = 0.7;
     const scaledScores = results.map(d => d.log_score / TEMPERATURE);
@@ -584,6 +591,31 @@ Deno.serve(async (req) => {
     }
 
     results.sort((a, b) => b.posterior_probability - a.posterior_probability);
+
+    // ════════════════════════════════════════════
+    // CALIBRATION DIAGNOSTICS
+    // ════════════════════════════════════════════
+    const topPosterior = results[0]?.posterior_probability || 0;
+    const top2Diff = results.length >= 2
+      ? results[0].posterior_probability - results[1].posterior_probability
+      : 1;
+    const flatDistribution = results.length >= 5 &&
+      (results[0].posterior_probability - results[4].posterior_probability) < 0.05;
+    const overconfident = topPosterior > 0.95;
+    const stateOverconfidence = Array.from(latentStatePosteriors.values()).filter(p => p > 0.98).length;
+    const mappedDiagCount = results.filter(r => r.latent_state_activations.length > 0).length;
+
+    const calibration = {
+      top1_posterior: parseFloat(topPosterior.toFixed(4)),
+      top2_gap: parseFloat(top2Diff.toFixed(4)),
+      flat_distribution_warning: flatDistribution,
+      overconfidence_warning: overconfident,
+      state_overconfidence_count: stateOverconfidence,
+      latent_mapped_diagnoses: mappedDiagCount,
+      unmapped_diagnoses: results.length - mappedDiagCount,
+      state_temperature: STATE_TEMPERATURE,
+      diagnosis_temperature: TEMPERATURE,
+    };
 
     // Trace
     console.log("[ProbEngineV2] Score trace:", JSON.stringify(
@@ -637,6 +669,7 @@ Deno.serve(async (req) => {
       vitals_signals_applied: Array.from(vitalModMap.values()).flat().length,
       cluster_matches: Array.from(clusterModMap.entries()).filter(([, v]) => v > 1).length,
       clinical_features_detected: activeFeatureNames,
+      calibration,
       execution_ms: Date.now() - start,
       source: "probabilistic_engine_v2_latent_state",
     }), {
