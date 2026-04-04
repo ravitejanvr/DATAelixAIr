@@ -669,6 +669,7 @@ Deno.serve(async (req) => {
       vitals_signals_applied: Array.from(vitalModMap.values()).flat().length,
       cluster_matches: Array.from(clusterModMap.entries()).filter(([, v]) => v > 1).length,
       clinical_features_detected: activeFeatureNames,
+      calibration,
       execution_ms: Date.now() - start,
       source: "probabilistic_engine_v2_latent_state",
     }), {
