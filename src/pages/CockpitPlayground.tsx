@@ -2284,19 +2284,17 @@ export default function CockpitPlayground() {
 
           {/* ═══ RIGHT: AI Copilot ═══ */}
           <div className="overflow-y-auto bg-card/30 hidden lg:block">
-            <div className="p-3 space-y-2.5">
-              <div className="flex items-center gap-2 px-0.5">
-                <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center relative">
-                  <Zap className="h-3.5 w-3.5 text-primary" />
-                  {pipelineComplete && <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />}
+            <div className="p-2 space-y-2">
+              <div className="flex items-center gap-1.5 px-0.5">
+                <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center relative">
+                  <Zap className="h-3 w-3 text-primary" />
+                  {pipelineComplete && <div className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                 </div>
-                <span className="text-sm font-semibold text-foreground">AI Copilot</span>
-                <Badge className={`text-[10px] ml-auto ${pipelineComplete ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" : "bg-muted text-muted-foreground border-border"}`}>
+                <span className="text-xs font-semibold text-foreground">AI Copilot</span>
+                <Badge className={`text-[9px] ml-auto h-4 ${pipelineComplete ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" : "bg-muted text-muted-foreground border-border"}`}>
                   {pipelineComplete ? "Active" : pipelineRunning ? "Running" : "Idle"}
                 </Badge>
               </div>
-
-              {/* Primary recommendation is rendered inside ClinicalCopilot — no duplicate block */}
 
               {mockPatient && <ClinicalCopilot {...copilotProps} />}
             </div>
