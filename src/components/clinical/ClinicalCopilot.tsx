@@ -516,7 +516,7 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* ═══ CLINICAL STATUS STRIP ═══ */}
+      {/* ═══ CLINICAL STATUS STRIP + TIME CRITICALITY ═══ */}
       {clinicalStatus && (
         <motion.div {...fadeIn}>
           <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border ${
@@ -528,11 +528,20 @@ export default function ClinicalCopilot({
               {clinicalStatus.level === "critical" ? "⚠️" : clinicalStatus.level === "moderate" ? "🟡" : "🟢"}
             </span>
             <div className="flex-1 min-w-0">
-              <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                clinicalStatus.level === "critical" ? "text-destructive" :
-                clinicalStatus.level === "moderate" ? "text-amber-600 dark:text-amber-400" :
-                "text-emerald-600 dark:text-emerald-400"
-              }`}>{clinicalStatus.label}</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                  clinicalStatus.level === "critical" ? "text-destructive" :
+                  clinicalStatus.level === "moderate" ? "text-amber-600 dark:text-amber-400" :
+                  "text-emerald-600 dark:text-emerald-400"
+                }`}>{clinicalStatus.label}</span>
+                {clinicalStatus.timeWindow && (
+                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                    clinicalStatus.level === "critical" ? "bg-destructive/20 text-destructive" : "bg-amber-500/20 text-amber-700 dark:text-amber-400"
+                  }`}>
+                    ⏱ {clinicalStatus.timeWindow}
+                  </span>
+                )}
+              </div>
               <p className="text-[9px] text-muted-foreground leading-tight">{clinicalStatus.explanation}</p>
             </div>
           </div>
