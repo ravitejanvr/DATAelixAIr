@@ -592,6 +592,11 @@ export default function CockpitPlayground() {
   // Fullscreen & dark mode
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
+  // Voice recording
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  // Plan collapsible
+  const [planCollapsed, setPlanCollapsed] = useState(true);
 
   // Sync fullscreen state with browser
   useEffect(() => {
