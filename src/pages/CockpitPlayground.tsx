@@ -1435,14 +1435,7 @@ export default function CockpitPlayground() {
               ))}
             </div>
 
-            {pipelineRunning && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-primary/5 border border-primary/10">
-                <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />
-                <span className="text-[10px] text-primary font-medium">{pipelineStage || "Running…"}</span>
-              </div>
-            )}
-
-            {snapshots.length > 0 && (
+            {reasoningLevel !== "doctor" && snapshots.length > 0 && (
               <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={() => setShowComparison(!showComparison)}>
                 <GitCompare className="h-2.5 w-2.5" /> Compare ({snapshots.length})
               </Button>
@@ -1450,6 +1443,7 @@ export default function CockpitPlayground() {
 
             <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1" onClick={resetCase}>
               <RotateCcw className="h-2.5 w-2.5" /> Reset
+            </Button>
             </Button>
           </div>
         </div>
