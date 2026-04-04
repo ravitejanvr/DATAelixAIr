@@ -867,7 +867,7 @@ export default function ClinicalCopilot({
                   {reviewCount > 0 && <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-200 dark:border-amber-800">{reviewCount} review</Badge>}
                 </div>
               )}
-              {complianceExpanded || pipelineCompliance ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+              {complianceExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1">
