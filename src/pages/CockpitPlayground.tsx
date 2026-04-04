@@ -12,6 +12,10 @@ import AiDisclosureBadge from "@/components/AiDisclosureBadge";
 import SystemModeIndicator from "@/components/SystemModeIndicator";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import {
   Loader2, FileText, AlertTriangle, CheckCircle,
   HeartPulse, User, Sparkles, RotateCcw, ClipboardCheck, Brain,
   Zap, Activity, Stethoscope, Eye, Search,
@@ -1431,14 +1435,7 @@ export default function CockpitPlayground() {
               ))}
             </div>
 
-            {pipelineRunning && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-primary/5 border border-primary/10">
-                <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />
-                <span className="text-[10px] text-primary font-medium">{pipelineStage || "Running…"}</span>
-              </div>
-            )}
-
-            {snapshots.length > 0 && (
+            {reasoningLevel !== "doctor" && snapshots.length > 0 && (
               <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={() => setShowComparison(!showComparison)}>
                 <GitCompare className="h-2.5 w-2.5" /> Compare ({snapshots.length})
               </Button>
@@ -1450,41 +1447,47 @@ export default function CockpitPlayground() {
           </div>
         </div>
 
-        {/* ── Scenario Selector ── */}
-        <div className="shrink-0 px-4 py-2 border-b border-border bg-muted/30">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Scenarios:</span>
-            {SCENARIOS.map(s => (
-              <Button
-                key={s.name}
-                variant={selectedScenario === s.name ? "default" : "outline"}
-                size="sm"
-                className="h-6 text-[10px] rounded-full"
-                onClick={() => loadScenario(s.name)}
-              >
-                {s.name}
+        {/* ── Scenario & Actions Bar (compact dropdowns) ── */}
+        <div className="shrink-0 px-4 py-1.5 border-b border-border bg-muted/30 flex items-center gap-2">
+          {/* Scenario Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-6 text-[10px] rounded-full gap-1">
+                <Stethoscope className="h-2.5 w-2.5" />
+                {selectedScenario || "Select Scenario"}
+                <ChevronDown className="h-2.5 w-2.5" />
               </Button>
-            ))}
-            <div className="w-px h-4 bg-border mx-1" />
-            <Button
-              variant={selectedScenario === "Sepsis (Validation)" ? "default" : "outline"}
-              size="sm"
-              className="h-6 text-[10px] rounded-full gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
-              onClick={runSepsisTest}
-            >
-              <FlaskConical className="h-2.5 w-2.5" />
-              Run Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-[10px] rounded-full gap-1 border-muted-foreground/30 text-muted-foreground hover:bg-accent"
-              onClick={async () => {
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel className="text-[10px]">Clinical Scenarios</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {SCENARIOS.map(s => (
+                <DropdownMenuItem key={s.name} onClick={() => loadScenario(s.name)} className="text-xs">
+                  <span className="flex-1">{s.name}</span>
+                  {selectedScenario === s.name && <CheckCircle className="h-3 w-3 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Test Actions Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-6 text-[10px] rounded-full gap-1">
+                <FlaskConical className="h-2.5 w-2.5" />
+                Tests
+                <ChevronDown className="h-2.5 w-2.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuItem onClick={runSepsisTest} className="text-xs gap-1.5">
+                <FlaskConical className="h-3 w-3 text-destructive" />
+                Run Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-xs gap-1.5" onClick={async () => {
                 try {
                   console.log("=== SYSTEM TEST HARNESS START ===");
-                  const { runSystemicVsOrganTests } = await import(
-                    "@/tests/systemic_vs_organ_diagnostic_tests"
-                  );
+                  const { runSystemicVsOrganTests } = await import("@/tests/systemic_vs_organ_diagnostic_tests");
                   const results = await runSystemicVsOrganTests();
                   console.log("=== SYSTEM TEST RESULTS ===");
                   console.table(results.results);
@@ -1494,17 +1497,11 @@ export default function CockpitPlayground() {
                   console.error("System test failed:", err);
                   alert("System test execution failed");
                 }
-              }}
-            >
-              <Beaker className="h-2.5 w-2.5" />
-              Run System Tests
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-[10px] rounded-full gap-1 border-primary/30 text-primary hover:bg-primary/10"
-              disabled={perturbationRunning}
-              onClick={async () => {
+              }}>
+                <Beaker className="h-3 w-3" />
+                Run System Tests
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-xs gap-1.5" disabled={perturbationRunning} onClick={async () => {
                 try {
                   setPerturbationRunning(true);
                   setPerturbationReport(null);
@@ -1528,16 +1525,25 @@ export default function CockpitPlayground() {
                   setPerturbationRunning(false);
                   setPerturbationProgress("");
                 }
-              }}
-            >
-              {perturbationRunning ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Scale className="h-2.5 w-2.5" />}
-              {perturbationRunning ? "Running..." : "Perturbation Suite"}
-            </Button>
-          </div>
+              }}>
+                {perturbationRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Scale className="h-3 w-3" />}
+                {perturbationRunning ? "Running..." : "Perturbation Suite"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="flex-1" />
+
+          {pipelineRunning && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/5 border border-primary/10">
+              <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />
+              <span className="text-[10px] text-primary font-medium">{pipelineStage || "Running…"}</span>
+            </div>
+          )}
         </div>
 
-        {/* ── Physiology vs Bayesian Debug Panel ── */}
-        {physioBayesianDiff && (
+        {/* ── Physiology vs Bayesian Debug Panel (debug/explain only) ── */}
+        {reasoningLevel !== "doctor" && physioBayesianDiff && (
           <div className="shrink-0 border-b border-border bg-card overflow-hidden">
             <div className="p-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -1593,8 +1599,8 @@ export default function CockpitPlayground() {
           </div>
         )}
 
-        {/* ── Perturbation Suite Results ── */}
-        {perturbationReport && (
+        {/* ── Perturbation Suite Results (debug/explain only) ── */}
+        {reasoningLevel !== "doctor" && perturbationReport && (
           <div className="shrink-0 border-b border-border bg-card overflow-hidden">
             <div className="p-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -1662,8 +1668,8 @@ export default function CockpitPlayground() {
           </div>
         )}
 
-        {/* ── Perturbation Progress ── */}
-        {perturbationRunning && perturbationProgress && (
+        {/* ── Perturbation Progress (debug/explain only) ── */}
+        {reasoningLevel !== "doctor" && perturbationRunning && perturbationProgress && (
           <div className="shrink-0 border-b border-border bg-card p-2">
             <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin text-primary" />
@@ -1673,7 +1679,7 @@ export default function CockpitPlayground() {
         )}
 
         {/* ── Comparison overlay ── */}
-        {showComparison && snapshots.length > 0 && (
+        {reasoningLevel !== "doctor" && showComparison && snapshots.length > 0 && (
           <div className="shrink-0 border-b border-border bg-card overflow-hidden">
             <div className="p-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -2290,70 +2296,7 @@ export default function CockpitPlayground() {
                 </Badge>
               </div>
 
-              {/* ═══ PRIMARY RECOMMENDATION BLOCK ═══ */}
-              {pipelineComplete && primaryManagement.diagnosis && (
-                <ClinicalCard className="p-3 border-primary/25 bg-primary/[0.04] shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="h-5 w-5 rounded-md bg-primary/15 flex items-center justify-center">
-                      <Target className="h-3 w-3 text-primary" />
-                    </div>
-                    <span className="text-xs font-bold text-foreground flex-1">{primaryManagement.diagnosis}</span>
-                    <Badge className="text-[10px] font-mono bg-primary/10 text-primary border-primary/20">
-                      {Math.round(primaryManagement.probability * 100)}%
-                    </Badge>
-                  </div>
-
-                  {/* Evidence contributions from Bayesian Evidence Engine */}
-                  {mergedDiagnoses[0]?.bayesian?.evidence_contributions?.length > 0 && (
-                    <div className="mb-2 p-2 rounded-lg bg-background/60 border border-border">
-                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Evidence Contributions</p>
-                      <div className="space-y-0.5">
-                        {mergedDiagnoses[0].bayesian.evidence_contributions.map((c: any, i: number) => (
-                          <div key={i} className="flex items-center gap-1.5 text-[10px]">
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.direction === "support" ? "bg-emerald-500" : c.direction === "against" ? "bg-destructive" : "bg-muted-foreground"}`} />
-                            <span className="text-muted-foreground">{c.feature}</span>
-                            <span className="font-mono text-foreground ml-auto">×{c.multiplier.toFixed(2)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Key recommendations summary */}
-                  <div className="space-y-1.5">
-                    {primaryManagement.tests.length > 0 && (
-                      <div>
-                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-0.5">Investigations</p>
-                        <div className="flex flex-wrap gap-1">
-                          {primaryManagement.tests.slice(0, 5).map((t: string) => (
-                            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{t}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {primaryManagement.medications.length > 0 && (
-                      <div>
-                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-0.5">Medications</p>
-                        <div className="flex flex-wrap gap-1">
-                          {primaryManagement.medications.slice(0, 4).map((m: any) => (
-                            <span key={m.drug} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{m.drug} {m.dose}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {primaryManagement.monitoring.length > 0 && (
-                      <div>
-                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-0.5">Monitoring</p>
-                        <div className="flex flex-wrap gap-1">
-                          {primaryManagement.monitoring.slice(0, 3).map((m: string) => (
-                            <span key={m} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{m}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </ClinicalCard>
-              )}
+              {/* Primary recommendation is rendered inside ClinicalCopilot — no duplicate block */}
 
               {mockPatient && <ClinicalCopilot {...copilotProps} />}
             </div>
@@ -2362,20 +2305,18 @@ export default function CockpitPlayground() {
 
         {/* ══════════ COMMAND BAR ══════════ */}
         {mockPatient && (
-          <div className="shrink-0 border-t border-border bg-card px-4 py-2.5">
-            <div className="flex items-center gap-2.5 max-w-4xl mx-auto rounded-xl border border-border bg-background px-4 py-2 shadow-sm">
-              <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="shrink-0 border-t border-border bg-card px-3 py-1.5">
+            <div className="flex items-center gap-2 max-w-3xl mx-auto rounded-lg border border-border bg-background px-3 py-1.5">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <input
                 type="text"
                 value={commandInput}
                 onChange={e => setCommandInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleCommand(); }}
-                placeholder="Type clinical notes, symptoms, or ask AI…"
-                className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
+                placeholder="Type symptoms, labs (e.g. lactate 5), or clinical notes…"
+                className="flex-1 text-xs bg-transparent border-none outline-none placeholder:text-muted-foreground"
               />
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" title="Voice input">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-              </Button>
+              <kbd className="hidden sm:inline text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">↵</kbd>
             </div>
           </div>
         )}
