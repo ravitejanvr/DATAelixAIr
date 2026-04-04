@@ -854,6 +854,10 @@ export default function CockpitPlayground() {
           }));
         }
         setStageLatencies(result.stage_latencies);
+        if (result.engine_audit) {
+          setEngineAudit(result.engine_audit);
+          console.log("[ENGINE_AUDIT_UI]", result.engine_audit);
+        }
       }
       setPipelineStage("complete");
       setPipelineComplete(true);
