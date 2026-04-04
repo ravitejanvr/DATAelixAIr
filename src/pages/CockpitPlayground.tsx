@@ -1810,7 +1810,7 @@ export default function CockpitPlayground() {
 
                   {/* Investigation Results (Labs) */}
                   {Object.keys(investigationResults).length > 0 && (
-                    <ClinicalCard className="p-3">
+                     <ClinicalCard className="p-2.5">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
                         <FlaskConical className="h-3.5 w-3.5 text-primary" /> Investigation Results
                       </p>
