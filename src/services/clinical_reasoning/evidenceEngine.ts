@@ -118,10 +118,11 @@ export interface ShockInput {
 }
 
 /**
- * Compute a shock score (0–1) from hemodynamic + lactate signals.
- * Influences scoring but does NOT override diagnosis.
+ * Compute a shock score (0–1) from hemodynamic signals.
+ * When explicit lactate lab is available, lactate is excluded from shock
+ * to prevent double-counting (lactate likelihood handles it instead).
  */
-export function computeShockScore(input: ShockInput): number {
+export function computeShockScore(input: ShockInput, hasExplicitLactate = false): number {
   let score = 0;
   let factors = 0;
 
@@ -137,7 +138,8 @@ export function computeShockScore(input: ShockInput): number {
     else if (input.heart_rate > 100) score += 0.15;
   }
 
-  if (input.lactate != null) {
+  // Only include lactate in shock if no explicit lab result exists
+  if (!hasExplicitLactate && input.lactate != null) {
     factors++;
     if (input.lactate >= 4) score += 0.3;
     else if (input.lactate >= 2) score += 0.15;
@@ -317,12 +319,19 @@ export function applyBayesianEvidence(
 ): EvidenceEngineResult {
   const t0 = performance.now();
 
-  const shockScore = computeShockScore(shockInput);
+  // Detect explicit lactate to prevent double-counting with shock model
+  const labs = investigationResults || {};
+  const hasExplicitLactate = labs.lactate != null && isLabClinicallyRelevant("lactate", labs.lactate);
+
+  const shockScore = computeShockScore(shockInput, hasExplicitLactate);
   const shockActive = shockScore >= 0.3;
   const labsApplied: string[] = [];
 
+  if (hasExplicitLactate) {
+    console.log("[EvidenceEngine] Explicit lactate detected — excluded from shock score to prevent double-counting");
+  }
+
   // Determine which labs are present and relevant
-  const labs = investigationResults || {};
   const labEntries: Array<{ key: string; value: number; fn: (v: number, c: ReturnType<typeof classifyDiagnosis>) => EvidenceContribution }> = [];
 
   if (labs.lactate != null && isLabClinicallyRelevant("lactate", labs.lactate)) {
@@ -397,11 +406,14 @@ export function applyBayesianEvidence(
       }
     }
 
-    // Apply shock modifier
-    const shockContrib = computeShockModifier(shockScore, category);
-    if (shockContrib) {
-      contributions.push(shockContrib);
-      score *= shockContrib.multiplier;
+    // Apply shock modifier only when explicit lactate is absent
+    // When lactate lab exists, it is the sole perfusion-related contributor
+    if (!hasExplicitLactate) {
+      const shockContrib = computeShockModifier(shockScore, category);
+      if (shockContrib) {
+        contributions.push(shockContrib);
+        score *= shockContrib.multiplier;
+      }
     }
 
     // Guardrail: no single diagnosis can exceed 0.95 without ≥3 supporting factors
