@@ -17,7 +17,7 @@ import {
   Zap, Activity, Stethoscope, Eye, Search,
   Heart, Wind, Droplets, Shield, ChevronDown, ChevronUp,
   Beaker, GitCompare, Layers, Thermometer, X,
-  TreePine, Edit3, FlaskConical, Pill, Scale, Send, MessageSquare
+  TreePine, Edit3, FlaskConical, Pill, Scale, Send, MessageSquare, Target
 } from "lucide-react";
 import type { SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_SOAP } from "@/layers/ai-agents/api";
@@ -561,6 +561,8 @@ export default function CockpitPlayground() {
   const [editingCategory, setEditingCategory] = useState<ContextCategory | null>(null);
   const [expandedDx, setExpandedDx] = useState<Set<string>>(new Set());
   const [showMoreDx, setShowMoreDx] = useState(false);
+  const [soapSubjectiveCollapsed, setSoapSubjectiveCollapsed] = useState(true);
+  const [soapObjectiveCollapsed, setSoapObjectiveCollapsed] = useState(true);
 
   // Command bar
   const [commandInput, setCommandInput] = useState("");
@@ -706,6 +708,8 @@ export default function CockpitPlayground() {
         blood_sugar: patientVitals?.blood_sugar ?? undefined,
         investigation_results: Object.keys(investigationResults).length > 0 ? investigationResults : undefined,
       });
+
+      console.log("[CONTEXT_LABS]", pipelineContext.investigation_results);
 
       const result = await runUnifiedClinicalPipeline(
         {
@@ -1852,7 +1856,7 @@ export default function CockpitPlayground() {
                     </div>
 
                     <div className="space-y-1">
-                      <ContextTreeNode label="Symptoms" icon={Stethoscope} items={selectedSymptoms} color="text-blue-600 dark:text-blue-400" category="symptoms" editPresets={COMMON_SYMPTOMS} variant="symptom" />
+                      <ContextTreeNode label="Symptoms" icon={Stethoscope} items={selectedSymptoms.filter(s => s.toLowerCase() !== chiefComplaint.toLowerCase())} color="text-blue-600 dark:text-blue-400" category="symptoms" editPresets={COMMON_SYMPTOMS} variant="symptom" />
 
                       {/* Modifiers */}
                       {(selectedDuration || selectedOnset || selectedSeverity || selectedBodyLocation) && (
@@ -1886,24 +1890,7 @@ export default function CockpitPlayground() {
                       </div>
                     )}
 
-                    {/* Symptom search */}
-                    <div className="relative mt-3">
-                      <div className="flex items-center gap-1.5 px-2.5 h-8 rounded-lg border border-border bg-background focus-within:ring-1 focus-within:ring-primary/30">
-                        <Search className="h-3.5 w-3.5 text-muted-foreground" />
-                        <input type="text" value={symptomSearch} onChange={e => setSymptomSearch(e.target.value)}
-                          onKeyDown={e => { if (e.key === "Enter" && symptomSearch.trim()) { toggleSymptom(symptomSearch.trim()); setSymptomSearch(""); } }}
-                          placeholder="Search or add symptom…"
-                          className="flex-1 text-xs bg-transparent border-none outline-none"
-                        />
-                      </div>
-                      {filteredSymptoms.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-0.5 bg-popover border border-border rounded-lg shadow-md z-10 max-h-32 overflow-y-auto">
-                          {filteredSymptoms.map(s => (
-                            <button key={s} className="w-full text-left px-2.5 py-1.5 text-xs text-foreground hover:bg-muted transition-colors" onClick={() => { toggleSymptom(s); setSymptomSearch(""); }}>{s}</button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {/* Symptom search removed — use bottom command bar */}
 
                     {/* Add modifiers prompt */}
                     {selectedSymptoms.length > 0 && !selectedDuration && !selectedOnset && !selectedSeverity && !selectedBodyLocation && (
@@ -1953,10 +1940,17 @@ export default function CockpitPlayground() {
                   <div className="space-y-5">
                     {/* ── Subjective ── */}
                     <div className="rounded-xl border p-3.5 bg-primary/[0.03] border-primary/15">
-                      <div className="flex items-center gap-1.5 mb-2">
+                      <button
+                        onClick={() => setSoapSubjectiveCollapsed(prev => !prev)}
+                        className="flex items-center gap-1.5 w-full text-left"
+                      >
                         <User className="h-3.5 w-3.5 text-primary" />
-                        <span className="text-xs font-bold uppercase tracking-wide text-primary">Subjective (HPI)</span>
-                      </div>
+                        <span className="text-xs font-bold uppercase tracking-wide text-primary flex-1">Subjective (HPI)</span>
+                        {soapSubjectiveCollapsed
+                          ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                          : <ChevronUp className="h-3 w-3 text-muted-foreground" />}
+                      </button>
+                      {!soapSubjectiveCollapsed && (
                       <Textarea
                         value={soapManualEdits["Visit Summary"] ? soapSections["Visit Summary"] : (soapSections["Visit Summary"] || generatedSubjective)}
                         onChange={e => {
@@ -1964,16 +1958,24 @@ export default function CockpitPlayground() {
                           setSoapManualEdits(prev => ({ ...prev, "Visit Summary": true }));
                         }}
                         rows={4}
-                        className="text-xs min-h-[60px] resize-y rounded-lg bg-background/80 border-none shadow-sm leading-relaxed"
+                        className="text-xs min-h-[60px] resize-y rounded-lg bg-background/80 border-none shadow-sm leading-relaxed mt-2"
                       />
+                      )}
                     </div>
 
                     {/* ── Objective ── */}
                     <div className="rounded-xl border p-3.5 bg-emerald-500/5 border-emerald-500/15">
-                      <div className="flex items-center gap-1.5 mb-2">
+                      <button
+                        onClick={() => setSoapObjectiveCollapsed(prev => !prev)}
+                        className="flex items-center gap-1.5 w-full text-left"
+                      >
                         <Eye className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                        <span className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Objective</span>
-                      </div>
+                        <span className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400 flex-1">Objective</span>
+                        {soapObjectiveCollapsed
+                          ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                          : <ChevronUp className="h-3 w-3 text-muted-foreground" />}
+                      </button>
+                      {!soapObjectiveCollapsed && (
                       <Textarea
                         value={soapManualEdits["Findings"] ? soapSections["Findings"] : (soapSections["Findings"] || generatedObjective)}
                         onChange={e => {
@@ -1981,8 +1983,9 @@ export default function CockpitPlayground() {
                           setSoapManualEdits(prev => ({ ...prev, "Findings": true }));
                         }}
                         rows={2}
-                        className="text-xs min-h-[32px] resize-y rounded-lg bg-background/80 border-none shadow-sm"
+                        className="text-xs min-h-[32px] resize-y rounded-lg bg-background/80 border-none shadow-sm mt-2"
                       />
+                      )}
                     </div>
 
                     {/* ── Assessment (Differential Diagnoses) ── */}
@@ -2286,6 +2289,72 @@ export default function CockpitPlayground() {
                   {pipelineComplete ? "Active" : pipelineRunning ? "Running" : "Idle"}
                 </Badge>
               </div>
+
+              {/* ═══ PRIMARY RECOMMENDATION BLOCK ═══ */}
+              {pipelineComplete && primaryManagement.diagnosis && (
+                <ClinicalCard className="p-3 border-primary/25 bg-primary/[0.04] shadow-sm">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-5 w-5 rounded-md bg-primary/15 flex items-center justify-center">
+                      <Target className="h-3 w-3 text-primary" />
+                    </div>
+                    <span className="text-xs font-bold text-foreground flex-1">{primaryManagement.diagnosis}</span>
+                    <Badge className="text-[10px] font-mono bg-primary/10 text-primary border-primary/20">
+                      {Math.round(primaryManagement.probability * 100)}%
+                    </Badge>
+                  </div>
+
+                  {/* Evidence contributions from Bayesian Evidence Engine */}
+                  {mergedDiagnoses[0]?.bayesian?.evidence_contributions?.length > 0 && (
+                    <div className="mb-2 p-2 rounded-lg bg-background/60 border border-border">
+                      <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-1">Evidence Contributions</p>
+                      <div className="space-y-0.5">
+                        {mergedDiagnoses[0].bayesian.evidence_contributions.map((c: any, i: number) => (
+                          <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.direction === "support" ? "bg-emerald-500" : c.direction === "against" ? "bg-destructive" : "bg-muted-foreground"}`} />
+                            <span className="text-muted-foreground">{c.feature}</span>
+                            <span className="font-mono text-foreground ml-auto">×{c.multiplier.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Key recommendations summary */}
+                  <div className="space-y-1.5">
+                    {primaryManagement.tests.length > 0 && (
+                      <div>
+                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-0.5">Investigations</p>
+                        <div className="flex flex-wrap gap-1">
+                          {primaryManagement.tests.slice(0, 5).map((t: string) => (
+                            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {primaryManagement.medications.length > 0 && (
+                      <div>
+                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-0.5">Medications</p>
+                        <div className="flex flex-wrap gap-1">
+                          {primaryManagement.medications.slice(0, 4).map((m: any) => (
+                            <span key={m.drug} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{m.drug} {m.dose}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {primaryManagement.monitoring.length > 0 && (
+                      <div>
+                        <p className="text-[9px] font-semibold text-muted-foreground uppercase mb-0.5">Monitoring</p>
+                        <div className="flex flex-wrap gap-1">
+                          {primaryManagement.monitoring.slice(0, 3).map((m: string) => (
+                            <span key={m} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{m}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </ClinicalCard>
+              )}
+
               {mockPatient && <ClinicalCopilot {...copilotProps} />}
             </div>
           </div>
