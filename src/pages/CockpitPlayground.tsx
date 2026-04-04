@@ -17,7 +17,7 @@ import {
   Zap, Activity, Stethoscope, Eye, Search,
   Heart, Wind, Droplets, Shield, ChevronDown, ChevronUp,
   Beaker, GitCompare, Layers, Thermometer, X,
-  TreePine, Edit3, FlaskConical, Pill, Scale, Send, MessageSquare
+  TreePine, Edit3, FlaskConical, Pill, Scale, Send, MessageSquare, Target
 } from "lucide-react";
 import type { SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_SOAP } from "@/layers/ai-agents/api";
