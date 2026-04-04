@@ -73,6 +73,13 @@ interface SecondaryPlan {
   instructions: string[];
 }
 
+interface EvidenceSummaryData {
+  signals: string[];
+  vitals: string[];
+  labs: Array<{ key: string; value: number; unit: string; abnormal: boolean; interpretation?: string }>;
+  context: string[];
+}
+
 interface ClinicalCopilotProps {
   diagnoses: string[];
   selectedDiagnoses: string[];
@@ -112,6 +119,10 @@ interface ClinicalCopilotProps {
   bayesianResult?: BayesianResult | null;
   /** Whether user is a platform admin (enables debug mode) */
   isAdmin?: boolean;
+  /** Evidence summary grouped by category — passed from CockpitPlayground */
+  evidenceSummary?: EvidenceSummaryData | null;
+  /** Clinical status derived from vitals/severity */
+  clinicalStatus?: { level: "critical" | "moderate" | "stable"; label: string; explanation: string } | null;
 }
 
 const fadeIn = {
