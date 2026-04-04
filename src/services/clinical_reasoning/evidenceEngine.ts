@@ -155,6 +155,7 @@ function lactateLikelihood(value: number, category: ReturnType<typeof classifyDi
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.systemic) {
+    // Sepsis/SIRS: strong discriminator
     if (value >= 4) {
       multiplier = Math.min(12, 8 + Math.max(0, value - 4) * 1.5);
       direction = "support";
@@ -165,12 +166,16 @@ function lactateLikelihood(value: number, category: ReturnType<typeof classifyDi
     }
     else { multiplier = 0.55; direction = "against"; }
   } else if (category.infection) {
-    if (value >= 4) { multiplier = 2.4; direction = "support"; }
-    else if (value >= 2) { multiplier = 1.6; direction = "support"; }
+    // Non-systemic infections: lactate is mildly relevant, NOT a strong signal
+    if (value >= 4) { multiplier = 1.15; direction = "neutral"; }
+    else if (value >= 2) { multiplier = 1.05; direction = "neutral"; }
+  } else if (category.pe) {
+    // PE: lactate weakly relevant
+    if (value >= 4) { multiplier = 1.1; direction = "neutral"; }
   } else {
-    // Non-shock diagnoses: elevated lactate weakly suppresses
-    if (value >= 4) { multiplier = 0.6; direction = "against"; }
-    else if (value >= 2) { multiplier = 0.8; direction = "against"; }
+    // All other diagnoses: elevated lactate suppresses
+    if (value >= 4) { multiplier = 0.5; direction = "against"; }
+    else if (value >= 2) { multiplier = 0.7; direction = "against"; }
   }
 
   return { source: "lab", feature: "lactate", value, multiplier, direction };
@@ -444,6 +449,28 @@ export function applyBayesianEvidence(
       evidence_delta: posteriorNorm - r.diagnosis.posterior_probability,
     };
   });
+
+  // Post-normalization floor: sepsis must NEVER decrease after lactate ≥ 4
+  if (hasExplicitLactate && labs.lactate! >= 4) {
+    for (const d of enriched) {
+      if (isSepsisDiagnosis(d) && d.posterior_score < d.prior_score) {
+        const floor = d.prior_score + 0.15;
+        console.log(`[EvidenceEngine] Floor protection: sepsis ${(d.posterior_score * 100).toFixed(1)}% < prior ${(d.prior_score * 100).toFixed(1)}%, lifting to ${(floor * 100).toFixed(1)}%`);
+        d.posterior_score = floor;
+        d.posterior_probability = floor;
+        d.evidence_delta = floor - d.prior_score;
+      }
+    }
+    // Re-normalize after floor lift
+    const floorTotal = enriched.reduce((s, d) => s + d.posterior_probability, 0);
+    if (floorTotal > 0 && Math.abs(floorTotal - 1.0) > 0.001) {
+      for (const d of enriched) {
+        d.posterior_probability /= floorTotal;
+        d.posterior_score = d.posterior_probability;
+        d.evidence_delta = d.posterior_score - d.prior_score;
+      }
+    }
+  }
 
   // Sort by posterior descending (preserve stable ranking)
   enriched.sort((a, b) => b.posterior_probability - a.posterior_probability);
