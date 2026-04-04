@@ -1551,8 +1551,23 @@ export async function runUnifiedClinicalPipeline(
       lactate: investigationResults?.lactate ?? null,
     };
 
+    // Build UUID→name map for evidence engine diagnosis classification (pre-SSAL)
+    const evidenceNameMap = new Map<string, string>();
+    if (ddxResult?.differential_diagnoses) {
+      for (const d of ddxResult.differential_diagnoses) {
+        if (d.diagnosis_id && d.diagnosis_name) evidenceNameMap.set(d.diagnosis_id, d.diagnosis_name);
+      }
+    }
+    // Also pull names already set on diagnosis objects (from CPR or Score Fusion)
+    for (const d of fusedBayesian.diagnoses) {
+      if ((d as any).diagnosis_name && !evidenceNameMap.has(d.diagnosis_id)) {
+        evidenceNameMap.set(d.diagnosis_id, (d as any).diagnosis_name);
+      }
+    }
+    console.log(`[Pipeline] Phase 5.7: Evidence name map has ${evidenceNameMap.size} entries for ${fusedBayesian.diagnoses.length} diagnoses`);
+
     const evStart = performance.now();
-    evidenceEngineResult = applyBayesianEvidence(fusedBayesian, investigationResults, shockInput);
+    evidenceEngineResult = applyBayesianEvidence(fusedBayesian, investigationResults, shockInput, evidenceNameMap);
     lat.evidence_engine = Math.round(performance.now() - evStart);
 
     console.log("[Pipeline] Phase 5.7 UPDATED_DIAGNOSES:", {
