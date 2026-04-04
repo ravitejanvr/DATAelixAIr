@@ -332,7 +332,6 @@ export function applyBayesianEvidence(
   }
 
   // Determine which labs are present and relevant
-  const labs = investigationResults || {};
   const labEntries: Array<{ key: string; value: number; fn: (v: number, c: ReturnType<typeof classifyDiagnosis>) => EvidenceContribution }> = [];
 
   if (labs.lactate != null && isLabClinicallyRelevant("lactate", labs.lactate)) {
