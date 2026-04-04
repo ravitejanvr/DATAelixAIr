@@ -856,47 +856,56 @@ export default function ClinicalCopilot({
         <motion.div {...fadeIn}>
           <ClinicalCard className={`p-2.5 ${safetyAlertCount === 0 ? "border-emerald-500/20" : "border-destructive/30"}`}>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <Shield className="h-3 w-3 text-primary" /> Safety Alerts
+              <Shield className="h-3 w-3 text-primary" /> Safety
               {safetyAlertCount > 0 && <Badge variant="destructive" className="text-[9px] ml-auto">{safetyAlertCount}</Badge>}
+              {safetyAlertCount === 0 && <Badge className="text-[9px] ml-auto bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">Clear</Badge>}
             </p>
-            <div className="space-y-1">
-              {safetyResults.interaction_flags?.length > 0 ? (
-                safetyResults.interaction_flags.map((f, i) => (
-                  <div key={`int-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-                    <Shield className="h-3 w-3 text-amber-600 shrink-0 mt-0.5" />
-                    <div><span className="font-semibold text-amber-700 dark:text-amber-400">{f.drug_a} ↔ {f.drug_b}</span><span className="text-amber-600 dark:text-amber-400 ml-1">({f.severity})</span>{f.description && <p className="text-[10px] text-amber-600 dark:text-amber-400">{f.description}</p>}</div>
-                  </div>
-                ))
-              ) : (
-                <div className="flex items-center gap-1.5 text-xs"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No drug interactions</span></div>
-              )}
-              {safetyResults.allergy_flags?.length > 0 ? (
-                safetyResults.allergy_flags.map((f, i) => (
-                  <div key={`allergy-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-chip-alert border border-chip-alert-border"><AlertTriangle className="h-3 w-3 text-chip-alert-text shrink-0 mt-0.5" /><span className="text-chip-alert-text font-medium">{f.message}</span></div>
-                ))
-              ) : (
+            {safetyResults ? (
+              <div className="space-y-1">
+                {safetyResults.interaction_flags?.length > 0 ? (
+                  safetyResults.interaction_flags.map((f, i) => (
+                    <div key={`int-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                      <Shield className="h-3 w-3 text-amber-600 shrink-0 mt-0.5" />
+                      <div><span className="font-semibold text-amber-700 dark:text-amber-400">{f.drug_a} ↔ {f.drug_b}</span><span className="text-amber-600 dark:text-amber-400 ml-1">({f.severity})</span>{f.description && <p className="text-[10px] text-amber-600 dark:text-amber-400">{f.description}</p>}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No drug interactions</span></div>
+                )}
+                {safetyResults.allergy_flags?.length > 0 ? (
+                  safetyResults.allergy_flags.map((f, i) => (
+                    <div key={`allergy-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-chip-alert border border-chip-alert-border"><AlertTriangle className="h-3 w-3 text-chip-alert-text shrink-0 mt-0.5" /><span className="text-chip-alert-text font-medium">{f.message}</span></div>
+                  ))
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No allergy conflicts</span></div>
+                )}
+                {safetyResults.dose_warnings?.length > 0 ? (
+                  safetyResults.dose_warnings.map((w, i) => (
+                    <div key={`dose-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"><AlertTriangle className="h-3 w-3 text-amber-600 shrink-0 mt-0.5" /><span className="text-amber-700 dark:text-amber-400">{w.message}</span></div>
+                  ))
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">Dose within limits</span></div>
+                )}
+                {(safetyResults.vitals_dangers?.length || 0) > 0 ? (
+                  safetyResults.vitals_dangers!.map((v, i) => (
+                    <div key={`vital-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-destructive/10 border border-destructive/30"><AlertTriangle className="h-3 w-3 text-destructive shrink-0 mt-0.5" /><span className="text-destructive font-semibold">{v.message}</span></div>
+                  ))
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No dangerous vitals</span></div>
+                )}
+                {(safetyResults.emergency_patterns?.length || 0) > 0 && (
+                  safetyResults.emergency_patterns!.map((ep, i) => (
+                    <div key={`em-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-destructive/10 border border-destructive/30"><Zap className="h-3 w-3 text-destructive shrink-0 mt-0.5" /><div><span className="text-destructive font-bold">{ep.pattern}</span><p className="text-[10px] text-destructive">{ep.message}</p></div></div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 text-xs"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No interactions detected</span></div>
                 <div className="flex items-center gap-1.5 text-xs"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No allergy conflicts</span></div>
-              )}
-              {safetyResults.dose_warnings?.length > 0 ? (
-                safetyResults.dose_warnings.map((w, i) => (
-                  <div key={`dose-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"><AlertTriangle className="h-3 w-3 text-amber-600 shrink-0 mt-0.5" /><span className="text-amber-700 dark:text-amber-400">{w.message}</span></div>
-                ))
-              ) : (
                 <div className="flex items-center gap-1.5 text-xs"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">Dose within limits</span></div>
-              )}
-              {(safetyResults.vitals_dangers?.length || 0) > 0 ? (
-                safetyResults.vitals_dangers!.map((v, i) => (
-                  <div key={`vital-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-destructive/10 border border-destructive/30"><AlertTriangle className="h-3 w-3 text-destructive shrink-0 mt-0.5" /><span className="text-destructive font-semibold">{v.message}</span></div>
-                ))
-              ) : (
-                <div className="flex items-center gap-1.5 text-xs"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /><span className="text-emerald-700 dark:text-emerald-400">No dangerous vitals</span></div>
-              )}
-              {(safetyResults.emergency_patterns?.length || 0) > 0 && (
-                safetyResults.emergency_patterns!.map((ep, i) => (
-                  <div key={`em-${i}`} className="flex items-start gap-1.5 text-xs p-1 rounded bg-destructive/10 border border-destructive/30"><Zap className="h-3 w-3 text-destructive shrink-0 mt-0.5" /><div><span className="text-destructive font-bold">{ep.pattern}</span><p className="text-[10px] text-destructive">{ep.message}</p></div></div>
-                ))
-              )}
-            </div>
+              </div>
+            )}
           </ClinicalCard>
         </motion.div>
       )}
