@@ -1542,7 +1542,7 @@ export async function runUnifiedClinicalPipeline(
     console.log("[Pipeline] Phase 5.7 EVIDENCE_INPUT:", {
       labs: investigationResults,
       has_labs: investigationResults != null && Object.keys(investigationResults).length > 0,
-      prior_top: fusedBayesian.diagnoses[0]?.diagnosis_name || fusedBayesian.diagnoses[0]?.diagnosis_id,
+      prior_top: (fusedBayesian.diagnoses[0] as any)?.diagnosis_name || fusedBayesian.diagnoses[0]?.diagnosis_id,
       prior_top_score: fusedBayesian.diagnoses[0]?.posterior_probability,
     });
     const shockInput = {
