@@ -1132,6 +1132,21 @@ export default function CockpitPlayground() {
     toast({ title: "Context updated", description: `Extracted ${symptomMatches.length} signals from input` });
   }, [commandInput, chiefComplaint, toast]);
 
+  // ── Voice transcript handler ──
+  const handleVoiceTranscript = useCallback((transcript: string) => {
+    setVoiceTranscript(transcript);
+    // Auto-parse lab commands from voice
+    const words = transcript.trim().split(/\s+/);
+    for (let i = 0; i < words.length - 1; i++) {
+      const candidate = `${words[i]} ${words[i + 1]}`;
+      const parsed = parseClinicalCommand(candidate);
+      if (parsed) {
+        setInvestigationResults(prev => ({ ...prev, [parsed.key]: parsed.value }));
+        toast({ title: "Voice → Lab", description: `${formatLabKey(parsed.key)}: ${formatLabValue(parsed.key, parsed.value)}` });
+      }
+    }
+  }, [toast]);
+
   // ── Sepsis Validation Test ──
   const runSepsisTest = useCallback(() => {
     const runNum = sepsisRunCount + 1;
