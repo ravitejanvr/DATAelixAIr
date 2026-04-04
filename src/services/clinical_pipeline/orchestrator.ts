@@ -1501,10 +1501,14 @@ export async function runUnifiedClinicalPipeline(
           // V2 promoted — downstream fusedBayesian will pick this up
           v2Result = v2Result; // kept for audit; actual swap happens at fusedBayesian
         } else {
-          console.warn("[Pipeline] V2 returned null — falling back to V1");
+          console.warn("[ENGINE_AUDIT] FALLBACK_REASON: invalid_state (V2 returned null)");
+          v2FallbackUsed = true;
+          v2FallbackReason = "invalid_state";
         }
       } catch (err) {
-        console.error("[Pipeline] V2 primary failed — falling back to V1:", err);
+        console.error("[ENGINE_AUDIT] FALLBACK_REASON: error", err);
+        v2FallbackUsed = true;
+        v2FallbackReason = "error";
       }
     } else {
       // Shadow mode: fire-and-forget comparison
