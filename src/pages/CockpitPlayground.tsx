@@ -1248,6 +1248,67 @@ export default function CockpitPlayground() {
     }
   }, [selectedTests, pendingRx, selectedInstructions, selectedMonitoring, soapManualEdits]);
 
+  // ── Evidence Summary: grouped by category for Copilot ──
+  const evidenceSummary = useMemo(() => {
+    if (!mergedDiagnoses[0]) return null;
+    const primary = mergedDiagnoses[0];
+    const vitalKeywords = ["hypotension", "tachycardia", "tachypnea", "hypertension", "fever", "hypothermia", "desaturation", "bradycardia", "bp", "heart rate", "spo2", "respiratory rate", "temperature"];
+    const contextKeywords = ["immunocompromised", "diabetes", "smoking", "obesity", "pregnancy", "recent surgery", "recent travel", "hypertension", "copd", "asthma", "cancer", "age"];
+    const signals: string[] = [];
+    const vitals: string[] = [];
+    const context: string[] = [];
+    (primary.supporting || []).forEach((e: string) => {
+      const lower = e.toLowerCase();
+      if (vitalKeywords.some(k => lower.includes(k))) vitals.push(e);
+      else if (contextKeywords.some(k => lower.includes(k))) context.push(e);
+      else signals.push(e);
+    });
+    // Add risk factors and medical history to context
+    selectedRiskFactors.forEach(rf => { if (!context.some(c => c.toLowerCase() === rf.toLowerCase())) context.push(rf); });
+
+    // Labs from investigation results
+    const LAB_NORMALS: Record<string, { unit: string; max: number }> = {
+      lactate: { unit: "mmol/L", max: 2 }, troponin: { unit: "ng/mL", max: 0.04 },
+      CRP: { unit: "mg/L", max: 10 }, procalcitonin: { unit: "ng/mL", max: 0.5 },
+      WBC: { unit: "×10³/μL", max: 11 }, D_dimer: { unit: "ng/mL", max: 500 },
+      creatinine: { unit: "mg/dL", max: 1.2 }, BNP: { unit: "pg/mL", max: 100 },
+    };
+    const labs = Object.entries(investigationResults).map(([key, value]) => {
+      const norm = LAB_NORMALS[key] || { unit: "", max: Infinity };
+      return {
+        key: formatLabKey(key as any),
+        value: value as number,
+        unit: norm.unit,
+        abnormal: (value as number) > norm.max,
+        interpretation: getLabInterpretation(key, value as number),
+      };
+    });
+
+    return { signals, vitals, labs, context };
+  }, [mergedDiagnoses, investigationResults, selectedRiskFactors]);
+
+  // ── Clinical Status derived from vitals ──
+  const clinicalStatus = useMemo(() => {
+    if (!patientVitals) return null;
+    const criticals: string[] = [];
+    if (patientVitals.bp_systolic && patientVitals.bp_systolic < 90) criticals.push("hypotension");
+    if (patientVitals.spo2 && patientVitals.spo2 < 92) criticals.push("hypoxia");
+    if (patientVitals.temperature && patientVitals.temperature > 103) criticals.push("high fever");
+    if (patientVitals.pulse && patientVitals.pulse > 120) criticals.push("severe tachycardia");
+    if (criticals.length >= 2) return { level: "critical" as const, label: "CRITICAL", explanation: `${criticals.join(", ")} detected — immediate intervention required` };
+    
+    const abnormals: string[] = [];
+    if (patientVitals.bp_systolic && patientVitals.bp_systolic < 100) abnormals.push("low BP");
+    if (patientVitals.spo2 && patientVitals.spo2 < 95) abnormals.push("low SpO₂");
+    if (patientVitals.temperature && patientVitals.temperature > 100.4) abnormals.push("fever");
+    if (patientVitals.pulse && patientVitals.pulse > 100) abnormals.push("tachycardia");
+    if (patientVitals.respiratory_rate && patientVitals.respiratory_rate > 20) abnormals.push("tachypnea");
+    if (criticals.length > 0 || abnormals.length >= 2) return { level: "moderate" as const, label: "MODERATE", explanation: `${[...criticals, ...abnormals].join(", ")} — close monitoring required` };
+    
+    if (abnormals.length > 0) return { level: "moderate" as const, label: "MODERATE", explanation: `${abnormals.join(", ")} — monitor closely` };
+    return { level: "stable" as const, label: "STABLE", explanation: "Vitals within normal limits" };
+  }, [patientVitals]);
+
   // ── Copilot props — wired to fusedBayesian (SSOT) with Primary/Secondary authority ──
   const copilotProps = {
     diagnoses: [] as string[], selectedDiagnoses,
@@ -1281,6 +1342,8 @@ export default function CockpitPlayground() {
     bayesianResult: pipelineBayesian,
     hypotheses: pipelineHypotheses,
     isAdmin: reasoningLevel === "debug",
+    evidenceSummary,
+    clinicalStatus,
   };
 
   // ── Likelihood badge ──
