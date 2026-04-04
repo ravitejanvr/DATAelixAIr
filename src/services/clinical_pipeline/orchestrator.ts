@@ -1539,31 +1539,11 @@ export async function runUnifiedClinicalPipeline(
   if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
     const { applyBayesianEvidence } = await import("@/services/clinical_reasoning/evidenceEngine");
     const investigationResults = ctx.investigation_results || null;
-    const evidenceNameMap = new Map<string, string>();
-    if (ddxResult?.differential_diagnoses) {
-      for (const d of ddxResult.differential_diagnoses) {
-        if (d.diagnosis_id && d.diagnosis_name) {
-          evidenceNameMap.set(d.diagnosis_id, d.diagnosis_name);
-        }
-      }
-    }
-    for (const d of fusedBayesian.diagnoses) {
-      if ((d as any).diagnosis_name && !evidenceNameMap.has(d.diagnosis_id)) {
-        evidenceNameMap.set(d.diagnosis_id, (d as any).diagnosis_name);
-      }
-    }
-    const evidenceInputBayesian = {
-      ...fusedBayesian,
-      diagnoses: fusedBayesian.diagnoses.map(d => ({
-        ...d,
-        diagnosis_name: (d as any).diagnosis_name || evidenceNameMap.get(d.diagnosis_id) || d.diagnosis_id,
-      })),
-    };
     console.log("[Pipeline] Phase 5.7 EVIDENCE_INPUT:", {
       labs: investigationResults,
       has_labs: investigationResults != null && Object.keys(investigationResults).length > 0,
-      prior_top: (evidenceInputBayesian.diagnoses[0] as any)?.diagnosis_name || evidenceInputBayesian.diagnoses[0]?.diagnosis_id,
-      prior_top_score: evidenceInputBayesian.diagnoses[0]?.posterior_probability,
+      prior_top: (fusedBayesian.diagnoses[0] as any)?.diagnosis_name || fusedBayesian.diagnoses[0]?.diagnosis_id,
+      prior_top_score: fusedBayesian.diagnoses[0]?.posterior_probability,
     });
     const shockInput = {
       bp_systolic: vitals.bp_systolic ?? null,
@@ -1572,7 +1552,7 @@ export async function runUnifiedClinicalPipeline(
     };
 
     const evStart = performance.now();
-    evidenceEngineResult = applyBayesianEvidence(evidenceInputBayesian as typeof fusedBayesian, investigationResults, shockInput);
+    evidenceEngineResult = applyBayesianEvidence(fusedBayesian, investigationResults, shockInput);
     lat.evidence_engine = Math.round(performance.now() - evStart);
 
     console.log("[Pipeline] Phase 5.7 UPDATED_DIAGNOSES:", {
