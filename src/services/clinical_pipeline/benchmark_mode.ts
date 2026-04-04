@@ -171,6 +171,7 @@ export async function runBenchmarkPipeline(
     guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
     cache_stats: cache, lineage: null, context_graph: null, cognitive_layer: null, evidence_engine: null,
+    engine_audit: null,
   };
 
   if (!isNewPipelineEnabled()) return empty;
@@ -737,5 +738,6 @@ export async function runBenchmarkPipeline(
     context_graph: null,
     cognitive_layer: null,
     evidence_engine: null,
+    engine_audit: null,
   };
 }

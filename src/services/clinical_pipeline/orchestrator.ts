@@ -73,7 +73,7 @@ import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResu
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
 import { applyCanonicalScoreFusion } from "@/services/clinical_pipeline/canonical_fusion";
 import { calculateDiagnosticProbabilitiesV2, comparePipelineOutputs } from "@/services/bayesian_engine/client_v2";
-import { shouldUseV2, shouldAuditLog, logV2Audit } from "@/services/rollout_controller";
+import { shouldUseV2, shouldAuditLog, logV2Audit, getRolloutConfig } from "@/services/rollout_controller";
 
 // ── Public Types ──
 
@@ -152,6 +152,22 @@ export interface PipelineResult {
   cognitive_layer: CognitiveLayerResult | null;
   /** Phase 5.7 — Evidence engine (lab likelihood update) */
   evidence_engine: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null;
+  /** V2 Engine Audit — execution trace for debugging */
+  engine_audit: {
+    engine_version: "v1" | "v2";
+    fallback_used: boolean;
+    fallback_reason: string | null;
+    cache_hit: boolean;
+    cache_status: "HIT" | "MISS" | "BYPASSED";
+    rollout_bucket: number;
+    rollout_percentage: number;
+    is_internal_user: boolean;
+    v1_top_score: number | null;
+    v2_top_score: number | null;
+    v1_top_diagnosis: string | null;
+    v2_top_diagnosis: string | null;
+    primary_engine: "v1" | "v2";
+  } | null;
 }
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
@@ -451,6 +467,7 @@ export async function runUnifiedClinicalPipeline(
     multi_agent: null, meta_reasoning: null, hypothesis_testing: null, evidence_plan: null, conflict_resolution: null, diagnostic_loop: null, causal_reasoning: null, calibration: null, episodic_memory: null, guideline_summary: null,
     logs: [], stage_latencies: {}, wave_latencies: {}, total_latency_ms: 0,
     cache_stats: cache, lineage: null, context_graph: null, cognitive_layer: null, evidence_engine: null,
+    engine_audit: null,
   };
 
   if (!isNewPipelineEnabled()) {
@@ -1402,11 +1419,30 @@ export async function runUnifiedClinicalPipeline(
   // When selected for V2: runs V2 as PRIMARY, V1 as shadow comparison.
   // Otherwise: runs V1 as primary, V2 as shadow (fire-and-forget).
   // ═══════════════════════════════════════════════════════
+  const rolloutConfig = getRolloutConfig();
+  const rolloutHashSource = input.visit_id || input.clinic_id || "";
+  const rolloutBucket = rolloutHashSource ? (Math.abs([...rolloutHashSource].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)) % 100) : -1;
+  const isInternalUser = !!(input.clinic_id && rolloutConfig.internal_user_ids.includes(input.clinic_id));
   const useV2AsPrimary = isProbabilisticEngineV2Enabled() && shouldUseV2(
     input.clinic_id ?? undefined,
     input.visit_id ?? undefined,
   );
 
+  console.log(`[ENGINE_AUDIT] ══════════════════════════════════`);
+  console.log(`[ENGINE_AUDIT] Rollout decision:`, {
+    engine_selected: useV2AsPrimary ? "V2" : "V1",
+    rollout_percentage: rolloutConfig.rollout_percentage,
+    rollout_bucket: rolloutBucket,
+    is_internal_user: isInternalUser,
+    v2_feature_flag: isProbabilisticEngineV2Enabled(),
+    visit_id: input.visit_id || "null",
+    cache_bypassed: !!input.skip_cache,
+  });
+  console.log(`[ENGINE_AUDIT] ENGINE_SELECTED: ${useV2AsPrimary ? "V2" : "V1"}`);
+  console.log(`[ENGINE_AUDIT] CACHE_STATUS: ${input.skip_cache ? "BYPASSED" : (cache.reasoning_hit ? "HIT" : "MISS")}`);
+
+  let v2FallbackUsed = false;
+  let v2FallbackReason: string | null = null;
   let v2Result: import("@/services/bayesian_engine/client_v2").V2Result | null = null;
 
   if (isProbabilisticEngineV2Enabled() && bayesianResult) {
@@ -1465,10 +1501,14 @@ export async function runUnifiedClinicalPipeline(
           // V2 promoted — downstream fusedBayesian will pick this up
           v2Result = v2Result; // kept for audit; actual swap happens at fusedBayesian
         } else {
-          console.warn("[Pipeline] V2 returned null — falling back to V1");
+          console.warn("[ENGINE_AUDIT] FALLBACK_REASON: invalid_state (V2 returned null)");
+          v2FallbackUsed = true;
+          v2FallbackReason = "invalid_state";
         }
       } catch (err) {
-        console.error("[Pipeline] V2 primary failed — falling back to V1:", err);
+        console.error("[ENGINE_AUDIT] FALLBACK_REASON: error", err);
+        v2FallbackUsed = true;
+        v2FallbackReason = "error";
       }
     } else {
       // Shadow mode: fire-and-forget comparison
@@ -2586,8 +2626,23 @@ export async function runUnifiedClinicalPipeline(
     cache_stats: cache,
     lineage: lineageReport,
     context_graph: { ...contextGraph } as UnifiedClinicalContextGraph,
-    cognitive_layer: null, // Populated async — check episodic_case_memory table
+    cognitive_layer: null,
     evidence_engine: evidenceEngineResult,
+    engine_audit: {
+      engine_version: (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "v2" as const : "v1" as const,
+      fallback_used: v2FallbackUsed,
+      fallback_reason: v2FallbackReason,
+      cache_hit: cache.reasoning_hit,
+      cache_status: input.skip_cache ? "BYPASSED" as const : (cache.reasoning_hit ? "HIT" as const : "MISS" as const),
+      rollout_bucket: rolloutBucket,
+      rollout_percentage: rolloutConfig.rollout_percentage,
+      is_internal_user: isInternalUser,
+      v1_top_score: bayesianResult?.diagnoses?.[0]?.posterior_probability ?? null,
+      v2_top_score: v2Result?.diagnoses?.[0]?.posterior_probability ?? null,
+      v1_top_diagnosis: bayesianResult?.diagnoses?.[0]?.diagnosis_id ?? null,
+      v2_top_diagnosis: v2Result?.diagnoses?.[0]?.diagnosis_id ?? null,
+      primary_engine: (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "v2" as const : "v1" as const,
+    },
   };
 }
 
