@@ -21,7 +21,8 @@ import {
   Zap, Activity, Stethoscope, Eye, Search,
   Heart, Wind, Droplets, Shield, ChevronDown, ChevronUp,
   Beaker, GitCompare, Layers, Thermometer, X,
-  TreePine, Edit3, FlaskConical, Pill, Scale, Send, MessageSquare, Target
+  TreePine, Edit3, FlaskConical, Pill, Scale, Send, MessageSquare, Target,
+  Maximize2, Minimize2, Moon, Sun
 } from "lucide-react";
 import type { SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_SOAP } from "@/layers/ai-agents/api";
@@ -572,6 +573,10 @@ export default function CockpitPlayground() {
   const [commandInput, setCommandInput] = useState("");
   // Investigation results (labs)
   const [investigationResults, setInvestigationResults] = useState<InvestigationResults>({});
+
+  // Fullscreen & dark mode
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
 
   // Pipeline run ref for debouncing
   const pipelineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1405,26 +1410,95 @@ export default function CockpitPlayground() {
     <>
       <SEO title="Cockpit Playground — Admin" description="Test clinical cockpit UI with mock data" />
 
-      <div className="h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden bg-background">
+      <div className={`${isFullscreen ? "fixed inset-0 z-50" : "h-[calc(100vh-3.5rem)]"} flex flex-col overflow-hidden bg-background`}>
         {/* ── Header ── */}
-        <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-border bg-card">
+        <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-border bg-card">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Beaker className="h-4 w-4 text-primary" />
+            <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
+              <Beaker className="h-3.5 w-3.5 text-primary" />
             </div>
-            <span className="text-sm font-bold text-foreground">Clinical Cockpit</span>
-            <Badge variant="outline" className="text-[10px]">Playground</Badge>
+            <span className="text-xs font-bold text-foreground">Clinical Cockpit</span>
             <SystemModeIndicator />
+
+            {/* Scenario Dropdown — moved here */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-5 text-[9px] rounded-full gap-1 px-2">
+                  <Stethoscope className="h-2.5 w-2.5" />
+                  {selectedScenario || "Scenario"}
+                  <ChevronDown className="h-2 w-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel className="text-[10px]">Clinical Scenarios</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {SCENARIOS.map(s => (
+                  <DropdownMenuItem key={s.name} onClick={() => loadScenario(s.name)} className="text-xs">
+                    <span className="flex-1">{s.name}</span>
+                    {selectedScenario === s.name && <CheckCircle className="h-3 w-3 text-primary" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Test Actions Dropdown — moved here */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-5 text-[9px] rounded-full gap-1 px-2">
+                  <FlaskConical className="h-2.5 w-2.5" />
+                  Tests
+                  <ChevronDown className="h-2 w-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                <DropdownMenuItem onClick={runSepsisTest} className="text-xs gap-1.5">
+                  <FlaskConical className="h-3 w-3 text-destructive" />
+                  Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-xs gap-1.5" onClick={async () => {
+                  try {
+                    const { runSystemicVsOrganTests } = await import("@/tests/systemic_vs_organ_diagnostic_tests");
+                    const results = await runSystemicVsOrganTests();
+                    console.table(results.results);
+                    (window as any).__SYSTEM_TEST_RESULTS__ = results;
+                    alert(`System Tests: ${results.summary.passed}/${results.summary.total_cases} passed`);
+                  } catch (err) { alert("System test failed"); }
+                }}>
+                  <Beaker className="h-3 w-3" />
+                  System Tests
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-xs gap-1.5" disabled={perturbationRunning} onClick={async () => {
+                  try {
+                    setPerturbationRunning(true); setPerturbationReport(null); setPerturbationProgress("Initializing...");
+                    const { runPerturbationSuite } = await import("@/services/validation_suite/perturbation_harness");
+                    const report = await runPerturbationSuite((p) => setPerturbationProgress(p.message));
+                    setPerturbationReport(report);
+                    (window as any).__PERTURBATION_REPORT__ = report;
+                    toast({ title: `Perturbation: ${Math.round(report.overallPassRate * 100)}%`, description: `${report.results.filter((r: any) => r.status === "PASS").length}/${report.results.length} passed`, variant: report.criticalFailures.length > 0 ? "destructive" : "default" });
+                  } catch (err) { toast({ title: "Failed", description: String(err), variant: "destructive" }); }
+                  finally { setPerturbationRunning(false); setPerturbationProgress(""); }
+                }}>
+                  {perturbationRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Scale className="h-3 w-3" />}
+                  {perturbationRunning ? "Running..." : "Perturbation Suite"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* System status badge */}
+            <Badge variant="outline" className={`text-[9px] h-4 gap-1 ${pipelineRunning ? "border-primary/30 text-primary" : pipelineComplete ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+              <span className={`inline-block h-1.5 w-1.5 rounded-full ${pipelineRunning ? "bg-primary animate-pulse" : pipelineComplete ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+              {pipelineRunning ? (pipelineStage || "Running") : pipelineComplete ? "Ready" : "Idle"}
+            </Badge>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {/* Reasoning Level Toggle */}
             <div className="flex items-center bg-muted rounded-full p-0.5 gap-0.5">
               {(["doctor", "explanation", "debug"] as const).map(level => (
                 <button
                   key={level}
                   onClick={() => setReasoningLevel(level)}
-                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+                  className={`px-2 py-0.5 rounded-full text-[9px] font-medium transition-all ${
                     reasoningLevel === level
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
@@ -1436,111 +1510,31 @@ export default function CockpitPlayground() {
             </div>
 
             {reasoningLevel !== "doctor" && snapshots.length > 0 && (
-              <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1" onClick={() => setShowComparison(!showComparison)}>
-                <GitCompare className="h-2.5 w-2.5" /> Compare ({snapshots.length})
+              <Button variant="outline" size="sm" className="h-5 text-[9px] gap-1 px-2" onClick={() => setShowComparison(!showComparison)}>
+                <GitCompare className="h-2.5 w-2.5" /> ({snapshots.length})
               </Button>
             )}
 
-            <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1" onClick={resetCase}>
+            {/* Dark mode toggle */}
+            <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => {
+              const next = !isDarkMode;
+              setIsDarkMode(next);
+              document.documentElement.classList.toggle("dark", next);
+            }}>
+              {isDarkMode ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+            </Button>
+
+            {/* Fullscreen toggle */}
+            <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setIsFullscreen(prev => !prev)}>
+              {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+            </Button>
+
+            <Button variant="ghost" size="sm" className="h-5 text-[9px] gap-1 px-2" onClick={resetCase}>
               <RotateCcw className="h-2.5 w-2.5" /> Reset
             </Button>
           </div>
         </div>
 
-        {/* ── Scenario & Actions Bar (compact dropdowns) ── */}
-        <div className="shrink-0 px-4 py-1.5 border-b border-border bg-muted/30 flex items-center gap-2">
-          {/* Scenario Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-6 text-[10px] rounded-full gap-1">
-                <Stethoscope className="h-2.5 w-2.5" />
-                {selectedScenario || "Select Scenario"}
-                <ChevronDown className="h-2.5 w-2.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel className="text-[10px]">Clinical Scenarios</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {SCENARIOS.map(s => (
-                <DropdownMenuItem key={s.name} onClick={() => loadScenario(s.name)} className="text-xs">
-                  <span className="flex-1">{s.name}</span>
-                  {selectedScenario === s.name && <CheckCircle className="h-3 w-3 text-primary" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Test Actions Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-6 text-[10px] rounded-full gap-1">
-                <FlaskConical className="h-2.5 w-2.5" />
-                Tests
-                <ChevronDown className="h-2.5 w-2.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-52">
-              <DropdownMenuItem onClick={runSepsisTest} className="text-xs gap-1.5">
-                <FlaskConical className="h-3 w-3 text-destructive" />
-                Run Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-xs gap-1.5" onClick={async () => {
-                try {
-                  console.log("=== SYSTEM TEST HARNESS START ===");
-                  const { runSystemicVsOrganTests } = await import("@/tests/systemic_vs_organ_diagnostic_tests");
-                  const results = await runSystemicVsOrganTests();
-                  console.log("=== SYSTEM TEST RESULTS ===");
-                  console.table(results.results);
-                  (window as any).__SYSTEM_TEST_RESULTS__ = results;
-                  alert(`System Tests Completed:\n${results.summary.system_behavior}\nPassed: ${results.summary.passed}/${results.summary.total_cases}`);
-                } catch (err) {
-                  console.error("System test failed:", err);
-                  alert("System test execution failed");
-                }
-              }}>
-                <Beaker className="h-3 w-3" />
-                Run System Tests
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-xs gap-1.5" disabled={perturbationRunning} onClick={async () => {
-                try {
-                  setPerturbationRunning(true);
-                  setPerturbationReport(null);
-                  setPerturbationProgress("Initializing...");
-                  const { runPerturbationSuite } = await import("@/services/validation_suite/perturbation_harness");
-                  const report = await runPerturbationSuite((p) => {
-                    setPerturbationProgress(p.message);
-                  });
-                  setPerturbationReport(report);
-                  console.log("=== PERTURBATION SUITE REPORT ===", report);
-                  (window as any).__PERTURBATION_REPORT__ = report;
-                  toast({
-                    title: `Perturbation Suite: ${Math.round(report.overallPassRate * 100)}% Pass`,
-                    description: `${report.results.filter((r: any) => r.status === "PASS").length}/${report.results.length} tests passed. ${report.criticalFailures.length} critical failures.`,
-                    variant: report.criticalFailures.length > 0 ? "destructive" : "default",
-                  });
-                } catch (err) {
-                  console.error("Perturbation suite failed:", err);
-                  toast({ title: "Perturbation suite failed", description: String(err), variant: "destructive" });
-                } finally {
-                  setPerturbationRunning(false);
-                  setPerturbationProgress("");
-                }
-              }}>
-                {perturbationRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Scale className="h-3 w-3" />}
-                {perturbationRunning ? "Running..." : "Perturbation Suite"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <div className="flex-1" />
-
-          {pipelineRunning && (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/5 border border-primary/10">
-              <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />
-              <span className="text-[10px] text-primary font-medium">{pipelineStage || "Running…"}</span>
-            </div>
-          )}
-        </div>
 
         {/* ── Physiology vs Bayesian Debug Panel (debug/explain only) ── */}
         {reasoningLevel !== "doctor" && physioBayesianDiff && (
@@ -1721,7 +1715,7 @@ export default function CockpitPlayground() {
 
           {/* ═══ LEFT: Patient Context ═══ */}
           <div className="overflow-y-auto border-r border-border">
-            <div className="p-3 space-y-3">
+            <div className="p-2 space-y-2">
 
               {/* Empty state */}
               {!mockPatient ? (
@@ -1924,8 +1918,8 @@ export default function CockpitPlayground() {
           {/* ═══ CENTER: SOAP Output ═══ */}
           <div className="overflow-y-auto border-r border-border">
             {mockPatient && (
-              <div className="p-4 space-y-4">
-                <ClinicalCard className="p-4 border-primary/15">
+              <div className="p-2 space-y-2">
+                <ClinicalCard className="p-3 border-primary/15">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -2023,6 +2017,12 @@ export default function CockpitPlayground() {
                                 <div className="h-1.5 rounded-full bg-muted">
                                   <div className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
                                 </div>
+                                {/* Inline diagnostic explanation */}
+                                {d.supporting.length > 0 && (
+                                  <p className="text-[9px] text-muted-foreground mt-1 leading-snug">
+                                    Driven by {d.supporting.slice(0, 5).join(", ").toLowerCase()}
+                                  </p>
+                                )}
                               </button>
                               {isExpanded && (
                                 <div className="mt-1.5 rounded-lg border border-border p-2.5 bg-muted/20 space-y-2">
@@ -2284,19 +2284,17 @@ export default function CockpitPlayground() {
 
           {/* ═══ RIGHT: AI Copilot ═══ */}
           <div className="overflow-y-auto bg-card/30 hidden lg:block">
-            <div className="p-3 space-y-2.5">
-              <div className="flex items-center gap-2 px-0.5">
-                <div className="h-6 w-6 rounded-lg bg-primary/10 flex items-center justify-center relative">
-                  <Zap className="h-3.5 w-3.5 text-primary" />
-                  {pipelineComplete && <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />}
+            <div className="p-2 space-y-2">
+              <div className="flex items-center gap-1.5 px-0.5">
+                <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center relative">
+                  <Zap className="h-3 w-3 text-primary" />
+                  {pipelineComplete && <div className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                 </div>
-                <span className="text-sm font-semibold text-foreground">AI Copilot</span>
-                <Badge className={`text-[10px] ml-auto ${pipelineComplete ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" : "bg-muted text-muted-foreground border-border"}`}>
+                <span className="text-xs font-semibold text-foreground">AI Copilot</span>
+                <Badge className={`text-[9px] ml-auto h-4 ${pipelineComplete ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" : "bg-muted text-muted-foreground border-border"}`}>
                   {pipelineComplete ? "Active" : pipelineRunning ? "Running" : "Idle"}
                 </Badge>
               </div>
-
-              {/* Primary recommendation is rendered inside ClinicalCopilot — no duplicate block */}
 
               {mockPatient && <ClinicalCopilot {...copilotProps} />}
             </div>
@@ -2305,18 +2303,18 @@ export default function CockpitPlayground() {
 
         {/* ══════════ COMMAND BAR ══════════ */}
         {mockPatient && (
-          <div className="shrink-0 border-t border-border bg-card px-3 py-1.5">
-            <div className="flex items-center gap-2 max-w-3xl mx-auto rounded-lg border border-border bg-background px-3 py-1.5">
-              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <div className="shrink-0 border-t border-border bg-card px-3 py-1">
+            <div className="flex items-center gap-2 max-w-2xl mx-auto rounded-md border border-border bg-background px-2.5 h-8">
+              <Search className="h-3 w-3 text-muted-foreground shrink-0" />
               <input
                 type="text"
                 value={commandInput}
                 onChange={e => setCommandInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleCommand(); }}
-                placeholder="Type symptoms, labs (e.g. lactate 5), or clinical notes…"
-                className="flex-1 text-xs bg-transparent border-none outline-none placeholder:text-muted-foreground"
+                placeholder="Try: lactate 5, troponin 200, remove fever"
+                className="flex-1 text-[11px] bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
               />
-              <kbd className="hidden sm:inline text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">↵</kbd>
+              <kbd className="hidden sm:inline text-[8px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">↵</kbd>
             </div>
           </div>
         )}
