@@ -1454,41 +1454,47 @@ export default function CockpitPlayground() {
           </div>
         </div>
 
-        {/* ── Scenario Selector ── */}
-        <div className="shrink-0 px-4 py-2 border-b border-border bg-muted/30">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Scenarios:</span>
-            {SCENARIOS.map(s => (
-              <Button
-                key={s.name}
-                variant={selectedScenario === s.name ? "default" : "outline"}
-                size="sm"
-                className="h-6 text-[10px] rounded-full"
-                onClick={() => loadScenario(s.name)}
-              >
-                {s.name}
+        {/* ── Scenario & Actions Bar (compact dropdowns) ── */}
+        <div className="shrink-0 px-4 py-1.5 border-b border-border bg-muted/30 flex items-center gap-2">
+          {/* Scenario Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-6 text-[10px] rounded-full gap-1">
+                <Stethoscope className="h-2.5 w-2.5" />
+                {selectedScenario || "Select Scenario"}
+                <ChevronDown className="h-2.5 w-2.5" />
               </Button>
-            ))}
-            <div className="w-px h-4 bg-border mx-1" />
-            <Button
-              variant={selectedScenario === "Sepsis (Validation)" ? "default" : "outline"}
-              size="sm"
-              className="h-6 text-[10px] rounded-full gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
-              onClick={runSepsisTest}
-            >
-              <FlaskConical className="h-2.5 w-2.5" />
-              Run Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-[10px] rounded-full gap-1 border-muted-foreground/30 text-muted-foreground hover:bg-accent"
-              onClick={async () => {
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel className="text-[10px]">Clinical Scenarios</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {SCENARIOS.map(s => (
+                <DropdownMenuItem key={s.name} onClick={() => loadScenario(s.name)} className="text-xs">
+                  <span className="flex-1">{s.name}</span>
+                  {selectedScenario === s.name && <CheckCircle className="h-3 w-3 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Test Actions Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-6 text-[10px] rounded-full gap-1">
+                <FlaskConical className="h-2.5 w-2.5" />
+                Tests
+                <ChevronDown className="h-2.5 w-2.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuItem onClick={runSepsisTest} className="text-xs gap-1.5">
+                <FlaskConical className="h-3 w-3 text-destructive" />
+                Run Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-xs gap-1.5" onClick={async () => {
                 try {
                   console.log("=== SYSTEM TEST HARNESS START ===");
-                  const { runSystemicVsOrganTests } = await import(
-                    "@/tests/systemic_vs_organ_diagnostic_tests"
-                  );
+                  const { runSystemicVsOrganTests } = await import("@/tests/systemic_vs_organ_diagnostic_tests");
                   const results = await runSystemicVsOrganTests();
                   console.log("=== SYSTEM TEST RESULTS ===");
                   console.table(results.results);
@@ -1498,17 +1504,11 @@ export default function CockpitPlayground() {
                   console.error("System test failed:", err);
                   alert("System test execution failed");
                 }
-              }}
-            >
-              <Beaker className="h-2.5 w-2.5" />
-              Run System Tests
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-[10px] rounded-full gap-1 border-primary/30 text-primary hover:bg-primary/10"
-              disabled={perturbationRunning}
-              onClick={async () => {
+              }}>
+                <Beaker className="h-3 w-3" />
+                Run System Tests
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-xs gap-1.5" disabled={perturbationRunning} onClick={async () => {
                 try {
                   setPerturbationRunning(true);
                   setPerturbationReport(null);
@@ -1532,12 +1532,21 @@ export default function CockpitPlayground() {
                   setPerturbationRunning(false);
                   setPerturbationProgress("");
                 }
-              }}
-            >
-              {perturbationRunning ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Scale className="h-2.5 w-2.5" />}
-              {perturbationRunning ? "Running..." : "Perturbation Suite"}
-            </Button>
-          </div>
+              }}>
+                {perturbationRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Scale className="h-3 w-3" />}
+                {perturbationRunning ? "Running..." : "Perturbation Suite"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="flex-1" />
+
+          {pipelineRunning && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/5 border border-primary/10">
+              <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />
+              <span className="text-[10px] text-primary font-medium">{pipelineStage || "Running…"}</span>
+            </div>
+          )}
         </div>
 
         {/* ── Physiology vs Bayesian Debug Panel ── */}
