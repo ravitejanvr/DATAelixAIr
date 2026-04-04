@@ -406,11 +406,14 @@ export function applyBayesianEvidence(
       }
     }
 
-    // Apply shock modifier
-    const shockContrib = computeShockModifier(shockScore, category);
-    if (shockContrib) {
-      contributions.push(shockContrib);
-      score *= shockContrib.multiplier;
+    // Apply shock modifier only when explicit lactate is absent
+    // When lactate lab exists, it is the sole perfusion-related contributor
+    if (!hasExplicitLactate) {
+      const shockContrib = computeShockModifier(shockScore, category);
+      if (shockContrib) {
+        contributions.push(shockContrib);
+        score *= shockContrib.multiplier;
+      }
     }
 
     // Guardrail: no single diagnosis can exceed 0.95 without ≥3 supporting factors
