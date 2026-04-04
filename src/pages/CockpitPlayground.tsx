@@ -1524,8 +1524,16 @@ export default function CockpitPlayground() {
               {isDarkMode ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
             </Button>
 
-            {/* Fullscreen toggle */}
-            <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setIsFullscreen(prev => !prev)}>
+            {/* Fullscreen toggle — browser API */}
+            <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                setIsFullscreen(true);
+              } else {
+                document.exitFullscreen().catch(() => {});
+                setIsFullscreen(false);
+              }
+            }}>
               {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
             </Button>
 
