@@ -152,6 +152,22 @@ export interface PipelineResult {
   cognitive_layer: CognitiveLayerResult | null;
   /** Phase 5.7 — Evidence engine (lab likelihood update) */
   evidence_engine: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null;
+  /** V2 Engine Audit — execution trace for debugging */
+  engine_audit: {
+    engine_version: "v1" | "v2";
+    fallback_used: boolean;
+    fallback_reason: string | null;
+    cache_hit: boolean;
+    cache_status: "HIT" | "MISS" | "BYPASSED";
+    rollout_bucket: number;
+    rollout_percentage: number;
+    is_internal_user: boolean;
+    v1_top_score: number | null;
+    v2_top_score: number | null;
+    v1_top_diagnosis: string | null;
+    v2_top_diagnosis: string | null;
+    primary_engine: "v1" | "v2";
+  } | null;
 }
 
 export type PipelineProgressCallback = (stage: string, data: Partial<PipelineResult>) => void;
