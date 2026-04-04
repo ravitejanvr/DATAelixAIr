@@ -1964,7 +1964,7 @@ export default function CockpitPlayground() {
                     </div>
 
                     {/* ── Objective ── */}
-                    <div className="rounded-xl border p-3.5 bg-emerald-500/5 border-emerald-500/15">
+                    <div className="rounded-md border p-2.5 bg-emerald-500/5 border-emerald-500/15">
                       <button
                         onClick={() => setSoapObjectiveCollapsed(prev => !prev)}
                         className="flex items-center gap-1.5 w-full text-left"
