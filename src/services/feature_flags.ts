@@ -126,4 +126,3 @@ export function isClinicalPriorityResolutionEnabled(): boolean {
 export function isProbabilisticEngineV2Enabled(): boolean {
   return currentFlags.enable_probabilistic_engine_v2;
 }
-}
