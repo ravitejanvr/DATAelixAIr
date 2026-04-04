@@ -1603,7 +1603,7 @@ export default function CockpitPlayground() {
 
         {/* ── Perturbation Suite Results (debug/explain only) ── */}
         {reasoningLevel !== "doctor" && perturbationReport && (
-          <div className="shrink-0 border-b border-border bg-card overflow-hidden">
+           <div className="shrink-0 border-b border-border glass-card overflow-hidden">
             <div className="p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
