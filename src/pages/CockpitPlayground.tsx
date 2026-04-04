@@ -1525,18 +1525,22 @@ export default function CockpitPlayground() {
             <span className="text-xs font-bold text-foreground">Clinical Cockpit</span>
             <SystemModeIndicator />
 
-            {/* Scenario Dropdown — moved here */}
+            {/* Scenario Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-5 text-[9px] rounded-full gap-1 px-2">
                   <Stethoscope className="h-2.5 w-2.5" />
-                  {selectedScenario || "Scenarios"}
+                  {selectedScenario === "Sepsis (Validation)" ? "Sepsis" : selectedScenario || "Scenarios"}
                   <ChevronDown className="h-2 w-2" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
                 <DropdownMenuLabel className="text-[10px]">Scenarios</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={runSepsisTest} className="text-xs">
+                  <span className="flex-1">Sepsis {sepsisRunCount > 0 ? `(#${sepsisRunCount})` : ""}</span>
+                  {selectedScenario === "Sepsis (Validation)" && <CheckCircle className="h-3 w-3 text-primary" />}
+                </DropdownMenuItem>
                 {SCENARIOS.map(s => (
                   <DropdownMenuItem key={s.name} onClick={() => loadScenario(s.name)} className="text-xs">
                     <span className="flex-1">{s.name}</span>
@@ -1556,10 +1560,6 @@ export default function CockpitPlayground() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-52">
-                <DropdownMenuItem onClick={runSepsisTest} className="text-xs gap-1.5">
-                  <FlaskConical className="h-3 w-3 text-destructive" />
-                  Sepsis Test {sepsisRunCount > 0 && `(#${sepsisRunCount})`}
-                </DropdownMenuItem>
                 <DropdownMenuItem className="text-xs gap-1.5" onClick={async () => {
                   try {
                     const { runSystemicVsOrganTests } = await import("@/tests/systemic_vs_organ_diagnostic_tests");
@@ -1845,25 +1845,32 @@ export default function CockpitPlayground() {
                 <>
                   {/* SECTION 1: Patient Demographics */}
                    <ClinicalCard className="p-2.5">
-                    <div className="flex items-center gap-2.5 mb-2.5">
+                    <div className="flex items-center gap-2.5 mb-2">
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
                         {mockPatient.name.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">{mockPatient.name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <Badge variant="outline" className="text-[10px]">{mockPatient.age}y · {mockPatient.gender}</Badge>
-                          {mockPatient.location && <Badge variant="outline" className="text-[10px]">{mockPatient.location}</Badge>}
-                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {mockPatient.age}y • {mockPatient.gender}
+                          {mockPatient.location ? ` • ${mockPatient.location}` : ""}
+                          {` • ID: PT-${String(Math.abs([...(`${mockPatient.name}${mockPatient.age}`)].reduce((h, c) => (h << 5) - h + c.charCodeAt(0), 0))).slice(0, 6)}`}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs border-t border-border pt-2.5">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs border-t border-border pt-2">
                       {mockPatient.occupation && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Occupation</span><span className="text-foreground font-medium">{mockPatient.occupation}</span></div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground">Occupation:</span>
+                          <span className="font-medium text-foreground">{mockPatient.occupation}</span>
+                        </div>
                       )}
                       {mockPatient.diet && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Diet</span><span className="text-foreground font-medium">{mockPatient.diet}</span></div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground">Diet:</span>
+                          <span className="font-medium text-foreground">{mockPatient.diet}</span>
+                        </div>
                       )}
                       {mockPatient.allergies && mockPatient.allergies.length > 0 && (
                         <div className="col-span-2 flex items-center gap-1.5 mt-1">
@@ -1875,7 +1882,10 @@ export default function CockpitPlayground() {
                         </div>
                       )}
                       {mockPatient.pregnancyStatus && (
-                        <div className="col-span-2 flex justify-between"><span className="text-muted-foreground">Pregnancy</span><span className="text-foreground font-medium">{mockPatient.pregnancyStatus}</span></div>
+                        <div className="col-span-2 flex items-center gap-1.5">
+                          <span className="text-muted-foreground">Pregnancy:</span>
+                          <span className="font-medium text-foreground">{mockPatient.pregnancyStatus}</span>
+                        </div>
                       )}
                     </div>
                   </ClinicalCard>
