@@ -1544,9 +1544,6 @@ export default function CockpitPlayground() {
             </div>
             <span className="text-xs font-bold text-foreground">Clinical Cockpit</span>
             {reasoningLevel !== "doctor" && <SystemModeIndicator />}
-            {reasoningLevel === "doctor" && (
-              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">● Running</span>
-            )}
 
             {/* Scenario Dropdown */}
             <DropdownMenu>
