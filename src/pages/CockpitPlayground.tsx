@@ -23,7 +23,7 @@ import {
   Heart, Wind, Droplets, Shield, ChevronDown, ChevronUp,
   Beaker, GitCompare, Layers, Thermometer, X,
   TreePine, Edit3, FlaskConical, Pill, Scale, Send, MessageSquare, Target,
-  Maximize2, Minimize2, Moon, Sun, Mic, MicOff
+  Maximize2, Minimize2, Moon, Sun, Mic, MicOff, Plus
 } from "lucide-react";
 import type { SoapSections } from "@/layers/ai-agents/api";
 import { EMPTY_SOAP } from "@/layers/ai-agents/api";
@@ -2189,13 +2189,17 @@ export default function CockpitPlayground() {
                                 <div className="h-1.5 rounded-full bg-muted">
                                   <div className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
                                 </div>
-                                {/* Inline diagnostic explanation */}
-                                {d.supporting.length > 0 && (() => {
-                                  const cleaned = cleanSupportingList(d.supporting).slice(0, 5);
+                                {/* Inline diagnostic tags — clean, no "Driven by" */}
+                                {reasoningLevel !== "doctor" && d.supporting.length > 0 && (() => {
+                                  const cleaned = cleanSupportingList(d.supporting).slice(0, 3);
                                   return cleaned.length > 0 ? (
-                                    <p className="text-[9px] text-muted-foreground mt-1 leading-snug">
-                                      Driven by {cleaned.join(", ").toLowerCase()}
-                                    </p>
+                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                      {cleaned.map((tag: string, ti: number) => (
+                                        <span key={ti} className="text-[8px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                          {tag}
+                                        </span>
+                                      ))}
+                                    </div>
                                   ) : null;
                                 })()}
                               </button>
@@ -2261,13 +2265,28 @@ export default function CockpitPlayground() {
                                   )}
                                   {reasoningLevel === "explanation" && d.bayesian && (
                                     <div className="p-2 rounded-lg bg-muted/30 border border-border">
-                                      <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Modifier Contributions</p>
-                                      <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] font-mono">
-                                        {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && <span>Onset: ×{d.bayesian.onset_modifier?.toFixed(2)}</span>}
-                                        {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && <span>Duration: ×{d.bayesian.duration_modifier?.toFixed(2)}</span>}
-                                        {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && <span>Risk: ×{d.bayesian.risk_modifier?.toFixed(2)}</span>}
-                                        {d.bayesian.cluster_modifier != null && d.bayesian.cluster_modifier !== 1 && <span>Cluster: ×{d.bayesian.cluster_modifier?.toFixed(2)}</span>}
-                                        {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && <span>Vitals: ×{d.bayesian.vital_modifier?.toFixed(2)}</span>}
+                                      <p className="text-[9px] text-muted-foreground font-semibold uppercase mb-1">Clinical Modifiers</p>
+                                      <div className="flex flex-wrap gap-1.5 text-[10px]">
+                                        {d.bayesian.onset_modifier != null && d.bayesian.onset_modifier !== 1 && (
+                                          <span className={`px-1.5 py-0.5 rounded-full border ${d.bayesian.onset_modifier > 1 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"}`}>
+                                            Onset: {d.bayesian.onset_modifier > 1 ? "supports" : "less typical"}
+                                          </span>
+                                        )}
+                                        {d.bayesian.duration_modifier != null && d.bayesian.duration_modifier !== 1 && (
+                                          <span className={`px-1.5 py-0.5 rounded-full border ${d.bayesian.duration_modifier > 1 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"}`}>
+                                            Duration: {d.bayesian.duration_modifier > 1 ? "consistent" : "atypical"}
+                                          </span>
+                                        )}
+                                        {d.bayesian.risk_modifier != null && d.bayesian.risk_modifier !== 1 && (
+                                          <span className="px-1.5 py-0.5 rounded-full border bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
+                                            Risk factors: {d.bayesian.risk_modifier > 1 ? "elevated" : "low"}
+                                          </span>
+                                        )}
+                                        {d.bayesian.vital_modifier != null && d.bayesian.vital_modifier !== 1 && (
+                                          <span className={`px-1.5 py-0.5 rounded-full border ${d.bayesian.vital_modifier > 1.5 ? "bg-destructive/10 text-destructive border-destructive/20" : "bg-primary/10 text-primary border-primary/20"}`}>
+                                            Vitals: {d.bayesian.vital_modifier > 1.5 ? "strongly supportive" : d.bayesian.vital_modifier > 1 ? "supportive" : "neutral"}
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   )}
@@ -2315,7 +2334,7 @@ export default function CockpitPlayground() {
                                     </button>
                                     {isExpanded && d.supporting.length > 0 && (
                                       <div className="mt-1 ml-3 flex flex-wrap gap-1">
-                                        {d.supporting.slice(0, 4).map((e: string, ei: number) => (
+                                        {cleanSupportingList(d.supporting).slice(0, 4).map((e: string, ei: number) => (
                                           <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
                                         ))}
                                       </div>
@@ -2361,7 +2380,7 @@ export default function CockpitPlayground() {
                                     </div>
                                     {d.supporting.length > 0 && (
                                       <div className="flex flex-wrap gap-1 mt-1.5 ml-5">
-                                        {d.supporting.slice(0, 3).map((e: string, ei: number) => (
+                                        {cleanSupportingList(d.supporting).slice(0, 3).map((e: string, ei: number) => (
                                           <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✓ {e}</span>
                                         ))}
                                       </div>
@@ -2379,41 +2398,56 @@ export default function CockpitPlayground() {
                       )}
                     </div>
 
-                    {/* ── Plan (Structured subsections) ── */}
+                    {/* ── Plan (Auto-populated from Copilot with editable chips) ── */}
                     <div className="rounded-md border p-2.5 bg-purple-500/5 border-purple-500/15">
                       <div className="flex items-center gap-1.5 mb-3">
                         <ClipboardCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
                         <span className="text-xs font-bold uppercase tracking-wide text-purple-700 dark:text-purple-400">Plan</span>
+                        {pipelineComplete && primaryManagement.diagnosis && (
+                          <Badge className="text-[8px] ml-auto bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
+                            Auto-generated
+                          </Badge>
+                        )}
                       </div>
 
-                      {/* Investigations */}
+                      {/* Investigations — auto-populated as editable chips */}
                       <div className="mb-3">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <FlaskConical className="h-3 w-3" /> Investigations
                         </p>
-                        {planInvestigations.length > 0 ? (
+                        {(planInvestigations.length > 0 || primaryManagement.tests.length > 0) ? (
                           <div className="flex flex-wrap gap-1.5">
+                            {/* Show selected (confirmed) tests */}
                             {planInvestigations.map(t => (
-                              <Chip key={t} variant="lab" size="sm" selected
-                                onClick={() => setSelectedTests(prev => prev.filter(x => x !== t))}>
-                                ✓ {t}
+                              <Chip key={t} variant="lab" size="sm" selected removable
+                                onRemove={() => setSelectedTests(prev => prev.filter(x => x !== t))}>
+                                {t}
+                              </Chip>
+                            ))}
+                            {/* Show unselected suggestions as addable chips */}
+                            {primaryManagement.tests.filter(t => !planInvestigations.includes(t)).map(t => (
+                              <Chip key={`sug-${t}`} variant="lab" size="sm" addable
+                                onClick={() => setSelectedTests(prev => [...prev, t])}>
+                                {t}
                               </Chip>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">Select investigations from AI Copilot →</p>
+                          <p className="text-xs text-muted-foreground italic">Investigations will appear after diagnosis.</p>
                         )}
                       </div>
 
-                      {/* Treatment — with Drug/Dose/Route/Freq format */}
+                      {/* Treatment — auto-populated as editable chips */}
                       <div className="mb-3">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <Pill className="h-3 w-3" /> Treatment
                         </p>
-                        {planTreatments.length > 0 ? (
+                        {(planTreatments.length > 0 || primaryManagement.medications.length > 0) ? (
                           <div className="space-y-1.5">
+                            {/* Confirmed treatments */}
                             {planTreatments.map((rx, i) => (
-                              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-primary/20">
+                                <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-xs font-semibold text-foreground">{rx.drug_name}</p>
                                   <p className="text-[10px] text-muted-foreground">
@@ -2423,18 +2457,33 @@ export default function CockpitPlayground() {
                                 <button onClick={() => setPendingRx(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
                               </div>
                             ))}
+                            {/* Suggested but not yet confirmed */}
+                            {primaryManagement.medications.filter(rx => !pendingRx.some(p => p.drug_name === rx.drug)).map((rx, i) => (
+                              <button
+                                key={`sug-rx-${i}`}
+                                onClick={() => setPendingRx(prev => [...prev, { drug_name: rx.drug, dose: rx.dose, frequency: rx.freq, duration: rx.dur, route: rx.route || "PO" }])}
+                                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-dashed border-border hover:border-primary/30 hover:bg-primary/[0.03] transition-colors text-left"
+                              >
+                                <Plus className="h-3 w-3 text-primary/50 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-muted-foreground">{rx.drug} {rx.dose}</p>
+                                  <p className="text-[10px] text-muted-foreground/70">{rx.route} {rx.freq} × {rx.dur}</p>
+                                </div>
+                                {rx.line === "emergency" && <Badge className="text-[8px] bg-destructive/10 text-destructive border-destructive/20">Urgent</Badge>}
+                              </button>
+                            ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">Select prescriptions from AI Copilot →</p>
+                          <p className="text-xs text-muted-foreground italic">Treatment will appear after diagnosis.</p>
                         )}
                       </div>
 
-                      {/* Monitoring & Follow-up — selected only */}
+                      {/* Monitoring & Follow-up — auto-populated */}
                       <div className="mb-3">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <Activity className="h-3 w-3" /> Monitoring & Follow-up
                         </p>
-                        {selectedMonitoring.length > 0 ? (
+                        {(selectedMonitoring.length > 0 || primaryManagement.monitoring.length > 0) ? (
                           <div className="space-y-1">
                             {selectedMonitoring.map((m, i) => (
                               <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
@@ -2443,20 +2492,29 @@ export default function CockpitPlayground() {
                                 <button onClick={() => setSelectedMonitoring(prev => prev.filter(x => x !== m))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
                               </div>
                             ))}
+                            {/* Unselected monitoring suggestions */}
+                            {primaryManagement.monitoring.filter(m => !selectedMonitoring.includes(m)).slice(0, 3).map((m, i) => (
+                              <button
+                                key={`sug-mon-${i}`}
+                                onClick={() => setSelectedMonitoring(prev => [...prev, m])}
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-muted/20 border border-dashed border-border hover:border-primary/30 text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <Plus className="h-3 w-3 text-primary/50 shrink-0" />
+                                <span className="flex-1">{m}</span>
+                              </button>
+                            ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">
-                            {primaryManagement.monitoring.length > 0 ? "Select monitoring from AI Copilot →" : "Monitoring parameters will appear after diagnosis."}
-                          </p>
+                          <p className="text-xs text-muted-foreground italic">Monitoring parameters will appear after diagnosis.</p>
                         )}
                       </div>
 
-                      {/* Patient Instructions */}
+                      {/* Patient Instructions — auto-populated */}
                       <div>
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
                           <MessageSquare className="h-3 w-3" /> Instructions to Patient
                         </p>
-                        {selectedInstructions.length > 0 ? (
+                        {(selectedInstructions.length > 0 || primaryManagement.instructions.length > 0) ? (
                           <div className="space-y-1">
                             {selectedInstructions.map((inst, i) => (
                               <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
@@ -2465,11 +2523,20 @@ export default function CockpitPlayground() {
                                 <button onClick={() => setSelectedInstructions(prev => prev.filter(x => x !== inst))} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
                               </div>
                             ))}
+                            {/* Unselected instruction suggestions */}
+                            {primaryManagement.instructions.filter(i => !selectedInstructions.includes(i)).slice(0, 3).map((inst, i) => (
+                              <button
+                                key={`sug-inst-${i}`}
+                                onClick={() => setSelectedInstructions(prev => [...prev, inst])}
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-muted/20 border border-dashed border-border hover:border-primary/30 text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <Plus className="h-3 w-3 text-primary/50 shrink-0" />
+                                <span className="flex-1">{inst}</span>
+                              </button>
+                            ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic">
-                            {primaryManagement.instructions.length > 0 ? "Select instructions from AI Copilot →" : "Instructions will appear after diagnosis."}
-                          </p>
+                          <p className="text-xs text-muted-foreground italic">Instructions will appear after diagnosis.</p>
                         )}
                       </div>
                     </div>
