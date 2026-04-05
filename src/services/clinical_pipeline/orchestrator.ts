@@ -1720,7 +1720,10 @@ export async function runUnifiedClinicalPipeline(
   // Runs AFTER CPR, BEFORE SSAL freeze. Pure function, no side effects.
   // ═══════════════════════════════════════════════════════
   let evidenceEngineResult: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null = null;
-  if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
+  // V2 handles evidence via latent states — skip rule-based lab likelihood multipliers
+  if (skipScoreFusionForV2) {
+    console.log("[Pipeline] Phase 5.7: Evidence Engine SKIPPED — V2 handles evidence via latent states.");
+  } else if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
     const { applyBayesianEvidence } = await import("@/services/clinical_reasoning/evidenceEngine");
     const investigationResults = ctx.investigation_results || null;
     console.log("[Pipeline] Phase 5.7 EVIDENCE_INPUT:", {
