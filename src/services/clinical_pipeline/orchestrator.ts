@@ -1426,13 +1426,18 @@ export async function runUnifiedClinicalPipeline(
   // Otherwise: runs V1 as primary, V2 as shadow (fire-and-forget).
   // ═══════════════════════════════════════════════════════
   const rolloutConfig = getRolloutConfig();
-  const rolloutHashSource = input.visit_id || input.clinic_id || "";
-  const rolloutBucket = rolloutHashSource ? (Math.abs([...rolloutHashSource].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)) % 100) : -1;
-  const isInternalUser = !!(input.clinic_id && rolloutConfig.internal_user_ids.includes(input.clinic_id));
-  const useV2AsPrimary = isProbabilisticEngineV2Enabled() && shouldUseV2(
-    input.clinic_id ?? undefined,
-    input.visit_id ?? undefined,
-  );
+  // Use authenticated user_id as primary rollout identifier — never fall back to empty string
+  const rolloutIdentifier = input.user_id || input.visit_id || input.clinic_id || null;
+  if (!rolloutIdentifier) {
+    console.warn("[ENGINE_AUDIT] WARNING: No authenticated identity — rollout will use anonymous bucket");
+  }
+  const rolloutDecision = selectEngine({
+    userId: rolloutIdentifier ?? undefined,
+    sessionId: input.visit_id ?? undefined,
+    isAdmin: input.is_admin ?? false,
+    isInternalUser: input.is_internal ?? false,
+  });
+  const useV2AsPrimary = isProbabilisticEngineV2Enabled() && rolloutDecision.engine_selected === "v2";
 
   console.log(`[ENGINE_AUDIT] ══════════════════════════════════`);
   console.log(`[ENGINE_AUDIT] Rollout decision:`, {
