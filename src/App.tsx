@@ -62,6 +62,7 @@ import ModifierSensitivityTest from "./pages/ModifierSensitivityTest";
 import DiagnosticSimulator from "./pages/DiagnosticSimulator";
 import CockpitPlayground from "./pages/CockpitPlayground";
 import V2Evaluation from "./pages/V2Evaluation";
+import V3BenchmarkDashboard from "./pages/V3BenchmarkDashboard";
 
 const queryClient = new QueryClient();
 
