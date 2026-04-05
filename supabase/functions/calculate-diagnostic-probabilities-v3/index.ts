@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
       continuousFeatures["hypoxia"] = continuousLogLR(spo2Val, { x0: 94, k: 0.3, L: 2.0, invert: true });
       continuousFeatures["no_hypoxia"] = -continuousFeatures["hypoxia"];
     }
-    if (lactateValue !== null) { const lv = Number(lactateValue); if (!isNaN(lv)) continuousFeatures["lactate_high"] = continuousLogLR(lv, { x0: 2.0, k: 0.8, L: 3.0 }); }
+    if (lactateValue !== null) { const lv = Number(lactateValue); if (!isNaN(lv)) continuousFeatures["lactate_high"] = Math.min(continuousLogLR(lv, { x0: 2.0, k: 0.8, L: 3.0 }), 2.5); }
     if (crpValue !== null) { const cv = Number(crpValue); if (!isNaN(cv)) continuousFeatures["crp_high"] = continuousLogLR(cv, { x0: 10, k: 0.15, L: 2.0 }); }
     if (wbcValue !== null) {
       const wv = Number(wbcValue);
