@@ -54,7 +54,8 @@ export async function runV3ValidationSuite(
       }
 
       const dx = data.diagnoses;
-      const top3 = dx.slice(0, 3).map((d: any) => ({
+      const dxAny = dx as any[];
+      const top3 = dxAny.slice(0, 3).map((d: any) => ({
         diagnosis: d.diagnosis_name || d.diagnosis_id,
         probability: d.posterior_probability,
       }));
@@ -65,25 +66,15 @@ export async function runV3ValidationSuite(
 
       // Find ground truth rank
       let groundTruthRank: number | null = null;
-      for (let r = 0; r < dx.length; r++) {
-        const name = dx[r].diagnosis_name || dx[r].diagnosis_id;
+      for (let r = 0; r < dxAny.length; r++) {
+        const name = dxAny[r].diagnosis_name || dxAny[r].diagnosis_id;
         if (fuzzyMatch(name, c.expected_top1)) {
           groundTruthRank = r + 1;
           break;
         }
       }
 
-      // Systemic severity from the response or compute from vitals
-      const systemicSignals = [
-        (c.input.vitals.blood_pressure_systolic ?? 999) < 100 ? 1 : 0,
-        (c.input.vitals.heartRate ?? 0) > 100 ? 1 : 0,
-        (c.input.vitals.respiratoryRate ?? 0) > 22 ? 1 : 0,
-        (c.input.vitals.temperature ?? 0) > 38.0 ? 1 : 0,
-        (c.input.vitals.spo2 ?? 100) < 94 ? 1 : 0,
-      ];
-      const systemicSeverity = Math.min(systemicSignals.reduce((a, b) => a + b, 0) / 3, 1.0);
-
-      const top1Dx = dx[0];
+      const top1Dx = dxAny[0];
       const v3State = top1Dx?.v3_state_score ?? 0;
       const v1Symptom = top1Dx?.symptom_score ?? 0;
 
