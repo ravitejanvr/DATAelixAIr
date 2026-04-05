@@ -61,6 +61,7 @@ import GPBenchmarkDashboard from "./pages/GPBenchmarkDashboard";
 import ModifierSensitivityTest from "./pages/ModifierSensitivityTest";
 import DiagnosticSimulator from "./pages/DiagnosticSimulator";
 import CockpitPlayground from "./pages/CockpitPlayground";
+import V2Evaluation from "./pages/V2Evaluation";
 
 const queryClient = new QueryClient();
 
@@ -199,6 +200,7 @@ const App = () => (
               <Route path="/admin/modifier-sensitivity" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><ModifierSensitivityTest /></PlatformAdminLayout></ProtectedRoute>} />
               <Route path="/admin/diagnostic-simulator" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><DiagnosticSimulator /></PlatformAdminLayout></ProtectedRoute>} />
               <Route path="/admin/cockpit-playground" element={<ProtectedRoute allowedRoles={["platform_admin"]}><CockpitPlayground /></ProtectedRoute>} />
+              <Route path="/admin/v2-evaluation" element={<ProtectedRoute allowedRoles={["platform_admin"]}><V2Evaluation /></ProtectedRoute>} />
 
               {/* Layer 1: Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
