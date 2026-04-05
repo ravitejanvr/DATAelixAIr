@@ -592,60 +592,64 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* ═══ EVIDENCE SUMMARY — Grouped by category ═══ */}
-      {evidenceSummary && (evidenceSummary.signals.length > 0 || evidenceSummary.vitals.length > 0 || evidenceSummary.labs.length > 0 || evidenceSummary.context.length > 0) && (
-        <motion.div {...fadeIn}>
-          <ClinicalCard className="p-2 border-primary/10">
-            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
-              <Eye className="h-3 w-3 text-primary" /> Evidence Summary
-            </p>
-            <div className="space-y-1.5">
-              {evidenceSummary.signals.length > 0 && (
-                <div className="flex items-start gap-1.5">
-                  <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-11">Signals</span>
-                  <div className="flex flex-wrap gap-1">
-                    {evidenceSummary.signals.map((s, i) => (
-                      <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{s}</span>
-                    ))}
+      {/* ═══ EVIDENCE SUMMARY — Grouped by category, top 5 with show more ═══ */}
+      {evidenceSummary && (evidenceSummary.signals.length > 0 || evidenceSummary.vitals.length > 0 || evidenceSummary.labs.length > 0 || evidenceSummary.context.length > 0) && (() => {
+        // In doctor mode, clean raw technical strings
+        const isDoctor = reasoningLevel === "doctor";
+        const cleanSignals = isDoctor
+          ? evidenceSummary.signals.map(s => STATE_TO_CLINICAL[s.toLowerCase().replace(/\s/g, "_")] || cleanEvidenceForDoctor(s)).filter(Boolean) as string[]
+          : evidenceSummary.signals;
+        const cleanVitals = isDoctor
+          ? evidenceSummary.vitals.map(v => cleanEvidenceForDoctor(v)).filter(Boolean) as string[]
+          : evidenceSummary.vitals;
+        const cleanContext = isDoctor
+          ? evidenceSummary.context.map(c => cleanEvidenceForDoctor(c)).filter(Boolean) as string[]
+          : evidenceSummary.context;
+
+        // Flatten all items to apply top-5 limit
+        const allItems: Array<{ category: "signals" | "vitals" | "labs" | "context"; label: string; node: React.ReactNode }> = [];
+        cleanSignals.forEach((s, i) => allItems.push({ category: "signals", label: s, node: <span key={`s-${i}`} className="text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-foreground border border-border">{s}</span> }));
+        cleanVitals.forEach((v, i) => allItems.push({ category: "vitals", label: v, node: <span key={`v-${i}`} className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">{v}</span> }));
+        evidenceSummary.labs.forEach((lab, i) => allItems.push({ category: "labs", label: `${lab.key}: ${lab.value}`, node: <span key={`l-${i}`} className={`text-[9px] px-1.5 py-0.5 rounded-full border ${lab.abnormal ? "bg-destructive/10 text-destructive border-destructive/20" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"}`}>{lab.key}: {lab.value} {lab.unit}</span> }));
+        cleanContext.forEach((c, i) => allItems.push({ category: "context", label: c, node: <span key={`c-${i}`} className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{c}</span> }));
+
+        const visibleItems = showMoreEvidence ? allItems : allItems.slice(0, 5);
+        const hiddenCount = allItems.length - 5;
+
+        // Group visible items by category
+        const grouped = new Map<string, React.ReactNode[]>();
+        visibleItems.forEach(item => {
+          if (!grouped.has(item.category)) grouped.set(item.category, []);
+          grouped.get(item.category)!.push(item.node);
+        });
+
+        const categoryLabels: Record<string, string> = { signals: "Signals", vitals: "Vitals", labs: "Labs", context: "Context" };
+
+        return (
+          <motion.div {...fadeIn}>
+            <ClinicalCard className="p-2 border-primary/10">
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                <Eye className="h-3 w-3 text-primary" /> Evidence Summary
+                <Badge variant="outline" className="text-[8px] ml-auto">{allItems.length}</Badge>
+              </p>
+              <div className="space-y-1.5">
+                {Array.from(grouped.entries()).map(([cat, nodes]) => (
+                  <div key={cat} className="flex items-start gap-1.5">
+                    <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-11">{categoryLabels[cat] || cat}</span>
+                    <div className="flex flex-wrap gap-1">{nodes}</div>
                   </div>
-                </div>
+                ))}
+              </div>
+              {hiddenCount > 0 && (
+                <button onClick={() => setShowMoreEvidence(p => !p)} className="text-[9px] text-primary font-medium hover:underline mt-1.5 flex items-center gap-0.5">
+                  {showMoreEvidence ? <ChevronDown className="h-2.5 w-2.5" /> : <ChevronRight className="h-2.5 w-2.5" />}
+                  {showMoreEvidence ? "Show less" : `+${hiddenCount} more`}
+                </button>
               )}
-              {evidenceSummary.vitals.length > 0 && (
-                <div className="flex items-start gap-1.5">
-                  <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-11">Vitals</span>
-                  <div className="flex flex-wrap gap-1">
-                    {evidenceSummary.vitals.map((v, i) => (
-                      <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">{v}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {evidenceSummary.labs.length > 0 && (
-                <div className="flex items-start gap-1.5">
-                  <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-11">Labs</span>
-                  <div className="flex flex-wrap gap-1">
-                    {evidenceSummary.labs.map((lab, i) => (
-                      <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full border ${lab.abnormal ? "bg-destructive/10 text-destructive border-destructive/20" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"}`}>
-                        {lab.key}: {lab.value} {lab.unit}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {evidenceSummary.context.length > 0 && (
-                <div className="flex items-start gap-1.5">
-                  <span className="text-[8px] font-bold text-muted-foreground uppercase shrink-0 pt-0.5 w-11">Context</span>
-                  <div className="flex flex-wrap gap-1">
-                    {evidenceSummary.context.map((c, i) => (
-                      <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{c}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </ClinicalCard>
-        </motion.div>
-      )}
+            </ClinicalCard>
+          </motion.div>
+        );
+      })()}
       {tests.length > 0 && (() => {
         const unselectedTests = tests.filter(t => !selectedTests.includes(t));
         const visibleTests = unselectedTests.slice(0, showMoreTests ? unselectedTests.length : 5);
