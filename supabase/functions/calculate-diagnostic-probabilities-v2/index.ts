@@ -912,10 +912,30 @@ Deno.serve(async (req) => {
     }
 
     // ════════════════════════════════════════════
-    // TEMPERATURE-SCALED SOFTMAX (Diagnosis Level)
-    // T=0.6 sharpens distribution for clinical ranking clarity
+    // FIX 3: RELATIVE COMPETITION NORMALIZATION
+    // Center scores around mean before softmax to force competition
     // ════════════════════════════════════════════
-    const TEMPERATURE = 0.6;
+    const meanLogScore = results.reduce((s, d) => s + d.log_score, 0) / (results.length || 1);
+    for (const r of results) {
+      r.log_score = r.log_score - meanLogScore; // center around zero
+    }
+
+    // FIX 4: TOP-K REINFORCEMENT — controlled sharpening when top diagnoses are close
+    results.sort((a, b) => b.log_score - a.log_score);
+    if (results.length >= 2) {
+      const gap = results[0].log_score - results[1].log_score;
+      if (gap < 0.3 && gap > 0.01) {
+        // Amplify the small gap proportionally (not a hard override)
+        results[0].log_score += gap * 0.15; // +15% of gap
+        results[1].log_score -= gap * 0.08; // -8% of gap
+      }
+    }
+
+    // ════════════════════════════════════════════
+    // TEMPERATURE-SCALED SOFTMAX (Diagnosis Level)
+    // T=0.55 sharpens distribution for clinical ranking clarity
+    // ════════════════════════════════════════════
+    const TEMPERATURE = 0.55;
     const scaledScores = results.map(d => d.log_score / TEMPERATURE);
     const maxLog = Math.max(...scaledScores);
     const expScores = scaledScores.map(s => Math.exp(s - maxLog));
