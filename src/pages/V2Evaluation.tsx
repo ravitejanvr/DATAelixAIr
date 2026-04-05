@@ -159,6 +159,7 @@ export default function V2Evaluation() {
                       <th className="p-2 text-right">ΔlogP</th>
                       <th className="p-2 text-right">Latency</th>
                       <th className="p-2 text-center">Result</th>
+                      <th className="p-2 text-left">Error</th>
                       <th className="p-2 text-center">Run</th>
                     </tr>
                   </thead>
@@ -182,6 +183,9 @@ export default function V2Evaluation() {
                           ) : (
                             <XCircle className="h-4 w-4 text-destructive mx-auto" />
                           )}
+                        </td>
+                        <td className="p-2 text-xs text-destructive max-w-[200px] truncate" title={r.error || ""}>
+                          {r.error || "—"}
                         </td>
                         <td className="p-2 text-center">
                           <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => handleRunSingle(r.case_id)} disabled={running}>
