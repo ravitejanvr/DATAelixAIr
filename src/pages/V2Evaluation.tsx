@@ -75,7 +75,7 @@ export default function V2Evaluation() {
 
   return (
     <>
-      <SEO title="V2 Engine Evaluation — DATAelixAIr" />
+      <SEO title="V2 Engine Evaluation — DATAelixAIr" description="Authenticated evaluation suite for V2 probabilistic engine." />
       <div className="min-h-screen bg-background p-6 max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
