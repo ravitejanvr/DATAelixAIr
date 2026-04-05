@@ -168,7 +168,7 @@ Deno.serve(async (req) => {
       continuousFeatures["no_tachycardia"] = -continuousFeatures["tachycardia"];
     }
     if (sbpVal !== null) {
-      continuousFeatures["hypotension"] = continuousLogLR(sbpVal, { x0: 90, k: 0.1, L: 2.5, invert: true });
+      continuousFeatures["hypotension"] = continuousLogLR(sbpVal, { x0: 100, k: 0.08, L: 2.5, invert: true });
       continuousFeatures["no_hypotension"] = -continuousFeatures["hypotension"];
     }
     if (rr !== null) { continuousFeatures["tachypnea"] = continuousLogLR(rr, { x0: 22, k: 0.15, L: 1.5 }); }
