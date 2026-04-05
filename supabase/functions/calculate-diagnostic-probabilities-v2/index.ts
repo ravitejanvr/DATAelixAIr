@@ -210,6 +210,14 @@ Deno.serve(async (req) => {
     ];
 
     // Feature extraction — boolean flags (generalizable, not diagnosis-specific)
+    // Lab results extraction from vitals/body for high-signal evidence
+    const labResults = body.lab_results || body.labs || {};
+    const lactateValue = labResults.lactate ?? vitals?.lactate ?? null;
+    const crpValue = labResults.crp ?? vitals?.crp ?? null;
+    const wbcValue = labResults.wbc ?? vitals?.wbc ?? null;
+    const procalcitoninValue = labResults.procalcitonin ?? vitals?.procalcitonin ?? null;
+    const troponinValue = labResults.troponin ?? vitals?.troponin ?? null;
+
     const activeFeatures: Record<string, boolean> = {
       fever: (tempC !== null && tempC >= 38) || allSymptomText.some(s => s.includes("fever")),
       hypotension: sbpVal !== null && sbpVal < 90,
@@ -237,6 +245,12 @@ Deno.serve(async (req) => {
       sore_throat: allSymptomText.some(s => s.includes("sore throat") || s.includes("pharyngitis")),
       diabetes_history: normalizedHistory.some((h: string) => h.includes("diabetes") || h.includes("diabetic")),
       hypertension_history: normalizedHistory.some((h: string) => h.includes("hypertension") || h.includes("high blood pressure")),
+      // Lab-derived features (high-signal evidence)
+      lactate_high: lactateValue !== null && Number(lactateValue) > 2.0,
+      crp_high: crpValue !== null && Number(crpValue) > 10,
+      wbc_abnormal: (wbcValue !== null && (Number(wbcValue) > 12000 || Number(wbcValue) < 4000)),
+      procalcitonin_high: procalcitoninValue !== null && Number(procalcitoninValue) > 0.5,
+      troponin_high: troponinValue !== null && Number(troponinValue) > 0.04,
     };
 
     // ── NEGATIVE EVIDENCE: derive "no_X" features from absence of positive features ──
