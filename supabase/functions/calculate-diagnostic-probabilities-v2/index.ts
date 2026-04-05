@@ -73,12 +73,64 @@ Deno.serve(async (req) => {
 
     // Filter to valid UUIDs
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const validCandidateIds = candidate_diagnosis_ids.filter((id: string) => UUID_RE.test(id));
+    let validCandidateIds = candidate_diagnosis_ids.filter((id: string) => UUID_RE.test(id));
+
+    // ── AUTO-EXPAND: If no candidates provided, discover from symptoms ──
+    if (validCandidateIds.length === 0 && symptoms.length > 0) {
+      console.log("[V2_AUTO_EXPAND] No candidate IDs provided, expanding from symptoms:", symptoms);
+      const normalizedForLookup = symptoms.map((s: string) => s.toLowerCase().trim());
+
+      // Step 1: Find symptom IDs from names
+      const { data: symLookup } = await supabase
+        .from("symptoms")
+        .select("id, symptom_name")
+        .in("symptom_name", normalizedForLookup);
+
+      const foundSymIds = (symLookup || []).map((s: any) => s.id);
+
+      // Fuzzy fallback for unmatched symptoms
+      const matchedNames = new Set((symLookup || []).map((s: any) => s.symptom_name));
+      const unmatchedSyms = normalizedForLookup.filter((s: string) => !matchedNames.has(s));
+      if (unmatchedSyms.length > 0) {
+        const fuzzyPromises = unmatchedSyms.map((s: string) =>
+          supabase.from("symptoms").select("id").ilike("symptom_name", `%${s}%`).limit(3)
+        );
+        const fuzzyRes = await Promise.all(fuzzyPromises);
+        for (const r of fuzzyRes) {
+          for (const row of (r.data || [])) foundSymIds.push(row.id);
+        }
+      }
+
+      if (foundSymIds.length > 0) {
+        // Step 2: Find all diagnoses linked to these symptoms
+        const { data: slRows } = await supabase
+          .from("symptom_likelihoods")
+          .select("diagnosis_id")
+          .in("symptom_id", foundSymIds);
+
+        const expandedIds = [...new Set((slRows || []).map((r: any) => r.diagnosis_id))];
+        validCandidateIds = expandedIds.filter((id: string) => UUID_RE.test(id));
+        console.log("[V2_AUTO_EXPAND] Expanded to", validCandidateIds.length, "candidate diagnoses");
+      }
+
+      // Step 3: If still empty, use top diagnoses by prevalence as fallback
+      if (validCandidateIds.length === 0) {
+        const { data: topDx } = await supabase
+          .from("disease_priors")
+          .select("diagnosis_id")
+          .order("base_prevalence", { ascending: false })
+          .limit(20);
+        validCandidateIds = (topDx || []).map((r: any) => r.diagnosis_id).filter((id: string) => UUID_RE.test(id));
+        console.log("[V2_AUTO_EXPAND] Prevalence fallback:", validCandidateIds.length, "candidates");
+      }
+    }
 
     if (validCandidateIds.length === 0) {
+      console.log("[V2_NO_CANDIDATES] Returning empty - no symptoms or candidates available");
       return new Response(JSON.stringify({
         diagnoses: [], execution_ms: Date.now() - start,
         source: "probabilistic_engine_v2_latent_state",
+        note: "no_candidates_resolved",
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 

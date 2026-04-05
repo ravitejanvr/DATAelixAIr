@@ -80,20 +80,22 @@ async function runSingleCase(testCase: EvalCase, userId: string): Promise<EvalCa
   const start = performance.now();
 
   try {
+    const payload = {
+      symptoms: testCase.input.symptoms,
+      vitals: testCase.input.vitals || {},
+      lab_results: testCase.input.lab_results || {},
+      risk_factors: testCase.input.risk_factors || [],
+      medical_history: testCase.input.medical_history || [],
+      patient_age: testCase.input.age,
+      patient_sex: testCase.input.sex,
+      eval_trace_id: traceId,
+    };
+
+    console.log("[EVAL_REQUEST]", { case_id: testCase.id, payload });
+
     const { data, error } = await supabase.functions.invoke(
       "calculate-diagnostic-probabilities-v2",
-      {
-        body: {
-          symptoms: testCase.input.symptoms,
-          vitals: testCase.input.vitals || {},
-          lab_results: testCase.input.lab_results || {},
-          risk_factors: testCase.input.risk_factors || [],
-          medical_history: testCase.input.medical_history || [],
-          age: testCase.input.age,
-          sex: testCase.input.sex,
-          eval_trace_id: traceId,
-        },
-      }
+      { body: payload }
     );
 
     const latency = Math.round(performance.now() - start);
