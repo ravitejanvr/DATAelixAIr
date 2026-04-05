@@ -754,7 +754,7 @@ export default function CockpitPlayground() {
       console.log("[CONTEXT_LABS]", pipelineContext.investigation_results);
 
       // Retrieve authenticated identity for rollout bucketing
-      const { user } = useAuthRef.current;
+      const currentUser = userRef.current;
       if (!user?.id) {
         console.warn("[AUTH_CONTEXT] No authenticated user — pipeline will use anonymous rollout bucket");
       }
