@@ -6253,6 +6253,107 @@ export type Database = {
         }
         Relationships: []
       }
+      v3_composite_states: {
+        Row: {
+          clinical_meaning: string
+          conflict_group: string | null
+          created_at: string | null
+          id: string
+          prior_probability: number
+          state_name: string
+        }
+        Insert: {
+          clinical_meaning?: string
+          conflict_group?: string | null
+          created_at?: string | null
+          id?: string
+          prior_probability?: number
+          state_name: string
+        }
+        Update: {
+          clinical_meaning?: string
+          conflict_group?: string | null
+          created_at?: string | null
+          id?: string
+          prior_probability?: number
+          state_name?: string
+        }
+        Relationships: []
+      }
+      v3_feature_state_mappings: {
+        Row: {
+          created_at: string | null
+          feature_name: string
+          id: string
+          log_likelihood_ratio: number
+          state_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          feature_name: string
+          id?: string
+          log_likelihood_ratio: number
+          state_id: string
+        }
+        Update: {
+          created_at?: string | null
+          feature_name?: string
+          id?: string
+          log_likelihood_ratio?: number
+          state_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v3_feature_state_mappings_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "v3_composite_states"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v3_state_diagnosis_mappings: {
+        Row: {
+          created_at: string | null
+          diagnosis_id: string
+          id: string
+          is_primary: boolean | null
+          log_likelihood_ratio: number
+          state_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          diagnosis_id: string
+          id?: string
+          is_primary?: boolean | null
+          log_likelihood_ratio: number
+          state_id: string
+        }
+        Update: {
+          created_at?: string | null
+          diagnosis_id?: string
+          id?: string
+          is_primary?: boolean | null
+          log_likelihood_ratio?: number
+          state_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v3_state_diagnosis_mappings_diagnosis_id_fkey"
+            columns: ["diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "v3_state_diagnosis_mappings_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "v3_composite_states"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vital_alerts: {
         Row: {
           acknowledged_at: string | null
