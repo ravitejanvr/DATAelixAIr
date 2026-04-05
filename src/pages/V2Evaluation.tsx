@@ -108,7 +108,7 @@ export default function V2Evaluation() {
         )}
 
         {running && (
-          <ClinicalCard variant="default" className="p-4 space-y-3">
+          <ClinicalCard className="p-4 space-y-3">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Progress: {progress}/{totalCases}</span>
               {lastResult && (
@@ -138,7 +138,7 @@ export default function V2Evaluation() {
             </div>
 
             {/* Auth Validation */}
-            <ClinicalCard variant="safe" className="p-3">
+            <ClinicalCard className="p-3">
               <div className="flex items-center gap-2 text-xs text-green-700">
                 <CheckCircle className="h-4 w-4" />
                 <span>Execution Mode: authenticated_production | User: {suiteResult.identity.email} | All {suiteResult.total_cases} cases used real JWT</span>
@@ -146,7 +146,7 @@ export default function V2Evaluation() {
             </ClinicalCard>
 
             {/* Case Results Table */}
-            <ClinicalCard variant="default" className="p-0 overflow-hidden">
+            <ClinicalCard className="p-0 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -199,7 +199,7 @@ export default function V2Evaluation() {
 
         {/* Available Cases (pre-run) */}
         {!suiteResult && !running && (
-          <ClinicalCard variant="default" className="p-4">
+          <ClinicalCard className="p-4">
             <h3 className="text-sm font-semibold mb-3">Available Test Cases ({EVAL_CASES.length})</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {EVAL_CASES.map((c) => (
@@ -224,7 +224,7 @@ export default function V2Evaluation() {
 
 function MetricCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (
-    <ClinicalCard variant="default" className="p-3 text-center">
+    <ClinicalCard className="p-3 text-center">
       <div className={`text-2xl font-bold ${color || "text-foreground"}`}>{value}</div>
       <div className="text-xs text-muted-foreground mt-1">{label}</div>
     </ClinicalCard>
