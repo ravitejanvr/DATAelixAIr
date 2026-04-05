@@ -251,7 +251,7 @@ Deno.serve(async (req) => {
     const tempC = getVitalValue(vitals, "temperature");
     const hr = getVitalValue(vitals, "heartRate") ?? getVitalValue(vitals, "heart_rate") ?? getVitalValue(vitals, "pulse");
     const rr = getVitalValue(vitals, "respiratoryRate") ?? getVitalValue(vitals, "respiratory_rate");
-    const spo2Val = getVitalValue(vitals, "spo2") ?? getVitalValue(vitals, "SpO2");
+    const spo2Val = getVitalValue(vitals, "spo2") ?? getVitalValue(vitals, "SpO2") ?? getVitalValue(vitals, "spO2");
     let sbpVal: number | null = null;
     const bpSystolicDirect = getVitalValue(vitals, "bp_systolic");
     if (bpSystolicDirect !== null) {
