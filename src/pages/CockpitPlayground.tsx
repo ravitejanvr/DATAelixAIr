@@ -766,9 +766,9 @@ export default function CockpitPlayground() {
           visit_id: null, consultation_id: null, clinic_id: null,
           intake_approved: false,
           skip_cache: true,
-          user_id: user?.id ?? null,
-          is_admin: false, // admin detection handled by rollout controller internal_user_ids
-          is_internal: true, // CockpitPlayground is an internal tool
+          user_id: currentUser?.id ?? null,
+          is_admin: false,
+          is_internal: true,
         },
         (stage, data) => {
           if (runId !== pipelineRunIdRef.current) return;
