@@ -187,6 +187,12 @@ Deno.serve(async (req) => {
         .in("id", validCandidateIds),
     ]);
 
+    // Build diagnosis name map
+    const diagNameMap = new Map<string, string>();
+    for (const d of (diagNamesRes.data || [])) {
+      diagNameMap.set(d.id, d.diagnosis_name);
+    }
+
     // ════════════════════════════════════════════
     // STEP 1: EXTRACT CLINICAL FEATURES
     // ════════════════════════════════════════════
