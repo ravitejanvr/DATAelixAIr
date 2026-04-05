@@ -160,31 +160,46 @@ function likelihoodCategory(pct: number): { label: string; color: string } {
 
 /** Convert raw engine evidence strings to clean clinical language for Doctor mode */
 function cleanEvidenceForDoctor(raw: string): string | null {
+  const trimmed = raw.trim();
   // Skip raw numeric weights like "+0.81 sepsis_syndrome"
-  if (/^[+-]?\d+\.?\d*\s/.test(raw.trim())) return null;
+  if (/^[+-]?\d+\.?\d*\s/.test(trimmed)) return null;
+  // Skip standalone numbers
+  if (/^[+-]?\d+\.?\d*$/.test(trimmed)) return null;
   // Skip UUID-like strings
-  if (/^[0-9a-f]{8}-/.test(raw.trim())) return null;
+  if (/^[0-9a-f]{8}-/.test(trimmed)) return null;
+  // Skip entries with scoring math
+  if (/×\d|logLR|posterior|prior:|modifier/i.test(trimmed)) return null;
+  // Remove "V3:" prefix
+  let cleaned = trimmed.replace(/^V3:\s*/i, "");
+  // Remove inline weights like "(+0.81)" or trailing "+0.81"
+  cleaned = cleaned.replace(/\([+-]?\d+\.?\d*\)/g, "").replace(/[+-]\d+\.?\d*$/g, "").trim();
+  // Map to clinical description
+  const key = cleaned.toLowerCase().replace(/\s/g, "_");
+  if (STATE_TO_CLINICAL[key]) return STATE_TO_CLINICAL[key];
   // Clean underscores to spaces and capitalize
-  let cleaned = raw.replace(/_/g, " ").trim();
+  cleaned = cleaned.replace(/_/g, " ").trim();
   if (!cleaned) return null;
-  // Capitalize first letter
-  cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-  return cleaned;
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
 /** Map technical state names to clinical descriptions */
 const STATE_TO_CLINICAL: Record<string, string> = {
-  sepsis_syndrome: "Systemic infection pattern detected",
-  hemodynamic_collapse: "Hemodynamic instability present",
-  respiratory_distress: "Respiratory compromise noted",
-  systemic_instability: "Multiple organ systems affected",
+  sepsis_syndrome: "Systemic infection pattern",
+  hemodynamic_collapse: "Hemodynamic instability",
+  respiratory_distress: "Respiratory compromise",
+  systemic_instability: "Multi-organ involvement",
   inflammatory_response: "Active inflammatory response",
-  metabolic_derangement: "Metabolic abnormality detected",
+  metabolic_derangement: "Metabolic abnormality",
   cardiac_ischemia: "Cardiac ischemia pattern",
   neurological_emergency: "Acute neurological concern",
-  hepatobiliary_acute: "Hepatobiliary inflammation pattern",
+  hepatobiliary_acute: "Hepatobiliary inflammation",
   renal_colic_pattern: "Renal colic presentation",
   dka_metabolic_crisis: "Diabetic ketoacidosis pattern",
+  hypoxia: "Hypoxia noted",
+  tachycardia: "Tachycardia present",
+  tachypnea: "Tachypnea present",
+  hypotension: "Hypotension present",
+  fever: "Fever present",
 };
 
 type ReasoningLevel = "doctor" | "explanation" | "debug";
