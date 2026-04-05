@@ -61,6 +61,7 @@ import GPBenchmarkDashboard from "./pages/GPBenchmarkDashboard";
 import ModifierSensitivityTest from "./pages/ModifierSensitivityTest";
 import DiagnosticSimulator from "./pages/DiagnosticSimulator";
 import CockpitPlayground from "./pages/CockpitPlayground";
+import V2Evaluation from "./pages/V2Evaluation";
 
 const queryClient = new QueryClient();
 
