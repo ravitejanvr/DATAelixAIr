@@ -558,6 +558,12 @@ Deno.serve(async (req) => {
       latentStatePosteriors.set(state.id, posterior);
     }
 
+    // Mutual exclusivity groups for state competition
+    const STATE_COMPETITION_GROUPS = [
+      ["infection", "cardiac_compromise", "metabolic_derangement"],
+      ["respiratory_failure", "cardiac_compromise"],
+    ];
+
     // Phase 2: State competition — normalize mutually exclusive groups
     // For states in a competition group, apply softmax re-normalization
     // so they can't all be high simultaneously
