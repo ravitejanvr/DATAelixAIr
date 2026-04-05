@@ -277,11 +277,16 @@ Deno.serve(async (req) => {
     // Symptoms → binary presence flags
     // ════════════════════════════════════════════
     const labResults = body.lab_results || body.labs || {};
-    const lactateValue = labResults.lactate ?? vitals?.lactate ?? null;
-    const crpValue = labResults.crp ?? vitals?.crp ?? null;
-    const wbcValue = labResults.wbc ?? vitals?.wbc ?? null;
-    const procalcitoninValue = labResults.procalcitonin ?? vitals?.procalcitonin ?? null;
-    const troponinValue = labResults.troponin ?? vitals?.troponin ?? null;
+    // Case-insensitive lab lookup
+    const labLower: Record<string, any> = {};
+    for (const [k, v] of Object.entries(labResults)) {
+      labLower[k.toLowerCase()] = v;
+    }
+    const lactateValue = labLower.lactate ?? vitals?.lactate ?? null;
+    const crpValue = labLower.crp ?? vitals?.crp ?? null;
+    const wbcValue = labLower.wbc ?? vitals?.wbc ?? null;
+    const procalcitoninValue = labLower.procalcitonin ?? vitals?.procalcitonin ?? null;
+    const troponinValue = labLower.troponin ?? vitals?.troponin ?? null;
 
     console.log("[AUDIT_EDGE_INPUT]", {
       lab_results: labResults,
