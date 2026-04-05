@@ -136,9 +136,9 @@ Deno.serve(async (req) => {
     const tempC = getVitalValue(vitals, "temperature");
     const hr = getVitalValue(vitals, "heartRate") ?? getVitalValue(vitals, "heart_rate") ?? getVitalValue(vitals, "pulse");
     const rr = getVitalValue(vitals, "respiratoryRate") ?? getVitalValue(vitals, "respiratory_rate");
-    const spo2Val = getVitalValue(vitals, "spo2") ?? getVitalValue(vitals, "SpO2") ?? getVitalValue(vitals, "spO2");
+    const spo2Val = getVitalValue(vitals, "spo2") ?? getVitalValue(vitals, "SpO2") ?? getVitalValue(vitals, "spO2") ?? getVitalValue(vitals, "oxygen_saturation") ?? getVitalValue(vitals, "oxygenSaturation");
     let sbpVal: number | null = null;
-    const bpSystolicDirect = getVitalValue(vitals, "bp_systolic");
+    const bpSystolicDirect = getVitalValue(vitals, "bp_systolic") ?? getVitalValue(vitals, "blood_pressure_systolic") ?? getVitalValue(vitals, "systolic") ?? getVitalValue(vitals, "sbp");
     if (bpSystolicDirect !== null) { sbpVal = bpSystolicDirect; }
     else {
       const bpRaw = vitals?.bloodPressure ?? vitals?.blood_pressure ?? vitals?.bp;
@@ -297,10 +297,12 @@ Deno.serve(async (req) => {
         for (const [featureName, dbLogLR] of stateFeatures) {
           if (featureName in continuousFeatures) {
             const continuousLR = continuousFeatures[featureName];
-            if (Math.abs(continuousLR) > 0.01) {
-              const maxMagnitude = Math.abs(dbLogLR);
-              const normalizedMagnitude = Math.min(Math.abs(continuousLR) / 2.0, 1.0);
-              contributions.push(Math.sign(dbLogLR) * maxMagnitude * normalizedMagnitude);
+            // CRITICAL: Only activate when the feature condition IS MET (positive continuousLR).
+            // When continuousLR < 0 the feature is ABSENT — skip it entirely.
+            // This prevents no_fever from canceling fever when patient HAS fever.
+            if (continuousLR > 0.01) {
+              const normalizedMagnitude = Math.min(continuousLR / 2.0, 1.0);
+              contributions.push(dbLogLR * normalizedMagnitude);
             }
           } else if (allBinaryFeatures[featureName]) {
             contributions.push(dbLogLR);
