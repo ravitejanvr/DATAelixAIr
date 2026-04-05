@@ -15,7 +15,7 @@ import { EVAL_CASES } from "@/services/evaluation/cases";
 import { computeFullMetrics, getSystemVerdict, type FullMetrics } from "@/services/evaluation/metrics";
 import {
   FlaskConical, CheckCircle, XCircle, AlertTriangle, Loader2, Shield, Activity,
-  BarChart3, Target, TrendingUp, AlertOctagon,
+  BarChart3, Target, TrendingUp, AlertOctagon, Download,
 } from "lucide-react";
 
 export default function V2Evaluation() {
@@ -116,6 +116,11 @@ export default function V2Evaluation() {
             <Button onClick={handleRunSuite} disabled={running || !user} size="sm">
               {running ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {progress}/{totalCases}</> : "Run Full Suite"}
             </Button>
+            {suiteResult && metrics && verdict && (
+              <Button size="sm" variant="outline" onClick={() => downloadReport(suiteResult, metrics, verdict)}>
+                <Download className="h-3 w-3 mr-1" /> Report
+              </Button>
+            )}
           </div>
         </div>
 
