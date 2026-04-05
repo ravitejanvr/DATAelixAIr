@@ -815,9 +815,23 @@ Deno.serve(async (req) => {
           });
         }
         logScore += latentStateContribution;
+      } else {
+        // ── UNMAPPED DIAGNOSIS PENALTY ──
+        // When strong physiological evidence exists (states activated well above prior),
+        // diagnoses without state mappings are penalized because they can't explain
+        // the observed physiological pattern. This is probabilistically justified:
+        // P(dx | no_state_model, strong_state_evidence) < P(dx | no_state_model, weak_state_evidence)
+        const maxStateShift = Math.max(...Array.from(latentStatePosteriors.values()).map((p, i) => {
+          const priorP = 1 / (1 + Math.exp(-((latentStates[i] as any)?.prior_log_odds || 0)));
+          return Math.abs(p - priorP);
+        }));
+        if (maxStateShift > 0.15) {
+          // Penalty proportional to how strong the state evidence is
+          // Mild: -0.3 to -1.0 log-score penalty
+          const unmappedPenalty = Math.min(maxStateShift * 2.0, 1.0);
+          logScore -= unmappedPenalty;
+        }
       }
-
-      // Evidence trace
       const evidence: string[] = [];
       if (symLiks.length > 0) evidence.push(`${symLiks.length}/${totalSymptoms} symptoms (${(coverageRatio * 100).toFixed(0)}%)`);
       if (physLiks.length > 0) evidence.push(`${physLiks.length} physiology`);
