@@ -132,14 +132,14 @@ export default function V2Evaluation() {
             </div>
 
             <div className="grid grid-cols-3 gap-4">
-              <MetricCard label="Passed" value={suiteResult.passed} color="text-green-600" />
-              <MetricCard label="Failed" value={suiteResult.failed} color="text-orange-500" />
+              <MetricCard label="Passed" value={suiteResult.passed} color="text-primary" />
+              <MetricCard label="Failed" value={suiteResult.failed} color="text-accent-foreground" />
               <MetricCard label="Errors" value={suiteResult.errors} color="text-destructive" />
             </div>
 
             {/* Auth Validation */}
             <ClinicalCard className="p-3">
-              <div className="flex items-center gap-2 text-xs text-green-700">
+              <div className="flex items-center gap-2 text-xs text-primary">
                 <CheckCircle className="h-4 w-4" />
                 <span>Execution Mode: authenticated_production | User: {suiteResult.identity.email} | All {suiteResult.total_cases} cases used real JWT</span>
               </div>
@@ -176,9 +176,9 @@ export default function V2Evaluation() {
                           {r.error ? (
                             <XCircle className="h-4 w-4 text-destructive mx-auto" />
                           ) : r.top1_match ? (
-                            <CheckCircle className="h-4 w-4 text-green-600 mx-auto" />
+                            <CheckCircle className="h-4 w-4 text-primary mx-auto" />
                           ) : r.top3_match ? (
-                            <AlertTriangle className="h-4 w-4 text-orange-500 mx-auto" />
+                            <AlertTriangle className="h-4 w-4 text-accent-foreground mx-auto" />
                           ) : (
                             <XCircle className="h-4 w-4 text-destructive mx-auto" />
                           )}
