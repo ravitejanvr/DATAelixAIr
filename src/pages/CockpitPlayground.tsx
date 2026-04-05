@@ -755,10 +755,10 @@ export default function CockpitPlayground() {
 
       // Retrieve authenticated identity for rollout bucketing
       const currentUser = userRef.current;
-      if (!user?.id) {
+      if (!currentUser?.id) {
         console.warn("[AUTH_CONTEXT] No authenticated user — pipeline will use anonymous rollout bucket");
       }
-      console.log("[AUTH_CONTEXT]", { user_id: user?.id || "null", has_session: !!user });
+      console.log("[AUTH_CONTEXT]", { user_id: currentUser?.id || "null", has_session: !!currentUser });
 
       const result = await runUnifiedClinicalPipeline(
         {
