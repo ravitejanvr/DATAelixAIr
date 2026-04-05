@@ -1459,6 +1459,22 @@ export async function runUnifiedClinicalPipeline(
   let v2Result: import("@/services/bayesian_engine/client_v2").V2Result | null = null;
 
   if (isProbabilisticEngineV2Enabled() && bayesianResult) {
+    // Build lab_results from investigation_results (lactate, troponin, CRP, etc.)
+    const v2LabResults: Record<string, number> = {};
+    if (ctx.investigation_results && typeof ctx.investigation_results === "object") {
+      for (const [key, val] of Object.entries(ctx.investigation_results)) {
+        if (val != null && !isNaN(Number(val))) {
+          v2LabResults[key] = Number(val);
+        }
+      }
+    }
+
+    console.log("[AUDIT_V2_LAB_INPUT]", {
+      investigation_results: ctx.investigation_results,
+      v2LabResults,
+      has_lactate: "lactate" in v2LabResults,
+    });
+
     const v2Input = {
       candidate_diagnosis_ids: ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [],
       symptoms,
@@ -1476,6 +1492,7 @@ export async function runUnifiedClinicalPipeline(
         bp_diastolic: vitals.bp_diastolic,
         respiratory_rate: vitals.respiratory_rate,
       },
+      lab_results: v2LabResults,
       duration: ctx.symptom_duration || null,
       onset_pattern: ctx.onset_pattern || null,
     };

@@ -64,6 +64,7 @@ export interface BayesianInput {
   patient_sex?: string | null;
   region?: string;
   vitals?: Record<string, any>;
+  lab_results?: Record<string, number>;
   duration?: string | null;
   onset_pattern?: string | null;
   severity?: string | null;
