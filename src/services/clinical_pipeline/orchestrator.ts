@@ -1556,9 +1556,24 @@ export async function runUnifiedClinicalPipeline(
 
   // Bridges DDX, Pattern, and Physiology intelligence into Bayesian posteriors.
   // Feature-flagged via enable_score_fusion. Pure, deterministic.
+  // When V2 is primary, fusion operates on V2 output — never overwrites with V1.
   // ═══════════════════════════════════════════════════════
-  let fusedBayesian = (useV2AsPrimary && v2Result) ? v2Result : bayesianResult;
-  if (isScoreFusionEnabled() && bayesianResult && bayesianResult.diagnoses.length > 0) {
+  let fusedBayesian = (useV2AsPrimary && v2Result && !v2FallbackUsed) ? v2Result : bayesianResult;
+
+  console.log("[FINAL_SELECTION]", {
+    using: (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "V2" : "V1",
+    fusedTop: fusedBayesian?.diagnoses?.[0]?.diagnosis_id,
+    fusedTopScore: fusedBayesian?.diagnoses?.[0]?.posterior_probability,
+    v2Top: v2Result?.diagnoses?.[0]?.diagnosis_id,
+    v2TopScore: v2Result?.diagnoses?.[0]?.posterior_probability,
+    v1Top: bayesianResult?.diagnoses?.[0]?.diagnosis_id,
+    v1TopScore: bayesianResult?.diagnoses?.[0]?.posterior_probability,
+  });
+
+  // Score fusion input: always use the selected primary engine output
+  const fusionSourceBayesian = fusedBayesian;
+
+  if (isScoreFusionEnabled() && fusionSourceBayesian && fusionSourceBayesian.diagnoses.length > 0) {
     const fusionStart = performance.now();
     // Build UUID → name map from DDX for semantic resolution in Score Fusion
     const fusionNameMap = new Map<string, string>();
@@ -1569,10 +1584,10 @@ export async function runUnifiedClinicalPipeline(
         }
       }
     }
-    console.log(`[Pipeline] Score Fusion: name map has ${fusionNameMap.size} entries for ${bayesianResult.diagnoses.length} Bayesian diagnoses`);
+    console.log(`[Pipeline] Score Fusion: name map has ${fusionNameMap.size} entries for ${fusionSourceBayesian.diagnoses.length} diagnoses (source: ${(useV2AsPrimary && v2Result && !v2FallbackUsed) ? "V2" : "V1"})`);
 
     const fusionInput = {
-      bayesian: bayesianResult,
+      bayesian: fusionSourceBayesian,
       ddx: ddxResult,
       physiology: physiologicalContext,
       patternAdjustments: patternPriorityResult,
