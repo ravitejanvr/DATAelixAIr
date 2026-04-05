@@ -161,7 +161,7 @@ export interface PipelineResult {
   evidence_engine: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null;
   /** V2 Engine Audit — execution trace for debugging */
   engine_audit: {
-    engine_version: "v1" | "v2";
+    engine_version: EngineVersion;
     fallback_used: boolean;
     fallback_reason: string | null;
     cache_hit: boolean;
@@ -173,7 +173,7 @@ export interface PipelineResult {
     v2_top_score: number | null;
     v1_top_diagnosis: string | null;
     v2_top_diagnosis: string | null;
-    primary_engine: "v1" | "v2";
+    primary_engine: EngineVersion;
   } | null;
 }
 
