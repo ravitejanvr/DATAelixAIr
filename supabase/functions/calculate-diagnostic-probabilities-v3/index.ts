@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
       continuousFeatures["hypoxia"] = continuousLogLR(spo2Val, { x0: 94, k: 0.3, L: 2.0, invert: true });
       continuousFeatures["no_hypoxia"] = -continuousFeatures["hypoxia"];
     }
-    if (lactateValue !== null) { const lv = Number(lactateValue); if (!isNaN(lv)) continuousFeatures["lactate_high"] = continuousLogLR(lv, { x0: 2.0, k: 0.8, L: 3.0 }); }
+    if (lactateValue !== null) { const lv = Number(lactateValue); if (!isNaN(lv)) continuousFeatures["lactate_high"] = Math.min(continuousLogLR(lv, { x0: 2.0, k: 0.8, L: 3.0 }), 2.5); }
     if (crpValue !== null) { const cv = Number(crpValue); if (!isNaN(cv)) continuousFeatures["crp_high"] = continuousLogLR(cv, { x0: 10, k: 0.15, L: 2.0 }); }
     if (wbcValue !== null) {
       const wv = Number(wbcValue);
@@ -271,7 +271,7 @@ Deno.serve(async (req) => {
       { name: "blood_pressure", present: sbpVal !== null, weight: 0.15 },
       { name: "spo2", present: spo2Val !== null, weight: 0.12 },
       { name: "respiratory_rate", present: rr !== null, weight: 0.08 },
-      { name: "lactate", present: lactateValue !== null, weight: 0.15 },
+      { name: "lactate", present: lactateValue !== null, weight: 0.05 },
       { name: "crp", present: crpValue !== null, weight: 0.10 },
       { name: "wbc", present: wbcValue !== null, weight: 0.08 },
       { name: "troponin", present: troponinValue !== null, weight: 0.07 },
@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
           evidenceUpdate += contributions[i] / Math.sqrt(1 + i);
         }
         // Scale by data completeness
-        logOdds += evidenceUpdate * (0.5 + 0.5 * completeness);
+        logOdds += evidenceUpdate * (0.8 + 0.2 * completeness);
       }
 
       logOdds = Math.max(-LOG_ODDS_CLAMP, Math.min(LOG_ODDS_CLAMP, logOdds));
