@@ -2204,10 +2204,11 @@ export default function CockpitPlayground() {
                                   {d.supporting.length > 0 && (() => {
                                     const vitalKeywords = ["hypotension", "tachycardia", "tachypnea", "hypertension", "fever", "hypothermia", "desaturation", "bradycardia", "bp", "heart rate", "spo2", "respiratory rate", "temperature"];
                                     const contextKeywords = ["immunocompromised", "diabetes", "smoking", "obesity", "pregnancy", "recent surgery", "recent travel", "hypertension", "copd", "asthma", "cancer"];
+                                    const cleaned = cleanSupportingList(d.supporting);
                                     const signals: string[] = [];
                                     const vitals: string[] = [];
                                     const context: string[] = [];
-                                    d.supporting.forEach((e: string) => {
+                                    cleaned.forEach((e: string) => {
                                       const lower = e.toLowerCase();
                                       if (vitalKeywords.some(k => lower.includes(k))) vitals.push(e);
                                       else if (contextKeywords.some(k => lower.includes(k))) context.push(e);
