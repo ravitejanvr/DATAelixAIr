@@ -514,6 +514,9 @@ type ContextCategory = "chief_complaint" | "symptoms" | "modifiers" | "risk_fact
 
 export default function CockpitPlayground() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const userRef = useRef(user);
+  userRef.current = user;
 
   // Patient demographics
   const [mockPatient, setMockPatient] = useState<Scenario["patient"] | null>(null);
