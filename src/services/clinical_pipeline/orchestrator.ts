@@ -74,6 +74,7 @@ import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
 import { applyCanonicalScoreFusion } from "@/services/clinical_pipeline/canonical_fusion";
 import { calculateDiagnosticProbabilitiesV2, comparePipelineOutputs } from "@/services/bayesian_engine/client_v2";
 import { shouldUseV2, shouldAuditLog, logV2Audit, getRolloutConfig, selectEngine } from "@/services/rollout_controller";
+import { runInference, getActiveEngineVersion, type EngineVersion, type InferenceResult } from "@/services/engine_registry";
 
 // ── Public Types ──
 
