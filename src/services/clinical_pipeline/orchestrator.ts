@@ -1558,10 +1558,14 @@ export async function runUnifiedClinicalPipeline(
   // Feature-flagged via enable_score_fusion. Pure, deterministic.
   // When V2 is primary, fusion operates on V2 output — never overwrites with V1.
   // ═══════════════════════════════════════════════════════
-  let fusedBayesian = (useV2AsPrimary && v2Result && !v2FallbackUsed) ? v2Result : bayesianResult;
+  const isV2Primary = useV2AsPrimary && v2Result && !v2FallbackUsed;
+  let fusedBayesian = isV2Primary ? v2Result : bayesianResult;
+
+  // Capture raw V2 score for purity validation at end of pipeline
+  const v2RawTopScore = v2Result?.diagnoses?.[0]?.posterior_probability ?? null;
 
   console.log("[FINAL_SELECTION]", {
-    using: (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "V2" : "V1",
+    using: isV2Primary ? "V2" : "V1",
     fusedTop: fusedBayesian?.diagnoses?.[0]?.diagnosis_id,
     fusedTopScore: fusedBayesian?.diagnoses?.[0]?.posterior_probability,
     v2Top: v2Result?.diagnoses?.[0]?.diagnosis_id,
@@ -1574,7 +1578,8 @@ export async function runUnifiedClinicalPipeline(
   const fusionSourceBayesian = fusedBayesian;
 
   // V2 already incorporates physiology via latent states — skip rule-based score fusion
-  const skipScoreFusionForV2 = useV2AsPrimary && v2Result && !v2FallbackUsed;
+  // Also used to skip Evidence Engine (Phase 5.7) since V2 handles evidence via latent states
+  const skipScoreFusionForV2 = isV2Primary;
   if (skipScoreFusionForV2) {
     console.log("[Pipeline] Score Fusion SKIPPED — V2 handles physiology via latent states.");
   }
@@ -1715,7 +1720,10 @@ export async function runUnifiedClinicalPipeline(
   // Runs AFTER CPR, BEFORE SSAL freeze. Pure function, no side effects.
   // ═══════════════════════════════════════════════════════
   let evidenceEngineResult: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null = null;
-  if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
+  // V2 handles evidence via latent states — skip rule-based lab likelihood multipliers
+  if (skipScoreFusionForV2) {
+    console.log("[Pipeline] Phase 5.7: Evidence Engine SKIPPED — V2 handles evidence via latent states.");
+  } else if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
     const { applyBayesianEvidence } = await import("@/services/clinical_reasoning/evidenceEngine");
     const investigationResults = ctx.investigation_results || null;
     console.log("[Pipeline] Phase 5.7 EVIDENCE_INPUT:", {
@@ -2624,26 +2632,28 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("complete", {});
 
   // ── HARD GUARD: V2 purity assertion ──
-  const finalEngineVersion = (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "v2" : "v1";
-  if (finalEngineVersion === "v2" && v2Result) {
-    const v2TopScore = v2Result.diagnoses?.[0]?.posterior_probability;
+  if (isV2Primary && v2Result) {
     const fusedTopScore = fusedBayesian?.diagnoses?.[0]?.posterior_probability;
     const v1TopScore = bayesianResult?.diagnoses?.[0]?.posterior_probability;
+    const isMutated = v2RawTopScore != null && fusedTopScore != null
+      && Math.abs(fusedTopScore - v2RawTopScore) > 0.001;
     console.log("[FINAL_OUTPUT_TRACE]", {
       engine: "V2",
+      v2RawTop: v2RawTopScore,
       fusedTop: fusedTopScore,
-      v2Top: v2TopScore,
       v1Top: v1TopScore,
       scoreFusionSkipped: true,
-      fusedSource: fusedBayesian?.source || "unknown",
-      purityCheck: fusedTopScore != null && v2TopScore != null
-        ? Math.abs(fusedTopScore - v2TopScore) < 0.05 ? "PURE_V2" : "MUTATED"
-        : "UNKNOWN",
+      evidenceEngineSkipped: true,
+      isMutated,
+      purityCheck: isMutated ? "MUTATED" : "PURE_V2",
     });
-    // Warn (not throw) if V1 score leaked into final output
-    if (fusedTopScore != null && v1TopScore != null && v2TopScore != null
+    if (isMutated) {
+      console.error("[V2_PURITY_VIOLATION] Score mutated after V2 selection. Raw:", v2RawTopScore, "Final:", fusedTopScore);
+    }
+    // Warn if V1 score leaked into final output
+    if (fusedTopScore != null && v1TopScore != null && v2RawTopScore != null
         && Math.abs(fusedTopScore - v1TopScore) < 0.001
-        && Math.abs(fusedTopScore - v2TopScore) > 0.01) {
+        && Math.abs(fusedTopScore - v2RawTopScore) > 0.01) {
       console.error("[V2_PURITY_VIOLATION] Final output matches V1, not V2. Possible leakage.");
     }
   }
@@ -2688,7 +2698,7 @@ export async function runUnifiedClinicalPipeline(
     cognitive_layer: null,
     evidence_engine: evidenceEngineResult,
     engine_audit: {
-      engine_version: (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "v2" as const : "v1" as const,
+      engine_version: isV2Primary ? "v2" as const : "v1" as const,
       fallback_used: v2FallbackUsed,
       fallback_reason: v2FallbackReason,
       cache_hit: cache.reasoning_hit,
@@ -2697,10 +2707,10 @@ export async function runUnifiedClinicalPipeline(
       rollout_percentage: rolloutDecision.rollout_percentage,
       is_internal_user: rolloutDecision.is_internal,
       v1_top_score: bayesianResult?.diagnoses?.[0]?.posterior_probability ?? null,
-      v2_top_score: v2Result?.diagnoses?.[0]?.posterior_probability ?? null,
+      v2_top_score: v2RawTopScore,
       v1_top_diagnosis: bayesianResult?.diagnoses?.[0]?.diagnosis_id ?? null,
       v2_top_diagnosis: v2Result?.diagnoses?.[0]?.diagnosis_id ?? null,
-      primary_engine: (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "v2" as const : "v1" as const,
+      primary_engine: isV2Primary ? "v2" as const : "v1" as const,
     },
   };
 }
