@@ -517,8 +517,8 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* ═══ CLINICAL STATUS STRIP ═══ */}
-      {clinicalStatus && (
+      {/* ═══ CLINICAL STATUS STRIP — only after assessment completes ═══ */}
+      {clinicalStatus && isComplete && (
         <motion.div {...fadeIn}>
           <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border ${
             clinicalStatus.level === "critical" ? "bg-destructive/10 border-destructive/30" :
