@@ -1981,10 +1981,10 @@ export async function runUnifiedClinicalPipeline(
     );
   }
 
-  // Conflict resolution between DDX and Bayesian
-  if (metaReasoningResult && ddxResult && bayesianResult) {
+  // Conflict resolution between DDX and Bayesian (uses fusedBayesian for V2 purity)
+  if (metaReasoningResult && ddxResult && fusedBayesian) {
     const ddxTop = ddxResult.differential_diagnoses[0];
-    const bayesTop = bayesianResult.diagnoses[0];
+    const bayesTop = fusedBayesian.diagnoses[0];
     if (ddxTop && bayesTop) {
       const bayesTopName = (bayesTop as any).diagnosis_name
         || (bayesTop as any).diagnosis_id
