@@ -10,7 +10,7 @@ import {
 import {
   Play, Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Brain,
   Activity, Shield, ChevronDown, ChevronUp, Zap, Target, ArrowRight,
-  GitCompare, Lock, BarChart3, Layers,
+  GitCompare, Lock, BarChart3, Layers, TrendingUp,
 } from "lucide-react";
 import { runBenchmarkSuite, BENCHMARK_SUITE, comparePhases } from "@/services/benchmark_v9";
 import type { BenchmarkResult, BenchmarkSuiteResult, PhaseComparisonReport } from "@/services/benchmark_v9/types";
