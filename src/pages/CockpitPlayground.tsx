@@ -2355,7 +2355,7 @@ export default function CockpitPlayground() {
                                     </button>
                                     {isExpanded && d.supporting.length > 0 && (
                                       <div className="mt-1 ml-3 flex flex-wrap gap-1">
-                                        {d.supporting.slice(0, 4).map((e: string, ei: number) => (
+                                        {cleanSupportingList(d.supporting).slice(0, 4).map((e: string, ei: number) => (
                                           <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">✓ {e}</span>
                                         ))}
                                       </div>
