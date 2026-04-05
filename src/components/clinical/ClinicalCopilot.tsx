@@ -246,6 +246,7 @@ export default function ClinicalCopilot({
   const [showMoreMeds, setShowMoreMeds] = useState(false);
   const [showMoreMonitoring, setShowMoreMonitoring] = useState(false);
   const [showMoreInstructions, setShowMoreInstructions] = useState(false);
+  const [showMoreEvidence, setShowMoreEvidence] = useState(false);
 
   // STRICT: Manual results first, then pipeline post-SSAL results. Never use stale DDX data.
   const effectiveCompliance = complianceResults || (pipelineCompliance?.results && pipelineCompliance.results.length > 0 ? pipelineCompliance.results : null);
