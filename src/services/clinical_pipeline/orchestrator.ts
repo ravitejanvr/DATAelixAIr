@@ -1558,10 +1558,14 @@ export async function runUnifiedClinicalPipeline(
   // Feature-flagged via enable_score_fusion. Pure, deterministic.
   // When V2 is primary, fusion operates on V2 output — never overwrites with V1.
   // ═══════════════════════════════════════════════════════
-  let fusedBayesian = (useV2AsPrimary && v2Result && !v2FallbackUsed) ? v2Result : bayesianResult;
+  const isV2Primary = useV2AsPrimary && v2Result && !v2FallbackUsed;
+  let fusedBayesian = isV2Primary ? v2Result : bayesianResult;
+
+  // Capture raw V2 score for purity validation at end of pipeline
+  const v2RawTopScore = v2Result?.diagnoses?.[0]?.posterior_probability ?? null;
 
   console.log("[FINAL_SELECTION]", {
-    using: (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "V2" : "V1",
+    using: isV2Primary ? "V2" : "V1",
     fusedTop: fusedBayesian?.diagnoses?.[0]?.diagnosis_id,
     fusedTopScore: fusedBayesian?.diagnoses?.[0]?.posterior_probability,
     v2Top: v2Result?.diagnoses?.[0]?.diagnosis_id,
