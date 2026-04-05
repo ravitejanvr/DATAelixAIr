@@ -1517,20 +1517,20 @@ export async function runUnifiedClinicalPipeline(
 
   // Bridges DDX, Pattern, and Physiology intelligence into Bayesian posteriors.
   // Feature-flagged via enable_score_fusion. Pure, deterministic.
-  // When V2 is primary, fusion operates on V2 output — never overwrites with V1.
+  // When advanced engine is primary, fusion operates on its output — never overwrites with V1.
   // ═══════════════════════════════════════════════════════
-  const isV2Primary = useV2AsPrimary && v2Result && !v2FallbackUsed;
-  let fusedBayesian = isV2Primary ? v2Result : bayesianResult;
+  const isAdvancedPrimary = useAdvancedEngine && advancedEngineResult && !advancedEngineFallbackUsed;
+  let fusedBayesian = isAdvancedPrimary ? advancedEngineResult : bayesianResult;
 
-  // Capture raw V2 score for purity validation at end of pipeline
-  const v2RawTopScore = v2Result?.diagnoses?.[0]?.posterior_probability ?? null;
+  // Capture raw advanced engine score for purity validation at end of pipeline
+  const advRawTopScore = advancedEngineResult?.diagnoses?.[0]?.posterior_probability ?? null;
 
   console.log("[FINAL_SELECTION]", {
-    using: isV2Primary ? "V2" : "V1",
+    using: isAdvancedPrimary ? activeVersion.toUpperCase() : "V1",
     fusedTop: fusedBayesian?.diagnoses?.[0]?.diagnosis_id,
     fusedTopScore: fusedBayesian?.diagnoses?.[0]?.posterior_probability,
-    v2Top: v2Result?.diagnoses?.[0]?.diagnosis_id,
-    v2TopScore: v2Result?.diagnoses?.[0]?.posterior_probability,
+    advancedTop: advancedEngineResult?.diagnoses?.[0]?.diagnosis_id,
+    advancedTopScore: advancedEngineResult?.diagnoses?.[0]?.posterior_probability,
     v1Top: bayesianResult?.diagnoses?.[0]?.diagnosis_id,
     v1TopScore: bayesianResult?.diagnoses?.[0]?.posterior_probability,
   });
