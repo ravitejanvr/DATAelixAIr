@@ -1,31 +1,44 @@
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { getSystemMode, onSystemModeChange, type SystemMode } from "@/services/system_mode";
-import { Activity, FlaskConical, Shield } from "lucide-react";
+import { getEngineConfig, onEngineConfigChange, type EngineConfig } from "@/services/engine_registry";
+import { Activity, FlaskConical, Shield, Cpu } from "lucide-react";
 
 /**
- * Displays the current system execution mode.
+ * Displays the current system execution mode AND active engine version.
  * Always visible when rendered — no hidden states.
  */
 export default function SystemModeIndicator() {
   const [mode, setMode] = useState<SystemMode>(getSystemMode());
+  const [engineConfig, setEngineConfig] = useState<EngineConfig>(getEngineConfig());
 
   useEffect(() => {
-    const unsub = onSystemModeChange(setMode);
-    return unsub;
+    const unsub1 = onSystemModeChange(setMode);
+    const unsub2 = onEngineConfigChange(setEngineConfig);
+    return () => { unsub1(); unsub2(); };
   }, []);
 
   const config = MODE_DISPLAY[mode.type] ?? MODE_DISPLAY.LIVE_PIPELINE;
 
   return (
-    <Badge
-      variant="outline"
-      className={`gap-1.5 text-[10px] font-mono ${config.className}`}
-      title={`Source: ${mode.source} | Updated: ${mode.updatedAt}`}
-    >
-      <config.icon className="h-3 w-3" />
-      {mode.label}
-    </Badge>
+    <div className="flex items-center gap-1">
+      <Badge
+        variant="outline"
+        className={`gap-1.5 text-[10px] font-mono ${config.className}`}
+        title={`Source: ${mode.source} | Updated: ${mode.updatedAt}`}
+      >
+        <config.icon className="h-3 w-3" />
+        {mode.label}
+      </Badge>
+      <Badge
+        variant="outline"
+        className="gap-1 text-[10px] font-mono border-primary/40 text-primary bg-primary/5"
+        title={`Engine: ${engineConfig.active_engine.toUpperCase()} | Shadow: ${engineConfig.shadow_engine?.toUpperCase() || "none"}`}
+      >
+        <Cpu className="h-3 w-3" />
+        {engineConfig.active_engine.toUpperCase()}
+      </Badge>
+    </div>
   );
 }
 

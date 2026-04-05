@@ -2485,7 +2485,7 @@ export default function CockpitPlayground() {
                     </p>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-mono">
                       <span className="text-muted-foreground">Engine:</span>
-                      <span className={`font-bold ${engineAudit.engine_version === "v2" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
+                      <span className={`font-bold ${engineAudit.engine_version !== "v1" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
                         {engineAudit.engine_version.toUpperCase()}
                       </span>
                       <span className="text-muted-foreground">Primary:</span>
@@ -2508,7 +2508,7 @@ export default function CockpitPlayground() {
                       )}
                       {engineAudit.v2_top_score != null && (
                         <>
-                          <span className="text-muted-foreground">V2 Top:</span>
+                          <span className="text-muted-foreground">{engineAudit.engine_version.toUpperCase()} Top:</span>
                           <span className="text-emerald-600 dark:text-emerald-400 font-bold">{(engineAudit.v2_top_score * 100).toFixed(1)}%</span>
                         </>
                       )}
