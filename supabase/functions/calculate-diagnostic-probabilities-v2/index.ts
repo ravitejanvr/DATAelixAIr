@@ -778,62 +778,84 @@ Deno.serve(async (req) => {
       }
 
       // ════════════════════════════════════════════
-      // ── 9. LATENT STATE CONTRIBUTION ──
-      // IMPROVED FORMULA: Uses both state presence AND absence
-      //
-      // For each state the diagnosis maps to:
-      //   If diagLogLR > 0 (diagnosis expects state present):
-      //     contribution = P(state) * diagLogLR  (reward when state active)
-      //   If diagLogLR < 0 (diagnosis expects state absent):
-      //     contribution = P(state) * diagLogLR  (penalty when state active)
-      //
-      // Additionally: states NOT mapped get NO contribution (relevance filtering)
-      // This prevents diagnoses from being penalized by irrelevant states
+      // ── 9. LATENT STATE CONTRIBUTION — STATE ALIGNMENT SCORING ──
+      // FIX 1: Separate alignment (positive) from penalty (mismatch)
+      // FIX 5: Causal feature boost for strong physiological signals
+      // FIX 6: Coverage check — penalize weak/sparse mappings
       // ════════════════════════════════════════════
       let latentStateContribution = 0;
+      let alignmentScore = 0;
+      let penaltyScore = 0;
       const stateActivations: DiagResult["latent_state_activations"] = [];
       const diagStates = diagStateMap.get(diagId);
 
       if (diagStates) {
+        let significantMappings = 0;
+
         for (const [stateId, diagLogLR] of diagStates) {
           const statePosterior = latentStatePosteriors.get(stateId) || 0.5;
           const statePrior = 1 / (1 + Math.exp(-(latentStates.find(s => s.id === stateId) as any)?.prior_log_odds || 0));
-
-          // Contribution = how much the state posterior DIFFERS from prior, weighted by diagnosis loading
-          // This means: if state hasn't moved from prior, no contribution
-          // If state activated above prior → positive contribution for positive diagLogLR
-          // If state activated above prior → negative contribution for negative diagLogLR
           const posteriorShift = statePosterior - statePrior;
-          // COMPETITION_FACTOR amplifies state contributions for sharper separation
           const COMPETITION_FACTOR = 1.35;
-          const contribution = posteriorShift * diagLogLR * COMPETITION_FACTOR;
-          latentStateContribution += contribution;
 
+          if (diagLogLR > 0) {
+            // Alignment: reward when state activated above prior
+            const contrib = posteriorShift * diagLogLR * COMPETITION_FACTOR;
+            alignmentScore += Math.max(contrib, 0);
+            // Counter-evidence: state below prior when diagnosis expects it
+            if (posteriorShift < -0.02) {
+              penaltyScore += Math.abs(posteriorShift) * diagLogLR * 0.5;
+            }
+          } else {
+            // Negative loading: penalize when state is active
+            if (posteriorShift > 0.02) {
+              penaltyScore += posteriorShift * Math.abs(diagLogLR) * COMPETITION_FACTOR;
+            }
+          }
+
+          if (Math.abs(diagLogLR) > 0.5) significantMappings++;
+
+          const contribution = posteriorShift * diagLogLR * COMPETITION_FACTOR;
           const stateName = latentStates.find(s => s.id === stateId)?.state_name || "unknown";
-          stateActivations.push({
-            state: stateName,
-            posterior: statePosterior,
-            contribution,
-          });
+          stateActivations.push({ state: stateName, posterior: statePosterior, contribution });
         }
+
+        // FIX 1: alignment - penalty (asymmetric competition)
+        latentStateContribution = alignmentScore - penaltyScore;
+
+        // FIX 5: Causal feature boost for strong continuous signals
+        const strongFeatureThreshold = 1.5;
+        let causalBoost = 0;
+        for (const [featureName, featureLR] of Object.entries(continuousFeatures)) {
+          if (Math.abs(featureLR) < strongFeatureThreshold) continue;
+          for (const [stateId, featureMap] of featureStateMap) {
+            const stateFeatureLR = featureMap.get(featureName);
+            if (!stateFeatureLR || Math.abs(stateFeatureLR) < 1.0) continue;
+            const diagLRForState = diagStates.get(stateId);
+            if (diagLRForState && diagLRForState > 1.0) {
+              causalBoost += Math.min(Math.abs(featureLR) * 0.1, 0.3);
+            }
+          }
+        }
+        latentStateContribution += causalBoost;
+
+        // FIX 6: Coverage check — few significant mappings = weak explanation
+        if (significantMappings < 2 && diagStates.size >= 3) {
+          latentStateContribution -= 0.1;
+        }
+
         logScore += latentStateContribution;
       } else {
-        // ── UNMAPPED DIAGNOSIS PENALTY ──
-        // When strong physiological evidence exists (states activated well above prior),
-        // diagnoses without state mappings are penalized because they can't explain
-        // the observed physiological pattern. This is probabilistically justified:
-        // P(dx | no_state_model, strong_state_evidence) < P(dx | no_state_model, weak_state_evidence)
+        // UNMAPPED DIAGNOSIS PENALTY
         const maxStateShift = Math.max(...Array.from(latentStatePosteriors.values()).map((p, i) => {
           const priorP = 1 / (1 + Math.exp(-((latentStates[i] as any)?.prior_log_odds || 0)));
           return Math.abs(p - priorP);
         }));
         if (maxStateShift > 0.15) {
-          // Penalty proportional to how strong the state evidence is
-          // Mild: -0.3 to -1.0 log-score penalty
-          const unmappedPenalty = Math.min(maxStateShift * 2.0, 1.0);
-          logScore -= unmappedPenalty;
+          logScore -= Math.min(maxStateShift * 2.0, 1.0);
         }
       }
+
       const evidence: string[] = [];
       if (symLiks.length > 0) evidence.push(`${symLiks.length}/${totalSymptoms} symptoms (${(coverageRatio * 100).toFixed(0)}%)`);
       if (physLiks.length > 0) evidence.push(`${physLiks.length} physiology`);
@@ -845,7 +867,7 @@ Deno.serve(async (req) => {
       if (clusterMod > 1.0) evidence.push(`cluster ×${clusterMod.toFixed(1)}`);
       if (latentStateContribution !== 0) {
         const activeStates = stateActivations.filter(s => Math.abs(s.contribution) > 0.1);
-        evidence.push(`latent states: ${activeStates.map(s => `${s.state}(${s.contribution > 0 ? '+' : ''}${s.contribution.toFixed(1)})`).join(', ')}`);
+        evidence.push(`latent: align=${alignmentScore.toFixed(2)} pen=${penaltyScore.toFixed(2)} → ${activeStates.map(s => `${s.state}(${s.contribution > 0 ? '+' : ''}${s.contribution.toFixed(1)})`).join(', ')}`);
       }
 
       results.push({
@@ -870,19 +892,21 @@ Deno.serve(async (req) => {
     }
 
     // ════════════════════════════════════════════
-    // GENERIC DIAGNOSIS REGULARIZATION
-    // Diagnoses with very weak state alignment + many competitors get penalized
-    // This prevents "viral infection" / "unspecified" from dominating
+    // FIX 2: GENERIC DIAGNOSIS REGULARIZATION (ENHANCED)
+    // Detect generics by low max logLR OR low variance in state loadings
     // ════════════════════════════════════════════
     const activeCompetitors = results.filter(r => r.latent_state_activations.length > 0 && r.latent_state_contribution > 0.1).length;
     if (activeCompetitors >= 2) {
       for (const r of results) {
-        const maxAbsContrib = Math.max(...r.latent_state_activations.map(s => Math.abs(s.contribution)), 0);
-        const stateAlignment = r.latent_state_activations.length > 0 ? maxAbsContrib : 0;
-        // Weak alignment = max contribution < 0.15 from any state
-        if (stateAlignment < 0.15 && r.latent_state_activations.length > 0) {
-          const genericPenalty = 0.15 * (1 - stateAlignment / 0.15); // 0 to 0.15
-          r.log_score -= genericPenalty;
+        const diagStatesForR = diagStateMap.get(r.diagnosis_id);
+        if (!diagStatesForR) continue;
+        const logLRValues = Array.from(diagStatesForR.values());
+        const maxAbsLogLR = Math.max(...logLRValues.map(v => Math.abs(v)), 0);
+        const meanLogLR = logLRValues.reduce((s, v) => s + v, 0) / (logLRValues.length || 1);
+        const variance = logLRValues.reduce((s, v) => s + (v - meanLogLR) ** 2, 0) / (logLRValues.length || 1);
+        if (maxAbsLogLR < 1.5 || variance < 0.5) {
+          const competitorFactor = Math.min(activeCompetitors / 3, 1.0);
+          r.log_score -= 0.25 * competitorFactor;
         }
       }
     }
