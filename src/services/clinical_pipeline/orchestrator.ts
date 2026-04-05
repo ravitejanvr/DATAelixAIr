@@ -72,8 +72,9 @@ import { detectContextAwareSafetyFlags } from "@/services/context_engine/context
 import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResult } from "@/services/clinical_pipeline/pattern_priority_layer";
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
 import { applyCanonicalScoreFusion } from "@/services/clinical_pipeline/canonical_fusion";
-import { calculateDiagnosticProbabilitiesV2, comparePipelineOutputs } from "@/services/bayesian_engine/client_v2";
+// Legacy V2 client imports removed — all engine calls route through engine_registry.ts
 import { shouldUseV2, shouldAuditLog, logV2Audit, getRolloutConfig, selectEngine } from "@/services/rollout_controller";
+import { runInference, getActiveEngineVersion, type EngineVersion, type InferenceResult } from "@/services/engine_registry";
 
 // ── Public Types ──
 
@@ -160,7 +161,7 @@ export interface PipelineResult {
   evidence_engine: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null;
   /** V2 Engine Audit — execution trace for debugging */
   engine_audit: {
-    engine_version: "v1" | "v2";
+    engine_version: EngineVersion;
     fallback_used: boolean;
     fallback_reason: string | null;
     cache_hit: boolean;
@@ -172,7 +173,7 @@ export interface PipelineResult {
     v2_top_score: number | null;
     v1_top_diagnosis: string | null;
     v2_top_diagnosis: string | null;
-    primary_engine: "v1" | "v2";
+    primary_engine: EngineVersion;
   } | null;
 }
 
@@ -1420,13 +1421,10 @@ export async function runUnifiedClinicalPipeline(
   });
 
   // ═══════════════════════════════════════════════════════
-  // Staged Rollout: Probabilistic Engine V2 (Latent State Architecture)
-  // Uses rollout controller for user-level targeting + percentage bucketing.
-  // When selected for V2: runs V2 as PRIMARY, V1 as shadow comparison.
-  // Otherwise: runs V1 as primary, V2 as shadow (fire-and-forget).
+  // Unified Engine Registry — Single execution path for V1/V2/V3+
+  // Routes through engine_registry.ts. No hardcoded engine references.
   // ═══════════════════════════════════════════════════════
   const rolloutConfig = getRolloutConfig();
-  // Use authenticated user_id as primary rollout identifier — never fall back to empty string
   const rolloutIdentifier = input.user_id || input.visit_id || input.clinic_id || null;
   if (!rolloutIdentifier) {
     console.warn("[ENGINE_AUDIT] WARNING: No authenticated identity — rollout will use anonymous bucket");
@@ -1437,11 +1435,13 @@ export async function runUnifiedClinicalPipeline(
     isAdmin: input.is_admin ?? false,
     isInternalUser: input.is_internal ?? false,
   });
-  const useV2AsPrimary = isProbabilisticEngineV2Enabled() && rolloutDecision.engine_selected === "v2";
+
+  const activeVersion = getActiveEngineVersion();
+  const useAdvancedEngine = (isProbabilisticEngineV2Enabled() || activeVersion === "v3") && rolloutDecision.engine_selected !== "v1";
 
   console.log(`[ENGINE_AUDIT] ══════════════════════════════════`);
   console.log(`[ENGINE_AUDIT] Rollout decision:`, {
-    engine_selected: useV2AsPrimary ? "V2" : "V1",
+    engine_selected: activeVersion.toUpperCase(),
     rollout_percentage: rolloutDecision.rollout_percentage,
     rollout_bucket: rolloutDecision.bucket,
     is_internal_user: rolloutDecision.is_internal,
@@ -1451,31 +1451,32 @@ export async function runUnifiedClinicalPipeline(
     visit_id: input.visit_id || "null",
     cache_bypassed: !!input.skip_cache,
   });
-  console.log(`[ENGINE_AUDIT] ENGINE_SELECTED: ${useV2AsPrimary ? "V2" : "V1"}`);
+  console.log(`[ENGINE_AUDIT] ENGINE_SELECTED: ${activeVersion.toUpperCase()}`);
   console.log(`[ENGINE_AUDIT] CACHE_STATUS: ${input.skip_cache ? "BYPASSED" : (cache.reasoning_hit ? "HIT" : "MISS")}`);
 
-  let v2FallbackUsed = false;
-  let v2FallbackReason: string | null = null;
-  let v2Result: import("@/services/bayesian_engine/client_v2").V2Result | null = null;
+  let advancedEngineFallbackUsed = false;
+  let advancedEngineFallbackReason: string | null = null;
+  let advancedEngineResult: BayesianResult | null = null;
+  let inferenceOutcome: InferenceResult | null = null;
 
-  if (isProbabilisticEngineV2Enabled() && bayesianResult) {
+  if (useAdvancedEngine && bayesianResult) {
     // Build lab_results from investigation_results (lactate, troponin, CRP, etc.)
-    const v2LabResults: Record<string, number> = {};
+    const advLabResults: Record<string, number> = {};
     if (ctx.investigation_results && typeof ctx.investigation_results === "object") {
       for (const [key, val] of Object.entries(ctx.investigation_results)) {
         if (val != null && !isNaN(Number(val))) {
-          v2LabResults[key] = Number(val);
+          advLabResults[key] = Number(val);
         }
       }
     }
 
-    console.log("[AUDIT_V2_LAB_INPUT]", {
+    console.log("[AUDIT_ENGINE_LAB_INPUT]", {
       investigation_results: ctx.investigation_results,
-      v2LabResults,
-      has_lactate: "lactate" in v2LabResults,
+      advLabResults,
+      has_lactate: "lactate" in advLabResults,
     });
 
-    const v2Input = {
+    const engineInput = {
       candidate_diagnosis_ids: ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [],
       symptoms,
       physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
@@ -1492,101 +1493,44 @@ export async function runUnifiedClinicalPipeline(
         bp_diastolic: vitals.bp_diastolic,
         respiratory_rate: vitals.respiratory_rate,
       },
-      lab_results: v2LabResults,
+      lab_results: advLabResults,
       duration: ctx.symptom_duration || null,
       onset_pattern: ctx.onset_pattern || null,
     };
 
-    if (useV2AsPrimary) {
-      // V2 is primary — run synchronously and use its output
-      console.log("[Pipeline] V2 ACTIVE as primary engine for this session");
-      try {
-        v2Result = await calculateDiagnosticProbabilitiesV2(v2Input);
-        if (v2Result) {
-          // Compare and log audit
-          const nameMap = new Map<string, string>();
-          if (ddxResult?.differential_diagnoses) {
-            for (const d of ddxResult.differential_diagnoses) {
-              if (d.diagnosis_id && d.diagnosis_name) nameMap.set(d.diagnosis_id, d.diagnosis_name);
-            }
-          }
-          comparePipelineOutputs(bayesianResult, v2Result, nameMap);
-
-          const v2Top = v2Result.diagnoses[0];
-          const v1Top = bayesianResult.diagnoses[0];
-          const rankChanged = v2Top?.diagnosis_id !== v1Top?.diagnosis_id;
-
-          if (v2Top && shouldAuditLog(v2Top.posterior_probability)) {
-            logV2Audit({
-              visit_id: input.visit_id || "unknown",
-              engine: "v2",
-              top_diagnosis_id: v2Top.diagnosis_id,
-              top_confidence: v2Top.posterior_probability,
-              v1_v2_delta: v1Top ? Math.abs(v2Top.posterior_probability - v1Top.posterior_probability) : undefined,
-              ranking_changed: rankChanged,
-              timestamp: new Date().toISOString(),
-            });
-          }
-
-          // V2 promoted — downstream fusedBayesian will pick this up
-          v2Result = v2Result; // kept for audit; actual swap happens at fusedBayesian
-        } else {
-          console.warn("[ENGINE_AUDIT] FALLBACK_REASON: invalid_state (V2 returned null)");
-          v2FallbackUsed = true;
-          v2FallbackReason = "invalid_state";
-        }
-      } catch (err) {
-        console.error("[ENGINE_AUDIT] FALLBACK_REASON: error", err);
-        v2FallbackUsed = true;
-        v2FallbackReason = "error";
+    // Use unified inference entry point
+    console.log(`[Pipeline] ${activeVersion.toUpperCase()} ACTIVE as primary engine for this session`);
+    try {
+      inferenceOutcome = await runInference(engineInput);
+      advancedEngineResult = inferenceOutcome.result;
+      if (!advancedEngineResult) {
+        console.warn(`[ENGINE_AUDIT] FALLBACK_REASON: invalid_state (${activeVersion} returned null)`);
+        advancedEngineFallbackUsed = true;
+        advancedEngineFallbackReason = inferenceOutcome.fallback_reason || "invalid_state";
       }
-    } else {
-      // Shadow mode: fire-and-forget comparison
-      calculateDiagnosticProbabilitiesV2(v2Input).then(shadowV2 => {
-        const nameMap = new Map<string, string>();
-        if (ddxResult?.differential_diagnoses) {
-          for (const d of ddxResult.differential_diagnoses) {
-            if (d.diagnosis_id && d.diagnosis_name) nameMap.set(d.diagnosis_id, d.diagnosis_name);
-          }
-        }
-        comparePipelineOutputs(bayesianResult, shadowV2, nameMap);
-
-        // Audit log for shadow mode too
-        if (shadowV2?.diagnoses[0] && shouldAuditLog(shadowV2.diagnoses[0].posterior_probability)) {
-          logV2Audit({
-            visit_id: input.visit_id || "unknown",
-            engine: "v2",
-            top_diagnosis_id: shadowV2.diagnoses[0].diagnosis_id,
-            top_confidence: shadowV2.diagnoses[0].posterior_probability,
-            v1_v2_delta: bayesianResult?.diagnoses[0]
-              ? Math.abs(shadowV2.diagnoses[0].posterior_probability - bayesianResult.diagnoses[0].posterior_probability)
-              : undefined,
-            ranking_changed: shadowV2.diagnoses[0].diagnosis_id !== bayesianResult?.diagnoses[0]?.diagnosis_id,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      }).catch(err => {
-        console.warn("[Pipeline] V2 shadow comparison failed (non-blocking):", err);
-      });
+    } catch (err) {
+      console.error("[ENGINE_AUDIT] FALLBACK_REASON: error", err);
+      advancedEngineFallbackUsed = true;
+      advancedEngineFallbackReason = "error";
     }
   }
 
   // Bridges DDX, Pattern, and Physiology intelligence into Bayesian posteriors.
   // Feature-flagged via enable_score_fusion. Pure, deterministic.
-  // When V2 is primary, fusion operates on V2 output — never overwrites with V1.
+  // When advanced engine is primary, fusion operates on its output — never overwrites with V1.
   // ═══════════════════════════════════════════════════════
-  const isV2Primary = useV2AsPrimary && v2Result && !v2FallbackUsed;
-  let fusedBayesian = isV2Primary ? v2Result : bayesianResult;
+  const isAdvancedPrimary = useAdvancedEngine && advancedEngineResult && !advancedEngineFallbackUsed;
+  let fusedBayesian = isAdvancedPrimary ? advancedEngineResult : bayesianResult;
 
-  // Capture raw V2 score for purity validation at end of pipeline
-  const v2RawTopScore = v2Result?.diagnoses?.[0]?.posterior_probability ?? null;
+  // Capture raw advanced engine score for purity validation at end of pipeline
+  const advRawTopScore = advancedEngineResult?.diagnoses?.[0]?.posterior_probability ?? null;
 
   console.log("[FINAL_SELECTION]", {
-    using: isV2Primary ? "V2" : "V1",
+    using: isAdvancedPrimary ? activeVersion.toUpperCase() : "V1",
     fusedTop: fusedBayesian?.diagnoses?.[0]?.diagnosis_id,
     fusedTopScore: fusedBayesian?.diagnoses?.[0]?.posterior_probability,
-    v2Top: v2Result?.diagnoses?.[0]?.diagnosis_id,
-    v2TopScore: v2Result?.diagnoses?.[0]?.posterior_probability,
+    advancedTop: advancedEngineResult?.diagnoses?.[0]?.diagnosis_id,
+    advancedTopScore: advancedEngineResult?.diagnoses?.[0]?.posterior_probability,
     v1Top: bayesianResult?.diagnoses?.[0]?.diagnosis_id,
     v1TopScore: bayesianResult?.diagnoses?.[0]?.posterior_probability,
   });
@@ -1594,14 +1538,14 @@ export async function runUnifiedClinicalPipeline(
   // Score fusion input: always use the selected primary engine output
   const fusionSourceBayesian = fusedBayesian;
 
-  // V2 already incorporates physiology via latent states — skip rule-based score fusion
-  // Also used to skip Evidence Engine (Phase 5.7) since V2 handles evidence via latent states
-  const skipScoreFusionForV2 = isV2Primary;
-  if (skipScoreFusionForV2) {
-    console.log("[Pipeline] Score Fusion SKIPPED — V2 handles physiology via latent states.");
+  // Advanced engines (V2/V3) incorporate physiology via latent states — skip rule-based score fusion
+  // Also used to skip Evidence Engine (Phase 5.7)
+  const skipScoreFusionForAdvanced = isAdvancedPrimary;
+  if (skipScoreFusionForAdvanced) {
+    console.log(`[Pipeline] Score Fusion SKIPPED — ${activeVersion.toUpperCase()} handles physiology via latent states.`);
   }
 
-  if (isScoreFusionEnabled() && fusionSourceBayesian && fusionSourceBayesian.diagnoses.length > 0 && !skipScoreFusionForV2) {
+  if (isScoreFusionEnabled() && fusionSourceBayesian && fusionSourceBayesian.diagnoses.length > 0 && !skipScoreFusionForAdvanced) {
     const fusionStart = performance.now();
     // Build UUID → name map from DDX for semantic resolution in Score Fusion
     const fusionNameMap = new Map<string, string>();
@@ -1738,8 +1682,8 @@ export async function runUnifiedClinicalPipeline(
   // ═══════════════════════════════════════════════════════
   let evidenceEngineResult: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null = null;
   // V2 handles evidence via latent states — skip rule-based lab likelihood multipliers
-  if (skipScoreFusionForV2) {
-    console.log("[Pipeline] Phase 5.7: Evidence Engine SKIPPED — V2 handles evidence via latent states.");
+  if (skipScoreFusionForAdvanced) {
+    console.log(`[Pipeline] Phase 5.7: Evidence Engine SKIPPED — ${activeVersion.toUpperCase()} handles evidence via latent states.`);
   } else if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
     const { applyBayesianEvidence } = await import("@/services/clinical_reasoning/evidenceEngine");
     const investigationResults = ctx.investigation_results || null;
@@ -2648,30 +2592,30 @@ export async function runUnifiedClinicalPipeline(
 
   onProgress?.("complete", {});
 
-  // ── HARD GUARD: V2 purity assertion ──
-  if (isV2Primary && v2Result) {
+  // ── HARD GUARD: Engine purity assertion ──
+  if (isAdvancedPrimary && advancedEngineResult) {
     const fusedTopScore = fusedBayesian?.diagnoses?.[0]?.posterior_probability;
     const v1TopScore = bayesianResult?.diagnoses?.[0]?.posterior_probability;
-    const isMutated = v2RawTopScore != null && fusedTopScore != null
-      && Math.abs(fusedTopScore - v2RawTopScore) > 0.001;
+    const isMutated = advRawTopScore != null && fusedTopScore != null
+      && Math.abs(fusedTopScore - advRawTopScore) > 0.001;
     console.log("[FINAL_OUTPUT_TRACE]", {
-      engine: "V2",
-      v2RawTop: v2RawTopScore,
+      engine: activeVersion.toUpperCase(),
+      advRawTop: advRawTopScore,
       fusedTop: fusedTopScore,
       v1Top: v1TopScore,
       scoreFusionSkipped: true,
       evidenceEngineSkipped: true,
       isMutated,
-      purityCheck: isMutated ? "MUTATED" : "PURE_V2",
+      purityCheck: isMutated ? "MUTATED" : `PURE_${activeVersion.toUpperCase()}`,
     });
     if (isMutated) {
-      console.error("[V2_PURITY_VIOLATION] Score mutated after V2 selection. Raw:", v2RawTopScore, "Final:", fusedTopScore);
+      console.error(`[ENGINE_PURITY_VIOLATION] Score mutated after ${activeVersion.toUpperCase()} selection. Raw:`, advRawTopScore, "Final:", fusedTopScore);
     }
     // Warn if V1 score leaked into final output
-    if (fusedTopScore != null && v1TopScore != null && v2RawTopScore != null
+    if (fusedTopScore != null && v1TopScore != null && advRawTopScore != null
         && Math.abs(fusedTopScore - v1TopScore) < 0.001
-        && Math.abs(fusedTopScore - v2RawTopScore) > 0.01) {
-      console.error("[V2_PURITY_VIOLATION] Final output matches V1, not V2. Possible leakage.");
+        && Math.abs(fusedTopScore - advRawTopScore) > 0.01) {
+      console.error(`[ENGINE_PURITY_VIOLATION] Final output matches V1, not ${activeVersion.toUpperCase()}. Possible leakage.`);
     }
   }
 
@@ -2715,19 +2659,19 @@ export async function runUnifiedClinicalPipeline(
     cognitive_layer: null,
     evidence_engine: evidenceEngineResult,
     engine_audit: {
-      engine_version: isV2Primary ? "v2" as const : "v1" as const,
-      fallback_used: v2FallbackUsed,
-      fallback_reason: v2FallbackReason,
+      engine_version: isAdvancedPrimary ? activeVersion : "v1" as EngineVersion,
+      fallback_used: advancedEngineFallbackUsed,
+      fallback_reason: advancedEngineFallbackReason,
       cache_hit: cache.reasoning_hit,
       cache_status: input.skip_cache ? "BYPASSED" as const : (cache.reasoning_hit ? "HIT" as const : "MISS" as const),
       rollout_bucket: rolloutDecision.bucket,
       rollout_percentage: rolloutDecision.rollout_percentage,
       is_internal_user: rolloutDecision.is_internal,
       v1_top_score: bayesianResult?.diagnoses?.[0]?.posterior_probability ?? null,
-      v2_top_score: v2RawTopScore,
+      v2_top_score: advRawTopScore,
       v1_top_diagnosis: bayesianResult?.diagnoses?.[0]?.diagnosis_id ?? null,
-      v2_top_diagnosis: v2Result?.diagnoses?.[0]?.diagnosis_id ?? null,
-      primary_engine: isV2Primary ? "v2" as const : "v1" as const,
+      v2_top_diagnosis: advancedEngineResult?.diagnoses?.[0]?.diagnosis_id ?? null,
+      primary_engine: isAdvancedPrimary ? activeVersion : "v1" as EngineVersion,
     },
   };
 }
