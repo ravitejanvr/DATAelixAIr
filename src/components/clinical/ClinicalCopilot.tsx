@@ -158,6 +158,35 @@ function likelihoodCategory(pct: number): { label: string; color: string } {
   return { label: "Low", color: "text-muted-foreground bg-muted border-border" };
 }
 
+/** Convert raw engine evidence strings to clean clinical language for Doctor mode */
+function cleanEvidenceForDoctor(raw: string): string | null {
+  // Skip raw numeric weights like "+0.81 sepsis_syndrome"
+  if (/^[+-]?\d+\.?\d*\s/.test(raw.trim())) return null;
+  // Skip UUID-like strings
+  if (/^[0-9a-f]{8}-/.test(raw.trim())) return null;
+  // Clean underscores to spaces and capitalize
+  let cleaned = raw.replace(/_/g, " ").trim();
+  if (!cleaned) return null;
+  // Capitalize first letter
+  cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  return cleaned;
+}
+
+/** Map technical state names to clinical descriptions */
+const STATE_TO_CLINICAL: Record<string, string> = {
+  sepsis_syndrome: "Systemic infection pattern detected",
+  hemodynamic_collapse: "Hemodynamic instability present",
+  respiratory_distress: "Respiratory compromise noted",
+  systemic_instability: "Multiple organ systems affected",
+  inflammatory_response: "Active inflammatory response",
+  metabolic_derangement: "Metabolic abnormality detected",
+  cardiac_ischemia: "Cardiac ischemia pattern",
+  neurological_emergency: "Acute neurological concern",
+  hepatobiliary_acute: "Hepatobiliary inflammation pattern",
+  renal_colic_pattern: "Renal colic presentation",
+  dka_metabolic_crisis: "Diabetic ketoacidosis pattern",
+};
+
 type ReasoningLevel = "doctor" | "explanation" | "debug";
 
 export default function ClinicalCopilot({
