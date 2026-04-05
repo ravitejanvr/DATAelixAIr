@@ -1401,6 +1401,20 @@ export default function CockpitPlayground() {
     clinicalStatus,
   };
 
+  // ── Evidence string cleaner for doctor mode ──
+  const cleanEvidence = (raw: string): string | null => {
+    if (/^[+-]?\d+\.?\d*\s/.test(raw.trim())) return null;
+    if (/^[0-9a-f]{8}-/.test(raw.trim())) return null;
+    let cleaned = raw.replace(/_/g, " ").trim();
+    if (!cleaned) return null;
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  };
+
+  const cleanSupportingList = (items: string[]): string[] => {
+    if (reasoningLevel !== "doctor") return items;
+    return items.map(cleanEvidence).filter(Boolean) as string[];
+  };
+
   // ── Likelihood badge ──
   const likelihoodBadge = (pct: number) => {
     if (pct >= 30) return <Badge className="text-[8px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">High</Badge>;
@@ -1544,9 +1558,6 @@ export default function CockpitPlayground() {
             </div>
             <span className="text-xs font-bold text-foreground">Clinical Cockpit</span>
             {reasoningLevel !== "doctor" && <SystemModeIndicator />}
-            {reasoningLevel === "doctor" && (
-              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">● Running</span>
-            )}
 
             {/* Scenario Dropdown */}
             <DropdownMenu>
@@ -2179,21 +2190,25 @@ export default function CockpitPlayground() {
                                   <div className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
                                 </div>
                                 {/* Inline diagnostic explanation */}
-                                {d.supporting.length > 0 && (
-                                  <p className="text-[9px] text-muted-foreground mt-1 leading-snug">
-                                    Driven by {d.supporting.slice(0, 5).join(", ").toLowerCase()}
-                                  </p>
-                                )}
+                                {d.supporting.length > 0 && (() => {
+                                  const cleaned = cleanSupportingList(d.supporting).slice(0, 5);
+                                  return cleaned.length > 0 ? (
+                                    <p className="text-[9px] text-muted-foreground mt-1 leading-snug">
+                                      Driven by {cleaned.join(", ").toLowerCase()}
+                                    </p>
+                                  ) : null;
+                                })()}
                               </button>
                               {isExpanded && (
                                 <div className="mt-1.5 rounded-md border border-border p-2 bg-muted/20 space-y-2">
                                   {d.supporting.length > 0 && (() => {
                                     const vitalKeywords = ["hypotension", "tachycardia", "tachypnea", "hypertension", "fever", "hypothermia", "desaturation", "bradycardia", "bp", "heart rate", "spo2", "respiratory rate", "temperature"];
                                     const contextKeywords = ["immunocompromised", "diabetes", "smoking", "obesity", "pregnancy", "recent surgery", "recent travel", "hypertension", "copd", "asthma", "cancer"];
+                                    const cleaned = cleanSupportingList(d.supporting);
                                     const signals: string[] = [];
                                     const vitals: string[] = [];
                                     const context: string[] = [];
-                                    d.supporting.forEach((e: string) => {
+                                    cleaned.forEach((e: string) => {
                                       const lower = e.toLowerCase();
                                       if (vitalKeywords.some(k => lower.includes(k))) vitals.push(e);
                                       else if (contextKeywords.some(k => lower.includes(k))) context.push(e);
