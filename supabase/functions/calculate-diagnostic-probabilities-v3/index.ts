@@ -521,9 +521,9 @@ Deno.serve(async (req) => {
       }
 
       // ═══════════════════════════════════════
-      // CONTINUOUS SYSTEMIC SEVERITY WEIGHTING
-      // When systemic instability is high, trust V3 discriminative signal more
-      // When low, blend equally with V1 symptom likelihoods
+      // HARD-GATED SYSTEMIC SEVERITY WEIGHTING
+      // Only activate systemic boost when severity >= 0.7
+      // Below threshold: neutral 1:1 scoring (full symptom contribution)
       // ═══════════════════════════════════════
       const systemicSignals = [
         continuousFeatures["hypotension"] ?? 0,
@@ -532,11 +532,21 @@ Deno.serve(async (req) => {
         continuousFeatures["fever"] ?? 0,
         continuousFeatures["hypoxia"] ?? 0,
       ].filter(v => v > 0.1);
-      // systemic_severity: 0 (no systemic signals) → 1 (all 5 active)
       const systemicSeverity = Math.min(systemicSignals.length / 3, 1.0);
 
-      const stateWeight = 1.0 + systemicSeverity;   // 1.0 → 2.0
-      const symptomWeight = 1.0 - 0.7 * systemicSeverity; // 1.0 → 0.3
+      const SYSTEMIC_GATE_THRESHOLD = 0.7;
+      let stateWeight: number;
+      let symptomWeight: number;
+
+      if (systemicSeverity >= SYSTEMIC_GATE_THRESHOLD) {
+        // High systemic instability: boost V3, attenuate V1
+        stateWeight = 1.0 + systemicSeverity;       // 1.7 → 2.0
+        symptomWeight = 1.0 - 0.7 * systemicSeverity; // 0.51 → 0.3
+      } else {
+        // Below gate: neutral — full symptom contribution, no attenuation
+        stateWeight = 1.0;
+        symptomWeight = 1.0;
+      }
 
       logScore += (stateWeight * v3StateScore) + (symptomWeight * symptomScore);
 
@@ -595,15 +605,24 @@ Deno.serve(async (req) => {
     }
 
     // ═══════════════════════════════════════
-    // V3 STEP 5: SOFTMAX NORMALIZATION
+    // V3 STEP 5: TOP-K TRUNCATION + SOFTMAX NORMALIZATION
+    // Limit candidate set to top 10 before softmax to prevent
+    // tail candidates from diluting probability mass
     // ═══════════════════════════════════════
-    const TEMPERATURE = 0.5; // Sharper than V2 for clinical clarity
-    const scaledScores = results.map(d => d.log_score / TEMPERATURE);
+    results.sort((a, b) => b.log_score - a.log_score);
+    const TOP_K = 10;
+    const softmaxCandidates = results.slice(0, TOP_K);
+    const truncated = results.slice(TOP_K);
+    // Zero out truncated candidates
+    for (const t of truncated) t.posterior_probability = 0;
+
+    const TEMPERATURE = 0.5;
+    const scaledScores = softmaxCandidates.map(d => d.log_score / TEMPERATURE);
     const maxLog = Math.max(...scaledScores);
     const expScores = scaledScores.map(s => Math.exp(s - maxLog));
     const sumExp = expScores.reduce((s, e) => s + e, 0) || 1;
-    for (let i = 0; i < results.length; i++) {
-      results[i].posterior_probability = parseFloat((expScores[i] / sumExp).toFixed(4));
+    for (let i = 0; i < softmaxCandidates.length; i++) {
+      softmaxCandidates[i].posterior_probability = parseFloat((expScores[i] / sumExp).toFixed(4));
     }
 
     // Must-not-miss floor
