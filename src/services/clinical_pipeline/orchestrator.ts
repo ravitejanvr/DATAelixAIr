@@ -1578,7 +1578,8 @@ export async function runUnifiedClinicalPipeline(
   const fusionSourceBayesian = fusedBayesian;
 
   // V2 already incorporates physiology via latent states — skip rule-based score fusion
-  const skipScoreFusionForV2 = useV2AsPrimary && v2Result && !v2FallbackUsed;
+  // Also used to skip Evidence Engine (Phase 5.7) since V2 handles evidence via latent states
+  const skipScoreFusionForV2 = isV2Primary;
   if (skipScoreFusionForV2) {
     console.log("[Pipeline] Score Fusion SKIPPED — V2 handles physiology via latent states.");
   }
