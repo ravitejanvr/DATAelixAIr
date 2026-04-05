@@ -550,11 +550,150 @@ Deno.serve(async (req) => {
 
       logScore += (stateWeight * v3StateScore) + (symptomWeight * symptomScore);
 
+      // ═══════════════════════════════════════
+      // V3 STEP 3b: DIAGNOSTIC DISCRIMINATION LAYER
+      // 1. Negative constraints — penalize when hallmark features ABSENT
+      // 2. Hallmark local boosts — reward pathognomonic features
+      // 3. Generic diagnosis penalty — suppress URI/viral unless cluster-backed
+      // 4. Feature coherence — require minimum matching features per category
+      // 5. Category suppression — suppress irrelevant organ categories
+      // ═══════════════════════════════════════
+      const dxName = (diagNameMap.get(diagId) || "").toLowerCase();
+      let discriminationDelta = 0;
+
+      // ── 1. NEGATIVE CONSTRAINTS ──
+      // Penalize diagnoses when their hallmark features are absent
+      const NEGATIVE_CONSTRAINTS: Array<{ patterns: string[]; requiredFeatures: string[]; penalty: number }> = [
+        { patterns: ["pneumonia", "cap"], requiredFeatures: ["cough", "dyspnea"], penalty: -0.6 },
+        { patterns: ["appendicitis"], requiredFeatures: ["abdominal_pain"], penalty: -1.0 },
+        { patterns: ["cholecystitis", "biliary"], requiredFeatures: ["abdominal_pain"], penalty: -0.8 },
+        { patterns: ["pyelonephritis", "renal colic", "kidney stone", "nephrolithiasis"], requiredFeatures: ["urinary", "abdominal_pain"], penalty: -0.7 },
+        { patterns: ["meningitis"], requiredFeatures: ["headache"], penalty: -0.8 },
+        { patterns: ["acute coronary", "acs", "myocardial infarction", "angina"], requiredFeatures: ["chest_pain"], penalty: -0.9 },
+        { patterns: ["pulmonary embolism"], requiredFeatures: ["dyspnea", "chest_pain"], penalty: -0.7 },
+        { patterns: ["gastroenteritis"], requiredFeatures: ["diarrhea", "vomiting"], penalty: -0.6 },
+        { patterns: ["pharyngitis", "tonsillitis"], requiredFeatures: ["sore_throat"], penalty: -0.8 },
+        { patterns: ["gout", "gouty arthritis"], requiredFeatures: ["joint_pain"], penalty: -0.9 },
+      ];
+
+      for (const nc of NEGATIVE_CONSTRAINTS) {
+        if (nc.patterns.some(p => dxName.includes(p))) {
+          // At least one required feature must be present
+          const hasAny = nc.requiredFeatures.some(f => symptomFeatures[f]);
+          if (!hasAny) {
+            discriminationDelta += nc.penalty;
+          }
+        }
+      }
+
+      // ── 2. HALLMARK LOCAL FEATURE BOOSTS ──
+      // Reward specific, localizing features that strongly indicate particular diagnoses
+      const HALLMARK_BOOSTS: Array<{ patterns: string[]; features: Array<{ check: () => boolean; boost: number }> }> = [
+        {
+          patterns: ["appendicitis"],
+          features: [
+            { check: () => allSymptomText.some(s => s.includes("rlq") || s.includes("right lower quadrant") || s.includes("mcburney")), boost: 0.8 },
+            { check: () => symptomFeatures.abdominal_pain && symptomFeatures.vomiting && (tempC !== null && tempC > 37.5), boost: 0.5 },
+          ],
+        },
+        {
+          patterns: ["cholecystitis"],
+          features: [
+            { check: () => allSymptomText.some(s => s.includes("ruq") || s.includes("right upper quadrant") || s.includes("murphy")), boost: 0.8 },
+          ],
+        },
+        {
+          patterns: ["pyelonephritis", "renal colic", "kidney stone"],
+          features: [
+            { check: () => allSymptomText.some(s => s.includes("flank") || s.includes("costovertebral") || s.includes("loin")), boost: 0.7 },
+          ],
+        },
+        {
+          patterns: ["pneumonia", "cap"],
+          features: [
+            { check: () => symptomFeatures.cough && symptomFeatures.dyspnea && (tempC !== null && tempC > 38.0), boost: 0.5 },
+            { check: () => allSymptomText.some(s => s.includes("productive cough") || s.includes("sputum") || s.includes("crackles")), boost: 0.4 },
+          ],
+        },
+        {
+          patterns: ["gout"],
+          features: [
+            { check: () => allSymptomText.some(s => s.includes("great toe") || s.includes("big toe") || s.includes("podagra") || s.includes("mtp")), boost: 0.8 },
+          ],
+        },
+        {
+          patterns: ["migraine"],
+          features: [
+            { check: () => allSymptomText.some(s => s.includes("aura") || s.includes("photophobia") || s.includes("unilateral headache")), boost: 0.6 },
+          ],
+        },
+      ];
+
+      for (const hb of HALLMARK_BOOSTS) {
+        if (hb.patterns.some(p => dxName.includes(p))) {
+          for (const f of hb.features) {
+            if (f.check()) discriminationDelta += f.boost;
+          }
+        }
+      }
+
+      // ── 3. GENERIC DIAGNOSIS PENALTY ──
+      // Suppress URI, viral illness, URTI unless backed by cluster match
+      const GENERIC_PATTERNS = ["upper respiratory", "uri", "urti", "viral", "common cold", "non-specific"];
+      const isGeneric = GENERIC_PATTERNS.some(p => dxName.includes(p));
+      if (isGeneric) {
+        const hasClusterSupport = (clusterModMap.get(diagId) || 1.0) > 1.1;
+        if (!hasClusterSupport) {
+          discriminationDelta -= 0.5; // Penalize unsubstantiated generic diagnoses
+        }
+      }
+
+      // ── 4. MINIMUM FEATURE COHERENCE ──
+      // Require at least N matching symptoms for certain diagnostic categories
+      const COHERENCE_RULES: Array<{ patterns: string[]; minSymptomMatches: number; penalty: number }> = [
+        { patterns: ["sepsis", "septic shock"], minSymptomMatches: 0, penalty: 0 }, // Sepsis uses vitals, not symptoms
+        { patterns: ["pneumonia", "cap"], minSymptomMatches: 1, penalty: -0.4 },
+        { patterns: ["gastroenteritis"], minSymptomMatches: 1, penalty: -0.5 },
+        { patterns: ["meningitis"], minSymptomMatches: 1, penalty: -0.4 },
+      ];
+
+      for (const cr of COHERENCE_RULES) {
+        if (cr.patterns.some(p => dxName.includes(p))) {
+          if (symLiks.length < cr.minSymptomMatches && cr.penalty !== 0) {
+            discriminationDelta += cr.penalty;
+          }
+        }
+      }
+
+      // ── 5. CATEGORY SUPPRESSION ──
+      // Suppress entire organ-system categories when key features are absent
+      const CATEGORY_SUPPRESSION: Array<{ patterns: string[]; absentFeatures: string[]; allAbsentPenalty: number }> = [
+        { patterns: ["cardiac", "coronary", "angina", "myocardial", "acs"], absentFeatures: ["chest_pain", "sweating"], allAbsentPenalty: -0.7 },
+        { patterns: ["gastro", "colitis", "enteritis"], absentFeatures: ["diarrhea", "vomiting", "abdominal_pain"], allAbsentPenalty: -0.6 },
+        { patterns: ["urinary", "cystitis", "uti", "pyelonephritis"], absentFeatures: ["urinary"], allAbsentPenalty: -0.5 },
+        { patterns: ["arthritis", "gout", "joint"], absentFeatures: ["joint_pain"], allAbsentPenalty: -0.7 },
+        { patterns: ["dermat", "cellulitis", "rash"], absentFeatures: ["rash"], allAbsentPenalty: -0.5 },
+      ];
+
+      for (const cs of CATEGORY_SUPPRESSION) {
+        if (cs.patterns.some(p => dxName.includes(p))) {
+          const allAbsent = cs.absentFeatures.every(f => !symptomFeatures[f]);
+          if (allAbsent) {
+            discriminationDelta += cs.allAbsentPenalty;
+          }
+        }
+      }
+
+      logScore += discriminationDelta;
+
       const evidence: string[] = [];
       if (symLiks.length > 0) evidence.push(`${symLiks.length}/${totalSymptoms} symptoms`);
       const activeStates = stateActivations.filter(s => Math.abs(s.contribution) > 0.05);
       if (activeStates.length > 0) {
         evidence.push(`v3: ${activeStates.map(s => `${s.state}(${s.contribution > 0 ? '+' : ''}${s.contribution.toFixed(2)})`).join(', ')}`);
+      }
+      if (Math.abs(discriminationDelta) > 0.01) {
+        evidence.push(`disc: ${discriminationDelta > 0 ? '+' : ''}${discriminationDelta.toFixed(2)}`);
       }
 
       results.push({
