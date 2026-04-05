@@ -1,10 +1,11 @@
 /**
- * Authenticated Evaluation Runner for V2 Probabilistic Engine.
+ * Authenticated Evaluation Runner — Engine-Agnostic
+ * Routes through the unified Engine Registry.
  */
 
-import { supabase } from "@/integrations/supabase/client";
 import { getAccessToken, getEvalIdentity } from "./auth";
 import { EVAL_CASES, type EvalCase } from "./cases";
+import { runInference, getActiveEngineVersion } from "@/services/engine_registry";
 
 export interface EvalCaseResult {
   case_id: string;
@@ -81,6 +82,7 @@ async function runSingleCase(testCase: EvalCase, userId: string): Promise<EvalCa
 
   try {
     const payload = {
+      candidate_diagnosis_ids: [],
       symptoms: testCase.input.symptoms,
       vitals: testCase.input.vitals || {},
       lab_results: testCase.input.lab_results || {},
@@ -88,27 +90,24 @@ async function runSingleCase(testCase: EvalCase, userId: string): Promise<EvalCa
       medical_history: testCase.input.medical_history || [],
       patient_age: testCase.input.age,
       patient_sex: testCase.input.sex,
-      eval_trace_id: traceId,
     };
 
-    console.log("[EVAL_REQUEST]", { case_id: testCase.id, payload });
+    console.log("[EVAL_REQUEST]", { case_id: testCase.id, engine: getActiveEngineVersion(), payload });
 
-    const { data, error } = await supabase.functions.invoke(
-      "calculate-diagnostic-probabilities-v2",
-      { body: payload }
-    );
+    const inferenceResult = await runInference(payload);
+    const data = inferenceResult.result;
 
-    const latency = Math.round(performance.now() - start);
+    const latency = inferenceResult.latency_ms;
 
-    if (error) {
-      console.error("[EVAL_EDGE_ERROR]", { case_id: testCase.id, error });
-      return makeErrorResult(testCase, latency, userId, traceId, error.message || String(error));
+    if (!data) {
+      console.error("[EVAL_EDGE_ERROR]", { case_id: testCase.id, reason: inferenceResult.fallback_reason });
+      return makeErrorResult(testCase, latency, userId, traceId, inferenceResult.fallback_reason || "Engine returned null");
     }
 
     // Log raw response structure for debugging
-    console.log("[RAW_EDGE_RESPONSE]", {
+    console.log("[RAW_ENGINE_RESPONSE]", {
       case_id: testCase.id,
-      keys: Object.keys(data || {}),
+      engine: inferenceResult.engine_version,
       diagnoses_count: data?.diagnoses?.length ?? 0,
       source: data?.source,
     });
@@ -167,7 +166,7 @@ async function runSingleCase(testCase: EvalCase, userId: string): Promise<EvalCa
       latency_ms: latency,
       auth_used: true,
       execution_mode: "authenticated_production",
-      engine_source: data?.source || "v2",
+      engine_source: inferenceResult.engine_version,
       user_id: userId,
       trace_id: traceId,
     };
