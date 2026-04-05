@@ -419,31 +419,44 @@ Deno.serve(async (req) => {
     }
 
     // Phase 1: Compute raw log-odds with diminishing returns
+    // Now handles BOTH continuous (vitals/labs) and binary (symptoms) features
     for (const state of latentStates) {
       let logOdds = 0;
       const stateFeatures = featureStateMap.get(state.id);
-      let positiveCount = 0;
-      let negativeCount = 0;
 
       if (stateFeatures) {
-        // Collect contributions, sorted by absolute magnitude (strongest first)
+        // Collect contributions from all active features
         const contributions: number[] = [];
-        for (const [featureName, logLR] of stateFeatures) {
-          if (allFeatures[featureName]) {
-            contributions.push(logLR);
-            if (logLR > 0) positiveCount++;
-            else negativeCount++;
+
+        for (const [featureName, dbLogLR] of stateFeatures) {
+          // CONTINUOUS features: multiply DB logLR direction by continuous magnitude
+          if (featureName in continuousFeatures) {
+            const continuousLR = continuousFeatures[featureName];
+            if (Math.abs(continuousLR) > 0.01) {
+              // Scale: use continuous value magnitude, capped by DB logLR magnitude
+              // When continuousLR is near max sigmoid output (~L), use full DB weight
+              // When near 0 (threshold region), use proportional weight
+              // This preserves DB-driven state mapping while adding continuous gradation
+              const maxMagnitude = Math.abs(dbLogLR);
+              const normalizedMagnitude = Math.min(Math.abs(continuousLR) / 3.0, 1.0); // 3.0 = max sigmoid L
+              const effectiveLR = Math.sign(dbLogLR) * maxMagnitude * normalizedMagnitude;
+              contributions.push(effectiveLR);
+            }
+            continue; // don't also check binary
+          }
+
+          // BINARY features: use DB logLR directly when feature is active
+          if (allBinaryFeatures[featureName]) {
+            contributions.push(dbLogLR);
           }
         }
 
         // Sort by absolute value descending — strongest evidence first
         contributions.sort((a, b) => Math.abs(b) - Math.abs(a));
 
-        // DIMINISHING RETURNS: each additional feature contributing to the
-        // same state gets a decreasing weight: 1st=100%, 2nd=75%, 3rd=56%, etc.
-        // This prevents state saturation from redundant correlated features
+        // DIMINISHING RETURNS: 1st=100%, 2nd=71%, 3rd=58%, 4th=50%...
         for (let i = 0; i < contributions.length; i++) {
-          const diminishingFactor = 1 / Math.sqrt(1 + i); // 1.0, 0.71, 0.58, 0.50...
+          const diminishingFactor = 1 / Math.sqrt(1 + i);
           logOdds += contributions[i] * diminishingFactor;
         }
       }
