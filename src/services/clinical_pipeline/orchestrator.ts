@@ -73,7 +73,7 @@ import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResu
 import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
 import { applyCanonicalScoreFusion } from "@/services/clinical_pipeline/canonical_fusion";
 import { calculateDiagnosticProbabilitiesV2, comparePipelineOutputs } from "@/services/bayesian_engine/client_v2";
-import { shouldUseV2, shouldAuditLog, logV2Audit, getRolloutConfig } from "@/services/rollout_controller";
+import { shouldUseV2, shouldAuditLog, logV2Audit, getRolloutConfig, selectEngine } from "@/services/rollout_controller";
 
 // ── Public Types ──
 
@@ -85,6 +85,12 @@ export interface PipelineInput {
   intake_approved?: boolean;
   /** When true, bypass reasoning cache to force full pipeline execution (used by trace/benchmarks) */
   skip_cache?: boolean;
+  /** Authenticated user identity — used for rollout bucketing */
+  user_id?: string | null;
+  /** Whether the authenticated user is an admin */
+  is_admin?: boolean;
+  /** Whether the authenticated user is an internal/test user */
+  is_internal?: boolean;
   recommendations?: {
     diagnosis?: string;
     drugs?: string[];
@@ -1420,21 +1426,28 @@ export async function runUnifiedClinicalPipeline(
   // Otherwise: runs V1 as primary, V2 as shadow (fire-and-forget).
   // ═══════════════════════════════════════════════════════
   const rolloutConfig = getRolloutConfig();
-  const rolloutHashSource = input.visit_id || input.clinic_id || "";
-  const rolloutBucket = rolloutHashSource ? (Math.abs([...rolloutHashSource].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)) % 100) : -1;
-  const isInternalUser = !!(input.clinic_id && rolloutConfig.internal_user_ids.includes(input.clinic_id));
-  const useV2AsPrimary = isProbabilisticEngineV2Enabled() && shouldUseV2(
-    input.clinic_id ?? undefined,
-    input.visit_id ?? undefined,
-  );
+  // Use authenticated user_id as primary rollout identifier — never fall back to empty string
+  const rolloutIdentifier = input.user_id || input.visit_id || input.clinic_id || null;
+  if (!rolloutIdentifier) {
+    console.warn("[ENGINE_AUDIT] WARNING: No authenticated identity — rollout will use anonymous bucket");
+  }
+  const rolloutDecision = selectEngine({
+    userId: rolloutIdentifier ?? undefined,
+    sessionId: input.visit_id ?? undefined,
+    isAdmin: input.is_admin ?? false,
+    isInternalUser: input.is_internal ?? false,
+  });
+  const useV2AsPrimary = isProbabilisticEngineV2Enabled() && rolloutDecision.engine_selected === "v2";
 
   console.log(`[ENGINE_AUDIT] ══════════════════════════════════`);
   console.log(`[ENGINE_AUDIT] Rollout decision:`, {
     engine_selected: useV2AsPrimary ? "V2" : "V1",
-    rollout_percentage: rolloutConfig.rollout_percentage,
-    rollout_bucket: rolloutBucket,
-    is_internal_user: isInternalUser,
+    rollout_percentage: rolloutDecision.rollout_percentage,
+    rollout_bucket: rolloutDecision.bucket,
+    is_internal_user: rolloutDecision.is_internal,
+    is_admin: rolloutDecision.is_admin,
     v2_feature_flag: isProbabilisticEngineV2Enabled(),
+    user_id: input.user_id || "null",
     visit_id: input.visit_id || "null",
     cache_bypassed: !!input.skip_cache,
   });
@@ -2634,9 +2647,9 @@ export async function runUnifiedClinicalPipeline(
       fallback_reason: v2FallbackReason,
       cache_hit: cache.reasoning_hit,
       cache_status: input.skip_cache ? "BYPASSED" as const : (cache.reasoning_hit ? "HIT" as const : "MISS" as const),
-      rollout_bucket: rolloutBucket,
-      rollout_percentage: rolloutConfig.rollout_percentage,
-      is_internal_user: isInternalUser,
+      rollout_bucket: rolloutDecision.bucket,
+      rollout_percentage: rolloutDecision.rollout_percentage,
+      is_internal_user: rolloutDecision.is_internal,
       v1_top_score: bayesianResult?.diagnoses?.[0]?.posterior_probability ?? null,
       v2_top_score: v2Result?.diagnoses?.[0]?.posterior_probability ?? null,
       v1_top_diagnosis: bayesianResult?.diagnoses?.[0]?.diagnosis_id ?? null,
