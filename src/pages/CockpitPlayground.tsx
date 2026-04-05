@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import type { HypothesisEntry, PipelineEvidence, PipelineCompliance } from "@/components/clinical/ClinicalCopilot";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -513,6 +514,9 @@ type ContextCategory = "chief_complaint" | "symptoms" | "modifiers" | "risk_fact
 
 export default function CockpitPlayground() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const userRef = useRef(user);
+  userRef.current = user;
 
   // Patient demographics
   const [mockPatient, setMockPatient] = useState<Scenario["patient"] | null>(null);
@@ -749,12 +753,22 @@ export default function CockpitPlayground() {
 
       console.log("[CONTEXT_LABS]", pipelineContext.investigation_results);
 
+      // Retrieve authenticated identity for rollout bucketing
+      const currentUser = userRef.current;
+      if (!currentUser?.id) {
+        console.warn("[AUTH_CONTEXT] No authenticated user — pipeline will use anonymous rollout bucket");
+      }
+      console.log("[AUTH_CONTEXT]", { user_id: currentUser?.id || "null", has_session: !!currentUser });
+
       const result = await runUnifiedClinicalPipeline(
         {
           clinical_context: pipelineContext,
           visit_id: null, consultation_id: null, clinic_id: null,
           intake_approved: false,
-          skip_cache: true, // FIX 4: Force deterministic execution — no cache path divergence
+          skip_cache: true,
+          user_id: currentUser?.id ?? null,
+          is_admin: false,
+          is_internal: true,
         },
         (stage, data) => {
           if (runId !== pipelineRunIdRef.current) return;
