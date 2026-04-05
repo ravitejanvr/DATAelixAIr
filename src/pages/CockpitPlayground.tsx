@@ -750,12 +750,22 @@ export default function CockpitPlayground() {
 
       console.log("[CONTEXT_LABS]", pipelineContext.investigation_results);
 
+      // Retrieve authenticated identity for rollout bucketing
+      const { user } = useAuthRef.current;
+      if (!user?.id) {
+        console.warn("[AUTH_CONTEXT] No authenticated user — pipeline will use anonymous rollout bucket");
+      }
+      console.log("[AUTH_CONTEXT]", { user_id: user?.id || "null", has_session: !!user });
+
       const result = await runUnifiedClinicalPipeline(
         {
           clinical_context: pipelineContext,
           visit_id: null, consultation_id: null, clinic_id: null,
           intake_approved: false,
-          skip_cache: true, // FIX 4: Force deterministic execution — no cache path divergence
+          skip_cache: true,
+          user_id: user?.id ?? null,
+          is_admin: false, // admin detection handled by rollout controller internal_user_ids
+          is_internal: true, // CockpitPlayground is an internal tool
         },
         (stage, data) => {
           if (runId !== pipelineRunIdRef.current) return;
