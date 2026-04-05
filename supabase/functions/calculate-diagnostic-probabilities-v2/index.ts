@@ -218,6 +218,15 @@ Deno.serve(async (req) => {
     const procalcitoninValue = labResults.procalcitonin ?? vitals?.procalcitonin ?? null;
     const troponinValue = labResults.troponin ?? vitals?.troponin ?? null;
 
+    console.log("[AUDIT_EDGE_INPUT]", {
+      lab_results: labResults,
+      lactateValue,
+      crpValue,
+      wbcValue,
+      procalcitoninValue,
+      troponinValue,
+    });
+
     const activeFeatures: Record<string, boolean> = {
       fever: (tempC !== null && tempC >= 38) || allSymptomText.some(s => s.includes("fever")),
       hypotension: sbpVal !== null && sbpVal < 90,
