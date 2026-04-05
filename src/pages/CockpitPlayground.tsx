@@ -1401,6 +1401,20 @@ export default function CockpitPlayground() {
     clinicalStatus,
   };
 
+  // ── Evidence string cleaner for doctor mode ──
+  const cleanEvidence = (raw: string): string | null => {
+    if (/^[+-]?\d+\.?\d*\s/.test(raw.trim())) return null;
+    if (/^[0-9a-f]{8}-/.test(raw.trim())) return null;
+    let cleaned = raw.replace(/_/g, " ").trim();
+    if (!cleaned) return null;
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  };
+
+  const cleanSupportingList = (items: string[]): string[] => {
+    if (reasoningLevel !== "doctor") return items;
+    return items.map(cleanEvidence).filter(Boolean) as string[];
+  };
+
   // ── Likelihood badge ──
   const likelihoodBadge = (pct: number) => {
     if (pct >= 30) return <Badge className="text-[8px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">High</Badge>;
