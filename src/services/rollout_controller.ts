@@ -41,7 +41,7 @@ export function updateRolloutConfig(patch: Partial<RolloutConfig>): void {
 
 // ── Engine Selection ──
 
-export type EngineVersion = "v1" | "v2";
+export type EngineVersion = "v1" | "v2" | "v3";
 
 export interface RolloutDecision {
   engine_selected: EngineVersion;
@@ -86,13 +86,14 @@ export function selectEngine(input: RolloutInput): RolloutDecision {
   let engine: EngineVersion;
   let forceOverride: EngineVersion | null = null;
 
-  if (force_engine === "v2" || force_engine === "v1") {
+  if (force_engine === "v3" || force_engine === "v2" || force_engine === "v1") {
     engine = force_engine;
     forceOverride = force_engine;
   } else if (!currentConfig.enabled) {
     engine = "v1";
   } else if (bucket < effectivePercentage) {
-    engine = "v2";
+    // Default promoted engine is now V3
+    engine = "v3";
   } else {
     engine = "v1";
   }

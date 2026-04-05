@@ -23,6 +23,7 @@ export interface FeatureFlags {
   enable_bayesian_systemic_likelihood: boolean;
   enable_clinical_priority_resolution: boolean;
   enable_probabilistic_engine_v2: boolean;
+  enable_probabilistic_engine_v3: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -43,6 +44,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_bayesian_systemic_likelihood: true,
   enable_clinical_priority_resolution: true,
   enable_probabilistic_engine_v2: true,
+  enable_probabilistic_engine_v3: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -125,4 +127,8 @@ export function isClinicalPriorityResolutionEnabled(): boolean {
 
 export function isProbabilisticEngineV2Enabled(): boolean {
   return currentFlags.enable_probabilistic_engine_v2;
+}
+
+export function isProbabilisticEngineV3Enabled(): boolean {
+  return currentFlags.enable_probabilistic_engine_v3;
 }
