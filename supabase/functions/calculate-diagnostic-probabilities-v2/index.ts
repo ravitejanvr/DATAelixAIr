@@ -773,14 +773,16 @@ Deno.serve(async (req) => {
 
       // ════════════════════════════════════════════
       // ── 9. LATENT STATE CONTRIBUTION ──
-      // CORRECTED FORMULA: logP(dx) += Σ[ P(state|evidence) × log P(state|dx) ]
+      // IMPROVED FORMULA: Uses both state presence AND absence
       //
-      // This is the proper probabilistic update:
-      // - P(state|evidence) = latent state posterior from Step 2
-      // - log P(state|dx) = stored in diagnosis_state_likelihoods (DB-driven)
-      // - When state is active AND diagnosis expects it → strong positive
-      // - When state is active AND diagnosis doesn't expect it → negative
-      // - Fully generalizable: no diagnosis-specific code
+      // For each state the diagnosis maps to:
+      //   If diagLogLR > 0 (diagnosis expects state present):
+      //     contribution = P(state) * diagLogLR  (reward when state active)
+      //   If diagLogLR < 0 (diagnosis expects state absent):
+      //     contribution = P(state) * diagLogLR  (penalty when state active)
+      //
+      // Additionally: states NOT mapped get NO contribution (relevance filtering)
+      // This prevents diagnoses from being penalized by irrelevant states
       // ════════════════════════════════════════════
       let latentStateContribution = 0;
       const stateActivations: DiagResult["latent_state_activations"] = [];
@@ -789,11 +791,14 @@ Deno.serve(async (req) => {
       if (diagStates) {
         for (const [stateId, diagLogLR] of diagStates) {
           const statePosterior = latentStatePosteriors.get(stateId) || 0.5;
-          // P(state) × log P(state|dx)
-          // When state is strongly present (posterior ~1.0), full log-LR applies
-          // When state is absent (posterior ~0.0), contribution approaches 0
-          // Negative diagLogLR penalizes diagnosis when state IS active
-          const contribution = statePosterior * diagLogLR;
+          const statePrior = 1 / (1 + Math.exp(-(latentStates.find(s => s.id === stateId) as any)?.prior_log_odds || 0));
+
+          // Contribution = how much the state posterior DIFFERS from prior, weighted by diagnosis loading
+          // This means: if state hasn't moved from prior, no contribution
+          // If state activated above prior → positive contribution for positive diagLogLR
+          // If state activated above prior → negative contribution for negative diagLogLR
+          const posteriorShift = statePosterior - statePrior;
+          const contribution = posteriorShift * diagLogLR;
           latentStateContribution += contribution;
 
           const stateName = latentStates.find(s => s.id === stateId)?.state_name || "unknown";
@@ -804,10 +809,6 @@ Deno.serve(async (req) => {
           });
         }
         logScore += latentStateContribution;
-      } else {
-        // Diagnoses without latent state mappings get no latent contribution
-        // This ensures the system gracefully handles unmapped diagnoses
-        // (they rely solely on symptom/prior/modifier evidence)
       }
 
       // Evidence trace
