@@ -1682,8 +1682,8 @@ export async function runUnifiedClinicalPipeline(
   // ═══════════════════════════════════════════════════════
   let evidenceEngineResult: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null = null;
   // V2 handles evidence via latent states — skip rule-based lab likelihood multipliers
-  if (skipScoreFusionForV2) {
-    console.log("[Pipeline] Phase 5.7: Evidence Engine SKIPPED — V2 handles evidence via latent states.");
+  if (skipScoreFusionForAdvanced) {
+    console.log(`[Pipeline] Phase 5.7: Evidence Engine SKIPPED — ${activeVersion.toUpperCase()} handles evidence via latent states.`);
   } else if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
     const { applyBayesianEvidence } = await import("@/services/clinical_reasoning/evidenceEngine");
     const investigationResults = ctx.investigation_results || null;
