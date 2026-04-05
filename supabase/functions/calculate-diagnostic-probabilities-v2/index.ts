@@ -301,12 +301,13 @@ Deno.serve(async (req) => {
     // Clinical rationale: infection & inflammation are easy to over-activate;
     // neurological & cardiac require stronger evidence
     const PER_STATE_TEMPERATURE: Record<string, number> = {
-      "infection": 1.4,           // High false-positive rate — soften
-      "perfusion_deficit": 1.2,   // Moderate — keep balanced
-      "inflammation": 1.5,        // Very common, easy to over-activate
-      "cardiac_compromise": 1.1,  // Specific — allow sharper activation
-      "respiratory_failure": 1.2, // Moderate
-      "neurological_compromise": 1.1, // Specific signals
+      "infection": 1.4,
+      "perfusion_deficit": 1.2,
+      "inflammation": 1.5,
+      "cardiac_compromise": 1.1,
+      "respiratory_failure": 1.2,
+      "neurological_compromise": 1.1,
+      "systemic_infection_shock": 1.0, // Composite discriminative state — keep sharp
     };
     const DEFAULT_STATE_TEMPERATURE = 1.3;
 
