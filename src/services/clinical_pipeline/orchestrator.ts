@@ -2531,9 +2531,9 @@ export async function runUnifiedClinicalPipeline(
       })),
     });
   }
-  if (bayesianResult) {
+  if (fusedBayesian) {
     pcieCore.updateReasoning({
-      bayesian_probabilities: bayesianResult.diagnoses.map(d => ({
+      bayesian_probabilities: fusedBayesian.diagnoses.map(d => ({
         diagnosis_id: d.diagnosis_id,
         posterior_probability: d.posterior_probability,
         prior: d.prior,
