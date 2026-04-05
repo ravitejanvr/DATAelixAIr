@@ -1442,10 +1442,12 @@ export async function runUnifiedClinicalPipeline(
   console.log(`[ENGINE_AUDIT] ══════════════════════════════════`);
   console.log(`[ENGINE_AUDIT] Rollout decision:`, {
     engine_selected: useV2AsPrimary ? "V2" : "V1",
-    rollout_percentage: rolloutConfig.rollout_percentage,
-    rollout_bucket: rolloutBucket,
-    is_internal_user: isInternalUser,
+    rollout_percentage: rolloutDecision.rollout_percentage,
+    rollout_bucket: rolloutDecision.bucket,
+    is_internal_user: rolloutDecision.is_internal,
+    is_admin: rolloutDecision.is_admin,
     v2_feature_flag: isProbabilisticEngineV2Enabled(),
+    user_id: input.user_id || "null",
     visit_id: input.visit_id || "null",
     cache_bypassed: !!input.skip_cache,
   });
