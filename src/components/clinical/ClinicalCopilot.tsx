@@ -927,14 +927,14 @@ export default function ClinicalCopilot({
         </motion.div>
       )}
 
-      {/* Explainability Panel — SHAP-style factor attribution */}
-      {explainability && explainability.length > 0 && reasoningLevel !== "explanation" && (
+      {/* Explainability Panel — hidden in Doctor mode, visible in Explain/Debug */}
+      {explainability && explainability.length > 0 && reasoningLevel !== "doctor" && reasoningLevel !== "explanation" && (
         <motion.div {...fadeIn}>
           <Collapsible>
             <CollapsibleTrigger asChild>
               <button className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors text-left">
                 <Eye className="h-3 w-3 text-primary shrink-0" />
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex-1">AI Reasoning Explained</span>
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex-1">Reasoning Explained</span>
                 <Badge variant="outline" className="text-[9px]">{explainability.length} diagnos{explainability.length === 1 ? "is" : "es"}</Badge>
               </button>
             </CollapsibleTrigger>
