@@ -918,6 +918,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       diagnoses: results.map(d => ({
         diagnosis_id: d.diagnosis_id,
+        diagnosis_name: diagNameMap.get(d.diagnosis_id) || d.diagnosis_id,
         posterior_probability: d.posterior_probability,
         prior: parseFloat(d.prior.toFixed(4)),
         history_multiplier: parseFloat(d.history_multiplier.toFixed(2)),
