@@ -271,7 +271,7 @@ Deno.serve(async (req) => {
       { name: "blood_pressure", present: sbpVal !== null, weight: 0.15 },
       { name: "spo2", present: spo2Val !== null, weight: 0.12 },
       { name: "respiratory_rate", present: rr !== null, weight: 0.08 },
-      { name: "lactate", present: lactateValue !== null, weight: 0.15 },
+      { name: "lactate", present: lactateValue !== null, weight: 0.05 },
       { name: "crp", present: crpValue !== null, weight: 0.10 },
       { name: "wbc", present: wbcValue !== null, weight: 0.08 },
       { name: "troponin", present: troponinValue !== null, weight: 0.07 },
@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
           evidenceUpdate += contributions[i] / Math.sqrt(1 + i);
         }
         // Scale by data completeness
-        logOdds += evidenceUpdate * (0.5 + 0.5 * completeness);
+        logOdds += evidenceUpdate * (0.8 + 0.2 * completeness);
       }
 
       logOdds = Math.max(-LOG_ODDS_CLAMP, Math.min(LOG_ODDS_CLAMP, logOdds));
