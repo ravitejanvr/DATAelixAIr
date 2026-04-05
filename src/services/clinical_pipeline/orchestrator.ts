@@ -1538,14 +1538,14 @@ export async function runUnifiedClinicalPipeline(
   // Score fusion input: always use the selected primary engine output
   const fusionSourceBayesian = fusedBayesian;
 
-  // V2 already incorporates physiology via latent states — skip rule-based score fusion
-  // Also used to skip Evidence Engine (Phase 5.7) since V2 handles evidence via latent states
-  const skipScoreFusionForV2 = isV2Primary;
-  if (skipScoreFusionForV2) {
-    console.log("[Pipeline] Score Fusion SKIPPED — V2 handles physiology via latent states.");
+  // Advanced engines (V2/V3) incorporate physiology via latent states — skip rule-based score fusion
+  // Also used to skip Evidence Engine (Phase 5.7)
+  const skipScoreFusionForAdvanced = isAdvancedPrimary;
+  if (skipScoreFusionForAdvanced) {
+    console.log(`[Pipeline] Score Fusion SKIPPED — ${activeVersion.toUpperCase()} handles physiology via latent states.`);
   }
 
-  if (isScoreFusionEnabled() && fusionSourceBayesian && fusionSourceBayesian.diagnoses.length > 0 && !skipScoreFusionForV2) {
+  if (isScoreFusionEnabled() && fusionSourceBayesian && fusionSourceBayesian.diagnoses.length > 0 && !skipScoreFusionForAdvanced) {
     const fusionStart = performance.now();
     // Build UUID → name map from DDX for semantic resolution in Score Fusion
     const fusionNameMap = new Map<string, string>();
@@ -2592,30 +2592,30 @@ export async function runUnifiedClinicalPipeline(
 
   onProgress?.("complete", {});
 
-  // ── HARD GUARD: V2 purity assertion ──
-  if (isV2Primary && v2Result) {
+  // ── HARD GUARD: Engine purity assertion ──
+  if (isAdvancedPrimary && advancedEngineResult) {
     const fusedTopScore = fusedBayesian?.diagnoses?.[0]?.posterior_probability;
     const v1TopScore = bayesianResult?.diagnoses?.[0]?.posterior_probability;
-    const isMutated = v2RawTopScore != null && fusedTopScore != null
-      && Math.abs(fusedTopScore - v2RawTopScore) > 0.001;
+    const isMutated = advRawTopScore != null && fusedTopScore != null
+      && Math.abs(fusedTopScore - advRawTopScore) > 0.001;
     console.log("[FINAL_OUTPUT_TRACE]", {
-      engine: "V2",
-      v2RawTop: v2RawTopScore,
+      engine: activeVersion.toUpperCase(),
+      advRawTop: advRawTopScore,
       fusedTop: fusedTopScore,
       v1Top: v1TopScore,
       scoreFusionSkipped: true,
       evidenceEngineSkipped: true,
       isMutated,
-      purityCheck: isMutated ? "MUTATED" : "PURE_V2",
+      purityCheck: isMutated ? "MUTATED" : `PURE_${activeVersion.toUpperCase()}`,
     });
     if (isMutated) {
-      console.error("[V2_PURITY_VIOLATION] Score mutated after V2 selection. Raw:", v2RawTopScore, "Final:", fusedTopScore);
+      console.error(`[ENGINE_PURITY_VIOLATION] Score mutated after ${activeVersion.toUpperCase()} selection. Raw:`, advRawTopScore, "Final:", fusedTopScore);
     }
     // Warn if V1 score leaked into final output
-    if (fusedTopScore != null && v1TopScore != null && v2RawTopScore != null
+    if (fusedTopScore != null && v1TopScore != null && advRawTopScore != null
         && Math.abs(fusedTopScore - v1TopScore) < 0.001
-        && Math.abs(fusedTopScore - v2RawTopScore) > 0.01) {
-      console.error("[V2_PURITY_VIOLATION] Final output matches V1, not V2. Possible leakage.");
+        && Math.abs(fusedTopScore - advRawTopScore) > 0.01) {
+      console.error(`[ENGINE_PURITY_VIOLATION] Final output matches V1, not ${activeVersion.toUpperCase()}. Possible leakage.`);
     }
   }
 
@@ -2659,19 +2659,19 @@ export async function runUnifiedClinicalPipeline(
     cognitive_layer: null,
     evidence_engine: evidenceEngineResult,
     engine_audit: {
-      engine_version: isV2Primary ? "v2" as const : "v1" as const,
-      fallback_used: v2FallbackUsed,
-      fallback_reason: v2FallbackReason,
+      engine_version: isAdvancedPrimary ? activeVersion : "v1" as EngineVersion,
+      fallback_used: advancedEngineFallbackUsed,
+      fallback_reason: advancedEngineFallbackReason,
       cache_hit: cache.reasoning_hit,
       cache_status: input.skip_cache ? "BYPASSED" as const : (cache.reasoning_hit ? "HIT" as const : "MISS" as const),
       rollout_bucket: rolloutDecision.bucket,
       rollout_percentage: rolloutDecision.rollout_percentage,
       is_internal_user: rolloutDecision.is_internal,
       v1_top_score: bayesianResult?.diagnoses?.[0]?.posterior_probability ?? null,
-      v2_top_score: v2RawTopScore,
+      v2_top_score: advRawTopScore,
       v1_top_diagnosis: bayesianResult?.diagnoses?.[0]?.diagnosis_id ?? null,
-      v2_top_diagnosis: v2Result?.diagnoses?.[0]?.diagnosis_id ?? null,
-      primary_engine: isV2Primary ? "v2" as const : "v1" as const,
+      v2_top_diagnosis: advancedEngineResult?.diagnoses?.[0]?.diagnosis_id ?? null,
+      primary_engine: isAdvancedPrimary ? activeVersion : "v1" as EngineVersion,
     },
   };
 }
