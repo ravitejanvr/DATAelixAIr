@@ -2617,6 +2617,27 @@ export async function runUnifiedClinicalPipeline(
 
   onProgress?.("complete", {});
 
+  // ── HARD GUARD: V2 purity assertion ──
+  const finalEngineVersion = (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "v2" : "v1";
+  if (finalEngineVersion === "v2" && v2Result) {
+    const v2TopScore = v2Result.diagnoses?.[0]?.posterior_probability;
+    const fusedTopScore = fusedBayesian?.diagnoses?.[0]?.posterior_probability;
+    const v1TopScore = bayesianResult?.diagnoses?.[0]?.posterior_probability;
+    console.log("[FINAL_OUTPUT_TRACE]", {
+      engine: "V2",
+      fusedTop: fusedTopScore,
+      v2Top: v2TopScore,
+      v1Top: v1TopScore,
+      fusedSource: fusedBayesian?.source || "unknown",
+    });
+    // Warn (not throw) if V1 score leaked into final output
+    if (fusedTopScore != null && v1TopScore != null && v2TopScore != null
+        && Math.abs(fusedTopScore - v1TopScore) < 0.001
+        && Math.abs(fusedTopScore - v2TopScore) > 0.01) {
+      console.error("[V2_PURITY_VIOLATION] Final output matches V1, not V2. Possible leakage.");
+    }
+  }
+
   return {
     enabled: true,
     enriched_context: enrichedContext,
