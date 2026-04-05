@@ -741,7 +741,51 @@ Deno.serve(async (req) => {
       state_competition_applied: true,
     };
 
-    // Trace
+    // ════════════════════════════════════════════
+    // STATE ACTIVATION TRACE (Phase 7)
+    // ════════════════════════════════════════════
+    console.log("[STATE_ACTIVATION]", JSON.stringify(
+      latentStates.map(s => ({
+        state: stateIdToName.get(s.id) || s.state_name,
+        posterior: parseFloat((latentStatePosteriors.get(s.id) || 0.5).toFixed(4)),
+        log_odds: parseFloat((latentStateLogOdds.get(s.id) || 0).toFixed(3)),
+      }))
+    ));
+
+    // ════════════════════════════════════════════
+    // DX CONTRIBUTION TRACE (Phase 7)
+    // ════════════════════════════════════════════
+    console.log("[DX_CONTRIBUTION]", JSON.stringify(
+      results.slice(0, 8).map(d => ({
+        id: d.diagnosis_id,
+        posterior: (d.posterior_probability * 100).toFixed(1) + "%",
+        latent_contrib: d.latent_state_contribution.toFixed(3),
+        state_breakdown: d.latent_state_activations
+          .filter(s => Math.abs(s.contribution) > 0.05)
+          .map(s => `${s.state}(${s.contribution > 0 ? '+' : ''}${s.contribution.toFixed(2)})`),
+      }))
+    ));
+
+    // ════════════════════════════════════════════
+    // SEPARATION VALIDATION (Phase 4)
+    // Verify that high-signal features create non-trivial ΔlogP
+    // ════════════════════════════════════════════
+    const separationChecks: Array<{ pair: string; delta_logP: number; sufficient: boolean }> = [];
+    if (results.length >= 2) {
+      for (let i = 0; i < Math.min(results.length - 1, 3); i++) {
+        const delta = results[i].log_score - results[i + 1].log_score;
+        separationChecks.push({
+          pair: `#${i + 1} vs #${i + 2}`,
+          delta_logP: parseFloat(delta.toFixed(3)),
+          sufficient: Math.abs(delta) > 0.3,
+        });
+      }
+    }
+    if (separationChecks.some(s => !s.sufficient)) {
+      console.log("[SEPARATION_WARNING] Insufficient ΔlogP between top diagnoses:", JSON.stringify(separationChecks));
+    }
+
+    // Score trace
     console.log("[ProbEngineV2] Score trace:", JSON.stringify(
       results.slice(0, 8).map(d => ({
         id: d.diagnosis_id,
