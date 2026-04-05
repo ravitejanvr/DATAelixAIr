@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
       dangerousRes, durationModRes, onsetModRes, vitalModRes, clusterModRes,
       diagNamesRes,
     ] = await Promise.all([
-      supabase.from("latent_clinical_states").select("id, state_name"),
+      supabase.from("latent_clinical_states").select("id, state_name, prior_log_odds"),
       supabase.from("feature_state_likelihoods").select("latent_state_id, feature_name, log_likelihood_ratio"),
       supabase.from("diagnosis_state_likelihoods")
         .select("diagnosis_id, latent_state_id, log_likelihood_ratio")
@@ -452,14 +452,12 @@ Deno.serve(async (req) => {
       featureStateMap.get(fsl.latent_state_id)!.set(fsl.feature_name, fsl.log_likelihood_ratio);
     }
 
-    // Compute latent state log-odds from uninformative prior (0.5 → logOdds = 0)
+    // Compute latent state log-odds from DB-calibrated priors (NOT uniform 0.5)
     const latentStatePosteriors = new Map<string, number>(); // stateId → posterior prob
     const latentStateLogOdds = new Map<string, number>();
-    const LOG_ODDS_CLAMP = 3.5; // tighter clamp → posterior bounded to [0.03, 0.97]
+    const LOG_ODDS_CLAMP = 4.0; // posterior bounded to [0.018, 0.982]
 
     // Per-state temperature scaling — higher T = softer (less confident)
-    // Clinical rationale: infection & inflammation are easy to over-activate;
-    // neurological & cardiac require stronger evidence
     const PER_STATE_TEMPERATURE: Record<string, number> = {
       "infection": 1.4,
       "perfusion_deficit": 1.2,
@@ -467,16 +465,35 @@ Deno.serve(async (req) => {
       "cardiac_compromise": 1.1,
       "respiratory_failure": 1.2,
       "neurological_compromise": 1.1,
-      "systemic_infection_shock": 1.0, // Composite discriminative state — keep sharp
+      "systemic_infection_shock": 1.0,
     };
     const DEFAULT_STATE_TEMPERATURE = 1.3;
 
-    // Mutual exclusivity groups for state competition
-    // States within a group compete: their combined posterior is softmax-normalized
-    const STATE_COMPETITION_GROUPS = [
-      ["infection", "cardiac_compromise", "metabolic_derangement"],
-      ["respiratory_failure", "cardiac_compromise"],
+    // ── MISSING DATA UNCERTAINTY ──
+    // When key clinical data is missing, we dampen confidence in ALL states
+    // by pulling log-odds toward the prior (shrinkage toward uncertainty)
+    const KEY_DATA_FIELDS = [
+      { name: "temperature", present: tempC !== null, weight: 0.15 },
+      { name: "heart_rate", present: hr !== null, weight: 0.10 },
+      { name: "blood_pressure", present: sbpVal !== null, weight: 0.15 },
+      { name: "spo2", present: spo2Val !== null, weight: 0.12 },
+      { name: "respiratory_rate", present: rr !== null, weight: 0.08 },
+      { name: "lactate", present: lactateValue !== null, weight: 0.15 },
+      { name: "crp", present: crpValue !== null, weight: 0.10 },
+      { name: "wbc", present: wbcValue !== null, weight: 0.08 },
+      { name: "troponin", present: troponinValue !== null, weight: 0.07 },
     ];
+    const dataCompletenessScore = KEY_DATA_FIELDS.reduce((sum, f) => sum + (f.present ? f.weight : 0), 0);
+    const totalPossibleWeight = KEY_DATA_FIELDS.reduce((sum, f) => sum + f.weight, 0);
+    // uncertaintyDamping: 1.0 when all data present, ~0.3 when minimal data
+    // This shrinks log-odds updates toward zero (the prior) when data is sparse
+    const uncertaintyDamping = 0.3 + 0.7 * (dataCompletenessScore / totalPossibleWeight);
+
+    console.log("[V2_UNCERTAINTY]", {
+      dataCompleteness: (dataCompletenessScore / totalPossibleWeight * 100).toFixed(0) + "%",
+      uncertaintyDamping: uncertaintyDamping.toFixed(3),
+      missingFields: KEY_DATA_FIELDS.filter(f => !f.present).map(f => f.name),
+    });
 
     const stateNameToId = new Map<string, string>();
     const stateIdToName = new Map<string, string>();
@@ -485,60 +502,67 @@ Deno.serve(async (req) => {
       stateIdToName.set(s.id, s.state_name.toLowerCase().replace(/\s+/g, "_"));
     }
 
-    // Phase 1: Compute raw log-odds with diminishing returns
-    // Now handles BOTH continuous (vitals/labs) and binary (symptoms) features
+    // Phase 1: Compute raw log-odds with diminishing returns + DB priors
     for (const state of latentStates) {
-      let logOdds = 0;
+      // START from DB-calibrated prior (NOT zero/50%)
+      const priorLogOdds = (state as any).prior_log_odds ?? 0;
+      let logOdds = priorLogOdds;
       const stateFeatures = featureStateMap.get(state.id);
 
       if (stateFeatures) {
-        // Collect contributions from all active features
         const contributions: number[] = [];
 
         for (const [featureName, dbLogLR] of stateFeatures) {
-          // CONTINUOUS features: multiply DB logLR direction by continuous magnitude
+          // CONTINUOUS features
           if (featureName in continuousFeatures) {
             const continuousLR = continuousFeatures[featureName];
             if (Math.abs(continuousLR) > 0.01) {
-              // Scale: use continuous value magnitude, capped by DB logLR magnitude
-              // When continuousLR is near max sigmoid output (~L), use full DB weight
-              // When near 0 (threshold region), use proportional weight
-              // This preserves DB-driven state mapping while adding continuous gradation
               const maxMagnitude = Math.abs(dbLogLR);
-              const normalizedMagnitude = Math.min(Math.abs(continuousLR) / 3.0, 1.0); // 3.0 = max sigmoid L
+              const normalizedMagnitude = Math.min(Math.abs(continuousLR) / 3.0, 1.0);
               const effectiveLR = Math.sign(dbLogLR) * maxMagnitude * normalizedMagnitude;
               contributions.push(effectiveLR);
             }
-            continue; // don't also check binary
+            continue;
           }
 
-          // BINARY features: use DB logLR directly when feature is active
+          // BINARY features
           if (allBinaryFeatures[featureName]) {
             contributions.push(dbLogLR);
           }
         }
 
-        // Sort by absolute value descending — strongest evidence first
+        // Sort by absolute value descending
         contributions.sort((a, b) => Math.abs(b) - Math.abs(a));
 
         // DIMINISHING RETURNS: 1st=100%, 2nd=71%, 3rd=58%, 4th=50%...
+        let evidenceUpdate = 0;
         for (let i = 0; i < contributions.length; i++) {
           const diminishingFactor = 1 / Math.sqrt(1 + i);
-          logOdds += contributions[i] * diminishingFactor;
+          evidenceUpdate += contributions[i] * diminishingFactor;
         }
+
+        // APPLY UNCERTAINTY DAMPING to evidence update (not to prior)
+        // When data is missing, evidence contribution is shrunk toward zero
+        logOdds += evidenceUpdate * uncertaintyDamping;
       }
 
       // Per-state temperature scaling
       const stateName = stateIdToName.get(state.id) || "";
       const stateTemp = PER_STATE_TEMPERATURE[stateName] || DEFAULT_STATE_TEMPERATURE;
-      logOdds = logOdds / stateTemp;
+      logOdds = priorLogOdds + (logOdds - priorLogOdds) / stateTemp;
 
-      // Tighter clamp
+      // Clamp
       logOdds = Math.max(-LOG_ODDS_CLAMP, Math.min(LOG_ODDS_CLAMP, logOdds));
       latentStateLogOdds.set(state.id, logOdds);
       const posterior = 1 / (1 + Math.exp(-logOdds));
       latentStatePosteriors.set(state.id, posterior);
     }
+
+    // Mutual exclusivity groups for state competition
+    const STATE_COMPETITION_GROUPS = [
+      ["infection", "cardiac_compromise", "metabolic_derangement"],
+      ["respiratory_failure", "cardiac_compromise"],
+    ];
 
     // Phase 2: State competition — normalize mutually exclusive groups
     // For states in a competition group, apply softmax re-normalization
@@ -755,14 +779,16 @@ Deno.serve(async (req) => {
 
       // ════════════════════════════════════════════
       // ── 9. LATENT STATE CONTRIBUTION ──
-      // CORRECTED FORMULA: logP(dx) += Σ[ P(state|evidence) × log P(state|dx) ]
+      // IMPROVED FORMULA: Uses both state presence AND absence
       //
-      // This is the proper probabilistic update:
-      // - P(state|evidence) = latent state posterior from Step 2
-      // - log P(state|dx) = stored in diagnosis_state_likelihoods (DB-driven)
-      // - When state is active AND diagnosis expects it → strong positive
-      // - When state is active AND diagnosis doesn't expect it → negative
-      // - Fully generalizable: no diagnosis-specific code
+      // For each state the diagnosis maps to:
+      //   If diagLogLR > 0 (diagnosis expects state present):
+      //     contribution = P(state) * diagLogLR  (reward when state active)
+      //   If diagLogLR < 0 (diagnosis expects state absent):
+      //     contribution = P(state) * diagLogLR  (penalty when state active)
+      //
+      // Additionally: states NOT mapped get NO contribution (relevance filtering)
+      // This prevents diagnoses from being penalized by irrelevant states
       // ════════════════════════════════════════════
       let latentStateContribution = 0;
       const stateActivations: DiagResult["latent_state_activations"] = [];
@@ -771,11 +797,14 @@ Deno.serve(async (req) => {
       if (diagStates) {
         for (const [stateId, diagLogLR] of diagStates) {
           const statePosterior = latentStatePosteriors.get(stateId) || 0.5;
-          // P(state) × log P(state|dx)
-          // When state is strongly present (posterior ~1.0), full log-LR applies
-          // When state is absent (posterior ~0.0), contribution approaches 0
-          // Negative diagLogLR penalizes diagnosis when state IS active
-          const contribution = statePosterior * diagLogLR;
+          const statePrior = 1 / (1 + Math.exp(-(latentStates.find(s => s.id === stateId) as any)?.prior_log_odds || 0));
+
+          // Contribution = how much the state posterior DIFFERS from prior, weighted by diagnosis loading
+          // This means: if state hasn't moved from prior, no contribution
+          // If state activated above prior → positive contribution for positive diagLogLR
+          // If state activated above prior → negative contribution for negative diagLogLR
+          const posteriorShift = statePosterior - statePrior;
+          const contribution = posteriorShift * diagLogLR;
           latentStateContribution += contribution;
 
           const stateName = latentStates.find(s => s.id === stateId)?.state_name || "unknown";
@@ -787,12 +816,22 @@ Deno.serve(async (req) => {
         }
         logScore += latentStateContribution;
       } else {
-        // Diagnoses without latent state mappings get no latent contribution
-        // This ensures the system gracefully handles unmapped diagnoses
-        // (they rely solely on symptom/prior/modifier evidence)
+        // ── UNMAPPED DIAGNOSIS PENALTY ──
+        // When strong physiological evidence exists (states activated well above prior),
+        // diagnoses without state mappings are penalized because they can't explain
+        // the observed physiological pattern. This is probabilistically justified:
+        // P(dx | no_state_model, strong_state_evidence) < P(dx | no_state_model, weak_state_evidence)
+        const maxStateShift = Math.max(...Array.from(latentStatePosteriors.values()).map((p, i) => {
+          const priorP = 1 / (1 + Math.exp(-((latentStates[i] as any)?.prior_log_odds || 0)));
+          return Math.abs(p - priorP);
+        }));
+        if (maxStateShift > 0.15) {
+          // Penalty proportional to how strong the state evidence is
+          // Mild: -0.3 to -1.0 log-score penalty
+          const unmappedPenalty = Math.min(maxStateShift * 2.0, 1.0);
+          logScore -= unmappedPenalty;
+        }
       }
-
-      // Evidence trace
       const evidence: string[] = [];
       if (symLiks.length > 0) evidence.push(`${symLiks.length}/${totalSymptoms} symptoms (${(coverageRatio * 100).toFixed(0)}%)`);
       if (physLiks.length > 0) evidence.push(`${physLiks.length} physiology`);
