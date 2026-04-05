@@ -2632,26 +2632,28 @@ export async function runUnifiedClinicalPipeline(
   onProgress?.("complete", {});
 
   // ── HARD GUARD: V2 purity assertion ──
-  const finalEngineVersion = (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "v2" : "v1";
-  if (finalEngineVersion === "v2" && v2Result) {
-    const v2TopScore = v2Result.diagnoses?.[0]?.posterior_probability;
+  if (isV2Primary && v2Result) {
     const fusedTopScore = fusedBayesian?.diagnoses?.[0]?.posterior_probability;
     const v1TopScore = bayesianResult?.diagnoses?.[0]?.posterior_probability;
+    const isMutated = v2RawTopScore != null && fusedTopScore != null
+      && Math.abs(fusedTopScore - v2RawTopScore) > 0.001;
     console.log("[FINAL_OUTPUT_TRACE]", {
       engine: "V2",
+      v2RawTop: v2RawTopScore,
       fusedTop: fusedTopScore,
-      v2Top: v2TopScore,
       v1Top: v1TopScore,
       scoreFusionSkipped: true,
-      fusedSource: fusedBayesian?.source || "unknown",
-      purityCheck: fusedTopScore != null && v2TopScore != null
-        ? Math.abs(fusedTopScore - v2TopScore) < 0.05 ? "PURE_V2" : "MUTATED"
-        : "UNKNOWN",
+      evidenceEngineSkipped: true,
+      isMutated,
+      purityCheck: isMutated ? "MUTATED" : "PURE_V2",
     });
-    // Warn (not throw) if V1 score leaked into final output
-    if (fusedTopScore != null && v1TopScore != null && v2TopScore != null
+    if (isMutated) {
+      console.error("[V2_PURITY_VIOLATION] Score mutated after V2 selection. Raw:", v2RawTopScore, "Final:", fusedTopScore);
+    }
+    // Warn if V1 score leaked into final output
+    if (fusedTopScore != null && v1TopScore != null && v2RawTopScore != null
         && Math.abs(fusedTopScore - v1TopScore) < 0.001
-        && Math.abs(fusedTopScore - v2TopScore) > 0.01) {
+        && Math.abs(fusedTopScore - v2RawTopScore) > 0.01) {
       console.error("[V2_PURITY_VIOLATION] Final output matches V1, not V2. Possible leakage.");
     }
   }
