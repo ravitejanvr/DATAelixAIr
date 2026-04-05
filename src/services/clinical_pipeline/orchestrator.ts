@@ -1573,7 +1573,13 @@ export async function runUnifiedClinicalPipeline(
   // Score fusion input: always use the selected primary engine output
   const fusionSourceBayesian = fusedBayesian;
 
-  if (isScoreFusionEnabled() && fusionSourceBayesian && fusionSourceBayesian.diagnoses.length > 0) {
+  // V2 already incorporates physiology via latent states — skip rule-based score fusion
+  const skipScoreFusionForV2 = useV2AsPrimary && v2Result && !v2FallbackUsed;
+  if (skipScoreFusionForV2) {
+    console.log("[Pipeline] Score Fusion SKIPPED — V2 handles physiology via latent states.");
+  }
+
+  if (isScoreFusionEnabled() && fusionSourceBayesian && fusionSourceBayesian.diagnoses.length > 0 && !skipScoreFusionForV2) {
     const fusionStart = performance.now();
     // Build UUID → name map from DDX for semantic resolution in Score Fusion
     const fusionNameMap = new Map<string, string>();
@@ -1584,7 +1590,7 @@ export async function runUnifiedClinicalPipeline(
         }
       }
     }
-    console.log(`[Pipeline] Score Fusion: name map has ${fusionNameMap.size} entries for ${fusionSourceBayesian.diagnoses.length} diagnoses (source: ${(useV2AsPrimary && v2Result && !v2FallbackUsed) ? "V2" : "V1"})`);
+    console.log(`[Pipeline] Score Fusion: name map has ${fusionNameMap.size} entries for ${fusionSourceBayesian.diagnoses.length} diagnoses (source: V1)`);
 
     const fusionInput = {
       bayesian: fusionSourceBayesian,
@@ -2628,7 +2634,11 @@ export async function runUnifiedClinicalPipeline(
       fusedTop: fusedTopScore,
       v2Top: v2TopScore,
       v1Top: v1TopScore,
+      scoreFusionSkipped: true,
       fusedSource: fusedBayesian?.source || "unknown",
+      purityCheck: fusedTopScore != null && v2TopScore != null
+        ? Math.abs(fusedTopScore - v2TopScore) < 0.05 ? "PURE_V2" : "MUTATED"
+        : "UNKNOWN",
     });
     // Warn (not throw) if V1 score leaked into final output
     if (fusedTopScore != null && v1TopScore != null && v2TopScore != null
