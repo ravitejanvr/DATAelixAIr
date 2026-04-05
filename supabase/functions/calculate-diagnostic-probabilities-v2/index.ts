@@ -126,6 +126,7 @@ Deno.serve(async (req) => {
       latentStatesRes, featureStateRes, diagStateRes,
       priorsRes, symptomLikRes, physioLikRes, riskModRes, historyModRes,
       dangerousRes, durationModRes, onsetModRes, vitalModRes, clusterModRes,
+      diagNamesRes,
     ] = await Promise.all([
       supabase.from("latent_clinical_states").select("id, state_name"),
       supabase.from("feature_state_likelihoods").select("latent_state_id, feature_name, log_likelihood_ratio"),
