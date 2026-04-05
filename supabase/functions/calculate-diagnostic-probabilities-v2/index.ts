@@ -126,6 +126,7 @@ Deno.serve(async (req) => {
       latentStatesRes, featureStateRes, diagStateRes,
       priorsRes, symptomLikRes, physioLikRes, riskModRes, historyModRes,
       dangerousRes, durationModRes, onsetModRes, vitalModRes, clusterModRes,
+      diagNamesRes,
     ] = await Promise.all([
       supabase.from("latent_clinical_states").select("id, state_name"),
       supabase.from("feature_state_likelihoods").select("latent_state_id, feature_name, log_likelihood_ratio"),
@@ -181,7 +182,16 @@ Deno.serve(async (req) => {
       supabase.from("symptom_cluster_modifiers")
         .select("diagnosis_id, cluster_name, required_symptoms, min_match_count, modifier_weight")
         .in("diagnosis_id", validCandidateIds),
+      supabase.from("diagnoses")
+        .select("id, diagnosis_name")
+        .in("id", validCandidateIds),
     ]);
+
+    // Build diagnosis name map
+    const diagNameMap = new Map<string, string>();
+    for (const d of (diagNamesRes.data || [])) {
+      diagNameMap.set(d.id, d.diagnosis_name);
+    }
 
     // ════════════════════════════════════════════
     // STEP 1: EXTRACT CLINICAL FEATURES
@@ -908,6 +918,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       diagnoses: results.map(d => ({
         diagnosis_id: d.diagnosis_id,
+        diagnosis_name: diagNameMap.get(d.diagnosis_id) || d.diagnosis_id,
         posterior_probability: d.posterior_probability,
         prior: parseFloat(d.prior.toFixed(4)),
         history_multiplier: parseFloat(d.history_multiplier.toFixed(2)),

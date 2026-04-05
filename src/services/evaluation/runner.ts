@@ -1,8 +1,5 @@
 /**
  * Authenticated Evaluation Runner for V2 Probabilistic Engine.
- *
- * Runs test cases against the real edge function under authenticated
- * production conditions. No mocks, no bypass, no anon keys.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -53,10 +50,31 @@ function computeEntropy(probs: number[]): number {
   }, 0);
 }
 
-/**
- * Run a single evaluation case using supabase.functions.invoke
- * (which automatically attaches the user's JWT).
- */
+function makeErrorResult(
+  testCase: EvalCase, latency: number, userId: string, traceId: string, errorMsg: string
+): EvalCaseResult {
+  return {
+    case_id: testCase.id,
+    case_name: testCase.name,
+    category: testCase.category,
+    expected_top1: testCase.expected_top1,
+    predicted_top1: "ERROR",
+    predicted_top1_score: 0,
+    predicted_top3: [],
+    top1_match: false,
+    top3_match: false,
+    delta_logP: 0,
+    entropy: 0,
+    latency_ms: latency,
+    auth_used: true,
+    execution_mode: "authenticated_production",
+    engine_source: "error",
+    user_id: userId,
+    trace_id: traceId,
+    error: errorMsg,
+  };
+}
+
 async function runSingleCase(testCase: EvalCase, userId: string): Promise<EvalCaseResult> {
   const traceId = `eval-${testCase.id}-${Date.now()}`;
   const start = performance.now();
@@ -81,48 +99,56 @@ async function runSingleCase(testCase: EvalCase, userId: string): Promise<EvalCa
     const latency = Math.round(performance.now() - start);
 
     if (error) {
-      return {
-        case_id: testCase.id,
-        case_name: testCase.name,
-        category: testCase.category,
-        expected_top1: testCase.expected_top1,
-        predicted_top1: "ERROR",
-        predicted_top1_score: 0,
-        predicted_top3: [],
-        top1_match: false,
-        top3_match: false,
-        delta_logP: 0,
-        entropy: 0,
-        latency_ms: latency,
-        auth_used: true,
-        execution_mode: "authenticated_production",
-        engine_source: "error",
-        user_id: userId,
-        trace_id: traceId,
-        error: error.message || String(error),
-      };
+      console.error("[EVAL_EDGE_ERROR]", { case_id: testCase.id, error });
+      return makeErrorResult(testCase, latency, userId, traceId, error.message || String(error));
     }
 
-    const diagnoses: Array<{ diagnosis_name: string; posterior_probability: number }> =
-      data?.diagnoses || [];
+    // Log raw response structure for debugging
+    console.log("[RAW_EDGE_RESPONSE]", {
+      case_id: testCase.id,
+      keys: Object.keys(data || {}),
+      diagnoses_count: data?.diagnoses?.length ?? 0,
+      source: data?.source,
+    });
+
+    const diagnoses: Array<{
+      diagnosis_id: string;
+      diagnosis_name?: string;
+      posterior_probability: number;
+    }> = data?.diagnoses || [];
+
+    if (diagnoses.length === 0) {
+      console.warn("[EVAL_EMPTY_DIAGNOSES]", { case_id: testCase.id });
+      return makeErrorResult(testCase, latency, userId, traceId, "Empty diagnoses array");
+    }
 
     const top1 = diagnoses[0];
     const top2 = diagnoses[1];
-    const top3Names = diagnoses.slice(0, 3).map((d) => d.diagnosis_name || "unknown");
+    const top3Names = diagnoses.slice(0, 3).map((d) =>
+      d.diagnosis_name || d.diagnosis_id || "unknown"
+    );
     const probs = diagnoses.map((d) => d.posterior_probability);
     const entropy = computeEntropy(probs);
     const deltaLogP =
-      top1 && top2
+      top1 && top2 && top1.posterior_probability > 0 && top2.posterior_probability > 0
         ? Math.log(top1.posterior_probability) - Math.log(top2.posterior_probability)
         : 0;
 
-    const predictedName = top1?.diagnosis_name || "none";
+    const predictedName = top1?.diagnosis_name || top1?.diagnosis_id || "none";
     const expectedNorm = testCase.expected_top1.toLowerCase();
     const top1Match = predictedName.toLowerCase().includes(expectedNorm) ||
       expectedNorm.includes(predictedName.toLowerCase());
     const top3Match = top3Names.some(
       (n) => n.toLowerCase().includes(expectedNorm) || expectedNorm.includes(n.toLowerCase())
     );
+
+    console.log("[EVAL_CASE_RESULT]", {
+      case_id: testCase.id,
+      expected: testCase.expected_top1,
+      predicted: predictedName,
+      score: top1?.posterior_probability,
+      top1_match: top1Match,
+    });
 
     return {
       case_id: testCase.id,
@@ -144,38 +170,14 @@ async function runSingleCase(testCase: EvalCase, userId: string): Promise<EvalCa
       trace_id: traceId,
     };
   } catch (e: any) {
-    return {
-      case_id: testCase.id,
-      case_name: testCase.name,
-      category: testCase.category,
-      expected_top1: testCase.expected_top1,
-      predicted_top1: "EXCEPTION",
-      predicted_top1_score: 0,
-      predicted_top3: [],
-      top1_match: false,
-      top3_match: false,
-      delta_logP: 0,
-      entropy: 0,
-      latency_ms: Math.round(performance.now() - start),
-      auth_used: true,
-      execution_mode: "authenticated_production",
-      engine_source: "exception",
-      user_id: userId,
-      trace_id: `eval-${testCase.id}-${Date.now()}`,
-      error: e.message,
-    };
+    return makeErrorResult(testCase, Math.round(performance.now() - start), userId, traceId, e.message);
   }
 }
 
-/**
- * Run the full evaluation suite.
- * HARD BLOCKS if user is not authenticated.
- */
 export async function runEvaluationSuite(
   onProgress?: (completed: number, total: number, lastResult: EvalCaseResult) => void,
-  caseFilter?: string[], // optional: filter by case IDs
+  caseFilter?: string[],
 ): Promise<EvalSuiteResult> {
-  // ── HARD AUTH GATE ──
   const token = await getAccessToken();
   if (!token) {
     throw new Error("[EVAL_BLOCKED] No JWT — cannot run evaluation. Please sign in first.");
@@ -196,7 +198,6 @@ export async function runEvaluationSuite(
     is_authenticated: identity.is_authenticated,
   });
 
-  // ── Select cases ──
   const cases = caseFilter
     ? EVAL_CASES.filter((c) => caseFilter.includes(c.id))
     : EVAL_CASES;
@@ -204,19 +205,16 @@ export async function runEvaluationSuite(
   const runId = `eval-${Date.now()}`;
   const results: EvalCaseResult[] = [];
 
-  // ── Execute sequentially (avoid rate limits) ──
   for (let i = 0; i < cases.length; i++) {
     const result = await runSingleCase(cases[i], identity.user_id);
     results.push(result);
     onProgress?.(i + 1, cases.length, result);
 
-    // Small delay between calls
     if (i < cases.length - 1) {
       await new Promise((r) => setTimeout(r, 300));
     }
   }
 
-  // ── Compute aggregate metrics ──
   const validResults = results.filter((r) => !r.error);
   const passed = validResults.filter((r) => r.top1_match).length;
   const top3Matches = validResults.filter((r) => r.top3_match).length;
@@ -245,7 +243,6 @@ export async function runEvaluationSuite(
   };
 }
 
-// Hard assertion for validation
 export function assertAuthenticatedProduction(result: EvalSuiteResult): void {
   for (const r of result.results) {
     if (r.execution_mode !== "authenticated_production") {
