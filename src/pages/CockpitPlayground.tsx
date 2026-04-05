@@ -1401,11 +1401,47 @@ export default function CockpitPlayground() {
     clinicalStatus,
   };
 
-  // ── Evidence string cleaner for doctor mode ──
+  // ── Evidence string cleaner — strips ALL scoring math for doctor mode ──
+  const EVIDENCE_CLINICAL_MAP: Record<string, string> = {
+    sepsis_syndrome: "Systemic infection pattern",
+    hemodynamic_collapse: "Hemodynamic instability",
+    respiratory_distress: "Respiratory compromise",
+    systemic_instability: "Multi-organ involvement",
+    inflammatory_response: "Inflammatory response",
+    metabolic_derangement: "Metabolic abnormality",
+    cardiac_ischemia: "Cardiac ischemia pattern",
+    neurological_emergency: "Neurological concern",
+    hepatobiliary_acute: "Hepatobiliary inflammation",
+    renal_colic_pattern: "Renal colic presentation",
+    dka_metabolic_crisis: "Diabetic ketoacidosis pattern",
+    hypoxia: "Hypoxia",
+    tachycardia: "Tachycardia",
+    tachypnea: "Tachypnea",
+    hypotension: "Hypotension",
+    fever: "Fever",
+  };
+
   const cleanEvidence = (raw: string): string | null => {
-    if (/^[+-]?\d+\.?\d*\s/.test(raw.trim())) return null;
-    if (/^[0-9a-f]{8}-/.test(raw.trim())) return null;
-    let cleaned = raw.replace(/_/g, " ").trim();
+    const trimmed = raw.trim();
+    // Remove entries that are pure numeric weights like "+0.81 sepsis_syndrome" or "-0.13 ..."
+    if (/^[+-]?\d+\.?\d*\s/.test(trimmed)) return null;
+    // Remove standalone numeric values
+    if (/^[+-]?\d+\.?\d*$/.test(trimmed)) return null;
+    // Remove UUID-like strings
+    if (/^[0-9a-f]{8}-/.test(trimmed)) return null;
+    // Remove entries containing log/score math patterns like "×1.23" or "logLR" or "posterior"
+    if (/×\d|logLR|posterior|prior:|modifier/i.test(trimmed)) return null;
+    // Remove "V3:" prefix
+    let cleaned = trimmed.replace(/^V3:\s*/i, "");
+    // Remove inline weights like "(+0.81)" or "(-0.13)"
+    cleaned = cleaned.replace(/\([+-]?\d+\.?\d*\)/g, "").trim();
+    // Remove trailing weights like "+0.81"
+    cleaned = cleaned.replace(/[+-]\d+\.?\d*$/g, "").trim();
+    // Map known technical state names
+    const key = cleaned.toLowerCase().replace(/\s/g, "_");
+    if (EVIDENCE_CLINICAL_MAP[key]) return EVIDENCE_CLINICAL_MAP[key];
+    // Clean underscores
+    cleaned = cleaned.replace(/_/g, " ").trim();
     if (!cleaned) return null;
     return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
   };
@@ -2189,13 +2225,17 @@ export default function CockpitPlayground() {
                                 <div className="h-1.5 rounded-full bg-muted">
                                   <div className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
                                 </div>
-                                {/* Inline diagnostic explanation */}
+                                {/* Key evidence tags — clean, no "Driven by" */}
                                 {d.supporting.length > 0 && (() => {
-                                  const cleaned = cleanSupportingList(d.supporting).slice(0, 5);
+                                  const cleaned = cleanSupportingList(d.supporting).slice(0, 4);
                                   return cleaned.length > 0 ? (
-                                    <p className="text-[9px] text-muted-foreground mt-1 leading-snug">
-                                      Driven by {cleaned.join(", ").toLowerCase()}
-                                    </p>
+                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                      {cleaned.map((tag: string, ti: number) => (
+                                        <span key={ti} className="text-[8px] px-1.5 py-0.5 rounded-full bg-primary/8 text-primary/80 border border-primary/15">
+                                          {tag}
+                                        </span>
+                                      ))}
+                                    </div>
                                   ) : null;
                                 })()}
                               </button>
