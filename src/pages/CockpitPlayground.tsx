@@ -2401,7 +2401,7 @@ export default function CockpitPlayground() {
                                     </div>
                                     {d.supporting.length > 0 && (
                                       <div className="flex flex-wrap gap-1 mt-1.5 ml-5">
-                                        {d.supporting.slice(0, 3).map((e: string, ei: number) => (
+                                        {cleanSupportingList(d.supporting).slice(0, 3).map((e: string, ei: number) => (
                                           <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">✓ {e}</span>
                                         ))}
                                       </div>
