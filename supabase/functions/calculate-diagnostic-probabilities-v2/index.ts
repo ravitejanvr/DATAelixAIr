@@ -455,7 +455,7 @@ Deno.serve(async (req) => {
     // Compute latent state log-odds from DB-calibrated priors (NOT uniform 0.5)
     const latentStatePosteriors = new Map<string, number>(); // stateId → posterior prob
     const latentStateLogOdds = new Map<string, number>();
-    const LOG_ODDS_CLAMP = 4.0; // posterior bounded to [0.018, 0.982]
+    const LOG_ODDS_CLAMP = 5.0; // wider range for stronger discrimination
 
     // Per-state temperature scaling — higher T = softer (less confident)
     const PER_STATE_TEMPERATURE: Record<string, number> = {
@@ -487,7 +487,7 @@ Deno.serve(async (req) => {
     const totalPossibleWeight = KEY_DATA_FIELDS.reduce((sum, f) => sum + f.weight, 0);
     // uncertaintyDamping: 1.0 when all data present, ~0.3 when minimal data
     // This shrinks log-odds updates toward zero (the prior) when data is sparse
-    const uncertaintyDamping = 0.3 + 0.7 * (dataCompletenessScore / totalPossibleWeight);
+    const uncertaintyDamping = 0.5 + 0.5 * (dataCompletenessScore / totalPossibleWeight);
 
     console.log("[V2_UNCERTAINTY]", {
       dataCompleteness: (dataCompletenessScore / totalPossibleWeight * 100).toFixed(0) + "%",
@@ -518,7 +518,7 @@ Deno.serve(async (req) => {
             const continuousLR = continuousFeatures[featureName];
             if (Math.abs(continuousLR) > 0.01) {
               const maxMagnitude = Math.abs(dbLogLR);
-              const normalizedMagnitude = Math.min(Math.abs(continuousLR) / 3.0, 1.0);
+              const normalizedMagnitude = Math.min(Math.abs(continuousLR) / 2.0, 1.0);
               const effectiveLR = Math.sign(dbLogLR) * maxMagnitude * normalizedMagnitude;
               contributions.push(effectiveLR);
             }
@@ -804,7 +804,9 @@ Deno.serve(async (req) => {
           // If state activated above prior → positive contribution for positive diagLogLR
           // If state activated above prior → negative contribution for negative diagLogLR
           const posteriorShift = statePosterior - statePrior;
-          const contribution = posteriorShift * diagLogLR;
+          // COMPETITION_FACTOR amplifies state contributions for sharper separation
+          const COMPETITION_FACTOR = 1.35;
+          const contribution = posteriorShift * diagLogLR * COMPETITION_FACTOR;
           latentStateContribution += contribution;
 
           const stateName = latentStates.find(s => s.id === stateId)?.state_name || "unknown";
@@ -868,10 +870,28 @@ Deno.serve(async (req) => {
     }
 
     // ════════════════════════════════════════════
-    // TEMPERATURE-SCALED SOFTMAX (Diagnosis Level)
-    // T=0.7 sharpens distribution for clinical ranking clarity
+    // GENERIC DIAGNOSIS REGULARIZATION
+    // Diagnoses with very weak state alignment + many competitors get penalized
+    // This prevents "viral infection" / "unspecified" from dominating
     // ════════════════════════════════════════════
-    const TEMPERATURE = 0.7;
+    const activeCompetitors = results.filter(r => r.latent_state_activations.length > 0 && r.latent_state_contribution > 0.1).length;
+    if (activeCompetitors >= 2) {
+      for (const r of results) {
+        const maxAbsContrib = Math.max(...r.latent_state_activations.map(s => Math.abs(s.contribution)), 0);
+        const stateAlignment = r.latent_state_activations.length > 0 ? maxAbsContrib : 0;
+        // Weak alignment = max contribution < 0.15 from any state
+        if (stateAlignment < 0.15 && r.latent_state_activations.length > 0) {
+          const genericPenalty = 0.15 * (1 - stateAlignment / 0.15); // 0 to 0.15
+          r.log_score -= genericPenalty;
+        }
+      }
+    }
+
+    // ════════════════════════════════════════════
+    // TEMPERATURE-SCALED SOFTMAX (Diagnosis Level)
+    // T=0.6 sharpens distribution for clinical ranking clarity
+    // ════════════════════════════════════════════
+    const TEMPERATURE = 0.6;
     const scaledScores = results.map(d => d.log_score / TEMPERATURE);
     const maxLog = Math.max(...scaledScores);
     const expScores = scaledScores.map(s => Math.exp(s - maxLog));
