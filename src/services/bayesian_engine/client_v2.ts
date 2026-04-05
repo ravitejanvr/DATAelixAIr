@@ -21,6 +21,7 @@ export interface V2DiagnosisExtra {
 
 export interface V2Result extends BayesianResult {
   latent_state_posteriors?: Array<{ state: string; posterior: number }>;
+  separation_validation?: Array<{ pair: string; delta_logP: number; sufficient: boolean }>;
 }
 
 /**
