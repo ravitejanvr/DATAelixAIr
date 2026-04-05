@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
       dangerousRes, durationModRes, onsetModRes, vitalModRes, clusterModRes,
       diagNamesRes,
     ] = await Promise.all([
-      supabase.from("latent_clinical_states").select("id, state_name"),
+      supabase.from("latent_clinical_states").select("id, state_name, prior_log_odds"),
       supabase.from("feature_state_likelihoods").select("latent_state_id, feature_name, log_likelihood_ratio"),
       supabase.from("diagnosis_state_likelihoods")
         .select("diagnosis_id, latent_state_id, log_likelihood_ratio")
