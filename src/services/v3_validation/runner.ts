@@ -78,7 +78,16 @@ export async function runV3ValidationSuite(
       const v3State = top1Dx?.v3_state_score ?? 0;
       const v1Symptom = top1Dx?.symptom_score ?? 0;
 
-      // Explanation
+      // Systemic severity from vitals
+      const systemicSignals = [
+        (c.input.vitals.blood_pressure_systolic ?? 999) < 100 ? 1 : 0,
+        (c.input.vitals.heartRate ?? 0) > 100 ? 1 : 0,
+        (c.input.vitals.respiratoryRate ?? 0) > 22 ? 1 : 0,
+        (c.input.vitals.temperature ?? 0) > 38.0 ? 1 : 0,
+        (c.input.vitals.spo2 ?? 100) < 94 ? 1 : 0,
+      ];
+      const systemicSeverity = Math.min(systemicSignals.reduce((a, b) => a + b, 0) / 3, 1.0);
+
       let explanation = `Top-1: ${top1Name} (${(top3[0].probability * 100).toFixed(1)}%).`;
       if (top1Match) {
         explanation += " Correct.";
