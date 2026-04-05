@@ -2634,7 +2634,11 @@ export async function runUnifiedClinicalPipeline(
       fusedTop: fusedTopScore,
       v2Top: v2TopScore,
       v1Top: v1TopScore,
+      scoreFusionSkipped: true,
       fusedSource: fusedBayesian?.source || "unknown",
+      purityCheck: fusedTopScore != null && v2TopScore != null
+        ? Math.abs(fusedTopScore - v2TopScore) < 0.05 ? "PURE_V2" : "MUTATED"
+        : "UNKNOWN",
     });
     // Warn (not throw) if V1 score leaked into final output
     if (fusedTopScore != null && v1TopScore != null && v2TopScore != null
