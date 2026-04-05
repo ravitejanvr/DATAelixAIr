@@ -209,8 +209,11 @@ Deno.serve(async (req) => {
       ...symptoms.map((s: string) => s.toLowerCase().trim()),
     ];
 
-    // Feature extraction — boolean flags (generalizable, not diagnosis-specific)
-    // Lab results extraction from vitals/body for high-signal evidence
+    // ════════════════════════════════════════════
+    // FEATURE EXTRACTION — CONTINUOUS + BINARY
+    // Vitals/labs → continuous logLR via sigmoid
+    // Symptoms → binary presence flags
+    // ════════════════════════════════════════════
     const labResults = body.lab_results || body.labs || {};
     const lactateValue = labResults.lactate ?? vitals?.lactate ?? null;
     const crpValue = labResults.crp ?? vitals?.crp ?? null;
@@ -220,19 +223,103 @@ Deno.serve(async (req) => {
 
     console.log("[AUDIT_EDGE_INPUT]", {
       lab_results: labResults,
-      lactateValue,
-      crpValue,
-      wbcValue,
-      procalcitoninValue,
-      troponinValue,
+      lactateValue, crpValue, wbcValue, procalcitoninValue, troponinValue,
+      vitals_parsed: { tempC, hr, rr, spo2: spo2Val, sbp: sbpVal },
     });
 
-    const activeFeatures: Record<string, boolean> = {
-      fever: (tempC !== null && tempC >= 38) || allSymptomText.some(s => s.includes("fever")),
-      hypotension: sbpVal !== null && sbpVal < 90,
-      tachycardia: hr !== null && hr > 100,
-      tachypnea: rr !== null && rr > 22,
-      hypoxia: spo2Val !== null && spo2Val < 94,
+    // ── Continuous logLR functions ──
+    // sigmoid(x; L, k, x0) = L / (1 + exp(-k*(x - x0)))
+    // Maps continuous value → logLR ∈ [-L, +L]
+    // x0 = inflection point (clinical threshold)
+    // k = steepness (higher = sharper transition)
+    // L = max magnitude (bounds the logLR)
+    function continuousLogLR(value: number | null, params: {
+      x0: number; k: number; L: number; invert?: boolean; baseline?: number;
+    }): number {
+      if (value === null || isNaN(value)) return 0; // missing → no evidence
+      const { x0, k, L, invert = false, baseline = 0 } = params;
+      const raw = L * (2 / (1 + Math.exp(-k * (value - x0))) - 1); // centered sigmoid: [-L, +L]
+      return invert ? -(raw - baseline) : (raw - baseline);
+    }
+
+    // ── Continuous feature scores (logLR values, not booleans) ──
+    // Each maps a raw measurement to a logLR that smoothly increases/decreases
+    // These replace the binary thresholds entirely
+    const continuousFeatures: Record<string, number> = {};
+
+    // Temperature: x0=38°C, fever grows smoothly, hypothermia also signals
+    if (tempC !== null) {
+      continuousFeatures["fever"] = continuousLogLR(tempC, { x0: 38.0, k: 1.5, L: 2.0 });
+      continuousFeatures["no_fever"] = -continuousFeatures["fever"];
+    }
+
+    // Heart rate: x0=100 bpm, tachycardia grows
+    if (hr !== null) {
+      continuousFeatures["tachycardia"] = continuousLogLR(hr, { x0: 100, k: 0.08, L: 1.8 });
+      continuousFeatures["no_tachycardia"] = -continuousFeatures["tachycardia"];
+    }
+
+    // Blood pressure (systolic): INVERTED — lower BP = higher logLR for hypotension
+    if (sbpVal !== null) {
+      continuousFeatures["hypotension"] = continuousLogLR(sbpVal, { x0: 90, k: 0.1, L: 2.5, invert: true });
+      continuousFeatures["no_hypotension"] = -continuousFeatures["hypotension"];
+    }
+
+    // Respiratory rate: x0=22
+    if (rr !== null) {
+      continuousFeatures["tachypnea"] = continuousLogLR(rr, { x0: 22, k: 0.15, L: 1.5 });
+    }
+
+    // SpO2: INVERTED — lower SpO2 = higher logLR for hypoxia
+    if (spo2Val !== null) {
+      continuousFeatures["hypoxia"] = continuousLogLR(spo2Val, { x0: 94, k: 0.3, L: 2.0, invert: true });
+      continuousFeatures["no_hypoxia"] = -continuousFeatures["hypoxia"];
+    }
+
+    // Lactate: x0=2.0 mmol/L, strong signal, steep
+    if (lactateValue !== null) {
+      const lv = Number(lactateValue);
+      if (!isNaN(lv)) {
+        continuousFeatures["lactate_high"] = continuousLogLR(lv, { x0: 2.0, k: 0.8, L: 3.0 });
+      }
+    }
+
+    // CRP: x0=10 mg/L
+    if (crpValue !== null) {
+      const cv = Number(crpValue);
+      if (!isNaN(cv)) {
+        continuousFeatures["crp_high"] = continuousLogLR(cv, { x0: 10, k: 0.15, L: 2.0 });
+      }
+    }
+
+    // WBC: two-sided — both high and low are abnormal
+    if (wbcValue !== null) {
+      const wv = Number(wbcValue);
+      if (!isNaN(wv)) {
+        const highLR = continuousLogLR(wv, { x0: 12000, k: 0.0005, L: 1.8 });
+        const lowLR = continuousLogLR(wv, { x0: 4000, k: 0.001, L: 1.5, invert: true });
+        continuousFeatures["wbc_abnormal"] = Math.max(highLR, lowLR, 0); // take whichever is abnormal
+      }
+    }
+
+    // Procalcitonin: x0=0.5 ng/mL
+    if (procalcitoninValue !== null) {
+      const pv = Number(procalcitoninValue);
+      if (!isNaN(pv)) {
+        continuousFeatures["procalcitonin_high"] = continuousLogLR(pv, { x0: 0.5, k: 3.0, L: 2.5 });
+      }
+    }
+
+    // Troponin: x0=0.04 ng/mL
+    if (troponinValue !== null) {
+      const tv = Number(troponinValue);
+      if (!isNaN(tv)) {
+        continuousFeatures["troponin_high"] = continuousLogLR(tv, { x0: 0.04, k: 50, L: 2.5 });
+      }
+    }
+
+    // ── Binary symptom features (presence/absence — these remain boolean) ──
+    const symptomFeatures: Record<string, boolean> = {
       altered_mental_status: allSymptomText.some(s =>
         s.includes("confusion") || s.includes("altered") || s.includes("disoriented") || s.includes("drowsy") || s.includes("letharg")),
       infection_source: allSymptomText.some(s =>
@@ -254,35 +341,32 @@ Deno.serve(async (req) => {
       sore_throat: allSymptomText.some(s => s.includes("sore throat") || s.includes("pharyngitis")),
       diabetes_history: normalizedHistory.some((h: string) => h.includes("diabetes") || h.includes("diabetic")),
       hypertension_history: normalizedHistory.some((h: string) => h.includes("hypertension") || h.includes("high blood pressure")),
-      // Lab-derived features (high-signal evidence)
-      lactate_high: lactateValue !== null && Number(lactateValue) > 2.0,
-      crp_high: crpValue !== null && Number(crpValue) > 10,
-      wbc_abnormal: (wbcValue !== null && (Number(wbcValue) > 12000 || Number(wbcValue) < 4000)),
-      procalcitonin_high: procalcitoninValue !== null && Number(procalcitoninValue) > 0.5,
-      troponin_high: troponinValue !== null && Number(troponinValue) > 0.04,
     };
 
-    // ── NEGATIVE EVIDENCE: derive "no_X" features from absence of positive features ──
-    // These activate negative log-LRs stored in feature_state_likelihoods
-    const negativeFeatures: Record<string, boolean> = {
-      no_fever: !activeFeatures.fever,
-      no_hypotension: !activeFeatures.hypotension,
-      no_tachycardia: !activeFeatures.tachycardia,
-      no_chest_pain: !activeFeatures.chest_pain,
-      no_dyspnea: !activeFeatures.dyspnea,
-      no_cough: !activeFeatures.cough,
-      no_hypoxia: !activeFeatures.hypoxia,
-      no_altered_mental_status: !activeFeatures.altered_mental_status,
-      no_headache: !activeFeatures.headache,
-      no_sweating: !activeFeatures.sweating,
-      no_joint_pain: !activeFeatures.joint_pain,
+    // ── Negative evidence for symptoms ──
+    const negativeSymptomFeatures: Record<string, boolean> = {
+      no_chest_pain: !symptomFeatures.chest_pain,
+      no_dyspnea: !symptomFeatures.dyspnea,
+      no_cough: !symptomFeatures.cough,
+      no_altered_mental_status: !symptomFeatures.altered_mental_status,
+      no_headache: !symptomFeatures.headache,
+      no_sweating: !symptomFeatures.sweating,
+      no_joint_pain: !symptomFeatures.joint_pain,
     };
 
-    // Merge positive + negative into unified feature set
-    const allFeatures: Record<string, boolean> = { ...activeFeatures, ...negativeFeatures };
+    // ── Unified feature representation ──
+    // continuous features: number (logLR value)
+    // binary features: converted to logLR (present=DB lookup, absent=0)
+    // This is the SINGLE representation consumed by latent state computation
+    const allBinaryFeatures: Record<string, boolean> = { ...symptomFeatures, ...negativeSymptomFeatures };
+    const activeBinaryNames = Object.entries(allBinaryFeatures).filter(([_, v]) => v).map(([k]) => k);
+    const activeContinuousNames = Object.entries(continuousFeatures)
+      .filter(([_, v]) => Math.abs(v) > 0.05)
+      .map(([k, v]) => `${k}(${v > 0 ? '+' : ''}${v.toFixed(2)})`);
 
-    const activeFeatureNames = Object.entries(allFeatures).filter(([_, v]) => v).map(([k]) => k);
-    console.log("[ProbEngineV2] Active features (pos+neg):", JSON.stringify(activeFeatureNames));
+    console.log("[ProbEngineV2] Continuous features:", JSON.stringify(continuousFeatures));
+    console.log("[ProbEngineV2] Binary features:", JSON.stringify(activeBinaryNames));
+    console.log("[ProbEngineV2] Active features (unified):", JSON.stringify([...activeBinaryNames, ...activeContinuousNames]));
 
     // ════════════════════════════════════════════
     // STEP 2: COMPUTE LATENT STATE POSTERIORS
