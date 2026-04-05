@@ -2190,11 +2190,14 @@ export default function CockpitPlayground() {
                                   <div className={`h-full rounded-full transition-all ${d.pct >= 30 ? "bg-emerald-500" : d.pct >= 15 ? "bg-amber-500" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(d.pct, 100)}%` }} />
                                 </div>
                                 {/* Inline diagnostic explanation */}
-                                {d.supporting.length > 0 && (
-                                  <p className="text-[9px] text-muted-foreground mt-1 leading-snug">
-                                    Driven by {d.supporting.slice(0, 5).join(", ").toLowerCase()}
-                                  </p>
-                                )}
+                                {d.supporting.length > 0 && (() => {
+                                  const cleaned = cleanSupportingList(d.supporting).slice(0, 5);
+                                  return cleaned.length > 0 ? (
+                                    <p className="text-[9px] text-muted-foreground mt-1 leading-snug">
+                                      Driven by {cleaned.join(", ").toLowerCase()}
+                                    </p>
+                                  ) : null;
+                                })()}
                               </button>
                               {isExpanded && (
                                 <div className="mt-1.5 rounded-md border border-border p-2 bg-muted/20 space-y-2">
