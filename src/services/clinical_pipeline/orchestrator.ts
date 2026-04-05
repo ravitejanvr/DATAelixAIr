@@ -1981,10 +1981,10 @@ export async function runUnifiedClinicalPipeline(
     );
   }
 
-  // Conflict resolution between DDX and Bayesian
-  if (metaReasoningResult && ddxResult && bayesianResult) {
+  // Conflict resolution between DDX and Bayesian (uses fusedBayesian for V2 purity)
+  if (metaReasoningResult && ddxResult && fusedBayesian) {
     const ddxTop = ddxResult.differential_diagnoses[0];
-    const bayesTop = bayesianResult.diagnoses[0];
+    const bayesTop = fusedBayesian.diagnoses[0];
     if (ddxTop && bayesTop) {
       const bayesTopName = (bayesTop as any).diagnosis_name
         || (bayesTop as any).diagnosis_id
@@ -2531,9 +2531,9 @@ export async function runUnifiedClinicalPipeline(
       })),
     });
   }
-  if (bayesianResult) {
+  if (fusedBayesian) {
     pcieCore.updateReasoning({
-      bayesian_probabilities: bayesianResult.diagnoses.map(d => ({
+      bayesian_probabilities: fusedBayesian.diagnoses.map(d => ({
         diagnosis_id: d.diagnosis_id,
         posterior_probability: d.posterior_probability,
         prior: d.prior,
@@ -2616,6 +2616,27 @@ export async function runUnifiedClinicalPipeline(
   }
 
   onProgress?.("complete", {});
+
+  // ── HARD GUARD: V2 purity assertion ──
+  const finalEngineVersion = (useV2AsPrimary && v2Result && !v2FallbackUsed) ? "v2" : "v1";
+  if (finalEngineVersion === "v2" && v2Result) {
+    const v2TopScore = v2Result.diagnoses?.[0]?.posterior_probability;
+    const fusedTopScore = fusedBayesian?.diagnoses?.[0]?.posterior_probability;
+    const v1TopScore = bayesianResult?.diagnoses?.[0]?.posterior_probability;
+    console.log("[FINAL_OUTPUT_TRACE]", {
+      engine: "V2",
+      fusedTop: fusedTopScore,
+      v2Top: v2TopScore,
+      v1Top: v1TopScore,
+      fusedSource: fusedBayesian?.source || "unknown",
+    });
+    // Warn (not throw) if V1 score leaked into final output
+    if (fusedTopScore != null && v1TopScore != null && v2TopScore != null
+        && Math.abs(fusedTopScore - v1TopScore) < 0.001
+        && Math.abs(fusedTopScore - v2TopScore) > 0.01) {
+      console.error("[V2_PURITY_VIOLATION] Final output matches V1, not V2. Possible leakage.");
+    }
+  }
 
   return {
     enabled: true,
