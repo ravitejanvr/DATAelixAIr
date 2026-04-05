@@ -3933,18 +3933,21 @@ export type Database = {
           created_at: string
           description: string
           id: string
+          prior_log_odds: number | null
           state_name: string
         }
         Insert: {
           created_at?: string
           description?: string
           id?: string
+          prior_log_odds?: number | null
           state_name: string
         }
         Update: {
           created_at?: string
           description?: string
           id?: string
+          prior_log_odds?: number | null
           state_name?: string
         }
         Relationships: []
