@@ -462,7 +462,7 @@ Deno.serve(async (req) => {
       } else if (totalSymptoms > 0) {
         symptomScore = Math.min(totalSymptoms, 3) * Math.log(0.15);
       }
-      logScore += symptomScore;
+      // NOTE: symptomScore is NOT added here — deferred to weighted combination below
 
       // Temporal modifiers
       const durMod = durationModMap.get(diagId) || 1.0;
@@ -520,7 +520,25 @@ Deno.serve(async (req) => {
         }
       }
 
-      logScore += v3StateScore;
+      // ═══════════════════════════════════════
+      // CONTINUOUS SYSTEMIC SEVERITY WEIGHTING
+      // When systemic instability is high, trust V3 discriminative signal more
+      // When low, blend equally with V1 symptom likelihoods
+      // ═══════════════════════════════════════
+      const systemicSignals = [
+        continuousFeatures["hypotension"] ?? 0,
+        continuousFeatures["tachycardia"] ?? 0,
+        continuousFeatures["tachypnea"] ?? 0,
+        continuousFeatures["fever"] ?? 0,
+        continuousFeatures["hypoxia"] ?? 0,
+      ].filter(v => v > 0.1);
+      // systemic_severity: 0 (no systemic signals) → 1 (all 5 active)
+      const systemicSeverity = Math.min(systemicSignals.length / 3, 1.0);
+
+      const stateWeight = 1.0 + systemicSeverity;   // 1.0 → 2.0
+      const symptomWeight = 1.0 - 0.7 * systemicSeverity; // 1.0 → 0.3
+
+      logScore += (stateWeight * v3StateScore) + (symptomWeight * symptomScore);
 
       const evidence: string[] = [];
       if (symLiks.length > 0) evidence.push(`${symLiks.length}/${totalSymptoms} symptoms`);
