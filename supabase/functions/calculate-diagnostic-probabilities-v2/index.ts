@@ -452,14 +452,12 @@ Deno.serve(async (req) => {
       featureStateMap.get(fsl.latent_state_id)!.set(fsl.feature_name, fsl.log_likelihood_ratio);
     }
 
-    // Compute latent state log-odds from uninformative prior (0.5 → logOdds = 0)
+    // Compute latent state log-odds from DB-calibrated priors (NOT uniform 0.5)
     const latentStatePosteriors = new Map<string, number>(); // stateId → posterior prob
     const latentStateLogOdds = new Map<string, number>();
-    const LOG_ODDS_CLAMP = 3.5; // tighter clamp → posterior bounded to [0.03, 0.97]
+    const LOG_ODDS_CLAMP = 4.0; // posterior bounded to [0.018, 0.982]
 
     // Per-state temperature scaling — higher T = softer (less confident)
-    // Clinical rationale: infection & inflammation are easy to over-activate;
-    // neurological & cardiac require stronger evidence
     const PER_STATE_TEMPERATURE: Record<string, number> = {
       "infection": 1.4,
       "perfusion_deficit": 1.2,
@@ -467,16 +465,35 @@ Deno.serve(async (req) => {
       "cardiac_compromise": 1.1,
       "respiratory_failure": 1.2,
       "neurological_compromise": 1.1,
-      "systemic_infection_shock": 1.0, // Composite discriminative state — keep sharp
+      "systemic_infection_shock": 1.0,
     };
     const DEFAULT_STATE_TEMPERATURE = 1.3;
 
-    // Mutual exclusivity groups for state competition
-    // States within a group compete: their combined posterior is softmax-normalized
-    const STATE_COMPETITION_GROUPS = [
-      ["infection", "cardiac_compromise", "metabolic_derangement"],
-      ["respiratory_failure", "cardiac_compromise"],
+    // ── MISSING DATA UNCERTAINTY ──
+    // When key clinical data is missing, we dampen confidence in ALL states
+    // by pulling log-odds toward the prior (shrinkage toward uncertainty)
+    const KEY_DATA_FIELDS = [
+      { name: "temperature", present: tempC !== null, weight: 0.15 },
+      { name: "heart_rate", present: hr !== null, weight: 0.10 },
+      { name: "blood_pressure", present: sbpVal !== null, weight: 0.15 },
+      { name: "spo2", present: spo2Val !== null, weight: 0.12 },
+      { name: "respiratory_rate", present: rr !== null, weight: 0.08 },
+      { name: "lactate", present: lactateValue !== null, weight: 0.15 },
+      { name: "crp", present: crpValue !== null, weight: 0.10 },
+      { name: "wbc", present: wbcValue !== null, weight: 0.08 },
+      { name: "troponin", present: troponinValue !== null, weight: 0.07 },
     ];
+    const dataCompletenessScore = KEY_DATA_FIELDS.reduce((sum, f) => sum + (f.present ? f.weight : 0), 0);
+    const totalPossibleWeight = KEY_DATA_FIELDS.reduce((sum, f) => sum + f.weight, 0);
+    // uncertaintyDamping: 1.0 when all data present, ~0.3 when minimal data
+    // This shrinks log-odds updates toward zero (the prior) when data is sparse
+    const uncertaintyDamping = 0.3 + 0.7 * (dataCompletenessScore / totalPossibleWeight);
+
+    console.log("[V2_UNCERTAINTY]", {
+      dataCompleteness: (dataCompletenessScore / totalPossibleWeight * 100).toFixed(0) + "%",
+      uncertaintyDamping: uncertaintyDamping.toFixed(3),
+      missingFields: KEY_DATA_FIELDS.filter(f => !f.present).map(f => f.name),
+    });
 
     const stateNameToId = new Map<string, string>();
     const stateIdToName = new Map<string, string>();
@@ -485,55 +502,56 @@ Deno.serve(async (req) => {
       stateIdToName.set(s.id, s.state_name.toLowerCase().replace(/\s+/g, "_"));
     }
 
-    // Phase 1: Compute raw log-odds with diminishing returns
-    // Now handles BOTH continuous (vitals/labs) and binary (symptoms) features
+    // Phase 1: Compute raw log-odds with diminishing returns + DB priors
     for (const state of latentStates) {
-      let logOdds = 0;
+      // START from DB-calibrated prior (NOT zero/50%)
+      const priorLogOdds = (state as any).prior_log_odds ?? 0;
+      let logOdds = priorLogOdds;
       const stateFeatures = featureStateMap.get(state.id);
 
       if (stateFeatures) {
-        // Collect contributions from all active features
         const contributions: number[] = [];
 
         for (const [featureName, dbLogLR] of stateFeatures) {
-          // CONTINUOUS features: multiply DB logLR direction by continuous magnitude
+          // CONTINUOUS features
           if (featureName in continuousFeatures) {
             const continuousLR = continuousFeatures[featureName];
             if (Math.abs(continuousLR) > 0.01) {
-              // Scale: use continuous value magnitude, capped by DB logLR magnitude
-              // When continuousLR is near max sigmoid output (~L), use full DB weight
-              // When near 0 (threshold region), use proportional weight
-              // This preserves DB-driven state mapping while adding continuous gradation
               const maxMagnitude = Math.abs(dbLogLR);
-              const normalizedMagnitude = Math.min(Math.abs(continuousLR) / 3.0, 1.0); // 3.0 = max sigmoid L
+              const normalizedMagnitude = Math.min(Math.abs(continuousLR) / 3.0, 1.0);
               const effectiveLR = Math.sign(dbLogLR) * maxMagnitude * normalizedMagnitude;
               contributions.push(effectiveLR);
             }
-            continue; // don't also check binary
+            continue;
           }
 
-          // BINARY features: use DB logLR directly when feature is active
+          // BINARY features
           if (allBinaryFeatures[featureName]) {
             contributions.push(dbLogLR);
           }
         }
 
-        // Sort by absolute value descending — strongest evidence first
+        // Sort by absolute value descending
         contributions.sort((a, b) => Math.abs(b) - Math.abs(a));
 
         // DIMINISHING RETURNS: 1st=100%, 2nd=71%, 3rd=58%, 4th=50%...
+        let evidenceUpdate = 0;
         for (let i = 0; i < contributions.length; i++) {
           const diminishingFactor = 1 / Math.sqrt(1 + i);
-          logOdds += contributions[i] * diminishingFactor;
+          evidenceUpdate += contributions[i] * diminishingFactor;
         }
+
+        // APPLY UNCERTAINTY DAMPING to evidence update (not to prior)
+        // When data is missing, evidence contribution is shrunk toward zero
+        logOdds += evidenceUpdate * uncertaintyDamping;
       }
 
       // Per-state temperature scaling
       const stateName = stateIdToName.get(state.id) || "";
       const stateTemp = PER_STATE_TEMPERATURE[stateName] || DEFAULT_STATE_TEMPERATURE;
-      logOdds = logOdds / stateTemp;
+      logOdds = priorLogOdds + (logOdds - priorLogOdds) / stateTemp;
 
-      // Tighter clamp
+      // Clamp
       logOdds = Math.max(-LOG_ODDS_CLAMP, Math.min(LOG_ODDS_CLAMP, logOdds));
       latentStateLogOdds.set(state.id, logOdds);
       const posterior = 1 / (1 + Math.exp(-logOdds));
