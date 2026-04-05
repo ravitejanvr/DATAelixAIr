@@ -210,6 +210,14 @@ Deno.serve(async (req) => {
     ];
 
     // Feature extraction — boolean flags (generalizable, not diagnosis-specific)
+    // Lab results extraction from vitals/body for high-signal evidence
+    const labResults = body.lab_results || body.labs || {};
+    const lactateValue = labResults.lactate ?? vitals?.lactate ?? null;
+    const crpValue = labResults.crp ?? vitals?.crp ?? null;
+    const wbcValue = labResults.wbc ?? vitals?.wbc ?? null;
+    const procalcitoninValue = labResults.procalcitonin ?? vitals?.procalcitonin ?? null;
+    const troponinValue = labResults.troponin ?? vitals?.troponin ?? null;
+
     const activeFeatures: Record<string, boolean> = {
       fever: (tempC !== null && tempC >= 38) || allSymptomText.some(s => s.includes("fever")),
       hypotension: sbpVal !== null && sbpVal < 90,
@@ -237,6 +245,12 @@ Deno.serve(async (req) => {
       sore_throat: allSymptomText.some(s => s.includes("sore throat") || s.includes("pharyngitis")),
       diabetes_history: normalizedHistory.some((h: string) => h.includes("diabetes") || h.includes("diabetic")),
       hypertension_history: normalizedHistory.some((h: string) => h.includes("hypertension") || h.includes("high blood pressure")),
+      // Lab-derived features (high-signal evidence)
+      lactate_high: lactateValue !== null && Number(lactateValue) > 2.0,
+      crp_high: crpValue !== null && Number(crpValue) > 10,
+      wbc_abnormal: (wbcValue !== null && (Number(wbcValue) > 12000 || Number(wbcValue) < 4000)),
+      procalcitonin_high: procalcitoninValue !== null && Number(procalcitoninValue) > 0.5,
+      troponin_high: troponinValue !== null && Number(troponinValue) > 0.04,
     };
 
     // ── NEGATIVE EVIDENCE: derive "no_X" features from absence of positive features ──
@@ -287,12 +301,13 @@ Deno.serve(async (req) => {
     // Clinical rationale: infection & inflammation are easy to over-activate;
     // neurological & cardiac require stronger evidence
     const PER_STATE_TEMPERATURE: Record<string, number> = {
-      "infection": 1.4,           // High false-positive rate — soften
-      "perfusion_deficit": 1.2,   // Moderate — keep balanced
-      "inflammation": 1.5,        // Very common, easy to over-activate
-      "cardiac_compromise": 1.1,  // Specific — allow sharper activation
-      "respiratory_failure": 1.2, // Moderate
-      "neurological_compromise": 1.1, // Specific signals
+      "infection": 1.4,
+      "perfusion_deficit": 1.2,
+      "inflammation": 1.5,
+      "cardiac_compromise": 1.1,
+      "respiratory_failure": 1.2,
+      "neurological_compromise": 1.1,
+      "systemic_infection_shock": 1.0, // Composite discriminative state — keep sharp
     };
     const DEFAULT_STATE_TEMPERATURE = 1.3;
 
@@ -726,7 +741,51 @@ Deno.serve(async (req) => {
       state_competition_applied: true,
     };
 
-    // Trace
+    // ════════════════════════════════════════════
+    // STATE ACTIVATION TRACE (Phase 7)
+    // ════════════════════════════════════════════
+    console.log("[STATE_ACTIVATION]", JSON.stringify(
+      latentStates.map(s => ({
+        state: stateIdToName.get(s.id) || s.state_name,
+        posterior: parseFloat((latentStatePosteriors.get(s.id) || 0.5).toFixed(4)),
+        log_odds: parseFloat((latentStateLogOdds.get(s.id) || 0).toFixed(3)),
+      }))
+    ));
+
+    // ════════════════════════════════════════════
+    // DX CONTRIBUTION TRACE (Phase 7)
+    // ════════════════════════════════════════════
+    console.log("[DX_CONTRIBUTION]", JSON.stringify(
+      results.slice(0, 8).map(d => ({
+        id: d.diagnosis_id,
+        posterior: (d.posterior_probability * 100).toFixed(1) + "%",
+        latent_contrib: d.latent_state_contribution.toFixed(3),
+        state_breakdown: d.latent_state_activations
+          .filter(s => Math.abs(s.contribution) > 0.05)
+          .map(s => `${s.state}(${s.contribution > 0 ? '+' : ''}${s.contribution.toFixed(2)})`),
+      }))
+    ));
+
+    // ════════════════════════════════════════════
+    // SEPARATION VALIDATION (Phase 4)
+    // Verify that high-signal features create non-trivial ΔlogP
+    // ════════════════════════════════════════════
+    const separationChecks: Array<{ pair: string; delta_logP: number; sufficient: boolean }> = [];
+    if (results.length >= 2) {
+      for (let i = 0; i < Math.min(results.length - 1, 3); i++) {
+        const delta = results[i].log_score - results[i + 1].log_score;
+        separationChecks.push({
+          pair: `#${i + 1} vs #${i + 2}`,
+          delta_logP: parseFloat(delta.toFixed(3)),
+          sufficient: Math.abs(delta) > 0.3,
+        });
+      }
+    }
+    if (separationChecks.some(s => !s.sufficient)) {
+      console.log("[SEPARATION_WARNING] Insufficient ΔlogP between top diagnoses:", JSON.stringify(separationChecks));
+    }
+
+    // Score trace
     console.log("[ProbEngineV2] Score trace:", JSON.stringify(
       results.slice(0, 8).map(d => ({
         id: d.diagnosis_id,
@@ -778,6 +837,7 @@ Deno.serve(async (req) => {
       vitals_signals_applied: Array.from(vitalModMap.values()).flat().length,
       cluster_matches: Array.from(clusterModMap.entries()).filter(([, v]) => v > 1).length,
       clinical_features_detected: activeFeatureNames,
+      separation_validation: separationChecks,
       calibration,
       execution_ms: Date.now() - start,
       source: "probabilistic_engine_v2_latent_state",
