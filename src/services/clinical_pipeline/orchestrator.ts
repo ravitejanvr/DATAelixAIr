@@ -1421,13 +1421,10 @@ export async function runUnifiedClinicalPipeline(
   });
 
   // ═══════════════════════════════════════════════════════
-  // Staged Rollout: Probabilistic Engine V2 (Latent State Architecture)
-  // Uses rollout controller for user-level targeting + percentage bucketing.
-  // When selected for V2: runs V2 as PRIMARY, V1 as shadow comparison.
-  // Otherwise: runs V1 as primary, V2 as shadow (fire-and-forget).
+  // Unified Engine Registry — Single execution path for V1/V2/V3+
+  // Routes through engine_registry.ts. No hardcoded engine references.
   // ═══════════════════════════════════════════════════════
   const rolloutConfig = getRolloutConfig();
-  // Use authenticated user_id as primary rollout identifier — never fall back to empty string
   const rolloutIdentifier = input.user_id || input.visit_id || input.clinic_id || null;
   if (!rolloutIdentifier) {
     console.warn("[ENGINE_AUDIT] WARNING: No authenticated identity — rollout will use anonymous bucket");
@@ -1438,11 +1435,13 @@ export async function runUnifiedClinicalPipeline(
     isAdmin: input.is_admin ?? false,
     isInternalUser: input.is_internal ?? false,
   });
-  const useV2AsPrimary = isProbabilisticEngineV2Enabled() && rolloutDecision.engine_selected === "v2";
+
+  const activeVersion = getActiveEngineVersion();
+  const useAdvancedEngine = (isProbabilisticEngineV2Enabled() || activeVersion === "v3") && rolloutDecision.engine_selected !== "v1";
 
   console.log(`[ENGINE_AUDIT] ══════════════════════════════════`);
   console.log(`[ENGINE_AUDIT] Rollout decision:`, {
-    engine_selected: useV2AsPrimary ? "V2" : "V1",
+    engine_selected: activeVersion.toUpperCase(),
     rollout_percentage: rolloutDecision.rollout_percentage,
     rollout_bucket: rolloutDecision.bucket,
     is_internal_user: rolloutDecision.is_internal,
@@ -1452,31 +1451,32 @@ export async function runUnifiedClinicalPipeline(
     visit_id: input.visit_id || "null",
     cache_bypassed: !!input.skip_cache,
   });
-  console.log(`[ENGINE_AUDIT] ENGINE_SELECTED: ${useV2AsPrimary ? "V2" : "V1"}`);
+  console.log(`[ENGINE_AUDIT] ENGINE_SELECTED: ${activeVersion.toUpperCase()}`);
   console.log(`[ENGINE_AUDIT] CACHE_STATUS: ${input.skip_cache ? "BYPASSED" : (cache.reasoning_hit ? "HIT" : "MISS")}`);
 
-  let v2FallbackUsed = false;
-  let v2FallbackReason: string | null = null;
-  let v2Result: import("@/services/bayesian_engine/client_v2").V2Result | null = null;
+  let advancedEngineFallbackUsed = false;
+  let advancedEngineFallbackReason: string | null = null;
+  let advancedEngineResult: BayesianResult | null = null;
+  let inferenceOutcome: InferenceResult | null = null;
 
-  if (isProbabilisticEngineV2Enabled() && bayesianResult) {
+  if (useAdvancedEngine && bayesianResult) {
     // Build lab_results from investigation_results (lactate, troponin, CRP, etc.)
-    const v2LabResults: Record<string, number> = {};
+    const advLabResults: Record<string, number> = {};
     if (ctx.investigation_results && typeof ctx.investigation_results === "object") {
       for (const [key, val] of Object.entries(ctx.investigation_results)) {
         if (val != null && !isNaN(Number(val))) {
-          v2LabResults[key] = Number(val);
+          advLabResults[key] = Number(val);
         }
       }
     }
 
-    console.log("[AUDIT_V2_LAB_INPUT]", {
+    console.log("[AUDIT_ENGINE_LAB_INPUT]", {
       investigation_results: ctx.investigation_results,
-      v2LabResults,
-      has_lactate: "lactate" in v2LabResults,
+      advLabResults,
+      has_lactate: "lactate" in advLabResults,
     });
 
-    const v2Input = {
+    const engineInput = {
       candidate_diagnosis_ids: ddxResult?.differential_diagnoses.map(d => d.diagnosis_id).filter(Boolean) || [],
       symptoms,
       physiological_state_ids: physiologicalContext?.physiological_states.map(s => s.state_id) || [],
@@ -1493,82 +1493,25 @@ export async function runUnifiedClinicalPipeline(
         bp_diastolic: vitals.bp_diastolic,
         respiratory_rate: vitals.respiratory_rate,
       },
-      lab_results: v2LabResults,
+      lab_results: advLabResults,
       duration: ctx.symptom_duration || null,
       onset_pattern: ctx.onset_pattern || null,
     };
 
-    if (useV2AsPrimary) {
-      // V2 is primary — run synchronously and use its output
-      console.log("[Pipeline] V2 ACTIVE as primary engine for this session");
-      try {
-        v2Result = await calculateDiagnosticProbabilitiesV2(v2Input);
-        if (v2Result) {
-          // Compare and log audit
-          const nameMap = new Map<string, string>();
-          if (ddxResult?.differential_diagnoses) {
-            for (const d of ddxResult.differential_diagnoses) {
-              if (d.diagnosis_id && d.diagnosis_name) nameMap.set(d.diagnosis_id, d.diagnosis_name);
-            }
-          }
-          comparePipelineOutputs(bayesianResult, v2Result, nameMap);
-
-          const v2Top = v2Result.diagnoses[0];
-          const v1Top = bayesianResult.diagnoses[0];
-          const rankChanged = v2Top?.diagnosis_id !== v1Top?.diagnosis_id;
-
-          if (v2Top && shouldAuditLog(v2Top.posterior_probability)) {
-            logV2Audit({
-              visit_id: input.visit_id || "unknown",
-              engine: "v2",
-              top_diagnosis_id: v2Top.diagnosis_id,
-              top_confidence: v2Top.posterior_probability,
-              v1_v2_delta: v1Top ? Math.abs(v2Top.posterior_probability - v1Top.posterior_probability) : undefined,
-              ranking_changed: rankChanged,
-              timestamp: new Date().toISOString(),
-            });
-          }
-
-          // V2 promoted — downstream fusedBayesian will pick this up
-          v2Result = v2Result; // kept for audit; actual swap happens at fusedBayesian
-        } else {
-          console.warn("[ENGINE_AUDIT] FALLBACK_REASON: invalid_state (V2 returned null)");
-          v2FallbackUsed = true;
-          v2FallbackReason = "invalid_state";
-        }
-      } catch (err) {
-        console.error("[ENGINE_AUDIT] FALLBACK_REASON: error", err);
-        v2FallbackUsed = true;
-        v2FallbackReason = "error";
+    // Use unified inference entry point
+    console.log(`[Pipeline] ${activeVersion.toUpperCase()} ACTIVE as primary engine for this session`);
+    try {
+      inferenceOutcome = await runInference(engineInput);
+      advancedEngineResult = inferenceOutcome.result;
+      if (!advancedEngineResult) {
+        console.warn(`[ENGINE_AUDIT] FALLBACK_REASON: invalid_state (${activeVersion} returned null)`);
+        advancedEngineFallbackUsed = true;
+        advancedEngineFallbackReason = inferenceOutcome.fallback_reason || "invalid_state";
       }
-    } else {
-      // Shadow mode: fire-and-forget comparison
-      calculateDiagnosticProbabilitiesV2(v2Input).then(shadowV2 => {
-        const nameMap = new Map<string, string>();
-        if (ddxResult?.differential_diagnoses) {
-          for (const d of ddxResult.differential_diagnoses) {
-            if (d.diagnosis_id && d.diagnosis_name) nameMap.set(d.diagnosis_id, d.diagnosis_name);
-          }
-        }
-        comparePipelineOutputs(bayesianResult, shadowV2, nameMap);
-
-        // Audit log for shadow mode too
-        if (shadowV2?.diagnoses[0] && shouldAuditLog(shadowV2.diagnoses[0].posterior_probability)) {
-          logV2Audit({
-            visit_id: input.visit_id || "unknown",
-            engine: "v2",
-            top_diagnosis_id: shadowV2.diagnoses[0].diagnosis_id,
-            top_confidence: shadowV2.diagnoses[0].posterior_probability,
-            v1_v2_delta: bayesianResult?.diagnoses[0]
-              ? Math.abs(shadowV2.diagnoses[0].posterior_probability - bayesianResult.diagnoses[0].posterior_probability)
-              : undefined,
-            ranking_changed: shadowV2.diagnoses[0].diagnosis_id !== bayesianResult?.diagnoses[0]?.diagnosis_id,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      }).catch(err => {
-        console.warn("[Pipeline] V2 shadow comparison failed (non-blocking):", err);
-      });
+    } catch (err) {
+      console.error("[ENGINE_AUDIT] FALLBACK_REASON: error", err);
+      advancedEngineFallbackUsed = true;
+      advancedEngineFallbackReason = "error";
     }
   }
 
