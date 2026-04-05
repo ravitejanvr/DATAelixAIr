@@ -85,6 +85,12 @@ export interface PipelineInput {
   intake_approved?: boolean;
   /** When true, bypass reasoning cache to force full pipeline execution (used by trace/benchmarks) */
   skip_cache?: boolean;
+  /** Authenticated user identity — used for rollout bucketing */
+  user_id?: string | null;
+  /** Whether the authenticated user is an admin */
+  is_admin?: boolean;
+  /** Whether the authenticated user is an internal/test user */
+  is_internal?: boolean;
   recommendations?: {
     diagnosis?: string;
     drugs?: string[];
