@@ -13,15 +13,6 @@ import type { Database } from "@/integrations/supabase/types";
 type AppRole = Database["public"]["Enums"]["app_role"];
 type AuthMode = "signin" | "signup";
 
-const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
-  { value: "doctor", label: "Doctor" },
-  { value: "nurse", label: "Nurse" },
-  { value: "receptionist", label: "Receptionist" },
-  { value: "pharmacist", label: "Pharmacist" },
-  { value: "clinic_admin", label: "Clinic Admin" },
-  { value: "patient", label: "Patient" },
-];
-
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Auth() {
@@ -33,7 +24,7 @@ export default function Auth() {
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPhone, setSignUpPhone] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
-  const [signUpRole, setSignUpRole] = useState<AppRole>("doctor");
+  
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -60,7 +51,6 @@ export default function Auth() {
       body: {
         full_name: signUpName,
         phone: signUpPhone || "",
-        role: signUpRole,
         email: signUpEmail.trim(),
       },
     });
@@ -112,7 +102,7 @@ export default function Auth() {
     try {
       const { data, error } = await supabase.auth.signUp({
         email: signUpEmail.trim(), password: signUpPassword,
-        options: { data: { full_name: signUpName, role: signUpRole, phone: signUpPhone }, emailRedirectTo: `${window.location.origin}/auth` },
+        options: { data: { full_name: signUpName, phone: signUpPhone }, emailRedirectTo: `${window.location.origin}/auth` },
       });
       if (error) { toast({ title: "Registration failed", description: error.message, variant: "destructive" }); return; }
       if (data.user?.identities?.length === 0) {
@@ -196,14 +186,6 @@ export default function Auth() {
                 <div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input type="email" value={signUpEmail} onChange={e => setSignUpEmail(e.target.value)} onKeyDown={e => handleEnter(e, "signup")} placeholder="you@clinic.com" className="pl-10 h-11" autoComplete="email" /></div>
                 <div className="relative"><Smartphone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input type="tel" value={signUpPhone} onChange={e => setSignUpPhone(e.target.value)} placeholder="Mobile (optional)" className="pl-10 h-11" autoComplete="tel" /></div>
                 <div className="relative"><Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input type="password" value={signUpPassword} onChange={e => setSignUpPassword(e.target.value)} onKeyDown={e => handleEnter(e, "signup")} placeholder="Password (min 6 chars)" className="pl-10 h-11" autoComplete="new-password" /></div>
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Select your role</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {ROLE_OPTIONS.map(option => (
-                      <Button key={option.value} type="button" variant={signUpRole === option.value ? "default" : "outline"} className="h-9 text-xs" onClick={() => setSignUpRole(option.value)} disabled={loading}>{option.label}</Button>
-                    ))}
-                  </div>
-                </div>
                 <Button className="w-full h-11" onClick={handleSignUp} disabled={!canSignUp}>{loading ? "Creating account…" : "Create account"}</Button>
               </>
             )}
