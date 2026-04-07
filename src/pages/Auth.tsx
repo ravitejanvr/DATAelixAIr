@@ -146,6 +146,27 @@ export default function Auth() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) {
+        toast({ title: "Google sign-in failed", description: String(result.error), variant: "destructive" });
+        return;
+      }
+      if (result.redirected) return;
+      // Session set by lovable auth — route user
+      const { data } = await supabase.auth.getSession();
+      if (data.session) await checkApprovalAndRoute(data.session.user.id);
+    } catch {
+      toast({ title: "Connection error", description: "Unable to sign in with Google.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEnter = (e: React.KeyboardEvent, action: "signin" | "signup") => {
     if (e.key !== "Enter") return;
     if (action === "signin") handleSignIn();
