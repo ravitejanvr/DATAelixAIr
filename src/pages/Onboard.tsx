@@ -19,7 +19,7 @@ const MOCK_PHONE_OTP = "123456";
 // Platform admin emails — auto-promoted
 const PLATFORM_ADMIN_EMAILS = ["raviteja@elixair.uk", "raviteja.nvr@elixair.uk", "raviteja.nvr@gmail.com"];
 
-const ROLES = [
+const ROLES_INFO = [
   { key: "doctor", icon: Stethoscope, label: "Doctor" },
   { key: "nurse", icon: HeartPulse, label: "Nurse" },
   { key: "front_desk", icon: CalendarCheck, label: "Front Desk" },
@@ -33,7 +33,7 @@ export default function Onboard() {
   // Form state
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [role, setRole] = useState("doctor");
+  
 
   // Email OTP state
   const [emailOtpSent, setEmailOtpSent] = useState(false);
@@ -332,27 +332,6 @@ export default function Onboard() {
               )}
             </div>
 
-            {/* Role Selection */}
-            <div className="space-y-3 pt-4 border-t border-border">
-              <label className="text-xs font-medium text-muted-foreground">Your role</label>
-              <div className="grid grid-cols-4 gap-2">
-                {ROLES.map((r) => (
-                  <button
-                    key={r.key}
-                    type="button"
-                    onClick={() => setRole(r.key)}
-                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
-                      role === r.key
-                        ? "border-primary bg-primary/5 text-foreground"
-                        : "border-border hover:border-primary/40 text-muted-foreground"
-                    }`}
-                  >
-                    <r.icon className={`h-5 w-5 ${role === r.key ? "text-primary" : ""}`} />
-                    <span className="text-[10px] font-medium">{r.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Start Consultation CTA */}
             <div className="space-y-4 pt-6 border-t border-border">
