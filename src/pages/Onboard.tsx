@@ -137,7 +137,7 @@ export default function Onboard() {
       }
 
       const { data, error } = await supabase.functions.invoke("onboard-user", {
-        body: { email: email.trim(), phone, role },
+        body: { email: email.trim(), phone },
       });
 
       if (error) throw new Error(error.message);
