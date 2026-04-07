@@ -104,7 +104,7 @@ const Index = () => {
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "DATAelixAIr",
-          url: "https://dataelixair.lovable.app",
+          url: "https://elixair.uk",
           description: "AI clinical workspace for private healthcare providers.",
         }),
       }}
