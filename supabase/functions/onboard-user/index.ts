@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
         phone_verified: !!phone,
         email_domain_type: emailDomainType,
         clinic_id: clinicId,
-        role_subtype: role || "doctor",
+        role_subtype: "doctor",
       }).eq("user_id", user.id);
       if (profileErr) throw new Error(`Profile update failed: ${profileErr.message}`);
 
