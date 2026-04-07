@@ -40,14 +40,14 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const { full_name, phone, role, email } = await req.json();
+    const { full_name, phone, email } = await req.json();
 
     const userEmail = email || user.email || "";
     const isPlatformAdmin = PLATFORM_ADMIN_EMAILS.includes(userEmail.trim().toLowerCase());
 
-    // Validate role - only allow safe roles, never platform_admin from client
-    const SAFE_ROLES = ["doctor", "nurse", "receptionist", "pharmacist", "clinic_admin", "patient"];
-    const assignedRole = isPlatformAdmin ? "platform_admin" : (SAFE_ROLES.includes(role) ? role : "doctor");
+    // SECURITY: Never trust client-provided role. Default to 'patient'.
+    // Only platform admin emails get elevated. All other role changes happen via admin actions.
+    const assignedRole = isPlatformAdmin ? "platform_admin" : "patient";
     const assignedStatus = isPlatformAdmin ? "approved" : "pending";
 
     // Upsert role
