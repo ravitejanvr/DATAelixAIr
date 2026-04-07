@@ -12,7 +12,6 @@ const PRODUCTION_DOMAIN = "https://elixair.uk";
 const SEO = ({ title, description, canonical }: SEOProps) => {
   const location = useLocation();
   const canonicalUrl = canonical || `${PRODUCTION_DOMAIN}${location.pathname}`;
-  const isLovableApp = typeof window !== "undefined" && window.location.hostname.includes("lovable.app");
 
   useEffect(() => {
     document.title = title;
@@ -35,21 +34,12 @@ const SEO = ({ title, description, canonical }: SEOProps) => {
     setMeta("twitter:title", title);
     setMeta("twitter:description", description);
 
-    // Canonical — always points to production domain
-    let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
-    if (!link) {
-      link = document.createElement("link");
-      link.setAttribute("rel", "canonical");
-      document.head.appendChild(link);
+    // Update the static canonical href for SPA navigation
+    const link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (link) {
+      link.setAttribute("href", canonicalUrl);
     }
-    link.setAttribute("href", canonicalUrl);
-
-    // Robots — noindex lovable.app subdomains
-    if (isLovableApp) {
-      setMeta("robots", "noindex, nofollow");
-      setMeta("googlebot", "noindex, nofollow");
-    }
-  }, [title, description, canonicalUrl, isLovableApp]);
+  }, [title, description, canonicalUrl]);
 
   return null;
 };
