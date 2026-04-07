@@ -32,12 +32,13 @@ export interface AuditEntry {
  */
 export async function logAuditEvent(entry: AuditEntry): Promise<void> {
   try {
-    await supabase.from("audit_logs").insert({
-      actor_id: entry.actor_id,
-      event_type: entry.event_type,
-      target_type: entry.target_type || "",
-      target_id: entry.target_id || "",
-      metadata: entry.metadata || {},
+    await supabase.functions.invoke("log-audit-event", {
+      body: {
+        event_type: entry.event_type,
+        target_type: entry.target_type || "",
+        target_id: entry.target_id || "",
+        metadata: entry.metadata || {},
+      },
     });
   } catch (err) {
     console.error("[Monitoring] Audit log failed:", err);

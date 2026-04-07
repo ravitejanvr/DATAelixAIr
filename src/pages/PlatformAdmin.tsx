@@ -264,12 +264,13 @@ export default function PlatformAdmin() {
     if (action === "request_info") {
       toast({ title: "Info requested", description: `A request for more information has been noted for ${u?.full_name || "this user"}.` });
       // Log audit event
-      await supabase.from("audit_logs").insert({
-        actor_id: user!.id,
-        event_type: "info_requested",
-        target_type: "profile",
-        target_id: userId,
-        metadata: { user_name: u?.full_name },
+      await supabase.functions.invoke("log-audit-event", {
+        body: {
+          event_type: "info_requested",
+          target_type: "profile",
+          target_id: userId,
+          metadata: { user_name: u?.full_name },
+        },
       });
       return;
     }
