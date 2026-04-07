@@ -7,11 +7,29 @@
     <link rel="icon" href="/favicon.png" type="image/png">
     <meta name="description" content="Democratizing accurate medical information while maintaining safety and compliance.">
     <meta name="author" content="DATAelixAIr" />
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-    <meta name="googlebot" content="index, follow" />
     <meta name="google-site-verification" content="jo5_2UGlmUvstszxwRYulhfrATWtN2_OLrQnRPt3B-E" />
-    
-    
+
+    <!-- SEO: Single canonical pointing to production domain -->
+    <link rel="canonical" href="https://elixair.uk/" />
+
+    <!-- Robots: noindex lovable.app subdomains, index production -->
+    <script>
+      (function() {
+        var meta = document.createElement('meta');
+        meta.name = 'robots';
+        if (window.location.hostname.includes('lovable.app')) {
+          meta.content = 'noindex, nofollow';
+        } else {
+          meta.content = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+        }
+        document.head.appendChild(meta);
+        var gb = document.createElement('meta');
+        gb.name = 'googlebot';
+        gb.content = meta.content.startsWith('noindex') ? 'noindex, nofollow' : 'index, follow';
+        document.head.appendChild(gb);
+      })();
+    </script>
+
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta property="og:title" content="DATAelixAIr — AI-Powered Healthcare Data Solutions">
