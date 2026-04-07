@@ -9,6 +9,7 @@ import brainLogo from "@/assets/brain-logo-nobg.png";
 import { motion } from "framer-motion";
 import { Mail, Lock, LogIn, UserRound, Smartphone } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { lovable } from "@/integrations/lovable/index";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type AuthMode = "signin" | "signup";
