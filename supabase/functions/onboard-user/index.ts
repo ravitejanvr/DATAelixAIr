@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const { email, phone, role } = await req.json();
+    const { email, phone } = await req.json();
 
     if (!email) {
       return new Response(JSON.stringify({ error: "email is required" }), {
@@ -58,10 +58,8 @@ Deno.serve(async (req) => {
     }
 
     const isPlatformAdmin = PLATFORM_ADMIN_EMAILS.includes(email.trim().toLowerCase());
-    const roleMap: Record<string, string> = {
-      doctor: "doctor", nurse: "nurse", front_desk: "front_desk", admin: "clinic_admin",
-    };
-    const appRole = isPlatformAdmin ? "platform_admin" : (roleMap[role] || "doctor");
+    // SECURITY: Role is determined server-side only. Client input is ignored.
+    const appRole = isPlatformAdmin ? "platform_admin" : "doctor";
     const assignedStatus = isPlatformAdmin ? "approved" : "pending";
 
     const domain = email.split("@")[1]?.toLowerCase() || "";
@@ -100,7 +98,7 @@ Deno.serve(async (req) => {
         phone_verified: !!phone,
         email_domain_type: emailDomainType,
         clinic_id: clinicId,
-        role_subtype: role || "doctor",
+        role_subtype: "doctor",
       }).eq("user_id", user.id);
       if (profileErr) throw new Error(`Profile update failed: ${profileErr.message}`);
 
