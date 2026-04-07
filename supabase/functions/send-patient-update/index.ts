@@ -92,7 +92,7 @@ serve(async (req) => {
       patient_name: patient.name || "Patient",
       clinic_name: clinic?.name || "Clinic",
       token: String(visit?.token_number || ""),
-      visit_link: `${supabaseUrl.replace(".supabase.co", ".lovable.app")}/visit-journey/${visit_id || ""}`,
+      visit_link: `https://elixair.uk/visit-journey/${visit_id || ""}`,
       doctor_name: extra_vars.doctor_name || "Doctor",
       amount: extra_vars.amount || "0",
       report_link: extra_vars.report_link || "",
