@@ -7,6 +7,7 @@ interface SEOProps {
   canonical?: string;
   ogType?: string;
   jsonLd?: Record<string, unknown> | Record<string, unknown>[];
+  noindex?: boolean;
 }
 
 const PRODUCTION_DOMAIN = "https://elixair.uk";
@@ -22,7 +23,7 @@ const isProductionHost = () => {
   return host === "elixair.uk" || host === "www.elixair.uk";
 };
 
-const SEO = ({ title, description, canonical, ogType = "website", jsonLd }: SEOProps) => {
+const SEO = ({ title, description, canonical, ogType = "website", jsonLd, noindex = false }: SEOProps) => {
   const location = useLocation();
   const normalizedPath = normalizePath(location.pathname);
   const canonicalUrl =
@@ -41,9 +42,9 @@ const SEO = ({ title, description, canonical, ogType = "website", jsonLd }: SEOP
       el.setAttribute("content", content);
     };
 
-    // Block indexing of non-production hosts
-    if (!isProductionHost()) {
-      setMeta("robots", "noindex, nofollow");
+    // Block indexing of non-production hosts or noindex pages
+    if (!isProductionHost() || noindex) {
+      setMeta("robots", noindex ? "noindex, follow" : "noindex, nofollow");
     } else {
       setMeta("robots", "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1");
     }
