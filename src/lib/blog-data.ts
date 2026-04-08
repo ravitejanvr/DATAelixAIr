@@ -279,30 +279,6 @@ export const staticArticles: Article[] = [
   },
 ];
 
-export const trendingResearch: TrendingResearch[] = [
-  {
-    title: "EcoRxAgent: An AI Agent for Generating Economically Substitutable Prescriptions",
-    journal: "npj Digital Medicine",
-    year: 2026,
-    summary: "An AI agent that generates economically substitutable prescriptions, helping clinicians identify cost-effective medication alternatives without compromising clinical outcomes.",
-    url: "https://doi.org/10.1038/s41746-026-02612-7",
-  },
-  {
-    title: "ClinicRealm: Re-evaluating Large Language Models with Conventional Machine Learning for Non-generative Clinical Prediction Tasks",
-    journal: "npj Digital Medicine",
-    year: 2026,
-    summary: "A comprehensive re-evaluation comparing large language models against conventional machine learning approaches for non-generative clinical prediction, revealing important performance trade-offs.",
-    url: "https://doi.org/10.1038/s41746-026-02539-z",
-  },
-  {
-    title: "How Explainable Artificial Intelligence Can Increase or Decrease Clinicians' Trust in AI Applications in Health Care: Systematic Review",
-    journal: "JMIR",
-    year: 2025,
-    summary: "A systematic review examining the dual-edged impact of explainable AI on clinician trust, identifying key factors that either build or erode confidence in AI-assisted healthcare decisions.",
-    url: "https://doi.org/10.2196/53207",
-  },
-];
-
 /** Find related articles by shared keywords/category */
 export function findRelatedArticles(current: Article, allArticles: Article[], limit = 3): Article[] {
   const scored = allArticles
