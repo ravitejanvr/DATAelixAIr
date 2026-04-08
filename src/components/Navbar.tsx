@@ -9,7 +9,7 @@ const navLinks = [
   { label: "Product", path: "/", hash: "#product" },
   { label: "Security", path: "/", hash: "#security" },
   { label: "Vision", path: "/vision", hash: "" },
-  { label: "Research & Insights", path: "/insights", hash: "" },
+  { label: "Blog", path: "/blog", hash: "" },
 ];
 
 const Navbar = () => {
