@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ExternalLink, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { categoryMeta, type Article } from "@/lib/blog-data";
 
