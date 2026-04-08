@@ -3437,7 +3437,6 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
-          is_verified: boolean
           published_at: string | null
           slug: string
           source: string
@@ -3451,7 +3450,6 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
-          is_verified?: boolean
           published_at?: string | null
           slug: string
           source?: string
@@ -3465,7 +3463,6 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
-          is_verified?: boolean
           published_at?: string | null
           slug?: string
           source?: string
