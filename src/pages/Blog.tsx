@@ -1,24 +1,16 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Chip, ChipGroup } from "@/components/ui/chip";
 import SEO from "@/components/SEO";
 import TrendingResearch from "@/components/blog/TrendingResearch";
 import ArticleCard from "@/components/blog/ArticleCard";
 import {
   staticArticles,
-  categories,
-  categoryMeta,
   trendingResearch,
   type Article,
-  type ArticleCategory,
 } from "@/lib/blog-data";
 import { supabase } from "@/integrations/supabase/client";
 
-type Filter = "All" | ArticleCategory;
-
 const Blog = () => {
-  const [activeFilter, setActiveFilter] = useState<Filter>("All");
   const [allArticles, setAllArticles] = useState<Article[]>(staticArticles);
 
   useEffect(() => {
@@ -40,7 +32,6 @@ const Blog = () => {
           source_name: a.source_name || "",
           source_url: a.source_url || "",
         }));
-        // Merge: DB articles take priority, static as fallback
         const merged = [
           ...dbArticles,
           ...staticArticles.filter((s) => !dbArticles.some((d) => d.slug === s.slug)),
@@ -52,15 +43,9 @@ const Blog = () => {
     }
   };
 
-  const filtered =
-    activeFilter === "All"
-      ? [...allArticles].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime())
-      : allArticles
-          .filter((a) => a.category === activeFilter)
-          .sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
-
-  const activeCategoryDesc =
-    activeFilter !== "All" ? categoryMeta[activeFilter]?.description : null;
+  const sorted = [...allArticles].sort(
+    (a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime()
+  );
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -90,78 +75,29 @@ const Blog = () => {
               Evidence-driven perspectives on clinical AI, patient safety, and healthcare innovation.
             </p>
           </motion.div>
-
-          {/* Category chips */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mt-8">
-            <ChipGroup>
-              <Chip
-                variant={activeFilter === "All" ? "action" : "neutral"}
-                selected={activeFilter === "All"}
-                onClick={() => setActiveFilter("All")}
-              >
-                All
-              </Chip>
-              {categories.map((cat) => {
-                const Icon = categoryMeta[cat].icon;
-                return (
-                  <Chip
-                    key={cat}
-                    variant={activeFilter === cat ? "action" : "neutral"}
-                    selected={activeFilter === cat}
-                    icon={<Icon className="h-3 w-3" />}
-                    onClick={() => setActiveFilter(cat)}
-                  >
-                    {cat}
-                  </Chip>
-                );
-              })}
-            </ChipGroup>
-
-            {/* Category description for SEO */}
-            {activeCategoryDesc && (
-              <motion.p
-                key={activeFilter}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-4 text-sm text-muted-foreground/70 max-w-xl"
-              >
-                {activeCategoryDesc}
-              </motion.p>
-            )}
-          </motion.div>
         </div>
       </section>
 
       {/* Trending Research */}
-      {activeFilter === "All" && <TrendingResearch items={trendingResearch} />}
+      <TrendingResearch items={trendingResearch} />
 
       {/* Articles grid */}
       <section className="pb-24 bg-background">
         <div className="container mx-auto px-4">
-          <AnimatePresence mode="popLayout">
-            <motion.div
-              key={activeFilter}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="grid md:grid-cols-2 lg:grid-cols-3 gap-5"
-            >
-              {filtered.map((article, i) => (
-                <ArticleCard
-                  key={article.slug}
-                  article={article}
-                  index={i}
-                  onCategoryClick={(cat) => setActiveFilter(cat)}
-                />
-              ))}
-            </motion.div>
-          </AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="grid md:grid-cols-2 lg:grid-cols-3 gap-5"
+          >
+            {sorted.map((article, i) => (
+              <ArticleCard key={article.slug} article={article} index={i} />
+            ))}
+          </motion.div>
 
-          {filtered.length === 0 && (
-            <p className="text-center text-muted-foreground py-16">No articles in this category yet.</p>
+          {sorted.length === 0 && (
+            <p className="text-center text-muted-foreground py-16">No articles yet.</p>
           )}
-
         </div>
       </section>
     </div>
