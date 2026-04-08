@@ -19,11 +19,13 @@ interface InsightArticle {
   created_at: string;
   slug: string;
   clinical_relevance: string | null;
+  is_verified: boolean | null;
 }
 
 const CATEGORIES = [
   "Clinical AI & Decision Support",
   "Patient Safety & Clinical Governance",
+  "Patient Safety & Governance",
   "Healthcare Operations & Workflow",
   "Digital Health & Interoperability",
   "Research & Evidence",
@@ -38,14 +40,9 @@ const categoryMeta: Record<string, { icon: typeof BookOpen; colorClass: string }
   "Research & Evidence": { icon: FlaskConical, colorClass: "bg-violet-500/10 text-violet-600 border-violet-500/20 dark:text-violet-400" },
 };
 
-function isValidUrl(url: string | null | undefined): boolean {
-  if (!url) return false;
-  try {
-    const u = new URL(url);
-    return u.protocol === "https:" || u.protocol === "http:";
-  } catch {
-    return false;
-  }
+/** Only trust a URL if is_verified is explicitly true */
+function hasVerifiedUrl(article: InsightArticle): boolean {
+  return article.is_verified === true && !!article.url && article.url.length > 10;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -70,12 +67,11 @@ const ResearchInsights = () => {
         .eq("is_active", true)
         .order("published_at", { ascending: false })
         .limit(50);
-      setArticles((data as InsightArticle[]) || []);
+      setArticles((data as unknown as InsightArticle[]) || []);
       setLoading(false);
     })();
   }, []);
 
-  // Only show categories that have articles
   const availableCategories = useMemo(() => {
     const cats = new Set(articles.map(a => a.category));
     return CATEGORIES.filter(c => cats.has(c));
@@ -86,7 +82,6 @@ const ResearchInsights = () => {
     return articles.filter(a => a.category === filter);
   }, [articles, filter]);
 
-  // Reset filter if selected category becomes empty
   useEffect(() => {
     if (filter !== "All" && !availableCategories.includes(filter as any)) {
       setFilter("All");
@@ -125,28 +120,15 @@ const ResearchInsights = () => {
             </p>
           </motion.div>
 
-          {/* Category chips — only render populated categories */}
           {availableCategories.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mt-8">
               <ChipGroup>
-                <Chip
-                  variant={filter === "All" ? "action" : "neutral"}
-                  selected={filter === "All"}
-                  onClick={() => setFilter("All")}
-                >
-                  All
-                </Chip>
+                <Chip variant={filter === "All" ? "action" : "neutral"} selected={filter === "All"} onClick={() => setFilter("All")}>All</Chip>
                 {availableCategories.map(cat => {
                   const meta = categoryMeta[cat];
                   const Icon = meta?.icon;
                   return (
-                    <Chip
-                      key={cat}
-                      variant={filter === cat ? "action" : "neutral"}
-                      selected={filter === cat}
-                      icon={Icon ? <Icon className="h-3 w-3" /> : undefined}
-                      onClick={() => setFilter(cat)}
-                    >
+                    <Chip key={cat} variant={filter === cat ? "action" : "neutral"} selected={filter === cat} icon={Icon ? <Icon className="h-3 w-3" /> : undefined} onClick={() => setFilter(cat)}>
                       {cat}
                     </Chip>
                   );
@@ -178,15 +160,10 @@ const ResearchInsights = () => {
                 {filtered.map((article, i) => {
                   const meta = categoryMeta[article.category] || categoryMeta["Research & Evidence"];
                   const Icon = meta.icon;
-                  const hasValidUrl = isValidUrl(article.url);
+                  const verified = hasVerifiedUrl(article);
 
                   return (
-                    <motion.div
-                      key={article.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.03 }}
-                    >
+                    <motion.div key={article.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
                       <Link
                         to={`/insights/${article.slug}`}
                         className="group block rounded-xl border border-border/50 bg-card p-5 hover:border-primary/30 hover:shadow-sm transition-all h-full flex flex-col"
@@ -206,7 +183,6 @@ const ResearchInsights = () => {
                           {article.summary}
                         </p>
 
-                        {/* Why it matters — clinical implication */}
                         {article.clinical_relevance && (
                           <p className="text-[11px] text-primary/80 leading-snug line-clamp-1 mb-3 italic">
                             ↳ {article.clinical_relevance}
@@ -215,9 +191,7 @@ const ResearchInsights = () => {
 
                         <div className="flex items-center justify-between text-[10px] text-muted-foreground/70 mt-auto pt-3 border-t border-border/30">
                           <span className="flex items-center gap-1 truncate max-w-[45%]">
-                            {hasValidUrl ? (
-                              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                            ) : null}
+                            {verified && <ExternalLink className="h-2.5 w-2.5 shrink-0" />}
                             {article.source}
                           </span>
                           <span className="flex items-center gap-1">
@@ -236,9 +210,7 @@ const ResearchInsights = () => {
           <div className="mt-16 text-center">
             <p className="text-muted-foreground font-light mb-4">Want to collaborate on research or suggest a topic?</p>
             <Button variant="outline" asChild>
-              <Link to="/contact">
-                Get in Touch <ArrowRight className="ml-1" size={14} />
-              </Link>
+              <Link to="/contact">Get in Touch <ArrowRight className="ml-1" size={14} /></Link>
             </Button>
           </div>
         </div>
