@@ -5,6 +5,8 @@ interface SEOProps {
   title: string;
   description: string;
   canonical?: string;
+  ogType?: string;
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
 }
 
 const PRODUCTION_DOMAIN = "https://elixair.uk";
@@ -20,7 +22,7 @@ const isProductionHost = () => {
   return host === "elixair.uk" || host === "www.elixair.uk";
 };
 
-const SEO = ({ title, description, canonical }: SEOProps) => {
+const SEO = ({ title, description, canonical, ogType = "website", jsonLd }: SEOProps) => {
   const location = useLocation();
   const normalizedPath = normalizePath(location.pathname);
   const canonicalUrl =
@@ -39,7 +41,7 @@ const SEO = ({ title, description, canonical }: SEOProps) => {
       el.setAttribute("content", content);
     };
 
-    // Block indexing of non-production hosts (lovable.app, localhost, etc.)
+    // Block indexing of non-production hosts
     if (!isProductionHost()) {
       setMeta("robots", "noindex, nofollow");
     } else {
@@ -47,14 +49,20 @@ const SEO = ({ title, description, canonical }: SEOProps) => {
     }
 
     setMeta("description", description);
+
+    // OpenGraph
     setMeta("og:title", title, "property");
     setMeta("og:description", description, "property");
     setMeta("og:url", canonicalUrl, "property");
-    setMeta("og:type", "website", "property");
+    setMeta("og:type", ogType, "property");
+    setMeta("og:site_name", "DATAelixAIr™ by elixAIr", "property");
+
+    // Twitter
     setMeta("twitter:title", title);
     setMeta("twitter:description", description);
+    setMeta("twitter:card", "summary_large_image");
 
-    // Update the static canonical href for SPA navigation
+    // Canonical link
     let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
     if (!link) {
       link = document.createElement("link");
@@ -62,9 +70,50 @@ const SEO = ({ title, description, canonical }: SEOProps) => {
       document.head.appendChild(link);
     }
     link.setAttribute("href", canonicalUrl);
-  }, [title, description, canonicalUrl]);
+
+    // JSON-LD structured data
+    // Remove any previously injected SEO JSON-LD
+    document.querySelectorAll('script[data-seo-jsonld]').forEach(el => el.remove());
+    if (jsonLd) {
+      const items = Array.isArray(jsonLd) ? jsonLd : [jsonLd];
+      items.forEach(item => {
+        const script = document.createElement("script");
+        script.type = "application/ld+json";
+        script.setAttribute("data-seo-jsonld", "true");
+        script.textContent = JSON.stringify(item);
+        document.head.appendChild(script);
+      });
+    }
+  }, [title, description, canonicalUrl, ogType, jsonLd]);
 
   return null;
 };
 
 export default SEO;
+
+/** Shared brand description for consistency */
+export const BRAND_DESCRIPTION =
+  "DATAelixAIr™ is an AI-powered clinical reasoning workspace developed by elixAIr, designed to assist healthcare professionals with structured, probabilistic decision-making.";
+
+/** Organization JSON-LD */
+export const ORG_JSONLD = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "elixAIr",
+  url: "https://elixair.uk",
+  logo: "https://elixair.uk/logo.png",
+  description: "AI-powered clinical reasoning systems for healthcare professionals",
+  sameAs: ["https://www.linkedin.com/company/elixair-limited"],
+};
+
+/** Product JSON-LD */
+export const PRODUCT_JSONLD = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "DATAelixAIr",
+  applicationCategory: "HealthApplication",
+  operatingSystem: "Web",
+  url: "https://elixair.uk",
+  description: "AI clinical reasoning workspace for probabilistic diagnosis support",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "GBP", availability: "https://schema.org/ComingSoon" },
+};

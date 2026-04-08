@@ -2,7 +2,7 @@ import SEO from "@/components/SEO";
 
 const Terms = () => (
   <div className="container mx-auto px-4 py-24 max-w-3xl">
-    <SEO title="Terms of Use — DATAelixAIr" description="Terms and conditions for using DATAelixAIr's healthcare AI platform." />
+    <SEO title="Terms of Use — DATAelixAIr™ by elixAIr" description="Terms and conditions for using the DATAelixAIr™ AI clinical workspace, developed by elixAIr." />
     <h1 className="font-display text-3xl font-extrabold text-foreground mb-8">Terms of Use</h1>
     <p className="text-xs text-muted-foreground mb-8">Last updated: February 2026</p>
 
