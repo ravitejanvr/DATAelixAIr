@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import brainLogo from "@/assets/brain-logo-nobg.png";
+import { useThemeLogo } from "@/hooks/useThemeLogo";
 import { useConsent } from "@/contexts/ConsentContext";
 import { Linkedin } from "lucide-react";
 
