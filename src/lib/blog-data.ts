@@ -87,12 +87,6 @@ export const categories: ArticleCategory[] = [
   "Digital Health & Interoperability",
   "Research & Evidence",
 ];
-  "Clinical AI & Decision Support",
-  "Patient Safety & Clinical Governance",
-  "Healthcare Operations & Workflow",
-  "Digital Health & Interoperability",
-  "Research & Evidence",
-];
 
 // Feature mapping for contextual product linking
 export const featureMapping: Record<string, { name: string; description: string; path: string }> = {
