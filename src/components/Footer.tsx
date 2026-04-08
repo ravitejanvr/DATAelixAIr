@@ -25,7 +25,7 @@ const Footer = () => {
               { label: "Home", to: "/" },
               { label: "Product", to: "/#product" },
               { label: "Vision", to: "/vision" },
-              { label: "Research & Insights", to: "/insights" },
+              { label: "Blog", to: "/blog" },
               { label: "Contact", to: "/contact" },
               { label: "Privacy Policy", to: "/privacy" },
               { label: "Terms of Use", to: "/terms" },
