@@ -22,11 +22,22 @@ interface InsightArticle {
 
 const categoryMeta: Record<string, { icon: typeof BookOpen; colorClass: string }> = {
   "Clinical AI & Decision Support": { icon: BookOpen, colorClass: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" },
+  "Patient Safety & Clinical Governance": { icon: ShieldCheck, colorClass: "bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400" },
   "Patient Safety & Governance": { icon: ShieldCheck, colorClass: "bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400" },
   "Healthcare Operations & Workflow": { icon: Workflow, colorClass: "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" },
   "Digital Health & Interoperability": { icon: Globe, colorClass: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" },
   "Research & Evidence": { icon: FlaskConical, colorClass: "bg-violet-500/10 text-violet-600 border-violet-500/20 dark:text-violet-400" },
 };
+
+function isValidUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
 
 const InsightDetail = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -84,6 +95,7 @@ const InsightDetail = () => {
   const meta = categoryMeta[article.category] || categoryMeta["Research & Evidence"];
   const Icon = meta.icon;
   const date = article.published_at || article.created_at;
+  const hasValidUrl = isValidUrl(article.url);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -152,14 +164,20 @@ const InsightDetail = () => {
               </div>
             )}
 
-            {/* Read original */}
-            <div className="mb-8">
-              <Button variant="outline" size="sm" asChild>
-                <a href={article.url} target="_blank" rel="noopener noreferrer">
-                  Read Original Source <ExternalLink size={14} className="ml-1" />
-                </a>
-              </Button>
-            </div>
+            {/* Read original — only if URL is valid */}
+            {hasValidUrl ? (
+              <div className="mb-8">
+                <Button variant="outline" size="sm" asChild>
+                  <a href={article.url} target="_blank" rel="noopener noreferrer">
+                    View Publication <ExternalLink size={14} className="ml-1" />
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              <div className="mb-8">
+                <p className="text-xs text-muted-foreground/60">Source: {article.source}</p>
+              </div>
+            )}
 
             {/* CTA */}
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-center">
