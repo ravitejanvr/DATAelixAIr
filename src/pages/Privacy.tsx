@@ -2,7 +2,7 @@ import SEO from "@/components/SEO";
 
 const Privacy = () => (
   <div className="container mx-auto px-4 py-24 max-w-3xl">
-    <SEO title="Privacy Policy — DATAelixAIr™ by elixAIr" description="How elixAIr handles your data when using DATAelixAIr™, including privacy rights and compliance with DPDP and GDPR." />
+    <SEO title="Privacy Policy — DATAelixAIr™ by elixAIr" description="How elixAIr handles your data when using DATAelixAIr™, including privacy rights and compliance with DPDP and GDPR." noindex />
     <h1 className="font-display text-3xl font-extrabold text-foreground mb-8">Privacy Policy</h1>
     <p className="text-xs text-muted-foreground mb-8">Last updated: February 2026</p>
 
