@@ -67,7 +67,7 @@ const ResearchInsights = () => {
         .eq("is_active", true)
         .order("published_at", { ascending: false })
         .limit(50);
-      setArticles((data as InsightArticle[]) || []);
+      setArticles((data as unknown as InsightArticle[]) || []);
       setLoading(false);
     })();
   }, []);
