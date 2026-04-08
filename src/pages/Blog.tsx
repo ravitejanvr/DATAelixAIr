@@ -57,8 +57,6 @@ const Blog = () => {
           .filter((a) => a.category === activeFilter)
           .sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
 
-  const activeCategoryDesc =
-    activeFilter !== "All" ? categoryMeta[activeFilter]?.description : null;
 
   const jsonLd = {
     "@context": "https://schema.org",
