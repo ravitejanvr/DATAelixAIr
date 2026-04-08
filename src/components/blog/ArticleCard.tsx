@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ExternalLink, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { categoryMeta, type Article } from "@/lib/blog-data";
 
@@ -92,9 +92,6 @@ export default function ArticleCard({ article, index, onCategoryClick }: Props) 
           {new Date(article.publish_date).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}
           {" · "}
           {article.author}
-        </span>
-        <span className="flex items-center gap-2 text-primary text-sm font-medium">
-          Read Article <ExternalLink size={13} className="group-hover:translate-x-0.5 transition-transform" />
         </span>
       </div>
     </CardWrapper>

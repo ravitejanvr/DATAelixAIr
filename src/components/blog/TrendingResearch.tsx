@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { TrendingUp, ExternalLink } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import type { TrendingResearch as TrendingResearchType } from "@/lib/blog-data";
 
 interface Props {
@@ -38,11 +38,6 @@ export default function TrendingResearch({ items }: Props) {
               <p className="text-sm text-muted-foreground font-light leading-relaxed flex-1 line-clamp-3">
                 {item.summary}
               </p>
-              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
-                <span className="flex items-center gap-1.5 text-primary text-sm font-medium">
-                  Read Analysis <ExternalLink size={13} className="group-hover:translate-x-0.5 transition-transform" />
-                </span>
-              </div>
             </motion.a>
           ))}
         </div>
