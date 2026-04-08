@@ -92,9 +92,6 @@ const Blog = () => {
             <p className="mt-4 text-muted-foreground font-light leading-relaxed max-w-xl">
               Evidence-driven perspectives on clinical AI, patient safety, and healthcare innovation.
             </p>
-            <p className="mt-3 text-sm text-muted-foreground/70 leading-relaxed max-w-lg">
-              This knowledge hub curates research, clinical insights, and digital health developments shaping the future of healthcare.
-            </p>
           </motion.div>
 
           {/* Category chips */}
@@ -138,9 +135,6 @@ const Blog = () => {
         </div>
       </section>
 
-      {/* Research Radar */}
-      {activeFilter === "All" && <ResearchRadar />}
-
       {/* Trending Research */}
       {activeFilter === "All" && <TrendingResearch items={trendingResearch} />}
 
@@ -171,14 +165,6 @@ const Blog = () => {
             <p className="text-center text-muted-foreground py-16">No articles in this category yet.</p>
           )}
 
-          <div className="mt-16 text-center">
-            <p className="text-muted-foreground font-light mb-4">Want to collaborate on research or suggest a topic?</p>
-            <Button variant="outline" asChild>
-              <Link to="/contact">
-                Get in Touch <ArrowRight className="ml-1" size={14} />
-              </Link>
-            </Button>
-          </div>
         </div>
       </section>
     </div>
