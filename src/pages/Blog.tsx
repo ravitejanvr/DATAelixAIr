@@ -91,43 +91,33 @@ const Blog = () => {
             </p>
           </motion.div>
 
-          {/* Category chips */}
+          {/* Category filters */}
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mt-8">
-            <ChipGroup>
-              <Chip
-                variant={activeFilter === "All" ? "action" : "neutral"}
-                selected={activeFilter === "All"}
+            <div className="flex flex-wrap gap-3">
+              <button
                 onClick={() => setActiveFilter("All")}
+                className={`text-[0.7rem] uppercase tracking-widest font-medium pb-1 border-b-2 transition-colors ${
+                  activeFilter === "All"
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                }`}
               >
                 All
-              </Chip>
-              {categories.map((cat) => {
-                const Icon = categoryMeta[cat].icon;
-                return (
-                  <Chip
-                    key={cat}
-                    variant={activeFilter === cat ? "action" : "neutral"}
-                    selected={activeFilter === cat}
-                    icon={<Icon className="h-3 w-3" />}
-                    onClick={() => setActiveFilter(cat)}
-                  >
-                    {cat}
-                  </Chip>
-                );
-              })}
-            </ChipGroup>
-
-            {/* Category description for SEO */}
-            {activeCategoryDesc && (
-              <motion.p
-                key={activeFilter}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-4 text-sm text-muted-foreground/70 max-w-xl"
-              >
-                {activeCategoryDesc}
-              </motion.p>
-            )}
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveFilter(cat)}
+                  className={`text-[0.7rem] uppercase tracking-widest font-medium pb-1 border-b-2 transition-colors ${
+                    activeFilter === cat
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                  }`}
+                >
+                  {cat.split(" & ")[0]}
+                </button>
+              ))}
+            </div>
           </motion.div>
         </div>
       </section>
