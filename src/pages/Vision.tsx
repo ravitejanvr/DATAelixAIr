@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import SEO from "@/components/SEO";
+import SEO, { BRAND_DESCRIPTION } from "@/components/SEO";
 import { Brain, ShieldCheck, Users, Globe, Heart, BookOpen, ArrowRight } from "lucide-react";
 
 const fadeUp = {
@@ -44,7 +44,7 @@ const principles = [
 
 const Vision = () => (
   <div>
-    <SEO title="Vision — DATAelixAIr" description="Our long-term vision for building an intelligent, ethical healthcare AI ecosystem." />
+    <SEO title="Our Vision — DATAelixAIr™ by elixAIr" description="Explainable, ethical, and interoperable — our long-term vision for building clinical AI that healthcare professionals can trust. Developed by elixAIr." />
 
     <section className="pt-32 pb-16 bg-background">
       <div className="container mx-auto px-4">

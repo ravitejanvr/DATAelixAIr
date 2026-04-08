@@ -9,7 +9,7 @@ import {
   Users, CheckCircle2, XCircle, Sparkles, Activity, Receipt, Send,
   Monitor, BookOpen
 } from "lucide-react";
-import SEO from "@/components/SEO";
+import SEO, { BRAND_DESCRIPTION, ORG_JSONLD, PRODUCT_JSONLD } from "@/components/SEO";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -94,20 +94,9 @@ const Index = () => {
   return (
   <div>
     <SEO
-      title="DATAelixAIr — AI Clinical Workspace for Faster Consultations"
-      description="Record or write consultations — DATAelixAIr generates clinical notes, prescriptions, lab orders, and patient reports automatically. Doctor-reviewed, patient-safe."
-    />
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{
-        __html: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "Organization",
-          name: "DATAelixAIr",
-          url: "https://elixair.uk",
-          description: "AI clinical workspace for private healthcare providers.",
-        }),
-      }}
+      title="DATAelixAIr™ — AI Clinical Workspace for Faster, Safer Consultations"
+      description={`${BRAND_DESCRIPTION} Record or write consultations — DATAelixAIr™ generates clinical notes, prescriptions, lab orders, and patient reports automatically.`}
+      jsonLd={[ORG_JSONLD, PRODUCT_JSONLD]}
     />
 
     {/* ════════════════════════════════════════════

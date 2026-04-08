@@ -76,8 +76,8 @@ const Blog = () => {
   return (
     <div>
       <SEO
-        title="Research & Insights — DATAelixAIr"
-        description="Evidence-driven perspectives on clinical AI, patient safety, and healthcare innovation. Curated research from McKinsey, Nature, and WHO."
+        title="Research & Insights — DATAelixAIr™ by elixAIr"
+        description="Evidence-driven perspectives on clinical AI, patient safety, and healthcare innovation from elixAIr. Curated research from McKinsey, Nature, and WHO."
       />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
