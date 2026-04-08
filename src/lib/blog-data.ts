@@ -222,25 +222,25 @@ export const staticArticles: Article[] = [
 
 export const trendingResearch: TrendingResearch[] = [
   {
-    title: "Large Language Models Provide Unsafe Answers to Patient Questions",
+    title: "EcoRxAgent: An AI Agent for Generating Economically Substitutable Prescriptions",
     journal: "npj Digital Medicine",
     year: 2026,
-    summary: "Researchers found that between 21% and 43% of AI responses to patient questions contained problematic advice, underscoring the need for clinician review.",
-    url: "https://www.nature.com/articles/s41746-026-01234-5",
+    summary: "An AI agent that generates economically substitutable prescriptions, helping clinicians identify cost-effective medication alternatives without compromising clinical outcomes.",
+    url: "https://doi.org/10.1038/s41746-026-02612-7",
   },
   {
-    title: "Clinical Decision Support Systems and Diagnostic Accuracy: A Meta-Analysis",
-    journal: "The Lancet Digital Health",
-    year: 2025,
-    summary: "A meta-analysis of 47 studies shows AI-augmented clinical decision support improves diagnostic accuracy by 12–18% across specialties.",
-    url: "https://www.thelancet.com/journals/landig/article/PIIS2589-7500(25)00123-4",
-  },
-  {
-    title: "Real-World Deployment of AI Scribes in Primary Care: A Multi-Site Evaluation",
-    journal: "JAMA Network Open",
+    title: "ClinicRealm: Re-evaluating Large Language Models with Conventional Machine Learning for Non-generative Clinical Prediction Tasks",
+    journal: "npj Digital Medicine",
     year: 2026,
-    summary: "Multi-site evaluation demonstrates AI scribes reduce documentation time by 40% while maintaining clinical note quality comparable to physician-authored notes.",
-    url: "https://jamanetwork.com/journals/jamanetworkopen/fullarticle/2826543",
+    summary: "A comprehensive re-evaluation comparing large language models against conventional machine learning approaches for non-generative clinical prediction, revealing important performance trade-offs.",
+    url: "https://doi.org/10.1038/s41746-026-02539-z",
+  },
+  {
+    title: "How Explainable Artificial Intelligence Can Increase or Decrease Clinicians' Trust in AI Applications in Health Care: Systematic Review",
+    journal: "JMIR",
+    year: 2025,
+    summary: "A systematic review examining the dual-edged impact of explainable AI on clinician trust, identifying key factors that either build or erode confidence in AI-assisted healthcare decisions.",
+    url: "https://doi.org/10.2196/53207",
   },
 ];
 
