@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
-import { useThemeLogo } from "@/hooks/useThemeLogo";
+import brainLogo from "@/assets/brain-logo-nobg.png";
 import { AnimatePresence, motion } from "framer-motion";
 
 const navLinks = [
@@ -13,7 +13,6 @@ const navLinks = [
 ];
 
 const Navbar = () => {
-  const brainLogo = useThemeLogo();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
