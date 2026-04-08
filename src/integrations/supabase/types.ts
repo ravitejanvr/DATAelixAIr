@@ -3430,6 +3430,48 @@ export type Database = {
         }
         Relationships: []
       }
+      insights_articles: {
+        Row: {
+          category: string
+          clinical_relevance: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          published_at: string | null
+          slug: string
+          source: string
+          summary: string
+          title: string
+          url: string
+        }
+        Insert: {
+          category?: string
+          clinical_relevance?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          published_at?: string | null
+          slug: string
+          source?: string
+          summary?: string
+          title: string
+          url: string
+        }
+        Update: {
+          category?: string
+          clinical_relevance?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          published_at?: string | null
+          slug?: string
+          source?: string
+          summary?: string
+          title?: string
+          url?: string
+        }
+        Relationships: []
+      }
       intake_raw_inputs: {
         Row: {
           clinic_id: string
