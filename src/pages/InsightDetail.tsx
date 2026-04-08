@@ -57,7 +57,7 @@ const InsightDetail = () => {
         .maybeSingle();
 
       if (data) {
-        setArticle(data as InsightArticle);
+        setArticle(data as unknown as InsightArticle);
       } else {
         setNotFound(true);
       }
