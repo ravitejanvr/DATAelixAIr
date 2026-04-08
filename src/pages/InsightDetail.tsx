@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Calendar, ExternalLink, SearchX, Loader2, Search } from "lucide-react";
+import { ArrowLeft, Calendar, ExternalLink, SearchX, Loader2 } from "lucide-react";
 import { BookOpen, ShieldCheck, Workflow, Globe, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SEO from "@/components/SEO";
@@ -18,26 +18,15 @@ interface InsightArticle {
   created_at: string;
   slug: string;
   clinical_relevance: string | null;
-  is_verified: boolean | null;
 }
 
 const categoryMeta: Record<string, { icon: typeof BookOpen; colorClass: string }> = {
   "Clinical AI & Decision Support": { icon: BookOpen, colorClass: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" },
-  "Patient Safety & Clinical Governance": { icon: ShieldCheck, colorClass: "bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400" },
   "Patient Safety & Governance": { icon: ShieldCheck, colorClass: "bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400" },
   "Healthcare Operations & Workflow": { icon: Workflow, colorClass: "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400" },
   "Digital Health & Interoperability": { icon: Globe, colorClass: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" },
   "Research & Evidence": { icon: FlaskConical, colorClass: "bg-violet-500/10 text-violet-600 border-violet-500/20 dark:text-violet-400" },
 };
-
-/** Only trust a URL if is_verified is explicitly true */
-function hasVerifiedUrl(article: InsightArticle): boolean {
-  return article.is_verified === true && !!article.url && article.url.length > 10;
-}
-
-function googleScholarSearch(title: string): string {
-  return `https://scholar.google.com/scholar?q=${encodeURIComponent(title)}`;
-}
 
 const InsightDetail = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -57,7 +46,7 @@ const InsightDetail = () => {
         .maybeSingle();
 
       if (data) {
-        setArticle(data as unknown as InsightArticle);
+        setArticle(data as InsightArticle);
       } else {
         setNotFound(true);
       }
@@ -95,7 +84,6 @@ const InsightDetail = () => {
   const meta = categoryMeta[article.category] || categoryMeta["Research & Evidence"];
   const Icon = meta.icon;
   const date = article.published_at || article.created_at;
-  const verified = hasVerifiedUrl(article);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -164,21 +152,11 @@ const InsightDetail = () => {
               </div>
             )}
 
-            {/* Link section — strict verification */}
-            <div className="mb-8 flex flex-wrap items-center gap-3">
-              {verified ? (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={article.url} target="_blank" rel="noopener noreferrer">
-                    View Publication <ExternalLink size={14} className="ml-1" />
-                  </a>
-                </Button>
-              ) : (
-                <p className="text-xs text-muted-foreground/60">Source: {article.source}</p>
-              )}
-              {/* Fallback: Google Scholar search */}
-              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" asChild>
-                <a href={googleScholarSearch(article.title)} target="_blank" rel="noopener noreferrer">
-                  <Search size={12} className="mr-1" /> Find on Google Scholar
+            {/* Read original */}
+            <div className="mb-8">
+              <Button variant="outline" size="sm" asChild>
+                <a href={article.url} target="_blank" rel="noopener noreferrer">
+                  Read Original Source <ExternalLink size={14} className="ml-1" />
                 </a>
               </Button>
             </div>
