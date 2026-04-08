@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { TrendingUp, ExternalLink } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import type { TrendingResearch as TrendingResearchType } from "@/lib/blog-data";
 
 interface Props {
