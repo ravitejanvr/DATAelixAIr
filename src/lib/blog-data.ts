@@ -72,6 +72,14 @@ export const categoryMeta: Record<ArticleCategory, { icon: typeof BookOpen; colo
   },
 };
 
+export const shortCategoryLabels: Record<ArticleCategory, string> = {
+  "Clinical AI & Decision Support": "Clinical AI",
+  "Patient Safety & Clinical Governance": "Safety",
+  "Healthcare Operations & Workflow": "Operations",
+  "Digital Health & Interoperability": "Digital Health",
+  "Research & Evidence": "Research",
+};
+
 export const categories: ArticleCategory[] = [
   "Clinical AI & Decision Support",
   "Patient Safety & Clinical Governance",
