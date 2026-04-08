@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import SEO from "@/components/SEO";
-import TrendingResearch from "@/components/blog/TrendingResearch";
 import ArticleCard from "@/components/blog/ArticleCard";
 import {
   staticArticles,
-  trendingResearch,
   type Article,
 } from "@/lib/blog-data";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,9 +75,6 @@ const Blog = () => {
           </motion.div>
         </div>
       </section>
-
-      {/* Trending Research */}
-      <TrendingResearch items={trendingResearch} />
 
       {/* Articles grid */}
       <section className="pb-24 bg-background">
