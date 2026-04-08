@@ -4,6 +4,7 @@ import { useConsent } from "@/contexts/ConsentContext";
 import { Linkedin } from "lucide-react";
 
 const Footer = () => {
+  const brainLogo = useThemeLogo();
   const { reopenBanner } = useConsent();
 
   return (
