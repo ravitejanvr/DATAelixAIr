@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import CommandPalette from "@/components/CommandPalette";
-import { useThemeLogo } from "@/hooks/useThemeLogo";
+import brainLogo from "@/assets/brain-logo-nobg.png";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutDashboard, Stethoscope, Users, FileText, Activity,
@@ -52,7 +52,6 @@ export default function ClinicalLayout({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const brainLogo = useThemeLogo();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
