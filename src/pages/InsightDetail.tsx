@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Calendar, ExternalLink, SearchX, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, ExternalLink, SearchX, Loader2, Search } from "lucide-react";
 import { BookOpen, ShieldCheck, Workflow, Globe, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SEO from "@/components/SEO";
@@ -18,6 +18,7 @@ interface InsightArticle {
   created_at: string;
   slug: string;
   clinical_relevance: string | null;
+  is_verified: boolean | null;
 }
 
 const categoryMeta: Record<string, { icon: typeof BookOpen; colorClass: string }> = {
@@ -29,14 +30,13 @@ const categoryMeta: Record<string, { icon: typeof BookOpen; colorClass: string }
   "Research & Evidence": { icon: FlaskConical, colorClass: "bg-violet-500/10 text-violet-600 border-violet-500/20 dark:text-violet-400" },
 };
 
-function isValidUrl(url: string | null | undefined): boolean {
-  if (!url) return false;
-  try {
-    const u = new URL(url);
-    return u.protocol === "https:" || u.protocol === "http:";
-  } catch {
-    return false;
-  }
+/** Only trust a URL if is_verified is explicitly true */
+function hasVerifiedUrl(article: InsightArticle): boolean {
+  return article.is_verified === true && !!article.url && article.url.length > 10;
+}
+
+function googleScholarSearch(title: string): string {
+  return `https://scholar.google.com/scholar?q=${encodeURIComponent(title)}`;
 }
 
 const InsightDetail = () => {
@@ -95,7 +95,7 @@ const InsightDetail = () => {
   const meta = categoryMeta[article.category] || categoryMeta["Research & Evidence"];
   const Icon = meta.icon;
   const date = article.published_at || article.created_at;
-  const hasValidUrl = isValidUrl(article.url);
+  const verified = hasVerifiedUrl(article);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -164,20 +164,24 @@ const InsightDetail = () => {
               </div>
             )}
 
-            {/* Read original — only if URL is valid */}
-            {hasValidUrl ? (
-              <div className="mb-8">
+            {/* Link section — strict verification */}
+            <div className="mb-8 flex flex-wrap items-center gap-3">
+              {verified ? (
                 <Button variant="outline" size="sm" asChild>
                   <a href={article.url} target="_blank" rel="noopener noreferrer">
                     View Publication <ExternalLink size={14} className="ml-1" />
                   </a>
                 </Button>
-              </div>
-            ) : (
-              <div className="mb-8">
+              ) : (
                 <p className="text-xs text-muted-foreground/60">Source: {article.source}</p>
-              </div>
-            )}
+              )}
+              {/* Fallback: Google Scholar search */}
+              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" asChild>
+                <a href={googleScholarSearch(article.title)} target="_blank" rel="noopener noreferrer">
+                  <Search size={12} className="mr-1" /> Find on Google Scholar
+                </a>
+              </Button>
+            </div>
 
             {/* CTA */}
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-center">
