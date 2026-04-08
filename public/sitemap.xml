@@ -31,18 +31,6 @@
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://elixair.uk/privacy</loc>
-    <lastmod>2026-04-08</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://elixair.uk/terms</loc>
-    <lastmod>2026-04-08</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
     <loc>https://elixair.uk/patient-intake</loc>
     <lastmod>2026-04-08</lastmod>
     <changefreq>monthly</changefreq>
