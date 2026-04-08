@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Chip, ChipGroup } from "@/components/ui/chip";
 import SEO from "@/components/SEO";
 import TrendingResearch from "@/components/blog/TrendingResearch";
 import ArticleCard from "@/components/blog/ArticleCard";
 import {
   staticArticles,
   categories,
-  categoryMeta,
   trendingResearch,
   type Article,
   type ArticleCategory,
