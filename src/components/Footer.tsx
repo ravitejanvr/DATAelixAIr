@@ -24,7 +24,7 @@ const Footer = () => {
             {[
               { label: "Home", to: "/" },
               { label: "Product", to: "/#product" },
-              { label: "Clinical Doctrine", to: "/vision" },
+              { label: "Vision", to: "/vision" },
               { label: "Research", to: "/blog" },
               { label: "Contact", to: "/contact" },
               { label: "Privacy Policy", to: "/privacy" },
