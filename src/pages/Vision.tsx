@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import SEO, { BRAND_DESCRIPTION } from "@/components/SEO";
+import SEO from "@/components/SEO";
 import { Brain, ShieldCheck, Users, Globe, Heart, BookOpen, ArrowRight } from "lucide-react";
 
 const fadeUp = {
@@ -12,73 +12,73 @@ const fadeUp = {
 const principles = [
   {
     icon: Brain,
-    title: "Explainable AI Philosophy",
-    desc: "Every AI recommendation includes interpretable reasoning, evidence citations, and confidence levels. Clinicians should always understand why an AI reached a conclusion.",
+    title: "Explainable by Default",
+    desc: "Outputs include reasoning and supporting context.",
   },
   {
     icon: ShieldCheck,
-    title: "Ethical Clinical AI Development",
-    desc: "We follow a responsible AI framework — bias monitoring, fairness testing, and continuous model validation against real-world clinical outcomes.",
-  },
-  {
-    icon: Globe,
-    title: "Interoperability Research",
-    desc: "Our long-term goal is seamless integration with HL7 FHIR, regional EHR systems, and diagnostic platforms — enabling unified patient records across providers.",
+    title: "Clinician-in-the-Loop",
+    desc: "Nothing is final without doctor approval.",
   },
   {
     icon: Heart,
-    title: "Patient Safety Commitment",
-    desc: "AI outputs are always presented as clinical drafts requiring human review. We are committed to zero avoidable harm from AI-assisted decisions.",
+    title: "Safety Before Automation",
+    desc: "Systems assist, never override clinical judgment.",
+  },
+  {
+    icon: Globe,
+    title: "Designed to Integrate",
+    desc: "Works with existing clinical systems.",
   },
   {
     icon: Users,
-    title: "Multidisciplinary Care Model",
-    desc: "We're building towards a shared patient record model where doctors, nurses, pharmacists, and coordinators contribute to a single longitudinal record.",
+    title: "Built for Care Teams",
+    desc: "Supports coordination across clinical roles.",
   },
   {
     icon: BookOpen,
-    title: "Evidence-Based Innovation",
-    desc: "Our clinical AI integrates PubMed-backed evidence and validated clinical guidelines. Every feature is grounded in published medical research.",
+    title: "Grounded in Evidence",
+    desc: "Aligned with clinical guidelines and literature.",
   },
 ];
 
 const Vision = () => (
   <div>
-    <SEO title="Our Vision — DATAelixAIr™ by elixAIr" description="Explainable, ethical, and interoperable — our long-term vision for building clinical AI that healthcare professionals can trust. Developed by elixAIr." />
+    <SEO title="Clinical Doctrine — DATAelixAIr™ by elixAIr" description="Systems should support how clinicians think, document, and decide. Our clinical doctrine defines how we build." />
 
     <section className="pt-32 pb-16 bg-background">
       <div className="container mx-auto px-4">
         <motion.div initial="hidden" animate="visible" className="max-w-2xl mx-auto text-center">
           <motion.p variants={fadeUp} custom={0} className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3.5">
-            Our Vision
+            Clinical Doctrine
           </motion.p>
           <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.2rem,4vw,3.5rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
-            Building the Future of{" "}
-            <em className="not-italic text-primary">Clinical AI</em>
+            Clinical Intelligence,{" "}
+            <em className="not-italic text-primary">Grounded in Practice</em>
           </motion.h1>
           <motion.p variants={fadeUp} custom={2} className="mt-5 text-muted-foreground font-light leading-relaxed max-w-lg mx-auto">
-            We're on a mission to make healthcare documentation effortless, clinical decisions more informed, and patient records truly unified — powered by transparent, responsible AI.
+            Systems should support how clinicians think, document, and decide.
           </motion.p>
         </motion.div>
       </div>
     </section>
 
-    {/* Current vs Future */}
+    {/* Today / Tomorrow */}
     <section className="py-16 bg-card border-y border-border">
       <div className="container mx-auto px-4">
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           <div className="border border-primary/30 rounded-2xl p-8 bg-background">
-            <p className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-3">Today</p>
-            <h3 className="font-display text-lg font-bold text-foreground mb-3">AI Clinical Documentation</h3>
+            <p className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-3">What Exists Today</p>
+            <h3 className="font-display text-lg font-bold text-foreground mb-3">Fragmented Documentation</h3>
             <p className="text-sm text-muted-foreground font-light leading-relaxed">
-              Voice-to-SOAP notes, prescription drafts, and patient summaries — designed for private clinics in India. Currently in early pilot with select healthcare providers.
+              Documentation is fragmented and disconnected from clinical reasoning.
             </p>
           </div>
           <div className="border border-border rounded-2xl p-8 bg-background">
-            <p className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest mb-3">Tomorrow</p>
-            <h3 className="font-display text-lg font-bold text-foreground mb-3">Intelligent Healthcare AI Ecosystem</h3>
+            <p className="text-xs font-mono font-bold text-muted-foreground uppercase tracking-widest mb-3">What We're Building</p>
+            <h3 className="font-display text-lg font-bold text-foreground mb-3">Unified Clinical Workspace</h3>
             <p className="text-sm text-muted-foreground font-light leading-relaxed">
-              A connected platform where clinical documentation, decision support, patient engagement, and care coordination work together — powered by explainable, auditable AI.
+              A unified workspace where documentation and decisions happen together.
             </p>
           </div>
         </div>
@@ -91,7 +91,7 @@ const Vision = () => (
         <div className="text-center mb-16">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3.5">Our Principles</p>
           <h2 className="font-display text-[clamp(2rem,3.5vw,2.5rem)] font-extrabold text-foreground">
-            Aspirational but <em className="not-italic text-primary">Grounded</em>
+            How We <em className="not-italic text-primary">Build</em>
           </h2>
         </div>
 
@@ -116,12 +116,37 @@ const Vision = () => (
       </div>
     </section>
 
+    {/* How Clinical Systems Should Work */}
+    <section className="py-24 bg-card border-y border-border">
+      <div className="container mx-auto px-4">
+        <div className="max-w-2xl mx-auto">
+          <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3.5">Doctrine</p>
+          <h2 className="font-display text-[clamp(2rem,3.5vw,2.5rem)] font-extrabold text-foreground mb-8">
+            How Clinical Systems <em className="not-italic text-primary">Should Work</em>
+          </h2>
+          <div className="space-y-4">
+            {[
+              "Documentation happens during the consultation, not after.",
+              "Outputs are structured, reviewable, and immediately usable.",
+              "Reasoning is preserved, not lost.",
+              "Patient communication is generated alongside clinical notes.",
+            ].map((line) => (
+              <div key={line} className="flex items-start gap-3 border border-border rounded-xl p-4 bg-background">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
+                <p className="text-sm text-foreground font-medium leading-relaxed">{line}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+
     {/* CTA */}
-    <section className="py-20 bg-card border-t border-border">
+    <section className="py-20 bg-background">
       <div className="container mx-auto px-4 text-center">
-        <h2 className="font-display text-2xl font-bold text-foreground">Want to shape the future of clinical AI?</h2>
+        <h2 className="font-display text-2xl font-bold text-foreground">Work With Us on Real Clinical Workflows</h2>
         <p className="mt-3 text-muted-foreground font-light max-w-md mx-auto">
-          Join our early pilot programme or connect with us to explore partnership opportunities.
+          We collaborate with a small number of clinics.
         </p>
         <div className="flex justify-center gap-4 mt-8">
           <Button variant="default" asChild>
