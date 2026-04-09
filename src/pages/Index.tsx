@@ -445,7 +445,7 @@ const Index = () => {
             <em className="not-italic text-primary">Consultation Flow</em>
           </h2>
           <p className="mt-5 text-muted-foreground font-light leading-relaxed max-w-lg mx-auto">
-            From intake to patient communication — everything happens in one system.
+            Configured to match clinic-specific workflows and documentation patterns.
           </p>
         </motion.div>
 
