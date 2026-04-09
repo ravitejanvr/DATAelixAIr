@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import { TrendingUp } from "lucide-react";
 import type { TrendingResearch as TrendingResearchType } from "@/lib/blog-data";
 
 interface Props {
@@ -8,36 +7,32 @@ interface Props {
 
 export default function TrendingResearch({ items }: Props) {
   return (
-    <section className="pb-12 bg-background">
+    <section className="pb-16">
       <div className="container mx-auto px-4">
-        <div className="flex items-center gap-2 mb-6">
-          <TrendingUp className="h-5 w-5 text-primary" />
-          <h2 className="font-display text-xl font-bold text-foreground">Trending Research</h2>
-        </div>
-        <div className="grid md:grid-cols-3 gap-4">
+        <h2 className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground mb-8">Trending Research</h2>
+        <div className="max-w-3xl divide-y divide-border">
           {items.map((item, i) => (
             <motion.a
               key={item.title}
               href={item.url}
               target="_blank"
               rel="noopener noreferrer"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.07 }}
-              className="group relative border border-border rounded-2xl p-6 bg-card hover:border-primary/40 hover:-translate-y-0.5 hover:shadow-card-hover transition-all flex flex-col"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: i * 0.05 }}
+              className="block py-6 first:pt-0 group"
             >
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-[0.65rem] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/10 border border-primary/20 text-primary">
-                  {item.journal}
-                </span>
-                <span className="text-[0.65rem] text-muted-foreground/60 ml-auto">{item.year}</span>
-              </div>
-              <h3 className="font-display text-base font-bold text-foreground mb-2 leading-snug line-clamp-2">
+              <h3 className="text-sm font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
                 {item.title}
               </h3>
-              <p className="text-sm text-muted-foreground font-light leading-relaxed flex-1 line-clamp-3">
+              <p className="text-sm text-muted-foreground leading-relaxed mb-2 line-clamp-2">
                 {item.summary}
               </p>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground/60">
+                <span>{item.journal}</span>
+                <span>·</span>
+                <span>{item.year}</span>
+              </div>
             </motion.a>
           ))}
         </div>
