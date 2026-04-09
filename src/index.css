@@ -8,27 +8,27 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 220 20% 10%;
+    --background: 0 0% 100%;
+    --foreground: 228 40% 8%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --card-foreground: 228 40% 8%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover-foreground: 228 40% 8%;
 
-    --primary: 200 98% 39%;
+    --primary: 224 76% 33%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 162 100% 45%;
+    --primary-light: 224 60% 48%;
 
     --secondary: 220 14% 96%;
-    --secondary-foreground: 220 20% 25%;
+    --secondary-foreground: 228 20% 25%;
 
     --muted: 220 14% 96%;
     --muted-foreground: 220 10% 46%;
 
     --accent: 220 14% 96%;
-    --accent-foreground: 220 20% 25%;
+    --accent-foreground: 228 20% 25%;
 
     --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
@@ -38,8 +38,7 @@
 
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 200 98% 39%;
-
+    --ring: 224 76% 33%;
     --radius: 0.75rem;
 
     /* Semantic chip colors */
@@ -125,8 +124,8 @@
     --card-foreground: 210 40% 98%;
     --popover: 220 30% 9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 198 93% 59%;
-    --primary-foreground: 220 40% 7%;
+    --primary: 224 60% 55%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 220 20% 14%;
     --secondary-foreground: 210 40% 98%;
     --muted: 220 20% 14%;
@@ -139,7 +138,7 @@
     --warning-foreground: 38 92% 90%;
     --border: 220 20% 14%;
     --input: 220 20% 14%;
-    --ring: 198 93% 59%;
+    --ring: 224 60% 55%;
 
     --chip-symptom: 214 60% 20%;
     --chip-symptom-text: 214 80% 75%;
