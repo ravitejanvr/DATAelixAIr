@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import SEO from "@/components/SEO";
 import TrendingResearch from "@/components/blog/TrendingResearch";
+import ArticleCard from "@/components/blog/ArticleCard";
 import {
   staticArticles,
   trendingResearch,
-  shortCategoryLabels,
   type Article,
 } from "@/lib/blog-data";
 import { supabase } from "@/integrations/supabase/client";
@@ -64,11 +64,11 @@ const Blog = () => {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       {/* Hero */}
-      <section className="pt-36 pb-16">
+      <section className="pt-32 pb-14 bg-background">
         <div className="container mx-auto px-4">
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl">
-            <h1 className="font-display text-[clamp(2rem,4vw,3rem)] font-bold leading-[1.1] tracking-tight text-foreground">
-              Research & Insights
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl">
+            <h1 className="font-display text-[clamp(2.2rem,4vw,3.5rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
+              Research &amp; <em className="not-italic text-primary">Insights</em>
             </h1>
           </motion.div>
         </div>
@@ -77,63 +77,19 @@ const Blog = () => {
       {/* Trending Research */}
       <TrendingResearch items={trendingResearch} />
 
-      {/* Articles list */}
-      <section className="pb-24">
+      {/* Articles grid */}
+      <section className="pb-24 bg-background">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl divide-y divide-border">
-            {sorted.map((article, i) => {
-              const isExternal = !article.content && article.source_url;
-              const linkTarget = isExternal ? article.source_url : `/blog/${article.slug}`;
-              const label = shortCategoryLabels[article.category] || article.category;
-              const dateStr = new Date(article.publish_date).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-
-              const inner = (
-                <div className="py-6 first:pt-0 group">
-                  <h3 className="text-sm font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
-                    {article.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-2 line-clamp-2">
-                    {article.summary}
-                  </p>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground/60">
-                    {article.source_name && <span>{article.source_name}</span>}
-                    {article.source_name && <span>·</span>}
-                    <span>{dateStr}</span>
-                  </div>
-                </div>
-              );
-
-              if (isExternal) {
-                return (
-                  <motion.a
-                    key={article.slug}
-                    href={linkTarget}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.03 }}
-                    className="block"
-                  >
-                    {inner}
-                  </motion.a>
-                );
-              }
-
-              return (
-                <motion.a
-                  key={article.slug}
-                  href={linkTarget}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: i * 0.03 }}
-                  className="block"
-                >
-                  {inner}
-                </motion.a>
-              );
-            })}
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="grid md:grid-cols-2 lg:grid-cols-3 gap-5"
+          >
+            {sorted.map((article, i) => (
+              <ArticleCard key={article.slug} article={article} index={i} />
+            ))}
+          </motion.div>
         </div>
       </section>
     </div>
