@@ -24,60 +24,59 @@ const sectionIn = {
 /* ─── Workflow Steps (Hero visual) ─── */
 const workflowSteps = [
   { icon: ClipboardCheck, label: "Patient Intake" },
-  { icon: PenLine, label: "Write / Record" },
-  { icon: BrainCircuit, label: "AI Clinical Copilot" },
+  { icon: PenLine, label: "Consultation" },
+  { icon: BrainCircuit, label: "Clinical Structuring" },
   { icon: UserCheck, label: "Doctor Review" },
-  { icon: Pill, label: "Rx & Lab Orders" },
-  { icon: Share2, label: "Report + SMS" },
+  { icon: Share2, label: "Patient Output" },
 ];
 
 /* ─── Problems ─── */
 const problems = [
-  { icon: Clock, title: "Excessive Documentation", desc: "Doctors spend more time typing than treating — clinical notes, prescriptions, and reports eat into every consultation." },
-  { icon: Layers, title: "Fragmented Systems", desc: "Patient intake, prescriptions, lab orders, and billing live in different tools that don't talk to each other." },
-  { icon: MessageSquare, title: "Patients Leave Without Clear Instructions", desc: "Patients walk out of consultations without understanding their diagnosis, medications, or follow-up plan." },
+  { icon: Clock, title: "Time Lost to Documentation", desc: "Doctors spend more time typing than treating. Notes, prescriptions, and reports consume every consultation." },
+  { icon: Layers, title: "Disconnected Systems", desc: "Intake, prescriptions, lab orders, and billing live in separate tools with no shared context." },
+  { icon: MessageSquare, title: "Poor Patient Understanding", desc: "Patients leave consultations without clarity on diagnosis, medications, or follow-up steps." },
 ];
 
 /* ─── Solution Steps ─── */
 const solutionSteps = [
-  { num: "1", icon: PenLine, title: "Write or Record", desc: "Type your notes naturally or record the consultation. Both inputs feed the same clinical workspace." },
-  { num: "2", icon: BrainCircuit, title: "AI Structures the Clinical Note", desc: "SOAP notes, prescriptions, lab orders, and patient summaries are structured automatically from your input." },
-  { num: "3", icon: UserCheck, title: "Doctor Reviews & Finalises", desc: "Every AI output is a draft. You review, edit, and approve before anything reaches the patient." },
+  { num: "1", icon: PenLine, title: "Record or Write Naturally", desc: "Type notes or record the consultation. Both inputs feed the same clinical workspace." },
+  { num: "2", icon: BrainCircuit, title: "Structured Clinical Outputs", desc: "SOAP notes, prescriptions, lab orders, and patient summaries are generated from your input." },
+  { num: "3", icon: UserCheck, title: "Doctor Reviews and Approves", desc: "Every output is a draft. You review, edit, and approve before anything reaches the patient." },
 ];
 
 /* ─── Full Workflow (Product Section) ─── */
 const productSteps = [
-  { icon: ClipboardCheck, title: "Patient Intake", desc: "Front desk registers the patient, records vitals, and captures chief complaint." },
-  { icon: Mic, title: "Consultation", desc: "Doctor writes or records the consultation in a clinical workspace built for speed." },
-  { icon: BrainCircuit, title: "AI Clinical Copilot", desc: "SOAP notes, prescriptions, lab orders, and safety checks generated in seconds." },
-  { icon: UserCheck, title: "Doctor Review", desc: "Clinician reviews every AI output, edits if needed, and approves with one click." },
-  { icon: Share2, title: "Patient Summary & Instructions", desc: "Multilingual patient summary sent via SMS or WhatsApp — diagnosis, medications, and follow-up instructions." },
+  { icon: ClipboardCheck, title: "Patient Intake", desc: "Capture symptoms and vitals." },
+  { icon: Mic, title: "Consultation", desc: "Record or write naturally." },
+  { icon: BrainCircuit, title: "Clinical Structuring", desc: "Generate notes, prescriptions, and orders." },
+  { icon: UserCheck, title: "Doctor Review", desc: "Review and approve outputs." },
+  { icon: Share2, title: "Patient Output", desc: "Share summaries and instructions." },
 ];
 
 /* ─── Benefits ─── */
 const benefits = [
-  { icon: Clock, title: "Faster Consultations", desc: "Reduce documentation time from minutes to seconds — see more patients without sacrificing quality." },
-  { icon: MessageSquare, title: "Better Patient Communication", desc: "Patients receive clear, multilingual reports explaining their diagnosis and care plan." },
-  { icon: FileText, title: "Structured Clinical Records", desc: "Every consultation produces standardised SOAP notes, searchable and audit-ready." },
+  { icon: Clock, title: "Reduce Documentation Time", desc: "Generate clinical notes in seconds. See more patients without sacrificing quality." },
+  { icon: MessageSquare, title: "Clear Patient Communication", desc: "Patients receive structured, multilingual reports explaining diagnosis and care plan." },
+  { icon: FileText, title: "Structured, Searchable Records", desc: "Every consultation produces standardised SOAP notes, searchable and audit-ready." },
 ];
 
 /* ─── Safety Items ─── */
 const safetyItems = [
-  { icon: UserCheck, title: "Clinician Approval Required", desc: "AI suggestions are drafts — nothing is finalised without the doctor's explicit review and approval." },
-  { icon: HeartPulse, title: "Clinical Safety Checks", desc: "Drug interactions, allergy conflicts, and diagnostic inconsistencies are flagged automatically." },
-  { icon: Eye, title: "Transparent AI Outputs", desc: "Every AI-generated note includes confidence indicators and source reasoning for clinician review." },
-  { icon: Lock, title: "Secure Data Handling", desc: "End-to-end encryption, role-based access, and compliance with HIPAA, GDPR & India DPDP 2023." },
-  { icon: BookOpen, title: "Evidence-Linked Suggestions", desc: "Clinical recommendations are supported by guideline references where applicable." },
+  { icon: UserCheck, title: "Clinician-in-the-Loop by Default", desc: "Nothing is finalised without the doctor's explicit review and approval." },
+  { icon: HeartPulse, title: "Automated Safety Checks", desc: "Drug interactions, allergy conflicts, and diagnostic inconsistencies flagged automatically." },
+  { icon: Eye, title: "Explainable Outputs", desc: "Every output includes confidence indicators and source reasoning for clinician review." },
+  { icon: Lock, title: "Compliant Data Handling", desc: "End-to-end encryption, role-based access, and compliance with HIPAA, GDPR & India DPDP 2023." },
+  { icon: BookOpen, title: "Guideline-Linked Suggestions", desc: "Clinical recommendations supported by guideline references where applicable." },
 ];
 
 /* ─── Clinic Operations ─── */
 const clinicOps = [
-  { icon: Stethoscope, title: "Consultation", desc: "AI-assisted clinical documentation with SOAP notes and structured outputs." },
-  { icon: Pill, title: "Prescription", desc: "Auto-generated prescriptions with drug interaction and allergy safety checks." },
+  { icon: Stethoscope, title: "Consultation", desc: "Structured clinical documentation with SOAP notes and reviewable outputs." },
+  { icon: Pill, title: "Prescription", desc: "Generated prescriptions with drug interaction and allergy safety checks." },
   { icon: FlaskConical, title: "Lab Orders", desc: "One-click lab orders linked to diagnosis with result tracking." },
   { icon: FileText, title: "Reports", desc: "Multilingual patient reports with diagnosis, medications, and follow-up." },
-  { icon: Receipt, title: "Billing", desc: "Automatic invoice generation tied to consultation and lab charges." },
-  { icon: Send, title: "Patient Messaging", desc: "SMS and WhatsApp delivery of reports, instructions, and follow-up reminders." },
+  { icon: Receipt, title: "Billing", desc: "Invoice generation tied to consultation and lab charges." },
+  { icon: Send, title: "Patient Messaging", desc: "SMS and WhatsApp delivery of reports, instructions, and reminders." },
 ];
 
 const Index = () => {
@@ -113,12 +112,12 @@ const Index = () => {
           </motion.div>
 
           <motion.h1 variants={fadeUp} custom={1} className="font-display text-[clamp(2.2rem,5vw,3.6rem)] font-extrabold leading-[1.08] tracking-tight text-foreground">
-            The AI Clinical Workspace for{" "}
-            <em className="not-italic text-primary">Faster Consultations</em>
+            Clinical Intelligence, Built for{" "}
+            <em className="not-italic text-primary">Real Consultations</em>
           </motion.h1>
 
           <motion.p variants={fadeUp} custom={2} className="mt-6 text-[clamp(0.95rem,1.3vw,1.1rem)] font-light leading-relaxed text-muted-foreground max-w-2xl mx-auto">
-            Record the consultation or write naturally. DATAelixAIr™ automatically generates clinical notes, prescriptions, lab orders, and patient reports — ready for doctor review in seconds.
+            Structured documentation, decision support, and patient-ready outputs in one clinical workspace.
           </motion.p>
 
           <motion.div variants={fadeUp} custom={3} className="mt-9 flex flex-wrap justify-center gap-4">
@@ -133,10 +132,10 @@ const Index = () => {
           {/* Trust signals */}
           <motion.div variants={fadeUp} custom={4} className="mt-10 flex flex-wrap justify-center gap-6 text-xs text-muted-foreground">
             {[
-              { icon: FileText, text: "AI-assisted documentation" },
+              { icon: FileText, text: "Structured clinical documentation" },
               { icon: UserCheck, text: "Doctor-controlled decisions" },
               { icon: Globe, text: "Multilingual patient reports" },
-              { icon: ShieldCheck, text: "Built with clinical safety guardrails" },
+              { icon: ShieldCheck, text: "Clinical safety guardrails" },
             ].map((t) => (
               <span key={t.text} className="flex items-center gap-1.5">
                 <t.icon className="w-3.5 h-3.5 text-primary" />
@@ -160,7 +159,7 @@ const Index = () => {
               <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Consultation Workflow</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+              <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
                 {workflowSteps.map((s, i) => (
                   <motion.div
                     key={s.label}
@@ -193,8 +192,8 @@ const Index = () => {
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">The Problem</p>
           <h2 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
-            Clinics Should Focus on Care —{" "}
-            <em className="not-italic text-primary">Not Paperwork</em>
+            Clinical Time Is Lost to{" "}
+            <em className="not-italic text-primary">Documentation</em>
           </h2>
         </motion.div>
 
@@ -258,18 +257,18 @@ const Index = () => {
     </section>
 
     {/* ════════════════════════════════════════════
-        CLINICAL WORKSPACE (NEW)
+        CLINICAL WORKSPACE
     ════════════════════════════════════════════ */}
     <section className="py-24 bg-card border-y border-border">
       <div className="container mx-auto px-4">
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Workspace</p>
           <h2 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
-            The Consultation{" "}
-            <em className="not-italic text-primary">Cockpit</em>
+            One Workspace for the{" "}
+            <em className="not-italic text-primary">Entire Consultation</em>
           </h2>
           <p className="mt-5 text-muted-foreground font-light leading-relaxed max-w-lg mx-auto">
-            Vitals, symptoms, transcript, AI suggestions, and safety checks — all in one workspace. No tab-switching, no context loss.
+            No tab switching. No context loss.
           </p>
         </motion.div>
 
@@ -283,7 +282,6 @@ const Index = () => {
           <div className="border border-border rounded-2xl bg-background overflow-hidden shadow-card">
             <div className="h-[3px] gradient-teal" />
             <div className="p-6">
-              {/* Mock cockpit layout */}
               <div className="grid grid-cols-12 gap-3">
                 {/* Left panel */}
                 <div className="col-span-12 md:col-span-3 space-y-2">
@@ -333,7 +331,7 @@ const Index = () => {
                   <div className="border border-border rounded-xl p-3 bg-card">
                     <div className="flex items-center gap-2 mb-2">
                       <BrainCircuit className="w-3.5 h-3.5 text-primary" />
-                      <span className="text-[0.6rem] font-semibold text-foreground uppercase tracking-wide">AI Care Plan</span>
+                      <span className="text-[0.6rem] font-semibold text-foreground uppercase tracking-wide">Clinical Outputs</span>
                       <span className="ml-auto text-[0.45rem] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold uppercase">Draft</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -372,7 +370,7 @@ const Index = () => {
                   <div className="border border-border rounded-xl p-3 bg-card">
                     <div className="flex items-center gap-2 mb-2">
                       <Sparkles className="w-3.5 h-3.5 text-primary" />
-                      <span className="text-[0.6rem] font-semibold text-foreground uppercase tracking-wide">AI Copilot</span>
+                      <span className="text-[0.6rem] font-semibold text-foreground uppercase tracking-wide">Suggestions</span>
                     </div>
                     <div className="space-y-1">
                       {["Consider CBC", "Add Paracetamol 500mg", "Schedule follow-up 5d"].map(s => (
@@ -396,9 +394,12 @@ const Index = () => {
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Product</p>
           <h2 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
-            From Conversation to Report{" "}
-            <em className="not-italic text-primary">in Seconds</em>
+            Covers the Full{" "}
+            <em className="not-italic text-primary">Consultation Flow</em>
           </h2>
+          <p className="mt-5 text-muted-foreground font-light leading-relaxed max-w-lg mx-auto">
+            From intake to patient communication — everything happens in one system.
+          </p>
         </motion.div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-5 max-w-5xl mx-auto">
@@ -427,18 +428,18 @@ const Index = () => {
     </section>
 
     {/* ════════════════════════════════════════════
-        CLINIC OPERATIONS (NEW)
+        CLINIC OPERATIONS
     ════════════════════════════════════════════ */}
     <section className="py-24 bg-card border-y border-border">
       <div className="container mx-auto px-4">
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Platform</p>
           <h2 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
-            Designed for the{" "}
-            <em className="not-italic text-primary">Entire Patient Visit</em>
+            Covers the Full{" "}
+            <em className="not-italic text-primary">Consultation Flow</em>
           </h2>
           <p className="mt-5 text-muted-foreground font-light leading-relaxed max-w-lg mx-auto">
-            Beyond documentation — DATAelixAIr™ covers every operational step from consultation to patient messaging.
+            From intake to patient communication — everything happens in one system.
           </p>
         </motion.div>
 
@@ -471,8 +472,8 @@ const Index = () => {
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Benefits</p>
           <h2 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
-            Designed for{" "}
-            <em className="not-italic text-primary">Real Clinical Workflows</em>
+            Built for High-Throughput{" "}
+            <em className="not-italic text-primary">Clinical Practice</em>
           </h2>
         </motion.div>
 
@@ -505,8 +506,8 @@ const Index = () => {
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Patient Safety</p>
           <h2 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
-            Built with Patient Safety{" "}
-            <em className="not-italic text-primary">in Mind</em>
+            Designed for{" "}
+            <em className="not-italic text-primary">Safe Clinical Use</em>
           </h2>
         </motion.div>
 
@@ -539,11 +540,11 @@ const Index = () => {
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }}>
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Early Access</p>
           <h2 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
-            Partner With Us as an{" "}
-            <em className="not-italic text-primary">Early Pilot Clinic</em>
+            A Clinical Workspace That Works at{" "}
+            <em className="not-italic text-primary">Consultation Speed</em>
           </h2>
           <p className="mt-5 text-muted-foreground font-light leading-relaxed max-w-lg mx-auto">
-            We're onboarding a limited number of private clinics for early validation. Shape the future of AI-assisted clinical documentation alongside us.
+            Generate notes, prescriptions, and patient summaries in real time.
           </p>
           <Button variant="default" size="lg" className="mt-10" asChild>
             <Link to="/onboard">Request Pilot Access →</Link>
