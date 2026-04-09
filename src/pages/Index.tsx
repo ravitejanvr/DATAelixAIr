@@ -120,6 +120,12 @@ const Index = () => {
             Structured documentation, decision support, and patient-ready outputs in one clinical workspace.
           </motion.p>
 
+          <motion.p variants={fadeUp} custom={2.5} className="mt-4 text-[clamp(0.85rem,1.1vw,0.95rem)] font-light leading-relaxed text-muted-foreground/80 max-w-2xl mx-auto">
+            Adapts to your clinical workflow — not the other way around.
+            <br />
+            Configured to your practice, specialty, and documentation patterns.
+          </motion.p>
+
           <motion.div variants={fadeUp} custom={3} className="mt-9 flex flex-wrap justify-center gap-4">
             <Button variant="default" size="lg" asChild>
               <Link to="/onboard">Request Pilot →</Link>
@@ -398,7 +404,7 @@ const Index = () => {
             <em className="not-italic text-primary">Consultation Flow</em>
           </h2>
           <p className="mt-5 text-muted-foreground font-light leading-relaxed max-w-lg mx-auto">
-            From intake to patient communication — everything happens in one system.
+            From intake to patient communication — aligned to how your clinic operates.
           </p>
         </motion.div>
 
@@ -472,8 +478,8 @@ const Index = () => {
         <motion.div initial="hidden" whileInView="visible" variants={sectionIn} viewport={{ once: true }} className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-medium uppercase tracking-[0.1em] text-primary mb-3">Benefits</p>
           <h2 className="font-display text-[clamp(1.8rem,3.5vw,2.8rem)] font-extrabold leading-[1.1] tracking-tight text-foreground">
-            Built for High-Throughput{" "}
-            <em className="not-italic text-primary">Clinical Practice</em>
+            Built for Practice-Specific{" "}
+            <em className="not-italic text-primary">Clinical Workflows</em>
           </h2>
         </motion.div>
 
