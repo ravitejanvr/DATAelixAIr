@@ -1,0 +1,19 @@
+[
+  {
+    "case_id": "sepsis_01",
+    "input": {
+      "symptoms": ["fever", "tachycardia"],
+      "vitals": { "bp": "90/60" }
+    },
+    "expected_top1": "SEPSIS",
+    "expected_in_top3": ["SEPSIS", "PNEUMONIA"],
+    "notes": "classic systemic case"
+  },
+  {
+    "case_id": "appendicitis_01",
+    "input": {
+      "symptoms": ["rlq pain", "vomiting"]
+    },
+    "expected_top1": "APPENDICITIS"
+  }
+]
