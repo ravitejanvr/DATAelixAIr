@@ -585,24 +585,8 @@ export async function runUnifiedClinicalPipeline(
     console.log("[Pipeline] 🔬 Cache bypass enabled (trace/benchmark mode)");
   }
 
-  // ── Prefetch calibration data (non-blocking, resolves before Wave 3) ──
-  let calibrationResult: CalibrationResult | null = null;
-  const calibrationPromise = getCalibrationFactors(input.clinic_id || undefined)
-    .then(r => { calibrationResult = r; })
-    .catch(() => {});
-
-  // ── Prefetch episodic memory (non-blocking, resolves before Wave 2 DDX) ──
-  let episodicMemoryResult: EpisodicMemoryResult | null = null;
-  const episodicPromise = queryEpisodicMemory({
-    patient_id: ctx.patient_id || undefined,
-    doctor_id: ctx.doctor_id || undefined,
-    clinic_id: input.clinic_id || undefined,
-    symptoms,
-    chief_complaint: ctx.chief_complaint,
-    patient_age: ctx.patient_age,
-    patient_sex: ctx.patient_sex,
-  }).then(r => { episodicMemoryResult = r; })
-    .catch(e => { console.warn("[Pipeline] Episodic memory prefetch failed:", e); });
+  // V4 CLEANUP: Calibration and episodic memory prefetches removed.
+  // Their outputs modified DDX probabilities which are overwritten by V3 engine.
 
   // ═══════════════════════════════════════════════════════
   // WAVE 1 — Context Preparation (sync, ~5ms)
@@ -660,95 +644,13 @@ export async function runUnifiedClinicalPipeline(
   lineageTracker.recordEngineResult("context_enrichment", !!enrichedContext);
   onProgress?.("context", { enriched_context: enrichedContext });
 
-  // ═══════════════════════════════════════════════════════
-  // WAVE 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
-  // ═══════════════════════════════════════════════════════
-  const w15Start = performance.now();
-  let metaReasoningResult: MetaReasoningOutput | null = null;
-  try {
-    metaReasoningResult = await runMetaReasoning({
-      symptoms,
-      vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp_systolic: vitals.bp_systolic },
-      history: ctx.medical_history,
-      medications: ctx.current_medications,
-      allergies: ctx.allergies,
-      chief_complaint: ctx.chief_complaint,
-    });
-    console.log(
-      `[Pipeline] Wave 1.5: Meta-reasoning complete — ` +
-      `organs=[${metaReasoningResult.world_state.organ_systems.join(",")}] ` +
-      `risk=${metaReasoningResult.world_state.risk_level} ` +
-      `hypotheses=${metaReasoningResult.world_state.hypotheses.length} ` +
-      `pathways=[${metaReasoningResult.activated_pathways.join(",")}]`
-    );
-    lineageTracker.recordEngineResult("meta_reasoning", true);
-    pcieCore.addReasoningTrace("meta_reasoning", `World model: ${metaReasoningResult.world_state.organ_systems.join(", ")} | risk=${metaReasoningResult.world_state.risk_level}`);
-  } catch (e) {
-    console.warn("[Pipeline] Wave 1.5: Meta-reasoning failed, continuing without world model:", e);
-    lineageTracker.recordEngineResult("meta_reasoning", false);
-  }
-  waveLat.wave15_meta_reasoning = Math.round(performance.now() - w15Start);
-  lat.meta_reasoning = waveLat.wave15_meta_reasoning;
-  onProgress?.("meta_reasoning", { meta_reasoning: metaReasoningResult });
+  // V4 CLEANUP: Wave 1.5 (Meta-Reasoning) removed — output was never consumed by V3 scoring.
+  let metaReasoningResult: any = null;
+  waveLat.wave15_meta_reasoning = 0;
 
-  // ═══════════════════════════════════════════════════════
-  // WAVE 1.8 — Episodic Memory (resolve prefetch)
-  // Patient longitudinal recall, doctor patterns, epidemiological signals.
-  // Non-blocking prefetch started earlier; we resolve here before DDX.
-  // ═══════════════════════════════════════════════════════
-  const w18Start = performance.now();
-  await episodicPromise; // Resolve the prefetch
-  if (episodicMemoryResult) {
-    const signals = episodicMemoryResult.memory_signals;
-    console.log(
-      `[Pipeline] Wave 1.8: Episodic memory loaded — ` +
-      `patient_visits=${episodicMemoryResult.patient_memory?.total_past_visits || 0} ` +
-      `doctor_consults=${episodicMemoryResult.doctor_patterns?.top_diagnoses.length || 0} ` +
-      `clusters=${episodicMemoryResult.cross_patient?.recent_symptom_clusters.length || 0} ` +
-      `signals=[${signals.join(",")}] (${episodicMemoryResult.execution_ms}ms)`
-    );
-    lineageTracker.recordEngineResult("episodic_memory", true);
-    pcieCore.addReasoningTrace(
-      "episodic_memory" as any,
-      `Episodic: ${episodicMemoryResult.patient_memory?.total_past_visits || 0} past visits, ` +
-      `${episodicMemoryResult.patient_memory?.recurring_conditions.length || 0} recurrences, ` +
-      `${episodicMemoryResult.cross_patient?.recent_symptom_clusters.length || 0} clusters`
-    );
-
-    // Inject epidemiological and recurrence signals as risk flags (immutable)
-    const episodicRiskFlags: string[] = [];
-    if (episodicMemoryResult.patient_memory?.longitudinal_risk_signals.length) {
-      episodicRiskFlags.push(
-        ...episodicMemoryResult.patient_memory.longitudinal_risk_signals.map(s => `[Episodic] ${s}`),
-      );
-    }
-    if (episodicMemoryResult.cross_patient?.seasonal_alerts.length) {
-      episodicRiskFlags.push(
-        ...episodicMemoryResult.cross_patient.seasonal_alerts.map(s => `[Seasonal] ${s}`),
-      );
-    }
-    if (episodicRiskFlags.length > 0) {
-      ctx = { ...ctx, risk_flags: [...(ctx.risk_flags || []), ...episodicRiskFlags] };
-    }
-    // Outbreak alert → oversight event
-    const outbreakClusters = episodicMemoryResult.cross_patient?.recent_symptom_clusters.filter(
-      c => c.alert_level === "outbreak" || c.alert_level === "elevated"
-    ) || [];
-    for (const cluster of outbreakClusters) {
-      recordOversightEvent({
-        event_type: "epidemiological_cluster",
-        severity: cluster.alert_level === "outbreak" ? "critical" : "warning",
-        stage: "episodic_memory",
-        message: `${cluster.alert_level.toUpperCase()}: ${cluster.patient_count} patients with similar symptoms in last 7 days`,
-        metadata: { symptom_cluster: cluster.symptom_cluster, patient_count: cluster.patient_count },
-      });
-    }
-  } else {
-    lineageTracker.recordEngineResult("episodic_memory", false);
-  }
-  waveLat.wave18_episodic_memory = Math.round(performance.now() - w18Start);
-  lat.episodic_memory = waveLat.wave18_episodic_memory;
-  onProgress?.("episodic_memory", { episodic_memory: episodicMemoryResult });
+  // V4 CLEANUP: Wave 1.8 (Episodic Memory) removed — DDX probability mods overwritten by V3.
+  let episodicMemoryResult: any = null;
+  waveLat.wave18_episodic_memory = 0;
 
   // ═══════════════════════════════════════════════════════
   // WAVE 2 — Sequential: Physiology → DDX (physiology feeds DDX)
