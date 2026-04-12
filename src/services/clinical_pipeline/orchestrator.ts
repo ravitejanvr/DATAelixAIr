@@ -56,10 +56,14 @@ import { PCIECore } from "@/services/pcie/core";
 import type { UnifiedClinicalContextGraph } from "@/services/pcie/context_graph";
 // V4 CLEANUP: Meta-reasoning, causal reasoning, episodic memory, cognitive layer,
 // score fusion, pattern priority, canonical fusion — all decommissioned.
-// Their outputs were either post-SSAL (no influence) or overwritten by V3.
 import type { ConflictResolution } from "@/services/meta_reasoning";
 import { testHypotheses, type HypothesisTestResult } from "@/services/hypothesis_testing/client";
 import { planEvidence, type EvidencePlanResult } from "@/services/evidence_planning/client";
+import { applyCandidateFallback, type FallbackMeta } from "@/services/ddx_engine/candidate_fallback";
+import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_engine/candidate_fallback_v2";
+import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
+import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
+import { mergeActivations, expandKG } from "@/services/kg";
 import { isPhase5ContextCandidatesEnabled, isBayesianSystemicLikelihoodEnabled, isClinicalPriorityResolutionEnabled, isProbabilisticEngineV2Enabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
 import { shouldUseV2, shouldAuditLog, logV2Audit, getRolloutConfig, selectEngine } from "@/services/rollout_controller";
