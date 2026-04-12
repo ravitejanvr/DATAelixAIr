@@ -1147,15 +1147,8 @@ export async function runUnifiedClinicalPipeline(
           patient_sex: ctx.patient_sex,
         };
 
-        // Use persistence variant when we have a clinic_id (persists information gain data)
-        const result = input.clinic_id
-          ? await withTimeout(
-              planAndPersistEvidence(planInput, input.clinic_id, input.visit_id || undefined)
-                .then(r => r ? { planned_tests: r.planned_tests, summary: r.summary, execution_ms: r.execution_ms } as EvidencePlanResult : null),
-              TIMEOUT.EVIDENCE_PLANNING,
-              "evidence_planning",
-            )
-          : await withTimeout(
+        // V4 CLEANUP: planAndPersistEvidence removed — use planEvidence directly
+        const result = await withTimeout(
               planEvidence(planInput),
               TIMEOUT.EVIDENCE_PLANNING,
               "evidence_planning",
@@ -1165,8 +1158,8 @@ export async function runUnifiedClinicalPipeline(
         if (result) {
           console.log(
             `[Pipeline] Wave 3: Evidence planning complete — ` +
-            `${result.summary.high_value_tests} high-value tests from ${result.summary.total_candidate_tests} candidates ` +
-            `(${result.execution_ms}ms) [persisted=${!!input.clinic_id}]`,
+            `${(result as any).summary?.high_value_tests ?? 0} high-value tests ` +
+            `(${(result as any).execution_ms ?? 0}ms)`,
           );
         }
         return result;
@@ -1319,59 +1312,7 @@ export async function runUnifiedClinicalPipeline(
     console.log(`[Pipeline] Score Fusion SKIPPED — ${activeVersion.toUpperCase()} handles physiology via latent states.`);
   }
 
-  if (isScoreFusionEnabled() && fusionSourceBayesian && fusionSourceBayesian.diagnoses.length > 0 && !skipScoreFusionForAdvanced) {
-    const fusionStart = performance.now();
-    // Build UUID → name map from DDX for semantic resolution in Score Fusion
-    const fusionNameMap = new Map<string, string>();
-    if (ddxResult?.differential_diagnoses) {
-      for (const d of ddxResult.differential_diagnoses) {
-        if (d.diagnosis_id && d.diagnosis_name) {
-          fusionNameMap.set(d.diagnosis_id, d.diagnosis_name);
-        }
-      }
-    }
-    console.log(`[Pipeline] Score Fusion: name map has ${fusionNameMap.size} entries for ${fusionSourceBayesian.diagnoses.length} diagnoses (source: V1)`);
-
-    const fusionInput = {
-      bayesian: fusionSourceBayesian,
-      ddx: ddxResult,
-      physiology: physiologicalContext,
-      patternAdjustments: patternPriorityResult,
-      vitals: {
-        bp_systolic: vitals.bp_systolic,
-        pulse: vitals.pulse,
-        heart_rate: vitals.pulse,
-        respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
-        temperature: vitals.temperature,
-        spo2: vitals.spo2,
-      },
-      diagnosisNameMap: fusionNameMap,
-    };
-
-    // Feature flag: use canonical ID-based fusion or legacy string-based fusion
-    const fusionOutput = isCanonicalMappingEnabled()
-      ? applyCanonicalScoreFusion(fusionInput)
-      : applyScoreFusion(fusionInput);
-    if (fusionOutput.fusion_applied) {
-      fusedBayesian = fusionOutput.result;
-      console.log("[Pipeline] Phase 5.5: Physiology-First Score Fusion applied —", fusionOutput.diagnostics.length, "diagnoses modulated.");
-      if (fusionOutput.systemic_state) {
-        console.log("[Pipeline] Systemic state:", fusionOutput.systemic_state.severity, "phenotype:", fusionOutput.systemic_state.phenotype);
-      }
-      recordOversightEvent({
-        event_type: "score_fusion_applied",
-        severity: "info",
-        stage: "score_fusion",
-        message: `Physiology-First fusion: ${fusionOutput.diagnostics.length} diagnoses. Systemic: ${fusionOutput.systemic_state?.severity || "N/A"}. Top: ${fusedBayesian!.diagnoses[0]?.diagnosis_id} (${(fusedBayesian!.diagnoses[0]?.posterior_probability * 100).toFixed(1)}%)`,
-        metadata: { diagnostics: fusionOutput.diagnostics, systemic_state: fusionOutput.systemic_state } as any,
-      });
-      pcieCore.addReasoningTrace(
-        "score_fusion" as any,
-        `Physiology-First fusion: ${fusionOutput.diagnostics.length} dx, systemic=${fusionOutput.systemic_state?.severity || "N/A"}`,
-      );
-    }
-    lat.score_fusion = Math.round(performance.now() - fusionStart);
-  }
+  // V4 CLEANUP: Score Fusion removed — V3 handles physiology via latent states natively.
 
   // ── Physiology vs Bayesian disagreement analysis — MOVED to post-SSAL (see below) ──
 
