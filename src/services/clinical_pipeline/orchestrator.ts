@@ -112,14 +112,19 @@ export interface PipelineResult {
   hybrid_reasoning: HybridReasoningResult | null;
   soap_fallback: SOAPGeneratorResult | null;
   multi_agent: OrchestratorResponse | null;
-  meta_reasoning: MetaReasoningOutput | null;
+  /** @deprecated V4 cleanup — always null */
+  meta_reasoning: any | null;
   hypothesis_testing: HypothesisTestResult | null;
   evidence_plan: EvidencePlanResult | null;
   conflict_resolution: ConflictResolution | null;
+  /** @deprecated V4 cleanup — always null */
   diagnostic_loop: DiagnosticLoopMeta | null;
-  causal_reasoning: CausalReasoningResult | null;
-  calibration: CalibrationResult | null;
-  episodic_memory: EpisodicMemoryResult | null;
+  /** @deprecated V4 cleanup — always null */
+  causal_reasoning: any | null;
+  /** @deprecated V4 cleanup — always null */
+  calibration: any | null;
+  /** @deprecated V4 cleanup — always null */
+  episodic_memory: any | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
@@ -142,13 +147,10 @@ export interface PipelineResult {
     guideline_hit: boolean;
   };
   lineage: LineageReport | null;
-  /** PCIE context graph — full clinical state snapshot */
   context_graph: UnifiedClinicalContextGraph | null;
-  /** Wave 6 — Cognitive layer (runs async, populated after pipeline returns) */
-  cognitive_layer: CognitiveLayerResult | null;
-  /** Phase 5.7 — Evidence engine (lab likelihood update) */
+  /** @deprecated V4 cleanup — always null */
+  cognitive_layer: any | null;
   evidence_engine: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null;
-  /** V2 Engine Audit — execution trace for debugging */
   engine_audit: {
     engine_version: EngineVersion;
     fallback_used: boolean;
