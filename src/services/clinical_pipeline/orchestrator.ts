@@ -1672,25 +1672,7 @@ export async function runUnifiedClinicalPipeline(
   }
 
   // Conflict resolution between DDX and Bayesian (uses fusedBayesian for V2 purity)
-  if (metaReasoningResult && ddxResult && fusedBayesian) {
-    const ddxTop = ddxResult.differential_diagnoses[0];
-    const bayesTop = fusedBayesian.diagnoses[0];
-    if (ddxTop && bayesTop) {
-      const bayesTopName = (bayesTop as any).diagnosis_name
-        || (bayesTop as any).diagnosis_id
-        || "";
-      const bayesTopProb = (bayesTop as any).posterior_probability ?? 0;
-      conflictResult = resolveReasoningConflict(
-        ddxTop.diagnosis_name, ddxTop.probability,
-        bayesTopName,
-        bayesTopProb,
-        metaReasoningResult.world_state,
-      );
-      if (conflictResult.resolution_method !== "agreement") {
-        console.log(`[Pipeline] Wave 3.5: Conflict resolved — ${conflictResult.explanation}`);
-      }
-    }
-  }
+  // V4 CLEANUP: Conflict resolution removed — depended on meta-reasoning (decommissioned).
 
   // ═══════════════════════════════════════════════════════
   // WAVE 3.6 — Bounded Diagnostic Loop (max 1 refinement iteration)
@@ -2277,33 +2259,7 @@ export async function runUnifiedClinicalPipeline(
 
   const contextGraph = pcieCore.getGraph();
 
-  // ── Wave 6 — Clinical Cognitive Layer (async, fire-and-forget) ──
-  // Does NOT block the pipeline return. Learning signals are recorded
-  // asynchronously for batch calibration.
-  // FIX: Use fusedBayesian (SSAL authority) for top diagnosis, not raw ddxResult
-  const topDiagnosis = fusedBayesian?.diagnoses?.[0] as any
-    ?? ddxResult?.differential_diagnoses?.[0];
-  if (input.clinic_id && !input.skip_cache) {
-    runCognitiveLayer({
-      case: {
-        visit_id: input.visit_id || undefined,
-        patient_id: input.clinical_context.patient_id || "",
-        clinic_id: input.clinic_id,
-        doctor_id: input.clinical_context.doctor_id || "",
-        symptom_vector: symptoms,
-        chief_complaint: ctx.chief_complaint,
-        final_diagnosis: topDiagnosis?.diagnosis_name ?? topDiagnosis?.diagnosis,
-        ai_top_diagnosis: topDiagnosis?.diagnosis_name ?? topDiagnosis?.diagnosis,
-        organ_system: dominantSystem || undefined,
-        confidence_score: uncertaintyResult?.confidence_score,
-        differential_diagnoses: ddxResult?.differential_diagnoses?.slice(0, 5),
-        patient_age: ctx.patient_age ?? undefined,
-        patient_sex: ctx.patient_sex ?? undefined,
-      },
-      clinic_id: input.clinic_id,
-      run_discovery: false, // Discovery runs on a schedule, not per-consultation
-    }).catch(e => console.warn("[Pipeline] Cognitive layer error (non-blocking):", e));
-  }
+  // V4 CLEANUP: Wave 6 Cognitive Layer removed — was fire-and-forget, no scoring influence.
 
   onProgress?.("complete", {});
 
