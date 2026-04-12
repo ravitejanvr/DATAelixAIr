@@ -1,5 +1,6 @@
 /**
  * Clinical Learning System — Public API
+ * V4 CLEANUP: calibration_client removed (DDX mods overwritten by V3).
  */
 export {
   captureDiagnosisCorrection,
@@ -24,16 +25,3 @@ export type {
   BiasMetric,
   BiasAuditResult,
 } from "./client";
-
-export {
-  getCalibrationFactors,
-  buildCalibrationMap,
-  clearCalibrationCache,
-} from "./calibration_client";
-
-export type {
-  PriorCalibration,
-  OutcomeCalibration,
-  GraphExpansionSuggestion,
-  CalibrationResult,
-} from "./calibration_client";

@@ -54,25 +54,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { LineageTracker, type LineageReport } from "@/services/clinical_pipeline/lineage_tracker";
 import { PCIECore } from "@/services/pcie/core";
 import type { UnifiedClinicalContextGraph } from "@/services/pcie/context_graph";
-import { runMetaReasoning, resolveReasoningConflict, type MetaReasoningOutput, type ConflictResolution } from "@/services/meta_reasoning";
+// V4 CLEANUP: Meta-reasoning, causal reasoning, episodic memory, cognitive layer,
+// score fusion, pattern priority, canonical fusion — all decommissioned.
+import type { ConflictResolution } from "@/services/meta_reasoning";
 import { testHypotheses, type HypothesisTestResult } from "@/services/hypothesis_testing/client";
 import { planEvidence, type EvidencePlanResult } from "@/services/evidence_planning/client";
-import { planAndPersistEvidence } from "@/services/cognitive/evidence_planner";
-import { runCausalReasoning, type CausalReasoningResult } from "@/services/causal_reasoning/client";
-import { getCalibrationFactors, buildCalibrationMap, type CalibrationResult } from "@/services/learning_system/calibration_client";
-import { queryEpisodicMemory, buildEpisodicPriors, type EpisodicMemoryResult } from "@/services/episodic_memory/client";
-import { runCognitiveLayer, type CognitiveLayerResult } from "@/services/cognitive";
 import { applyCandidateFallback, type FallbackMeta } from "@/services/ddx_engine/candidate_fallback";
 import { applyCandidateFallbackV2, type FallbackV2Meta } from "@/services/ddx_engine/candidate_fallback_v2";
 import { expandCandidatesFromContext, type ExpansionResult } from "@/services/context_candidate_expander";
 import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_derived_rules";
 import { mergeActivations, expandKG } from "@/services/kg";
-import { isPhase5ContextCandidatesEnabled, isPatternPriorityLayerEnabled, isScoreFusionEnabled, isCanonicalMappingEnabled, isBayesianSystemicLikelihoodEnabled, isClinicalPriorityResolutionEnabled, isProbabilisticEngineV2Enabled } from "@/services/feature_flags";
+import { isPhase5ContextCandidatesEnabled, isBayesianSystemicLikelihoodEnabled, isClinicalPriorityResolutionEnabled, isProbabilisticEngineV2Enabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
-import { detectPatternPriorities, applyPatternPriority, type PatternPriorityResult } from "@/services/clinical_pipeline/pattern_priority_layer";
-import { applyScoreFusion } from "@/services/clinical_pipeline/score_fusion";
-import { applyCanonicalScoreFusion } from "@/services/clinical_pipeline/canonical_fusion";
-// Legacy V2 client imports removed — all engine calls route through engine_registry.ts
 import { shouldUseV2, shouldAuditLog, logV2Audit, getRolloutConfig, selectEngine } from "@/services/rollout_controller";
 import { runInference, getActiveEngineVersion, type EngineVersion, type InferenceResult } from "@/services/engine_registry";
 
@@ -123,14 +116,19 @@ export interface PipelineResult {
   hybrid_reasoning: HybridReasoningResult | null;
   soap_fallback: SOAPGeneratorResult | null;
   multi_agent: OrchestratorResponse | null;
-  meta_reasoning: MetaReasoningOutput | null;
+  /** @deprecated V4 cleanup — always null */
+  meta_reasoning: any | null;
   hypothesis_testing: HypothesisTestResult | null;
   evidence_plan: EvidencePlanResult | null;
   conflict_resolution: ConflictResolution | null;
+  /** @deprecated V4 cleanup — always null */
   diagnostic_loop: DiagnosticLoopMeta | null;
-  causal_reasoning: CausalReasoningResult | null;
-  calibration: CalibrationResult | null;
-  episodic_memory: EpisodicMemoryResult | null;
+  /** @deprecated V4 cleanup — always null */
+  causal_reasoning: any | null;
+  /** @deprecated V4 cleanup — always null */
+  calibration: any | null;
+  /** @deprecated V4 cleanup — always null */
+  episodic_memory: any | null;
   guideline_summary: {
     guideline_sources_used: string[];
     guideline_compliance_score: number;
@@ -153,13 +151,10 @@ export interface PipelineResult {
     guideline_hit: boolean;
   };
   lineage: LineageReport | null;
-  /** PCIE context graph — full clinical state snapshot */
   context_graph: UnifiedClinicalContextGraph | null;
-  /** Wave 6 — Cognitive layer (runs async, populated after pipeline returns) */
-  cognitive_layer: CognitiveLayerResult | null;
-  /** Phase 5.7 — Evidence engine (lab likelihood update) */
+  /** @deprecated V4 cleanup — always null */
+  cognitive_layer: any | null;
   evidence_engine: import("@/services/clinical_reasoning/evidenceEngine").EvidenceEngineResult | null;
-  /** V2 Engine Audit — execution trace for debugging */
   engine_audit: {
     engine_version: EngineVersion;
     fallback_used: boolean;
@@ -590,24 +585,8 @@ export async function runUnifiedClinicalPipeline(
     console.log("[Pipeline] 🔬 Cache bypass enabled (trace/benchmark mode)");
   }
 
-  // ── Prefetch calibration data (non-blocking, resolves before Wave 3) ──
-  let calibrationResult: CalibrationResult | null = null;
-  const calibrationPromise = getCalibrationFactors(input.clinic_id || undefined)
-    .then(r => { calibrationResult = r; })
-    .catch(() => {});
-
-  // ── Prefetch episodic memory (non-blocking, resolves before Wave 2 DDX) ──
-  let episodicMemoryResult: EpisodicMemoryResult | null = null;
-  const episodicPromise = queryEpisodicMemory({
-    patient_id: ctx.patient_id || undefined,
-    doctor_id: ctx.doctor_id || undefined,
-    clinic_id: input.clinic_id || undefined,
-    symptoms,
-    chief_complaint: ctx.chief_complaint,
-    patient_age: ctx.patient_age,
-    patient_sex: ctx.patient_sex,
-  }).then(r => { episodicMemoryResult = r; })
-    .catch(e => { console.warn("[Pipeline] Episodic memory prefetch failed:", e); });
+  // V4 CLEANUP: Calibration and episodic memory prefetches removed.
+  // Their outputs modified DDX probabilities which are overwritten by V3 engine.
 
   // ═══════════════════════════════════════════════════════
   // WAVE 1 — Context Preparation (sync, ~5ms)
@@ -665,95 +644,13 @@ export async function runUnifiedClinicalPipeline(
   lineageTracker.recordEngineResult("context_enrichment", !!enrichedContext);
   onProgress?.("context", { enriched_context: enrichedContext });
 
-  // ═══════════════════════════════════════════════════════
-  // WAVE 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
-  // ═══════════════════════════════════════════════════════
-  const w15Start = performance.now();
-  let metaReasoningResult: MetaReasoningOutput | null = null;
-  try {
-    metaReasoningResult = await runMetaReasoning({
-      symptoms,
-      vitals: { temperature: vitals.temperature, spo2: vitals.spo2, pulse: vitals.pulse, bp_systolic: vitals.bp_systolic },
-      history: ctx.medical_history,
-      medications: ctx.current_medications,
-      allergies: ctx.allergies,
-      chief_complaint: ctx.chief_complaint,
-    });
-    console.log(
-      `[Pipeline] Wave 1.5: Meta-reasoning complete — ` +
-      `organs=[${metaReasoningResult.world_state.organ_systems.join(",")}] ` +
-      `risk=${metaReasoningResult.world_state.risk_level} ` +
-      `hypotheses=${metaReasoningResult.world_state.hypotheses.length} ` +
-      `pathways=[${metaReasoningResult.activated_pathways.join(",")}]`
-    );
-    lineageTracker.recordEngineResult("meta_reasoning", true);
-    pcieCore.addReasoningTrace("meta_reasoning", `World model: ${metaReasoningResult.world_state.organ_systems.join(", ")} | risk=${metaReasoningResult.world_state.risk_level}`);
-  } catch (e) {
-    console.warn("[Pipeline] Wave 1.5: Meta-reasoning failed, continuing without world model:", e);
-    lineageTracker.recordEngineResult("meta_reasoning", false);
-  }
-  waveLat.wave15_meta_reasoning = Math.round(performance.now() - w15Start);
-  lat.meta_reasoning = waveLat.wave15_meta_reasoning;
-  onProgress?.("meta_reasoning", { meta_reasoning: metaReasoningResult });
+  // V4 CLEANUP: Wave 1.5 (Meta-Reasoning) removed — output was never consumed by V3 scoring.
+  let metaReasoningResult: any = null;
+  waveLat.wave15_meta_reasoning = 0;
 
-  // ═══════════════════════════════════════════════════════
-  // WAVE 1.8 — Episodic Memory (resolve prefetch)
-  // Patient longitudinal recall, doctor patterns, epidemiological signals.
-  // Non-blocking prefetch started earlier; we resolve here before DDX.
-  // ═══════════════════════════════════════════════════════
-  const w18Start = performance.now();
-  await episodicPromise; // Resolve the prefetch
-  if (episodicMemoryResult) {
-    const signals = episodicMemoryResult.memory_signals;
-    console.log(
-      `[Pipeline] Wave 1.8: Episodic memory loaded — ` +
-      `patient_visits=${episodicMemoryResult.patient_memory?.total_past_visits || 0} ` +
-      `doctor_consults=${episodicMemoryResult.doctor_patterns?.top_diagnoses.length || 0} ` +
-      `clusters=${episodicMemoryResult.cross_patient?.recent_symptom_clusters.length || 0} ` +
-      `signals=[${signals.join(",")}] (${episodicMemoryResult.execution_ms}ms)`
-    );
-    lineageTracker.recordEngineResult("episodic_memory", true);
-    pcieCore.addReasoningTrace(
-      "episodic_memory" as any,
-      `Episodic: ${episodicMemoryResult.patient_memory?.total_past_visits || 0} past visits, ` +
-      `${episodicMemoryResult.patient_memory?.recurring_conditions.length || 0} recurrences, ` +
-      `${episodicMemoryResult.cross_patient?.recent_symptom_clusters.length || 0} clusters`
-    );
-
-    // Inject epidemiological and recurrence signals as risk flags (immutable)
-    const episodicRiskFlags: string[] = [];
-    if (episodicMemoryResult.patient_memory?.longitudinal_risk_signals.length) {
-      episodicRiskFlags.push(
-        ...episodicMemoryResult.patient_memory.longitudinal_risk_signals.map(s => `[Episodic] ${s}`),
-      );
-    }
-    if (episodicMemoryResult.cross_patient?.seasonal_alerts.length) {
-      episodicRiskFlags.push(
-        ...episodicMemoryResult.cross_patient.seasonal_alerts.map(s => `[Seasonal] ${s}`),
-      );
-    }
-    if (episodicRiskFlags.length > 0) {
-      ctx = { ...ctx, risk_flags: [...(ctx.risk_flags || []), ...episodicRiskFlags] };
-    }
-    // Outbreak alert → oversight event
-    const outbreakClusters = episodicMemoryResult.cross_patient?.recent_symptom_clusters.filter(
-      c => c.alert_level === "outbreak" || c.alert_level === "elevated"
-    ) || [];
-    for (const cluster of outbreakClusters) {
-      recordOversightEvent({
-        event_type: "epidemiological_cluster",
-        severity: cluster.alert_level === "outbreak" ? "critical" : "warning",
-        stage: "episodic_memory",
-        message: `${cluster.alert_level.toUpperCase()}: ${cluster.patient_count} patients with similar symptoms in last 7 days`,
-        metadata: { symptom_cluster: cluster.symptom_cluster, patient_count: cluster.patient_count },
-      });
-    }
-  } else {
-    lineageTracker.recordEngineResult("episodic_memory", false);
-  }
-  waveLat.wave18_episodic_memory = Math.round(performance.now() - w18Start);
-  lat.episodic_memory = waveLat.wave18_episodic_memory;
-  onProgress?.("episodic_memory", { episodic_memory: episodicMemoryResult });
+  // V4 CLEANUP: Wave 1.8 (Episodic Memory) removed — DDX probability mods overwritten by V3.
+  let episodicMemoryResult: any = null;
+  waveLat.wave18_episodic_memory = 0;
 
   // ═══════════════════════════════════════════════════════
   // WAVE 2 — Sequential: Physiology → DDX (physiology feeds DDX)
@@ -1080,133 +977,10 @@ export async function runUnifiedClinicalPipeline(
   }
   onProgress?.("hypothesis_testing", { hypothesis_testing: hypothesisTestResult });
 
-  // ── Apply episodic memory priors to DDX probabilities ──
-  if (episodicMemoryResult && ddxResult && ddxResult.differential_diagnoses.length > 0) {
-    const episodicPriors = buildEpisodicPriors(episodicMemoryResult);
-    if (episodicPriors.size > 0) {
-      let episodicBoostCount = 0;
-      ddxResult = {
-        ...ddxResult,
-        differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
-          const factor = episodicPriors.get(d.diagnosis_name.toLowerCase());
-          if (factor && factor !== 1.0) {
-            episodicBoostCount++;
-            const adjusted = Math.round(d.probability * factor);
-            return { ...d, probability: Math.max(1, Math.min(95, adjusted)) };
-          }
-          return d;
-        }).sort((a, b) => b.probability - a.probability),
-      };
-      if (episodicBoostCount > 0) {
-        console.log(`[Pipeline] Episodic: Boosted ${episodicBoostCount} DDX candidates from memory priors.`);
-        pcieCore.addReasoningTrace("episodic_memory" as any, `Episodic priors applied to ${episodicBoostCount} candidates`);
-      }
-    }
-  }
-
-  // ── Apply learned calibration factors to DDX probabilities ──
-  await calibrationPromise; // Ensure calibration data is ready
-  if (calibrationResult && ddxResult && ddxResult.differential_diagnoses.length > 0) {
-    const calMap = buildCalibrationMap(calibrationResult);
-    if (calMap.size > 0) {
-      let calibratedCount = 0;
-      ddxResult = {
-        ...ddxResult,
-        differential_diagnoses: ddxResult.differential_diagnoses.map(d => {
-          const factor = calMap.get(d.diagnosis_name.toLowerCase());
-          if (factor && factor !== 1.0) {
-            calibratedCount++;
-            const adjusted = d.must_not_miss
-              ? Math.max(d.probability, Math.round(d.probability * factor))
-              : Math.round(d.probability * factor);
-            return { ...d, probability: Math.max(1, Math.min(95, adjusted)) };
-          }
-          return d;
-        }).sort((a, b) => b.probability - a.probability),
-      };
-      if (calibratedCount > 0) {
-        console.log(`[Pipeline] Learning: Applied calibration to ${calibratedCount} DDX candidates.`);
-        pcieCore.addReasoningTrace("learning" as any, `Calibrated ${calibratedCount} priors from ${calibrationResult.summary.total_outcomes_analyzed} historical outcomes`);
-      }
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════
-  // Phase 5.4 — Pattern Priority Layer (pre-Bayesian)
-  // Detects high-signal clinical patterns and adjusts DDX weights
-  // before Bayesian scoring. Feature-flagged.
-  // ═══════════════════════════════════════════════════════
-  let patternPriorityResult: PatternPriorityResult | null = null;
-  if (isPatternPriorityLayerEnabled() && ddxResult && ddxResult.differential_diagnoses.length > 0) {
-    const ppStart = performance.now();
-    patternPriorityResult = detectPatternPriorities(ctx);
-    if (patternPriorityResult.patterns_detected.length > 0) {
-      ddxResult = {
-        ...ddxResult,
-        differential_diagnoses: applyPatternPriority(ddxResult.differential_diagnoses, patternPriorityResult),
-      };
-      recordOversightEvent({
-        event_type: "pattern_priority_applied",
-        severity: patternPriorityResult.global_modifiers.risk_level === "critical" ? "warning" : "info",
-        stage: "pattern_priority_layer",
-        message: `Detected ${patternPriorityResult.patterns_detected.length} patterns (dominant: ${patternPriorityResult.global_modifiers.dominant_pattern || 'none'}, risk: ${patternPriorityResult.global_modifiers.risk_level}). Boosted ${patternPriorityResult.priority_adjustments.boost.length}, suppressed ${patternPriorityResult.priority_adjustments.suppress.length} diagnoses.`,
-        metadata: patternPriorityResult as any,
-      });
-      pcieCore.addReasoningTrace(
-        "pattern_priority" as any,
-        `Patterns: [${patternPriorityResult.patterns_detected.map(p => p.pattern_name).join(", ")}] risk=${patternPriorityResult.global_modifiers.risk_level}`,
-      );
-    }
-    lat.pattern_priority = Math.round(performance.now() - ppStart);
-  }
-
-  // ═══════════════════════════════════════════════════════
-  // WAVE 2d — Causal Reasoning (parallel with nothing — runs after DDX adjustments)
-  // Builds causal chains, convergent pathways, counterfactuals, and conflict detection.
-  // Deterministic, graph-only — no LLM. Target: <300ms.
-  // ═══════════════════════════════════════════════════════
-  let causalReasoningResult: CausalReasoningResult | null = null;
-  if (ddxResult && ddxResult.differential_diagnoses.length > 0) {
-    const w2dStart = performance.now();
-    try {
-      causalReasoningResult = await withTimeout(
-        runCausalReasoning({
-          symptoms,
-          candidate_diagnoses: ddxResult.differential_diagnoses.slice(0, 8).map(d => ({
-            diagnosis_id: d.diagnosis_id,
-            diagnosis_name: d.diagnosis_name,
-            probability: d.probability,
-            must_not_miss: d.must_not_miss,
-          })),
-          patient_age: ctx.patient_age,
-          patient_sex: ctx.patient_sex,
-        }),
-        TIMEOUT.CAUSAL_REASONING,
-        "causal_reasoning",
-      );
-      if (causalReasoningResult) {
-        console.log(
-          `[Pipeline] Wave 2d: Causal reasoning complete — ` +
-          `${causalReasoningResult.summary.total_chains} chains, ` +
-          `${causalReasoningResult.summary.convergent_pathways_detected} convergent pathways, ` +
-          `${causalReasoningResult.summary.causal_conflicts_detected} conflicts ` +
-          `(${causalReasoningResult.execution_ms}ms)`,
-        );
-        pcieCore.addReasoningTrace(
-          "causal_reasoning" as any,
-          `Causal: ${causalReasoningResult.summary.total_chains} chains, ` +
-          `${causalReasoningResult.summary.convergent_pathways_detected} convergent, ` +
-          `${causalReasoningResult.summary.causal_conflicts_detected} conflicts`,
-        );
-      }
-    } catch {
-      console.warn("[Pipeline] Wave 2d: Causal reasoning failed — continuing without causal analysis.");
-    }
-    lat.causal_reasoning = Math.round(performance.now() - w2dStart);
-    waveLat.wave2d_causal_reasoning = lat.causal_reasoning;
-    lineageTracker.recordEngineResult("causal_reasoning" as any, !!causalReasoningResult);
-  }
-  onProgress?.("causal_reasoning", { causal_reasoning: causalReasoningResult } as any);
+  // V4 CLEANUP: Episodic priors, calibration, pattern priority, causal reasoning — all removed.
+  // Their DDX probability modifications were overwritten by V3 engine scoring.
+  let causalReasoningResult: any = null;
+  let calibrationResult: any = null;
 
   // ═══════════════════════════════════════════════════════
   // WAVE 3 — Parallel Clinical Reasoning
@@ -1373,15 +1147,8 @@ export async function runUnifiedClinicalPipeline(
           patient_sex: ctx.patient_sex,
         };
 
-        // Use persistence variant when we have a clinic_id (persists information gain data)
-        const result = input.clinic_id
-          ? await withTimeout(
-              planAndPersistEvidence(planInput, input.clinic_id, input.visit_id || undefined)
-                .then(r => r ? { planned_tests: r.planned_tests, summary: r.summary, execution_ms: r.execution_ms } as EvidencePlanResult : null),
-              TIMEOUT.EVIDENCE_PLANNING,
-              "evidence_planning",
-            )
-          : await withTimeout(
+        // V4 CLEANUP: planAndPersistEvidence removed — use planEvidence directly
+        const result = await withTimeout(
               planEvidence(planInput),
               TIMEOUT.EVIDENCE_PLANNING,
               "evidence_planning",
@@ -1391,8 +1158,8 @@ export async function runUnifiedClinicalPipeline(
         if (result) {
           console.log(
             `[Pipeline] Wave 3: Evidence planning complete — ` +
-            `${result.summary.high_value_tests} high-value tests from ${result.summary.total_candidate_tests} candidates ` +
-            `(${result.execution_ms}ms) [persisted=${!!input.clinic_id}]`,
+            `${(result as any).summary?.high_value_tests ?? 0} high-value tests ` +
+            `(${(result as any).execution_ms ?? 0}ms)`,
           );
         }
         return result;
@@ -1545,59 +1312,7 @@ export async function runUnifiedClinicalPipeline(
     console.log(`[Pipeline] Score Fusion SKIPPED — ${activeVersion.toUpperCase()} handles physiology via latent states.`);
   }
 
-  if (isScoreFusionEnabled() && fusionSourceBayesian && fusionSourceBayesian.diagnoses.length > 0 && !skipScoreFusionForAdvanced) {
-    const fusionStart = performance.now();
-    // Build UUID → name map from DDX for semantic resolution in Score Fusion
-    const fusionNameMap = new Map<string, string>();
-    if (ddxResult?.differential_diagnoses) {
-      for (const d of ddxResult.differential_diagnoses) {
-        if (d.diagnosis_id && d.diagnosis_name) {
-          fusionNameMap.set(d.diagnosis_id, d.diagnosis_name);
-        }
-      }
-    }
-    console.log(`[Pipeline] Score Fusion: name map has ${fusionNameMap.size} entries for ${fusionSourceBayesian.diagnoses.length} diagnoses (source: V1)`);
-
-    const fusionInput = {
-      bayesian: fusionSourceBayesian,
-      ddx: ddxResult,
-      physiology: physiologicalContext,
-      patternAdjustments: patternPriorityResult,
-      vitals: {
-        bp_systolic: vitals.bp_systolic,
-        pulse: vitals.pulse,
-        heart_rate: vitals.pulse,
-        respiratory_rate: vitals.respiratory_rate ?? ctx.respiratory_rate,
-        temperature: vitals.temperature,
-        spo2: vitals.spo2,
-      },
-      diagnosisNameMap: fusionNameMap,
-    };
-
-    // Feature flag: use canonical ID-based fusion or legacy string-based fusion
-    const fusionOutput = isCanonicalMappingEnabled()
-      ? applyCanonicalScoreFusion(fusionInput)
-      : applyScoreFusion(fusionInput);
-    if (fusionOutput.fusion_applied) {
-      fusedBayesian = fusionOutput.result;
-      console.log("[Pipeline] Phase 5.5: Physiology-First Score Fusion applied —", fusionOutput.diagnostics.length, "diagnoses modulated.");
-      if (fusionOutput.systemic_state) {
-        console.log("[Pipeline] Systemic state:", fusionOutput.systemic_state.severity, "phenotype:", fusionOutput.systemic_state.phenotype);
-      }
-      recordOversightEvent({
-        event_type: "score_fusion_applied",
-        severity: "info",
-        stage: "score_fusion",
-        message: `Physiology-First fusion: ${fusionOutput.diagnostics.length} diagnoses. Systemic: ${fusionOutput.systemic_state?.severity || "N/A"}. Top: ${fusedBayesian!.diagnoses[0]?.diagnosis_id} (${(fusedBayesian!.diagnoses[0]?.posterior_probability * 100).toFixed(1)}%)`,
-        metadata: { diagnostics: fusionOutput.diagnostics, systemic_state: fusionOutput.systemic_state } as any,
-      });
-      pcieCore.addReasoningTrace(
-        "score_fusion" as any,
-        `Physiology-First fusion: ${fusionOutput.diagnostics.length} dx, systemic=${fusionOutput.systemic_state?.severity || "N/A"}`,
-      );
-    }
-    lat.score_fusion = Math.round(performance.now() - fusionStart);
-  }
+  // V4 CLEANUP: Score Fusion removed — V3 handles physiology via latent states natively.
 
   // ── Physiology vs Bayesian disagreement analysis — MOVED to post-SSAL (see below) ──
 
@@ -1957,25 +1672,7 @@ export async function runUnifiedClinicalPipeline(
   }
 
   // Conflict resolution between DDX and Bayesian (uses fusedBayesian for V2 purity)
-  if (metaReasoningResult && ddxResult && fusedBayesian) {
-    const ddxTop = ddxResult.differential_diagnoses[0];
-    const bayesTop = fusedBayesian.diagnoses[0];
-    if (ddxTop && bayesTop) {
-      const bayesTopName = (bayesTop as any).diagnosis_name
-        || (bayesTop as any).diagnosis_id
-        || "";
-      const bayesTopProb = (bayesTop as any).posterior_probability ?? 0;
-      conflictResult = resolveReasoningConflict(
-        ddxTop.diagnosis_name, ddxTop.probability,
-        bayesTopName,
-        bayesTopProb,
-        metaReasoningResult.world_state,
-      );
-      if (conflictResult.resolution_method !== "agreement") {
-        console.log(`[Pipeline] Wave 3.5: Conflict resolved — ${conflictResult.explanation}`);
-      }
-    }
-  }
+  // V4 CLEANUP: Conflict resolution removed — depended on meta-reasoning (decommissioned).
 
   // ═══════════════════════════════════════════════════════
   // WAVE 3.6 — Bounded Diagnostic Loop (max 1 refinement iteration)
@@ -2562,33 +2259,7 @@ export async function runUnifiedClinicalPipeline(
 
   const contextGraph = pcieCore.getGraph();
 
-  // ── Wave 6 — Clinical Cognitive Layer (async, fire-and-forget) ──
-  // Does NOT block the pipeline return. Learning signals are recorded
-  // asynchronously for batch calibration.
-  // FIX: Use fusedBayesian (SSAL authority) for top diagnosis, not raw ddxResult
-  const topDiagnosis = fusedBayesian?.diagnoses?.[0] as any
-    ?? ddxResult?.differential_diagnoses?.[0];
-  if (input.clinic_id && !input.skip_cache) {
-    runCognitiveLayer({
-      case: {
-        visit_id: input.visit_id || undefined,
-        patient_id: input.clinical_context.patient_id || "",
-        clinic_id: input.clinic_id,
-        doctor_id: input.clinical_context.doctor_id || "",
-        symptom_vector: symptoms,
-        chief_complaint: ctx.chief_complaint,
-        final_diagnosis: topDiagnosis?.diagnosis_name ?? topDiagnosis?.diagnosis,
-        ai_top_diagnosis: topDiagnosis?.diagnosis_name ?? topDiagnosis?.diagnosis,
-        organ_system: dominantSystem || undefined,
-        confidence_score: uncertaintyResult?.confidence_score,
-        differential_diagnoses: ddxResult?.differential_diagnoses?.slice(0, 5),
-        patient_age: ctx.patient_age ?? undefined,
-        patient_sex: ctx.patient_sex ?? undefined,
-      },
-      clinic_id: input.clinic_id,
-      run_discovery: false, // Discovery runs on a schedule, not per-consultation
-    }).catch(e => console.warn("[Pipeline] Cognitive layer error (non-blocking):", e));
-  }
+  // V4 CLEANUP: Wave 6 Cognitive Layer removed — was fire-and-forget, no scoring influence.
 
   onProgress?.("complete", {});
 
