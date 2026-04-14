@@ -19,16 +19,36 @@ serve(async (req) => {
 1. EXTRACT clinical entities from the user's input
 2. GENERATE the next best follow-up question based on what's known and what's missing
 
-RULES:
+LANGUAGE RULES (CRITICAL — STRICT ENFORCEMENT):
+- Detect the language of the user's input
+- ALL output text (acknowledgment, next_question.text, options) MUST be in the SAME language as the user's input
+- If user speaks Telugu: respond ONLY in Telugu script (Unicode). NO English words, NO transliterations, NO parenthetical translations
+- If user speaks Hindi: respond ONLY in Hindi/Devanagari. NO English words
+- If user speaks English: respond in English
+- NEVER include translations in parentheses like "(this means X)"
+- NEVER mix scripts — Telugu output must contain ZERO Latin alphabet characters except medical abbreviations (ECG, MRI, BP)
+- Use native medical vocabulary: జ్వరం not "fever", నొప్పి not "pain", వాంతులు not "vomiting"
+
+EXAMPLES OF CORRECT OUTPUT:
+✅ "జ్వరంతో పాటు మీకు చలి లేదా వణుకు ఉన్నాయా?"
+✅ "మీకు ఏమైనా అలర్జీలు ఉన్నాయా?"
+
+EXAMPLES OF WRONG OUTPUT (NEVER DO THIS):
+❌ "మీకు fever ఉందా?"
+❌ "జ్వరం ఉంది (You have fever)"
+❌ "మీకు vomiting ఉందా? (Do you have vomiting?)"
+❌ "నేను అర్థం చేసుకున్నాను. (I understand.)"
+
+CLINICAL RULES:
 - Respond ONLY via the tool call, never as plain text
 - Extract ALL clinical information from the input (symptoms, duration, severity, associated symptoms, risk factors, medications, allergies, demographics)
 - For the next question: look at collected_fields to see what's already known. Only ask about MISSING information.
 - Question priority: chief_complaint → severity → duration → associated_symptoms → red_flags → risk_factors → medications → allergies → demographics
-- If the user says "no" / "none" / "nahi" / "levu" to a question about allergies/medications/history, mark that field as collected with value "none"
-- Generate the question in the SAME language as the user input
+- If the user says "no" / "none" / "నహీ" / "లేదు" to a question about allergies/medications/history, mark that field as collected with value "none"
 - Make questions conversational and natural (2nd person: "you"/"మీ"/"आप")
 - NEVER repeat a question about something already collected
-- Include an acknowledgment of what you understood from the user's input`;
+- Include a brief acknowledgment of what you understood — IN THE USER'S LANGUAGE ONLY
+- Keep symptom names in English for the "name" field (for canonical mapping), but "original_text" should be in the user's language`;
 
     const collectedSummary = session_state?.collected_fields
       ? Object.entries(session_state.collected_fields)
@@ -42,7 +62,7 @@ User input: "${user_input}"
 Already collected information:
 ${collectedSummary}
 
-Extract entities from the input and generate the next follow-up question.`;
+Extract entities from the input and generate the next follow-up question. Remember: ALL text output (acknowledgment, question text, options) must be PURELY in the user's language with ZERO English mixing.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -85,12 +105,11 @@ Extract entities from the input and generate the next follow-up question.`;
                       associated_symptoms: {
                         type: "array",
                         items: { type: "string" },
-                        description: "Associated symptoms mentioned (e.g. chills, nausea)",
+                        description: "Associated symptoms mentioned",
                       },
                       risk_factors: {
                         type: "array",
                         items: { type: "string" },
-                        description: "Risk factors mentioned (e.g. smoking, diabetes)",
                       },
                       medications: {
                         type: "array",
@@ -106,22 +125,21 @@ Extract entities from the input and generate the next follow-up question.`;
                       negations: {
                         type: "array",
                         items: { type: "string" },
-                        description: "Things the user explicitly denied (e.g. 'no vomiting')",
+                        description: "Things the user explicitly denied",
                       },
                     },
                     required: ["symptoms"],
                   },
                   acknowledgment: {
                     type: "string",
-                    description: "Brief acknowledgment of what was understood, in user's language",
+                    description: "Brief acknowledgment in user's language ONLY. No English translations. No parenthetical translations.",
                   },
                   next_question: {
                     type: "object",
                     properties: {
-                      text: { type: "string", description: "The follow-up question in user's language" },
+                      text: { type: "string", description: "Follow-up question in user's language ONLY. No English. No parenthetical translations." },
                       field: {
                         type: "string",
-                        description: "Which field this question targets",
                         enum: [
                           "chief_complaint", "severity", "duration",
                           "associated_symptoms", "red_flags", "risk_factors",
@@ -132,7 +150,7 @@ Extract entities from the input and generate the next follow-up question.`;
                       options: {
                         type: "array",
                         items: { type: "string" },
-                        description: "Optional: quick-reply options in user's language",
+                        description: "Quick-reply options in user's language ONLY. No English.",
                       },
                       priority: {
                         type: "string",
@@ -143,7 +161,7 @@ Extract entities from the input and generate the next follow-up question.`;
                   },
                   all_fields_collected: {
                     type: "boolean",
-                    description: "True if minimum clinical context is met and no more questions needed",
+                    description: "True if minimum clinical context is met",
                   },
                 },
                 required: ["extracted_entities", "acknowledgment", "next_question", "all_fields_collected"],
