@@ -155,8 +155,8 @@ export default function ClinicalInteraction() {
       if (data.text) setLiveTranscript(data.text);
     },
     onCommittedTranscript: async (data) => {
-      // Block processing during TTS playback or if not user's turn
-      if (isTTSPlaying || !data.text || !engine.isUserTurn()) return;
+      // Block processing during TTS playback or if not accepting input
+      if (isTTSPlaying || !data.text || !engine.isAcceptingInput()) return;
 
       try {
         setLiveTranscript("");
