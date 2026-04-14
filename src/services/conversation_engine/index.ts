@@ -23,6 +23,12 @@ import type { PipelineOutput, ClinicalQuestion, PipelineVitals } from "../pipeli
 import type { SupportedLanguage } from "../canonical/types";
 import type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
 import {
+  extractClinicalEntitiesLLM,
+  mergeEntitiesIntoCollected,
+  type CollectedFields,
+  type LLMExtractionResult,
+} from "./llm_extraction";
+import {
   assertNoEnglishFallback,
   getSystemMessage,
   translateOptionLabel,
