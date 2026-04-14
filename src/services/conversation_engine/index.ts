@@ -79,6 +79,9 @@ export class ConversationEngine {
 
   setMode(mode: InteractionMode): void {
     this.sessionState.mode = mode;
+    if (mode === "voice") {
+      this.sessionState.voice.isActive = true;
+    }
   }
 
   getMode(): InteractionMode {
@@ -87,6 +90,40 @@ export class ConversationEngine {
 
   getLanguage(): SupportedLanguage {
     return this.sessionState.language;
+  }
+
+  getVoiceSession(): VoiceSession {
+    return { ...this.sessionState.voice };
+  }
+
+  /** Start a voice session. Returns greeting text if first time. */
+  startVoiceSession(): { greeting: string | null; state: UIState } {
+    this.sessionState.mode = "voice";
+    this.sessionState.voice.isActive = true;
+    this.sessionState.voice.turn = "system";
+
+    let greeting: string | null = null;
+    if (!this.sessionState.voice.hasGreeted) {
+      this.sessionState.voice.hasGreeted = true;
+      greeting = "Hello, what brings you in today?";
+      this.addMessage("system", greeting);
+    }
+
+    this.sessionState.voice.turn = "user";
+    return { greeting, state: this.getCurrentState() };
+  }
+
+  /** Stop voice session */
+  stopVoiceSession(): UIState {
+    this.sessionState.voice.isActive = false;
+    this.sessionState.voice.turn = "idle";
+    return this.getCurrentState();
+  }
+
+  /** Check if system is ready for user input (turn-based guard) */
+  isUserTurn(): boolean {
+    if (this.sessionState.mode !== "voice") return true;
+    return this.sessionState.voice.turn === "user" && !this.sessionState.voice.isProcessing;
   }
 
   /** Buffer a voice transcript chunk without triggering pipeline */
