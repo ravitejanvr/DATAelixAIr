@@ -64,16 +64,16 @@ export default function ClinicalInteraction() {
       if (data.text) setLiveTranscript(data.text);
     },
     onCommittedTranscript: async (data) => {
-      if (data.text) {
-        setLiveTranscript("");
-        // Process committed transcript through pipeline
-        const newState = await engine.processTextInput(data.text);
-        setState(newState);
-        // TTS response in voice mode
-        if (engine.getMode() === "voice") {
-          const responseText = engine.getLastResponseText();
-          if (responseText) playTTS(responseText);
-        }
+      if (!data.text) return;
+      // Turn-based guard: only process if it's user's turn
+      if (!engine.isUserTurn()) return;
+      setLiveTranscript("");
+      const newState = await engine.processTextInput(data.text);
+      setState(newState);
+      // TTS response in voice mode
+      if (engine.getMode() === "voice") {
+        const responseText = engine.getLastResponseText();
+        if (responseText) await playTTS(responseText);
       }
     },
   });
@@ -94,20 +94,29 @@ export default function ClinicalInteraction() {
 
   const handleToggleRecording = useCallback(async () => {
     if (isRecording) {
-      // Stop recording
       scribe.disconnect();
       setIsRecording(false);
       setLiveTranscript("");
+      const newState = engine.stopVoiceSession();
+      setState(newState);
       return;
     }
 
     // Start recording
     setIsConnectingMic(true);
-    engine.setMode("voice");
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       const { data, error } = await supabase.functions.invoke("elevenlabs-scribe-token");
       if (error || !data?.token) throw new Error(error?.message || "Failed to get token");
+
+      // Start voice session — triggers greeting once
+      const { greeting, state: newState } = engine.startVoiceSession();
+      setState(newState);
+
+      // Play greeting TTS
+      if (greeting) {
+        await playTTS(greeting);
+      }
 
       await scribe.connect({
         token: data.token,
