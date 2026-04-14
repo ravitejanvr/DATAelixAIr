@@ -35,7 +35,7 @@ export function processTranscript(
     .filter((s) => !s.negated)
     .map((s) => s.raw_text);
 
-  const canonResult = canonicalize(rawInputs, output.language_hint);
+  const canonResult = canonicalize(rawInputs, "patient");
 
   // Enrich canonical features with adapter-extracted modifiers
   const enrichedFeatures: CanonicalFeature[] = canonResult.features.map((feature) => {
