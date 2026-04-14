@@ -5,16 +5,17 @@
  *   IDLE → LISTENING → PROCESSING → THINKING → ASKING → WAITING_FOR_USER → ...
  *
  * SINGLE execution flow per turn:
- *   User Input → normalizeTranscript() → processTranscript() (scribe+canonical)
- *   → LLM extraction → merge into SessionContextManager (SSOT)
- *   → runClinicalPipelineV4() → question generation → UI
+ *   User Input → classifyIntent() → normalizeTranscript()
+ *   → processTranscript() (scribe+canonical) → LLM extraction
+ *   → merge into SessionContextManager (SSOT) → decideNextStep() → UI
  *
  * Rules:
  * - TurnController enforces exactly ONE question per turn
- * - SessionContextManager is the ONLY state store
+ * - SessionContextManager is the ONLY state store (no collectedFields)
  * - No raw strings beyond canonicalization boundary
  * - No parallel execution (processing lock)
  * - Questions adapt to already-known context
+ * - Intent classification gates pipeline execution
  */
 
 import { SessionContextManager } from "../session_context";
@@ -27,9 +28,16 @@ import type { SupportedLanguage } from "../canonical/types";
 import type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
 import { normalizeTranscript } from "./transcript_normalizer";
 import { TurnController } from "./turn_controller";
+import { classifyIntent, type UserIntent } from "./intent_classifier";
+import {
+  decideNextStep,
+  getClarificationResponse,
+  getAcknowledgment,
+  type QuestionMeta,
+  type NextAction,
+} from "./reasoning_engine";
 import {
   extractClinicalEntitiesLLM,
-  mergeEntitiesIntoCollected,
   type CollectedFields,
   type LLMExtractionResult,
 } from "./llm_extraction";
@@ -47,34 +55,12 @@ import {
 
 export type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
 
-/** Question category priority order */
-const CATEGORY_PRIORITY: Record<string, number> = {
-  symptom_expansion: 0,
-  severity: 1,
-  associated_symptoms: 2,
-  risk_factors: 3,
-  history: 4,
-  demographics: 5,
-};
-
 type ResponseInput =
   | { type: "greeting" }
   | { type: "pipeline"; input: string }
   | { type: "vitals_recorded" }
   | { type: "files_attached"; names: string }
   | { type: "demographics_updated" };
-
-interface GeneratedMessage {
-  role: "system" | "question";
-  content: string;
-  question?: ClinicalQuestion;
-  questionOptionLabels?: Record<string, string>;
-}
-
-interface GeneratedResponse {
-  messages: GeneratedMessage[];
-  primaryText: string | null;
-}
 
 export class ConversationEngine {
   private session: SessionContextManager;
@@ -85,6 +71,8 @@ export class ConversationEngine {
   private pendingQuestions: ClinicalQuestion[] = [];
   private latestPipelineResult: PipelineOutput | null = null;
   private messageCounter = 0;
+  /** Per-field attempt counter for rephrasing */
+  private fieldAttempts = new Map<string, number>();
 
   /** Persistent session state exposed to UI */
   private sessionState: SessionState = this.defaultSessionState();
@@ -96,7 +84,7 @@ export class ConversationEngine {
       transcriptBuffer: [],
       lastQuestionId: null,
       voice: { isActive: false, hasGreeted: false },
-      collectedFields: {},
+      collectedFields: {}, // Kept for backward compat but DERIVED from session
       fsm_state: "IDLE",
     };
   }
@@ -123,17 +111,14 @@ export class ConversationEngine {
     return this.sessionState.language;
   }
 
-  /** Get current FSM state */
   getFSMState() {
     return this.turn.state;
   }
 
-  /** Check if system is ready for user input */
   isAcceptingInput(): boolean {
     return this.turn.isAcceptingInput;
   }
 
-  /** Start a voice session. Returns greeting text if first time. */
   startVoiceSession(): { greeting: string | null; state: UIState } {
     this.sessionState.mode = "voice";
     this.sessionState.voice.isActive = true;
@@ -141,15 +126,12 @@ export class ConversationEngine {
     let greeting: string | null = null;
     if (!this.sessionState.voice.hasGreeted) {
       this.sessionState.voice.hasGreeted = true;
-      const response = this.generateResponse({ type: "greeting" }, this.sessionState);
-      this.appendGeneratedResponse(response);
-      greeting = response.primaryText;
+      const lang = this.sessionState.language;
+      greeting = getSystemMessage("greeting", lang);
+      this.addMessage("system", greeting);
     }
 
-    // After greeting, move to WAITING_FOR_USER
     if (this.turn.state === "IDLE") {
-      // Transition IDLE → PROCESSING (greeting) → ASKING → WAITING_FOR_USER quickly
-      // Since greeting is synchronous, go directly to WAITING
       this.turn.transition("LISTENING");
       this.turn.transition("PROCESSING");
       this.turn.transition("THINKING");
@@ -161,26 +143,21 @@ export class ConversationEngine {
     return { greeting, state: this.getCurrentState() };
   }
 
-  /** Stop voice session */
   stopVoiceSession(): UIState {
     this.sessionState.voice.isActive = false;
-    // Reset FSM to IDLE
     if (this.turn.state !== "IDLE") {
       this.turn.reset();
-      this.turn.transition("IDLE" as any); // reset already sets IDLE
     }
     this.syncFSMState();
     return this.getCurrentState();
   }
 
-  /** Buffer a voice transcript chunk without triggering pipeline */
   bufferTranscript(chunk: string): void {
     if (chunk.trim()) {
       this.sessionState.transcriptBuffer.push(chunk.trim());
     }
   }
 
-  /** Flush transcript buffer and process as single input */
   async flushTranscriptBuffer(): Promise<UIState> {
     const fullText = this.sessionState.transcriptBuffer.join(" ").trim();
     this.sessionState.transcriptBuffer = [];
@@ -195,15 +172,15 @@ export class ConversationEngine {
   /**
    * MAIN ENTRY POINT for all user input (voice or text).
    *
-   * Strict turn-based execution:
+   * Flow:
    *   1. GUARD: assert accepting input + acquire lock
-   *   2. PROCESSING: clean + normalize + scribe extraction
-   *   3. THINKING: LLM extraction + merge into SSOT + run pipeline
-   *   4. ASKING: generate response + question
-   *   5. WAITING_FOR_USER: release for next input
+   *   2. CLASSIFY: determine intent
+   *   3. PROCESSING: clean + normalize + scribe extraction (only for clinical intents)
+   *   4. THINKING: LLM extraction + merge into SSOT + reasoning
+   *   5. ASKING: generate response via reasoning engine
+   *   6. WAITING_FOR_USER: release for next input
    */
   async processUserInput(text: string): Promise<UIState> {
-    // ── GUARD: Only accept input in valid states ──
     if (!this.turn.isAcceptingInput) {
       console.warn(`[TURN] Rejecting input — FSM state: ${this.turn.state}`);
       return this.getCurrentState();
@@ -219,7 +196,6 @@ export class ConversationEngine {
       console.error("[TURN] Turn execution failed:", err);
       this.turn.error();
       this.syncFSMState();
-      // Recover to IDLE so user can retry
       this.turn.transition("IDLE");
       this.syncFSMState();
       return this.getCurrentState();
@@ -228,9 +204,6 @@ export class ConversationEngine {
     }
   }
 
-  /**
-   * Legacy alias — routes to processUserInput for backward compatibility.
-   */
   async processTextInput(text: string): Promise<UIState> {
     return this.processUserInput(text);
   }
@@ -248,29 +221,57 @@ export class ConversationEngine {
     // Step 1: Clean STT artifacts
     const cleanedText = cleanTranscript(rawInput);
     if (!cleanedText) {
-      this.turn.transition("THINKING");
-      this.turn.transition("ASKING");
-      this.turn.transition("WAITING_FOR_USER");
-      this.syncFSMState();
+      this.transitionToWaiting();
       return this.getCurrentState();
     }
 
     // Step 2: Detect & lock language
     this.lockSessionLanguage(cleanedText);
-    console.log("[TURN] Lang:", this.sessionState.language, "| Input:", cleanedText);
+    const lang = this.sessionState.language;
 
-    // Step 3: Normalize transcript for extraction
-    const normalizedText = normalizeTranscript(cleanedText, this.sessionState.language);
+    // Step 3: Classify intent
+    const hasActiveQuestion = this.sessionState.lastQuestionId !== null && this.pendingQuestions.length > 0;
+    const intent = classifyIntent(cleanedText, lang, hasActiveQuestion);
+    console.log("[TURN] Intent:", intent, "| Lang:", lang, "| Input:", cleanedText);
 
     // Add user message
-    const userMsg = this.addMessage("user", cleanedText);
+    this.addMessage("user", cleanedText);
 
-    // Step 4: Scribe extraction + canonicalization (ALWAYS runs)
+    // Step 4: Handle non-clinical intents WITHOUT full pipeline
+    if (intent === "GREETING") {
+      this.turn.transition("THINKING");
+      this.turn.transition("ASKING");
+      const greetText = getSystemMessage("greeting", lang);
+      this.addMessage("system", greetText);
+      this.turn.transition("WAITING_FOR_USER");
+      this.syncFSMState();
+      this.logTurnDebug(cleanedText, intent, null);
+      return this.getCurrentState();
+    }
+
+    if (intent === "ACKNOWLEDGEMENT") {
+      this.turn.transition("THINKING");
+      this.turn.transition("ASKING");
+      const ack = getAcknowledgment(lang);
+      this.addMessage("system", ack);
+      // Re-ask the pending question if there is one
+      if (this.pendingQuestions.length > 0) {
+        // Don't add a new question — the pending one is still valid
+      }
+      this.turn.transition("WAITING_FOR_USER");
+      this.syncFSMState();
+      this.logTurnDebug(cleanedText, intent, null);
+      return this.getCurrentState();
+    }
+
+    // Step 5: Normalize transcript for extraction
+    const normalizedText = normalizeTranscript(cleanedText, lang);
+
+    // Step 6: Scribe extraction + canonicalization (ALWAYS for clinical intents)
     const scribeOutput = processTranscript(normalizedText);
     console.log("[SCRIBE] Extracted:", scribeOutput.extracted_symptoms.length, "symptoms,",
       scribeOutput.canonicalization?.features.length ?? 0, "canonical features");
 
-    // Write scribe canonical features into SessionContextManager
     if (scribeOutput.canonicalization?.features.length) {
       this.session.updateFromCanonicalFeatures(
         scribeOutput.canonicalization.features,
@@ -281,68 +282,66 @@ export class ConversationEngine {
       this.session.updateFromExtraction(scribeOutput.extracted_symptoms, "patient_text");
     }
 
-    userMsg.extracted_features = this.session.getCanonicalFeatures().map(f => f.feature_id);
-
     // ═══ THINKING ═══
     this.turn.transition("THINKING");
     this.syncFSMState();
 
-    // Step 5: LLM extraction (semantic understanding)
-    const llmResult = await this.runLLMExtraction(normalizedText);
+    // Step 7: LLM extraction (semantic understanding)
+    // Build collectedFields from SSOT for the LLM call
+    const collectedForLLM = this.deriveCollectedFields();
+    const llmResult = await this.runLLMExtraction(normalizedText, collectedForLLM);
 
-    // Step 6: Sync LLM entities into SessionContextManager (SSOT)
+    // Step 8: Sync LLM entities into SessionContextManager (SSOT)
     if (llmResult?.extracted_entities) {
       this.session.syncFromLLMEntities(llmResult.extracted_entities, "patient_text");
       console.log("[SYNC] Session features after merge:", this.session.getCanonicalFeatures().length);
     }
 
-    // Step 7: Run clinical pipeline with UNIFIED state
+    // Step 9: Handle negation responses to questions
+    if (intent === "NEGATION" || intent === "QUESTION_ANSWER") {
+      this.handleQuestionResponse(cleanedText, intent);
+    }
+
+    // Step 10: Run clinical pipeline with UNIFIED state
     await this.runPipeline();
 
     // ═══ ASKING ═══
     this.turn.transition("ASKING");
     this.syncFSMState();
 
-    // Step 8: Generate response (acknowledgment + next question)
-    let responseText: string | null = null;
-    if (llmResult) {
-      responseText = this.appendLLMResponse(llmResult);
-    } else {
-      const response = this.generateResponse({ type: "pipeline", input: cleanedText }, this.sessionState);
-      this.appendGeneratedResponse(response);
-      responseText = response.primaryText;
-    }
+    // Step 11: Reasoning engine decides next action
+    const meta: QuestionMeta = {
+      askedQuestionIds: new Set(this.askedQuestionIds),
+      askedQuestionTexts: new Set(this.askedQuestionTexts),
+      attempts: new Map(this.fieldAttempts),
+    };
 
-    // Log the completed turn
-    this.turn.logTurn({
-      input: cleanedText,
-      extracted: {
-        scribe_symptoms: scribeOutput.extracted_symptoms.length,
-        canonical_features: scribeOutput.canonicalization?.features.length ?? 0,
-        llm_entities: llmResult?.extracted_entities ? {
-          symptoms: llmResult.extracted_entities.symptoms?.length ?? 0,
-          duration: llmResult.extracted_entities.duration,
-          severity: llmResult.extracted_entities.severity,
-        } : null,
-      },
-      session_snapshot: {
-        features: this.session.getCanonicalFeatures().map(f => ({
-          id: f.feature_id,
-          intensity: f.intensity,
-          duration: f.duration,
-        })),
-        has_symptoms: this.session.hasData("symptoms"),
-        has_duration: this.session.hasData("duration"),
-        has_severity: this.session.hasData("severity"),
-        has_age: this.session.hasData("age"),
-        has_medications: this.session.hasData("medications"),
-      },
-      next_question: this.pendingQuestions[0]?.text ?? null,
-    });
+    const llmQuestion = llmResult?.next_question ?? null;
+
+    const action = decideNextStep(
+      this.session,
+      intent,
+      lang,
+      meta,
+      llmQuestion,
+      this.pendingQuestions,
+    );
+
+    // Step 12: Execute the decided action
+    this.executeAction(action, llmResult, lang);
+
+    // Step 13: Safety alerts
+    this.emitSafetyAlerts(lang);
+
+    // Log turn
+    this.logTurnDebug(cleanedText, intent, action);
 
     // ═══ WAITING_FOR_USER ═══
     this.turn.transition("WAITING_FOR_USER");
     this.syncFSMState();
+
+    // Sync derived collectedFields for UI display
+    this.sessionState.collectedFields = this.deriveCollectedFields();
 
     return this.getCurrentState();
   }
@@ -351,7 +350,6 @@ export class ConversationEngine {
     const normalizedAnswer = answer.trim();
     if (!normalizedAnswer) return this.getCurrentState();
 
-    // Mark question as answered
     this.askedQuestionIds.add(questionId);
     const question = this.pendingQuestions.find(q => q.question_id === questionId);
     if (question) {
@@ -360,16 +358,14 @@ export class ConversationEngine {
     this.session.updateFromAnswers(questionId, normalizedAnswer);
     this.pendingQuestions = this.pendingQuestions.filter(q => q.question_id !== questionId);
 
-    // Process through full pipeline
     return this.processUserInput(normalizedAnswer);
   }
 
   async attachVitals(vitals: PipelineVitals): Promise<UIState> {
     this.session.attachVitals(vitals);
     await this.runPipeline();
-    this.appendGeneratedResponse(
-      this.generateResponse({ type: "vitals_recorded" }, this.sessionState)
-    );
+    const lang = this.sessionState.language;
+    this.addMessage("system", getSystemMessage("vitals_recorded", lang));
     return this.getCurrentState();
   }
 
@@ -377,18 +373,14 @@ export class ConversationEngine {
     this.session.attachFiles(files);
     const names = files.map(f => f.file_name).join(", ");
     await this.runPipeline();
-    this.appendGeneratedResponse(
-      this.generateResponse({ type: "files_attached", names }, this.sessionState)
-    );
+    const lang = this.sessionState.language;
+    this.addMessage("system", getSystemMessage("files_attached", lang, { names }));
     return this.getCurrentState();
   }
 
   async setDemographics(data: { age?: number; sex?: string; name?: string }): Promise<UIState> {
     this.session.setDemographics(data);
     await this.runPipeline();
-    this.appendGeneratedResponse(
-      this.generateResponse({ type: "demographics_updated" }, this.sessionState)
-    );
     return this.getCurrentState();
   }
 
@@ -407,7 +399,6 @@ export class ConversationEngine {
     };
   }
 
-  /** Get the last system/question message content (for TTS) */
   getLastResponseText(): string | null {
     for (let i = this.messages.length - 1; i >= 0; i--) {
       const msg = this.messages[i];
@@ -427,6 +418,7 @@ export class ConversationEngine {
     this.pendingQuestions = [];
     this.latestPipelineResult = null;
     this.messageCounter = 0;
+    this.fieldAttempts.clear();
     this.sessionState = this.defaultSessionState();
   }
 
@@ -438,149 +430,191 @@ export class ConversationEngine {
     this.sessionState.fsm_state = this.turn.state;
   }
 
+  private transitionToWaiting(): void {
+    this.turn.transition("THINKING");
+    this.turn.transition("ASKING");
+    this.turn.transition("WAITING_FOR_USER");
+    this.syncFSMState();
+  }
+
+  /**
+   * Derive CollectedFields from SessionContextManager (SSOT).
+   * This is computed, not stored — eliminates the shadow state problem.
+   */
+  private deriveCollectedFields(): CollectedFields {
+    const features = this.session.getCanonicalFeatures();
+    const snapshot = this.session.getSnapshot();
+
+    const fields: CollectedFields = {};
+
+    if (features.length > 0) {
+      fields.chief_complaint = features.map(f => f.feature_id);
+    }
+    if (this.session.hasData("severity")) {
+      const severities = features
+        .map(f => f.intensity)
+        .filter(i => i !== "unknown");
+      if (severities.length > 0) fields.severity = severities[0];
+    }
+    if (this.session.hasData("duration")) {
+      const durations = features
+        .map(f => f.duration)
+        .filter((d): d is string => !!d && d !== "");
+      if (durations.length > 0) fields.duration = durations[0];
+    }
+    if (snapshot.medications.length > 0) {
+      fields.medications = snapshot.medications;
+    }
+    if (snapshot.allergies.length > 0) {
+      fields.allergies = snapshot.allergies;
+    }
+    if (snapshot.patient_age != null) {
+      fields.age = snapshot.patient_age;
+    }
+    if (snapshot.patient_sex) {
+      fields.sex = snapshot.patient_sex;
+    }
+    if (snapshot.medical_history.length > 0) {
+      fields.medical_history = snapshot.medical_history;
+    }
+
+    return fields;
+  }
+
   private async runPipeline(): Promise<void> {
     const input = this.session.toPipelineInput();
     this.latestPipelineResult = await runClinicalPipelineV4(input);
 
-    // Filter out already-asked questions + questions for known data
+    // Filter pipeline questions — remove already-asked and already-known
     const newQuestions = this.latestPipelineResult.questions.questions
       .filter(q => {
         if (this.askedQuestionIds.has(q.question_id)) return false;
         if (this.askedQuestionTexts.has(this.normalizeQuestionText(q.text))) return false;
         if (this.session.hasData(q.category)) return false;
         return true;
-      })
-      .sort((a, b) => {
-        const catA = CATEGORY_PRIORITY[a.category] ?? 99;
-        const catB = CATEGORY_PRIORITY[b.category] ?? 99;
-        if (catA !== catB) return catA - catB;
-        const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-        return (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3);
       });
 
     this.pendingQuestions = newQuestions;
   }
 
-  private generateResponse(input: ResponseInput, session: SessionState): GeneratedResponse {
-    const lang = session.language;
-    const messages: GeneratedMessage[] = [];
+  /**
+   * Execute a reasoning engine action — produces exactly ONE response per turn.
+   */
+  private executeAction(
+    action: NextAction,
+    llmResult: LLMExtractionResult | null,
+    lang: SupportedLanguage,
+  ): void {
+    // Always emit LLM acknowledgment first (if available and meaningful)
+    if (llmResult?.acknowledgment) {
+      this.addMessage("system", llmResult.acknowledgment);
+    }
 
-    const pushMessage = (
-      role: GeneratedMessage["role"],
-      content: string,
-      context: string,
-      question?: ClinicalQuestion,
-      questionOptionLabels?: Record<string, string>,
-      validate = true
-    ) => {
-      messages.push({
-        role,
-        content: validate ? assertNoEnglishFallback(content, lang, context) : content,
-        question,
-        questionOptionLabels,
-      });
-    };
+    switch (action.type) {
+      case "ask_question": {
+        const q = action.question;
+        this.askedQuestionIds.add(q.question_id);
+        this.askedQuestionTexts.add(this.normalizeQuestionText(action.displayText));
+        this.sessionState.lastQuestionId = q.question_id;
 
-    if (input.type === "greeting") {
-      if (lang !== "unknown") {
-        pushMessage("system", getSystemMessage("greeting", lang), "greeting");
+        // Track attempt for this field
+        const currentAttempts = this.fieldAttempts.get(q.category) ?? 0;
+        this.fieldAttempts.set(q.category, currentAttempts + 1);
+
+        const optionLabels = q.options
+          ? Object.fromEntries(q.options.map(opt => [opt, translateOptionLabel(opt, lang)]))
+          : undefined;
+
+        this.addMessage("question", action.displayText, q, optionLabels);
+        this.pendingQuestions = [q]; // Exactly ONE pending question
+        break;
       }
-      return {
-        messages,
-        primaryText: messages.length > 0 ? messages[messages.length - 1].content : null,
-      };
+
+      case "acknowledge":
+        if (!llmResult?.acknowledgment) {
+          this.addMessage("system", action.text);
+        }
+        break;
+
+      case "greet":
+        this.addMessage("system", action.text);
+        break;
+
+      case "clarify":
+        this.addMessage("system", action.text);
+        break;
+
+      case "proceed":
+        this.addMessage("system", action.text);
+        this.pendingQuestions = [];
+        break;
+
+      case "none":
+        // No action needed — pipeline has enough data or all questions exhausted
+        if (!llmResult?.acknowledgment) {
+          // Only show confidence note if we have features
+          if (this.session.getCanonicalFeatures().length > 0 && this.latestPipelineResult) {
+            const confidence = (this.latestPipelineResult.confidence.overall_confidence * 100).toFixed(0);
+            this.addMessage("system", getSystemMessage("noted", lang, { confidence }));
+          }
+        }
+        break;
+    }
+  }
+
+  /**
+   * Handle question responses (NEGATION or QUESTION_ANSWER intent).
+   * Maps negations to structured data updates.
+   */
+  private handleQuestionResponse(text: string, intent: UserIntent): void {
+    if (!this.sessionState.lastQuestionId) return;
+
+    const lastQuestion = this.pendingQuestions[0];
+    if (!lastQuestion) return;
+
+    // Mark as answered
+    this.askedQuestionIds.add(lastQuestion.question_id);
+    this.session.updateFromAnswers(lastQuestion.question_id, text);
+
+    // Handle negation — mark field as "collected with none"
+    if (intent === "NEGATION" || isNegativeResponse(text, this.sessionState.language)) {
+      const category = lastQuestion.category;
+      if (category === "allergies") {
+        this.session.setAllergies(["none"]);
+      } else if (category === "medications") {
+        this.session.setMedications(["none"]);
+      }
     }
 
-    if (input.type === "vitals_recorded") {
-      pushMessage("system", getSystemMessage("vitals_recorded", lang), "vitals_recorded");
-    }
+    // Clear pending
+    this.pendingQuestions = this.pendingQuestions.filter(q => q.question_id !== lastQuestion.question_id);
+    this.sessionState.lastQuestionId = null;
+  }
 
-    if (input.type === "files_attached") {
-      pushMessage(
+  /**
+   * Emit safety alerts from pipeline result.
+   */
+  private emitSafetyAlerts(lang: SupportedLanguage): void {
+    if (!this.latestPipelineResult) return;
+    for (const alert of this.latestPipelineResult.safety.safety_alerts) {
+      this.addMessage(
         "system",
-        getSystemMessage("files_attached", lang, { names: input.names }),
-        "files_attached",
-        undefined,
-        undefined,
-        false
+        getSystemMessage("safety_alert", lang, {
+          condition: translateSafetyCondition(alert.condition, lang),
+          action: translateSafetyAction(alert.action, lang),
+        })
       );
     }
-
-    if (this.latestPipelineResult) {
-      const result = this.latestPipelineResult;
-      const features = this.session.getCanonicalFeatures();
-
-      if (features.length > 0) {
-        const confidence = (result.confidence.overall_confidence * 100).toFixed(0);
-        pushMessage("system", getSystemMessage("noted", lang, { confidence }), "pipeline_noted");
-      }
-
-      for (const alert of result.safety.safety_alerts) {
-        pushMessage(
-          "system",
-          getSystemMessage("safety_alert", lang, {
-            condition: translateSafetyCondition(alert.condition, lang),
-            action: translateSafetyAction(alert.action, lang),
-          }),
-          `safety:${alert.alert_id}`
-        );
-      }
-
-      // Exactly ONE question per turn
-      if (this.pendingQuestions.length > 0) {
-        const nextQ = this.pendingQuestions[0];
-        const normalized = this.normalizeQuestionText(nextQ.text);
-
-        if (!this.askedQuestionTexts.has(normalized)) {
-          const translatedText = translateQuestion(nextQ.text, lang);
-          const conversationalText = toConversationalToneML(translatedText, lang);
-          const questionOptionLabels = nextQ.options
-            ? Object.fromEntries(nextQ.options.map(option => [option, translateOptionLabel(option, lang)]))
-            : undefined;
-
-          this.askedQuestionTexts.add(normalized);
-          this.askedQuestionIds.add(nextQ.question_id);
-          this.sessionState.lastQuestionId = nextQ.question_id;
-
-          pushMessage(
-            "question",
-            conversationalText,
-            `question:${nextQ.question_id}`,
-            nextQ,
-            questionOptionLabels
-          );
-        }
-      }
-    }
-
-    const primaryMessage = [...messages].reverse().find(
-      message => message.role === "question" || message.role === "system"
-    );
-
-    return {
-      messages,
-      primaryText: primaryMessage?.content ?? null,
-    };
   }
 
   private lockSessionLanguage(text: string): void {
     if (this.sessionState.language !== "unknown") return;
-
     const detectedLanguage = detectLanguage(text);
     if (detectedLanguage !== "unknown") {
       this.sessionState.language = detectedLanguage;
     }
   }
 
-  private appendGeneratedResponse(response: GeneratedResponse): void {
-    for (const message of response.messages) {
-      this.addMessage(message.role, message.content, message.question, message.questionOptionLabels);
-    }
-  }
-
-  /**
-   * Unicode-safe question text normalization for dedup comparison.
-   */
   private normalizeQuestionText(text: string): string {
     return text
       .normalize("NFKD")
@@ -590,81 +624,71 @@ export class ConversationEngine {
   }
 
   /**
-   * Run LLM extraction — extracts entities + generates next question dynamically.
+   * Run LLM extraction with derived collected fields from SSOT.
    */
-  private async runLLMExtraction(userInput: string): Promise<LLMExtractionResult | null> {
+  private async runLLMExtraction(
+    userInput: string,
+    collectedFields: CollectedFields,
+  ): Promise<LLMExtractionResult | null> {
     try {
       const result = await extractClinicalEntitiesLLM(
         userInput,
-        this.sessionState.collectedFields,
+        collectedFields,
         this.sessionState.language
       );
 
       if (!result) return null;
 
-      // Merge extracted entities into collected fields
-      this.sessionState.collectedFields = mergeEntitiesIntoCollected(
-        this.sessionState.collectedFields,
-        result.extracted_entities
-      );
-
-      console.log("[LLM] Collected fields:", JSON.stringify(this.sessionState.collectedFields));
       console.log("[LLM] Acknowledgment:", result.acknowledgment);
       console.log("[LLM] Next question:", result.next_question?.text);
+      console.log("[LLM] All fields collected:", result.all_fields_collected);
 
       return result;
     } catch (err) {
-      console.error("[LLM] Extraction failed, falling back to pipeline:", err);
+      console.error("[LLM] Extraction failed:", err);
       return null;
     }
   }
 
   /**
-   * Append LLM-generated acknowledgment + dynamic question to messages.
-   * Returns the primary text for TTS.
+   * Debug logging per turn.
    */
-  private appendLLMResponse(result: LLMExtractionResult): string | null {
-    let primaryText: string | null = null;
+  private logTurnDebug(
+    input: string,
+    intent: UserIntent,
+    action: NextAction | null,
+  ): void {
+    const snapshot = {
+      features: this.session.getCanonicalFeatures().map(f => ({
+        id: f.feature_id,
+        intensity: f.intensity,
+        duration: f.duration,
+      })),
+      has_symptoms: this.session.hasData("symptoms"),
+      has_duration: this.session.hasData("duration"),
+      has_severity: this.session.hasData("severity"),
+      has_age: this.session.hasData("age"),
+      has_medications: this.session.hasData("medications"),
+      has_allergies: this.session.hasData("allergies"),
+    };
 
-    // Add acknowledgment as system message
-    if (result.acknowledgment) {
-      this.addMessage("system", result.acknowledgment);
-      primaryText = result.acknowledgment;
-    }
+    this.turn.logTurn({
+      input,
+      extracted: {
+        intent,
+        session_features: snapshot.features.length,
+      },
+      session_snapshot: snapshot,
+      next_question: action?.type === "ask_question" ? action.displayText : null,
+    });
 
-    // Add EXACTLY ONE dynamic question if not all fields are collected
-    if (!result.all_fields_collected && result.next_question) {
-      const q = result.next_question;
-      const questionId = `llm_q_${q.field}_${this.messageCounter}`;
-
-      // Check dedup before adding
-      const normalizedText = this.normalizeQuestionText(q.text);
-      if (!this.askedQuestionTexts.has(normalizedText) && !this.session.hasData(q.field)) {
-        this.askedQuestionIds.add(questionId);
-        this.askedQuestionTexts.add(normalizedText);
-        this.sessionState.lastQuestionId = questionId;
-
-        const clinicalQuestion: ClinicalQuestion = {
-          question_id: questionId,
-          text: q.text,
-          category: q.field,
-          priority: q.priority,
-          options: q.options,
-        };
-
-        const optionLabels = q.options
-          ? Object.fromEntries(q.options.map(opt => [opt, opt]))
-          : undefined;
-
-        const msg = this.addMessage("question", q.text, clinicalQuestion, optionLabels);
-        msg.llm_question = q;
-
-        this.pendingQuestions = [clinicalQuestion];
-        primaryText = q.text;
-      }
-    }
-
-    return primaryText;
+    console.log("[DEBUG_TURN]", {
+      turn: this.turn.turnNumber,
+      intent,
+      action_type: action?.type ?? "none",
+      session: snapshot,
+      pending_questions: this.pendingQuestions.length,
+    });
   }
 
   private addMessage(
