@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
@@ -15,10 +16,11 @@ serve(async (req) => {
     const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
 
     if (!ELEVENLABS_API_KEY) {
-      return new Response(JSON.stringify({ error: "ElevenLabs API key not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("[TTS] ELEVENLABS_API_KEY not configured");
+      return new Response(
+        JSON.stringify({ error: "TTS_NOT_CONFIGURED", fallback: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     if (!text || text.trim().length === 0) {
@@ -29,6 +31,12 @@ serve(async (req) => {
     }
 
     const selectedVoice = voiceId || "EXAVITQu4vr4xnSDxMaL"; // Sarah - multilingual
+
+    console.log("[TTS] Generating speech:", {
+      voiceId: selectedVoice,
+      textLen: text.length,
+      textPreview: text.substring(0, 80),
+    });
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}?output_format=mp3_44100_128`,
@@ -53,11 +61,21 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("ElevenLabs TTS error:", errText);
-      return new Response(JSON.stringify({ error: "TTS generation failed" }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("[TTS] ElevenLabs error:", response.status, errText);
+
+      // Return structured error with fallback signal instead of 502
+      const isFallbackable = response.status >= 500 || response.status === 429;
+      return new Response(
+        JSON.stringify({
+          error: isFallbackable ? "TTS_SERVICE_UNAVAILABLE" : `ElevenLabs error: ${response.status}`,
+          fallback: isFallbackable,
+          details: errText.substring(0, 200),
+        }),
+        {
+          status: 200, // Return 200 so client can read JSON body
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const audioBuffer = await response.arrayBuffer();
@@ -69,10 +87,10 @@ serve(async (req) => {
       },
     });
   } catch (err) {
-    console.error("TTS edge function error:", err);
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[TTS] Edge function error:", err);
+    return new Response(
+      JSON.stringify({ error: "TTS_GENERATION_FAILED", fallback: true }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });
