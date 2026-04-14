@@ -61,7 +61,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   // ── Respiratory ──
   COUGH: {
     canonical_id: "COUGH", label: "Cough", snomed_id: "49727002", category: "respiratory",
-    synonyms: ["cough", "khansi"],
+    synonyms: ["cough", "khansi", "खांसी", "దగ్గు", "இருமல்"],
   },
   PRODUCTIVE_COUGH: {
     canonical_id: "PRODUCTIVE_COUGH", label: "Productive Cough", snomed_id: "28743005", category: "respiratory",
@@ -73,7 +73,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   },
   DYSPNEA: {
     canonical_id: "DYSPNEA", label: "Dyspnea", snomed_id: "267036007", category: "respiratory",
-    synonyms: ["dyspnea", "breathlessness", "shortness of breath", "difficulty breathing", "breathing difficulty", "can't breathe", "labored breathing", "sob", "sans lene mein taklif"],
+    synonyms: ["dyspnea", "breathlessness", "shortness of breath", "difficulty breathing", "breathing difficulty", "can't breathe", "labored breathing", "sob", "sans lene mein taklif", "सांस की तकलीफ", "ఊపిరి ఆడటం లేదు", "மூச்சுத்திணறல்"],
   },
   WHEEZING: {
     canonical_id: "WHEEZING", label: "Wheezing", snomed_id: "56018004", category: "respiratory",
