@@ -57,12 +57,17 @@ export class ConversationEngine {
   private messageCounter = 0;
 
   /** Persistent session state exposed to UI */
-  private sessionState: SessionState = {
-    mode: "text",
-    language: "unknown",
-    transcriptBuffer: [],
-    lastQuestionId: null,
-  };
+  private sessionState: SessionState = this.defaultSessionState();
+
+  private defaultSessionState(): SessionState {
+    return {
+      mode: "text",
+      language: "unknown",
+      transcriptBuffer: [],
+      lastQuestionId: null,
+      voice: { isActive: false, turn: "idle", hasGreeted: false, isProcessing: false },
+    };
+  }
 
   constructor() {
     this.session = new SessionContextManager();
@@ -208,12 +213,7 @@ export class ConversationEngine {
     this.latestPipelineResult = null;
     this.isProcessing = false;
     this.messageCounter = 0;
-    this.sessionState = {
-      mode: "text",
-      language: "unknown",
-      transcriptBuffer: [],
-      lastQuestionId: null,
-    };
+    this.sessionState = this.defaultSessionState();
   }
 
   // ══════════════════════════════════════════════
