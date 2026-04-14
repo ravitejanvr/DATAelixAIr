@@ -25,57 +25,107 @@ const engine = new ConversationEngine();
 /** Track whether TTS is currently playing to prevent mic feedback */
 let isTTSPlaying = false;
 
-/** Play TTS audio for voice mode, using language-appropriate voice.
- *  Accepts optional callback to mute/unmute mic during playback. */
+/** Language → BCP 47 tag for Web Speech API */
+const WEB_SPEECH_LANG_MAP: Record<string, string> = {
+  te: "te-IN",
+  hi: "hi-IN",
+  ta: "ta-IN",
+};
+
+/**
+ * Play TTS using the browser's native Web Speech API.
+ * Returns a promise that resolves when speech finishes.
+ * Native voices have proper pronunciation for Indian languages.
+ */
+function playNativeTTS(text: string, langTag: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!window.speechSynthesis) {
+      reject(new Error("Web Speech API not supported"));
+      return;
+    }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = langTag;
+    utterance.rate = 0.95; // Slightly slower for clinical clarity
+    utterance.pitch = 1.0;
+
+    // Try to find a matching voice
+    const voices = window.speechSynthesis.getVoices();
+    const matchingVoice = voices.find(v => v.lang === langTag)
+      || voices.find(v => v.lang.startsWith(langTag.split("-")[0]));
+    if (matchingVoice) {
+      utterance.voice = matchingVoice;
+    }
+
+    utterance.onend = () => resolve();
+    utterance.onerror = (e) => {
+      // "interrupted" is not a real error — happens on cancel
+      if (e.error === "interrupted") { resolve(); return; }
+      reject(new Error(`Speech error: ${e.error}`));
+    };
+
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
+/**
+ * Play TTS using ElevenLabs edge function (for English or fallback).
+ */
+async function playElevenLabsTTS(text: string, voiceId: string): Promise<void> {
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({ text, voiceId }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+
+  await new Promise<void>((resolve, reject) => {
+    audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+    audio.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    audio.play().catch(reject);
+  });
+}
+
+/**
+ * TTS Router: routes to native Web Speech API for Indian languages
+ * (better pronunciation) and ElevenLabs for English.
+ */
 async function playTTS(
   text: string,
   lang: SupportedLanguage,
   voiceId?: string,
-  onMuteToggle?: (muted: boolean) => void
 ): Promise<void> {
-  console.log("TTS_PLAY:", { lang, voiceId, textLen: text.length });
+  const nativeLangTag = WEB_SPEECH_LANG_MAP[lang];
+  console.log("TTS_ROUTE:", { lang, provider: nativeLangTag ? "native" : "elevenlabs", textLen: text.length });
 
-  // Mute mic before TTS to prevent echo feedback
   isTTSPlaying = true;
-  onMuteToggle?.(true);
-
   try {
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ text, voiceId, language: lang }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(await response.text());
+    if (nativeLangTag) {
+      // Use native Web Speech API for Indian languages
+      await playNativeTTS(text, nativeLangTag);
+    } else {
+      // Use ElevenLabs for English and unknown
+      await playElevenLabsTTS(text, voiceId || "EXAVITQu4vr4xnSDxMaL");
     }
-
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-
-    await new Promise<void>((resolve, reject) => {
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        resolve();
-      };
-      audio.onerror = (e) => {
-        URL.revokeObjectURL(url);
-        reject(e);
-      };
-      audio.play().catch(reject);
-    });
   } finally {
-    // Unmute mic after TTS finishes
     isTTSPlaying = false;
-    onMuteToggle?.(false);
   }
 }
 
@@ -89,7 +139,13 @@ export default function ClinicalInteraction() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // ElevenLabs Scribe for realtime STT
+  // Pre-load Web Speech voices (some browsers load async)
+  useEffect(() => {
+    window.speechSynthesis?.getVoices();
+    window.speechSynthesis?.addEventListener?.("voiceschanged", () => {
+      window.speechSynthesis.getVoices();
+    });
+  }, []);
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
     commitStrategy: CommitStrategy.VAD,
