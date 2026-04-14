@@ -8,6 +8,10 @@
  *   3. Medication-context triggers
  *   4. Atypical presentation detection
  *
+ * 🚫 RAW STRING USAGE FORBIDDEN — All symptom matching uses canonical feature IDs.
+ * Comorbidity matching still uses string keywords on medical_history (free-text field
+ * that is NOT canonicalized as symptoms).
+ *
  * This module runs AFTER the standard risk_flag_engine and AUGMENTS
  * the flags — it never removes existing flags.
  *
@@ -16,6 +20,7 @@
  */
 
 import type { RiskFlag } from "./risk_flag_engine";
+import { resolveCanonicalId } from "@/services/canonical";
 
 export interface ContextAwareSafetyInput {
   symptoms: string[];
@@ -38,21 +43,19 @@ export interface ContextAwareSafetyInput {
 }
 
 // ── Comorbidity risk multipliers ──
-// Each comorbidity maps to conditions it increases risk for
 interface ComorbidityRule {
-  comorbidity_keywords: string[];    // matches in medical_history or risk_factors
+  comorbidity_keywords: string[];    // matches in medical_history or risk_factors (free-text)
   elevated_conditions: Array<{
     flag_id: string;
     condition: string;
     severity: "critical" | "high" | "moderate";
     action: string;
-    min_symptom_signals: number;     // minimum symptoms from trigger_symptoms needed
-    trigger_symptoms: string[];      // symptom keywords to look for
+    min_symptom_signals: number;
+    trigger_feature_ids: string[];   // Canonical feature IDs
   }>;
 }
 
 const COMORBIDITY_RULES: ComorbidityRule[] = [
-  // ── Diabetes increases ACS, DKA, Sepsis, Stroke risk ──
   {
     comorbidity_keywords: ["diabetes", "diabetic", "dm", "type 2 diabetes", "type 1 diabetes", "t2dm", "t1dm", "insulin dependent"],
     elevated_conditions: [
@@ -62,7 +65,7 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "critical",
         action: "Diabetic patients may present atypically (no chest pain). Order ECG + Troponin. Low threshold for cardiology referral.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["chest pain", "shortness of breath", "fatigue", "nausea", "sweating", "epigastric pain", "jaw pain", "arm pain", "diaphoresis"],
+        trigger_feature_ids: ["CHEST_PAIN", "DYSPNEA", "FATIGUE", "NAUSEA", "DIAPHORESIS", "EPIGASTRIC_PAIN"],
       },
       {
         flag_id: "diabetic_sepsis_risk",
@@ -70,7 +73,7 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "high",
         action: "Diabetics are immunocompromised. Lower threshold for blood cultures and lactate. Consider empirical antibiotics early.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["fever", "chills", "confusion", "fatigue", "wound", "foot ulcer", "cellulitis"],
+        trigger_feature_ids: ["FEVER", "CHILLS", "CONFUSION", "FATIGUE"],
       },
       {
         flag_id: "diabetic_dka_risk",
@@ -78,11 +81,10 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "high",
         action: "Check blood glucose, ketones, ABG urgently. IV fluids if confirmed.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["nausea", "vomiting", "abdominal pain", "confusion", "fruity breath", "polyuria", "polydipsia", "dehydration"],
+        trigger_feature_ids: ["NAUSEA", "VOMITING", "ABDOMINAL_PAIN", "CONFUSION", "FRUITY_BREATH", "POLYURIA", "POLYDIPSIA", "DEHYDRATION"],
       },
     ],
   },
-  // ── Hypertension increases Stroke, ACS, Aortic Dissection risk ──
   {
     comorbidity_keywords: ["hypertension", "hypertensive", "htn", "high blood pressure", "elevated bp"],
     elevated_conditions: [
@@ -92,7 +94,7 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "critical",
         action: "FAST assessment. Urgent CT head. Monitor BP closely. Neurology referral if focal deficits.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["headache", "confusion", "weakness", "numbness", "slurred speech", "visual disturbance", "dizziness", "facial droop"],
+        trigger_feature_ids: ["HEADACHE", "CONFUSION", "WEAKNESS", "TINGLING", "SPEECH_DIFFICULTY", "BLURRED_VISION", "DIZZINESS", "FACIAL_DROOP"],
       },
       {
         flag_id: "htn_dissection_risk",
@@ -100,11 +102,10 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "critical",
         action: "Tearing chest/back pain + HTN = high suspicion. Urgent CT angiography. BP control.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["chest pain", "back pain", "tearing pain", "sudden onset pain", "interscapular pain"],
+        trigger_feature_ids: ["CHEST_PAIN", "BACK_PAIN"],
       },
     ],
   },
-  // ── Smoking / COPD increases PE, Pneumothorax risk ──
   {
     comorbidity_keywords: ["smoker", "smoking", "copd", "chronic bronchitis", "emphysema", "tobacco"],
     elevated_conditions: [
@@ -114,11 +115,10 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "high",
         action: "Consider D-dimer + CTPA. Wells score assessment.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["shortness of breath", "chest pain", "dyspnea", "hemoptysis", "tachycardia", "leg pain", "leg swelling"],
+        trigger_feature_ids: ["DYSPNEA", "CHEST_PAIN", "HEMOPTYSIS", "TACHYCARDIA", "PERIPHERAL_EDEMA"],
       },
     ],
   },
-  // ── Atrial Fibrillation / DVT history increases Stroke/PE risk ──
   {
     comorbidity_keywords: ["atrial fibrillation", "af", "afib", "dvt", "deep vein thrombosis", "previous pe", "thromboembolism"],
     elevated_conditions: [
@@ -128,7 +128,7 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "critical",
         action: "Check anticoagulation status. FAST assessment. Urgent imaging if neurological symptoms.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["weakness", "numbness", "confusion", "slurred speech", "facial droop", "visual disturbance", "headache"],
+        trigger_feature_ids: ["WEAKNESS", "TINGLING", "CONFUSION", "SPEECH_DIFFICULTY", "FACIAL_DROOP", "BLURRED_VISION", "HEADACHE"],
       },
       {
         flag_id: "thrombo_pe_risk",
@@ -136,11 +136,10 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "critical",
         action: "High pre-test probability. Consider direct CTPA (skip D-dimer). Check anticoagulation compliance.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["shortness of breath", "chest pain", "dyspnea", "hemoptysis", "tachycardia"],
+        trigger_feature_ids: ["DYSPNEA", "CHEST_PAIN", "HEMOPTYSIS", "TACHYCARDIA"],
       },
     ],
   },
-  // ── Immunocompromised increases infection severity ──
   {
     comorbidity_keywords: ["hiv", "aids", "immunocompromised", "chemotherapy", "transplant", "immunosuppressed", "steroid", "corticosteroid"],
     elevated_conditions: [
@@ -150,11 +149,10 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "high",
         action: "Atypical pathogens possible. Lower threshold for imaging, cultures, and empirical broad-spectrum antibiotics.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["fever", "cough", "fatigue", "weight loss", "night sweats", "rash", "diarrhea"],
+        trigger_feature_ids: ["FEVER", "COUGH", "FATIGUE", "WEIGHT_LOSS", "NIGHT_SWEATS", "RASH", "DIARRHEA"],
       },
     ],
   },
-  // ── Pregnancy increases PE, Ectopic, Pre-eclampsia risk ──
   {
     comorbidity_keywords: ["pregnant", "pregnancy", "gravid", "postpartum"],
     elevated_conditions: [
@@ -164,7 +162,7 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "critical",
         action: "Pregnancy increases VTE risk 5x. D-dimer unreliable. Consider CTPA or V/Q scan.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["shortness of breath", "chest pain", "leg swelling", "tachycardia", "dyspnea"],
+        trigger_feature_ids: ["DYSPNEA", "CHEST_PAIN", "PERIPHERAL_EDEMA", "TACHYCARDIA"],
       },
       {
         flag_id: "pregnancy_preeclampsia_risk",
@@ -172,7 +170,7 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
         severity: "high",
         action: "Check BP, proteinuria, liver function. Monitor for HELLP syndrome signs.",
         min_symptom_signals: 1,
-        trigger_symptoms: ["headache", "visual disturbance", "epigastric pain", "edema", "swelling", "nausea"],
+        trigger_feature_ids: ["HEADACHE", "BLURRED_VISION", "EPIGASTRIC_PAIN", "SWELLING", "NAUSEA"],
       },
     ],
   },
@@ -180,19 +178,18 @@ const COMORBIDITY_RULES: ComorbidityRule[] = [
 
 // ── Age-based risk escalation ──
 interface AgeRule {
-  age_range: [number, number];  // [min, max] inclusive
+  age_range: [number, number];
   elevated_conditions: Array<{
     flag_id: string;
     condition: string;
     severity: "critical" | "high" | "moderate";
     action: string;
-    trigger_symptoms: string[];
+    trigger_feature_ids: string[];  // Canonical feature IDs
     min_symptom_signals: number;
   }>;
 }
 
 const AGE_RULES: AgeRule[] = [
-  // Elderly (>65): higher risk for stroke, MI, PE, sepsis
   {
     age_range: [65, 150],
     elevated_conditions: [
@@ -201,7 +198,7 @@ const AGE_RULES: AgeRule[] = [
         condition: "Atypical ACS Presentation (Elderly)",
         severity: "critical",
         action: "Elderly may present with only dyspnea, fatigue, or confusion. Low threshold for ECG + Troponin.",
-        trigger_symptoms: ["fatigue", "dyspnea", "shortness of breath", "confusion", "syncope", "nausea", "weakness", "epigastric pain"],
+        trigger_feature_ids: ["FATIGUE", "DYSPNEA", "CONFUSION", "SYNCOPE", "NAUSEA", "WEAKNESS", "EPIGASTRIC_PAIN"],
         min_symptom_signals: 2,
       },
       {
@@ -209,12 +206,11 @@ const AGE_RULES: AgeRule[] = [
         condition: "Elevated PE Risk (Elderly, Immobile)",
         severity: "high",
         action: "Consider immobility as DVT risk factor. Wells score. D-dimer less specific in elderly.",
-        trigger_symptoms: ["shortness of breath", "dyspnea", "chest pain", "tachycardia", "leg swelling"],
+        trigger_feature_ids: ["DYSPNEA", "CHEST_PAIN", "TACHYCARDIA", "PERIPHERAL_EDEMA"],
         min_symptom_signals: 1,
       },
     ],
   },
-  // Pediatric (<5): febrile seizures, meningitis, intussusception
   {
     age_range: [0, 5],
     elevated_conditions: [
@@ -223,7 +219,7 @@ const AGE_RULES: AgeRule[] = [
         condition: "Elevated Meningitis Risk (Pediatric)",
         severity: "critical",
         action: "Non-verbal children may not report neck stiffness. Low threshold for LP if febrile + irritable/lethargic.",
-        trigger_symptoms: ["fever", "irritability", "lethargy", "vomiting", "rash", "bulging fontanelle", "poor feeding"],
+        trigger_feature_ids: ["FEVER", "VOMITING", "RASH"],
         min_symptom_signals: 2,
       },
       {
@@ -231,21 +227,20 @@ const AGE_RULES: AgeRule[] = [
         condition: "Possible Intussusception (Pediatric)",
         severity: "high",
         action: "Episodic crying + vomiting in infant. Ultrasound abdomen urgently.",
-        trigger_symptoms: ["abdominal pain", "vomiting", "bloody stool", "currant jelly stool", "crying", "drawing up legs"],
+        trigger_feature_ids: ["ABDOMINAL_PAIN", "VOMITING", "BLOODY_STOOL"],
         min_symptom_signals: 2,
       },
     ],
   },
-  // Neonates (<1 month): sepsis, meningitis extremely high risk
   {
-    age_range: [0, 0.08], // ~1 month in years
+    age_range: [0, 0.08],
     elevated_conditions: [
       {
         flag_id: "neonatal_sepsis_risk",
         condition: "Neonatal Sepsis Risk",
         severity: "critical",
         action: "Any fever in neonate = full septic workup. Blood culture, LP, urine. Empirical antibiotics immediately.",
-        trigger_symptoms: ["fever", "poor feeding", "lethargy", "irritability", "temperature instability", "jaundice"],
+        trigger_feature_ids: ["FEVER"],
         min_symptom_signals: 1,
       },
     ],
@@ -253,8 +248,34 @@ const AGE_RULES: AgeRule[] = [
 ];
 
 /**
+ * Convert symptom inputs to a canonical feature ID set.
+ */
+function buildFeatureSet(symptoms: string[], chiefComplaint: string): Set<string> {
+  const featureSet = new Set<string>();
+  const all = [chiefComplaint, ...symptoms].filter(Boolean);
+  
+  for (const s of all) {
+    const trimmed = String(s).trim();
+    if (!trimmed) continue;
+    // Already a canonical ID
+    if (/^[A-Z][A-Z0-9_]+$/.test(trimmed)) {
+      featureSet.add(trimmed);
+    } else {
+      const canonicalId = resolveCanonicalId(trimmed);
+      if (canonicalId) {
+        featureSet.add(canonicalId);
+      }
+    }
+  }
+  
+  return featureSet;
+}
+
+/**
  * Run context-aware safety enhancement.
  * Augments existing risk flags with comorbidity/age/medication-aware detections.
+ *
+ * 🚫 RAW STRING USAGE FORBIDDEN — symptom matching uses canonical feature IDs
  */
 export function detectContextAwareSafetyFlags(
   input: ContextAwareSafetyInput,
@@ -263,13 +284,11 @@ export function detectContextAwareSafetyFlags(
   const newFlags: RiskFlag[] = [];
   const contextTriggers: string[] = [];
 
-  const normalizedSymptoms = new Set(
-    [input.chief_complaint, ...input.symptoms]
-      .filter(Boolean)
-      .map(s => s.toLowerCase().trim())
-  );
+  // 🚫 RAW STRING USAGE FORBIDDEN — Convert symptoms to canonical IDs
+  const featureSet = buildFeatureSet(input.symptoms, input.chief_complaint);
 
   // Build comorbidity context from history + risk factors
+  // NOTE: medical_history is free-text, NOT symptom input — string matching is acceptable here
   const comorbidityContext = [
     ...(input.medical_history || []),
     ...(input.risk_factors || []),
@@ -291,21 +310,20 @@ export function detectContextAwareSafetyFlags(
     for (const cond of rule.elevated_conditions) {
       if (existingFlagIds.has(cond.flag_id)) continue;
 
-      const symptomMatches = cond.trigger_symptoms.filter(t =>
-        [...normalizedSymptoms].some(s => s.includes(t) || t.includes(s))
-      );
+      // Match using canonical feature IDs
+      const matchedFeatures = cond.trigger_feature_ids.filter(fid => featureSet.has(fid));
 
-      if (symptomMatches.length >= cond.min_symptom_signals) {
+      if (matchedFeatures.length >= cond.min_symptom_signals) {
         newFlags.push({
           flag_id: cond.flag_id,
           condition: cond.condition,
           severity: cond.severity,
-          trigger_symptoms: [...symptomMatches, `[comorbidity: ${matchedComorbidity}]`],
+          trigger_symptoms: [...matchedFeatures, `[comorbidity: ${matchedComorbidity}]`],
           action: cond.action,
           matched_at: new Date().toISOString(),
         });
         existingFlagIds.add(cond.flag_id);
-        contextTriggers.push(`${cond.flag_id}: ${matchedComorbidity} + ${symptomMatches.join(", ")}`);
+        contextTriggers.push(`${cond.flag_id}: ${matchedComorbidity} + ${matchedFeatures.join(", ")}`);
       }
     }
   }
@@ -318,21 +336,20 @@ export function detectContextAwareSafetyFlags(
       for (const cond of rule.elevated_conditions) {
         if (existingFlagIds.has(cond.flag_id)) continue;
 
-        const symptomMatches = cond.trigger_symptoms.filter(t =>
-          [...normalizedSymptoms].some(s => s.includes(t) || t.includes(s))
-        );
+        // Match using canonical feature IDs
+        const matchedFeatures = cond.trigger_feature_ids.filter(fid => featureSet.has(fid));
 
-        if (symptomMatches.length >= cond.min_symptom_signals) {
+        if (matchedFeatures.length >= cond.min_symptom_signals) {
           newFlags.push({
             flag_id: cond.flag_id,
             condition: cond.condition,
             severity: cond.severity,
-            trigger_symptoms: [...symptomMatches, `[age: ${input.age}]`],
+            trigger_symptoms: [...matchedFeatures, `[age: ${input.age}]`],
             action: cond.action,
             matched_at: new Date().toISOString(),
           });
           existingFlagIds.add(cond.flag_id);
-          contextTriggers.push(`${cond.flag_id}: age=${input.age} + ${symptomMatches.join(", ")}`);
+          contextTriggers.push(`${cond.flag_id}: age=${input.age} + ${matchedFeatures.join(", ")}`);
         }
       }
     }

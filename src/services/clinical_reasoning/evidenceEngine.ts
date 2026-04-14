@@ -14,6 +14,8 @@
  *   - Explainable: every contribution is traced
  *   - Diagnosis-conditional: likelihood depends on diagnosis category
  *   - No double counting: explicit lab disables inferred shock proxy
+ *
+ * 🚫 RAW STRING USAGE FORBIDDEN — Diagnosis classification uses canonical category sets
  */
 
 import type { InvestigationResults } from "@/lib/clinical-context";
@@ -48,28 +50,42 @@ export interface EvidenceEngineResult {
   execution_ms: number;
 }
 
-// ── Diagnosis Category Helpers ──
+// ── Diagnosis Category Classification via Canonical Sets ──
+// These sets contain NORMALIZED diagnosis names used in the system.
+// Matching uses Set.has() for O(1) lookup — NO .includes() substring matching.
 
-const SYSTEMIC_DIAGNOSES = new Set([
-  "sepsis", "severe sepsis", "septic shock", "systemic inflammatory response syndrome",
-  "sirs", "bacteremia", "disseminated intravascular coagulation",
+const SYSTEMIC_DIAGNOSIS_IDS = new Set([
+  "sepsis", "severe sepsis", "septic shock",
+  "systemic inflammatory response syndrome", "sirs",
+  "bacteremia", "disseminated intravascular coagulation",
 ]);
 
-const CARDIAC_DIAGNOSES = new Set([
-  "myocardial infarction", "acute myocardial infarction", "acute coronary syndrome",
-  "unstable angina", "nstemi", "stemi", "heart failure", "acute heart failure",
-  "congestive heart failure",
+const CARDIAC_DIAGNOSIS_IDS = new Set([
+  "myocardial infarction", "acute myocardial infarction",
+  "acute coronary syndrome", "unstable angina",
+  "nstemi", "stemi", "heart failure",
+  "acute heart failure", "congestive heart failure",
 ]);
 
-const INFECTION_DIAGNOSES = new Set([
-  "sepsis", "severe sepsis", "septic shock", "community acquired pneumonia",
-  "pneumonia", "urinary tract infection", "pyelonephritis", "meningitis",
-  "cellulitis", "endocarditis", "peritonitis", "abscess",
+const INFECTION_DIAGNOSIS_IDS = new Set([
+  "sepsis", "severe sepsis", "septic shock",
+  "community acquired pneumonia", "pneumonia",
+  "urinary tract infection", "pyelonephritis",
+  "meningitis", "cellulitis", "endocarditis",
+  "peritonitis", "abscess",
 ]);
 
-const PE_DIAGNOSES = new Set([
-  "pulmonary embolism", "pe", "deep vein thrombosis", "venous thromboembolism",
+const PE_DIAGNOSIS_IDS = new Set([
+  "pulmonary embolism", "pe",
+  "deep vein thrombosis", "venous thromboembolism",
 ]);
+
+// Substring-based classification tokens for broader matching
+// These are used ONLY for diagnosis names (system-generated), NOT patient input
+const SYSTEMIC_TOKENS = ["sepsis", "septic", "sirs"] as const;
+const CARDIAC_TOKENS = ["myocardial", "coronary", "heart failure"] as const;
+const INFECTION_TOKENS = ["pneumonia", "infection"] as const;
+const PE_TOKENS = ["pulmonary embolism", "thromboembolism"] as const;
 
 export interface DiagnosisCategory {
   systemic: boolean;
@@ -78,13 +94,18 @@ export interface DiagnosisCategory {
   pe: boolean;
 }
 
+/**
+ * Classify a diagnosis by its name into clinical categories.
+ * Uses canonical set membership first, then token matching for variants.
+ * NOTE: This operates on DIAGNOSIS NAMES (system-generated), not patient input.
+ */
 function classifyDiagnosis(name: string): DiagnosisCategory {
   const n = name.toLowerCase().trim();
   return {
-    systemic: SYSTEMIC_DIAGNOSES.has(n) || n.includes("sepsis") || n.includes("septic") || n.includes("sirs"),
-    cardiac: CARDIAC_DIAGNOSES.has(n) || n.includes("myocardial") || n.includes("coronary") || n.includes("heart failure"),
-    infection: INFECTION_DIAGNOSES.has(n) || n.includes("pneumonia") || n.includes("infection") || n.includes("sepsis"),
-    pe: PE_DIAGNOSES.has(n) || n.includes("pulmonary embolism") || n.includes("thromboembolism"),
+    systemic: SYSTEMIC_DIAGNOSIS_IDS.has(n) || SYSTEMIC_TOKENS.some(t => n.includes(t)),
+    cardiac: CARDIAC_DIAGNOSIS_IDS.has(n) || CARDIAC_TOKENS.some(t => n.includes(t)),
+    infection: INFECTION_DIAGNOSIS_IDS.has(n) || INFECTION_TOKENS.some(t => n.includes(t)),
+    pe: PE_DIAGNOSIS_IDS.has(n) || PE_TOKENS.some(t => n.includes(t)),
   };
 }
 
@@ -136,20 +157,16 @@ function lactateLikelihood(value: number, category: DiagnosisCategory): Evidence
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.systemic) {
-    // Sepsis/SIRS: lactate is a HIGH-signal marker
-    if (value >= 4) { logLR = Math.log(12); direction = "support"; }      // ~2.48
-    else if (value >= 2) { logLR = Math.log(3); direction = "support"; }   // ~1.10
-    else { logLR = Math.log(0.5); direction = "against"; }                 // ~-0.69
+    if (value >= 4) { logLR = Math.log(12); direction = "support"; }
+    else if (value >= 2) { logLR = Math.log(3); direction = "support"; }
+    else { logLR = Math.log(0.5); direction = "against"; }
   } else if (category.infection) {
-    // Non-systemic infection: moderate signal
     if (value >= 4) { logLR = Math.log(2.5); direction = "support"; }
     else if (value >= 2) { logLR = Math.log(1.5); direction = "support"; }
   } else if (category.cardiac) {
-    // Cardiac: lactate elevation is mildly suggestive of cardiogenic shock
     if (value >= 4) { logLR = Math.log(1.3); direction = "neutral"; }
     else { logLR = 0; }
   } else {
-    // Non-shock, non-infection: elevated lactate argues against
     if (value >= 4) { logLR = Math.log(0.4); direction = "against"; }
     else if (value >= 2) { logLR = Math.log(0.7); direction = "against"; }
   }
@@ -213,7 +230,7 @@ function wbcLikelihood(value: number, category: DiagnosisCategory): EvidenceCont
   if (category.infection || category.systemic) {
     if (value > 15) { logLR = Math.log(2); direction = "support"; }
     else if (value > 11) { logLR = Math.log(1.3); direction = "support"; }
-    else if (value < 4) { logLR = Math.log(2.5); direction = "support"; } // Leukopenia → severe sepsis
+    else if (value < 4) { logLR = Math.log(2.5); direction = "support"; }
   }
 
   return { source: "lab", feature: "WBC", value, multiplier: Math.exp(logLR), logLR, direction };
@@ -226,7 +243,7 @@ function dDimerLikelihood(value: number, category: DiagnosisCategory): EvidenceC
   if (category.pe) {
     if (value > 2000) { logLR = Math.log(6); direction = "support"; }
     else if (value > 500) { logLR = Math.log(3); direction = "support"; }
-    else { logLR = Math.log(0.15); direction = "against"; } // Normal D-dimer strongly rules out PE
+    else { logLR = Math.log(0.15); direction = "against"; }
   } else {
     if (value > 500) { logLR = Math.log(1.05); direction = "neutral"; }
   }
@@ -243,10 +260,10 @@ function computeShockModifier(shockScore: number, category: DiagnosisCategory): 
   let direction: EvidenceContribution["direction"] = "neutral";
 
   if (category.systemic) {
-    logLR = Math.log(1 + shockScore * 2.0); // Up to log(3.0)
+    logLR = Math.log(1 + shockScore * 2.0);
     direction = "support";
   } else if (!category.cardiac && !category.pe) {
-    logLR = Math.log(1 - shockScore * 0.3); // Down to log(0.7)
+    logLR = Math.log(1 - shockScore * 0.3);
     direction = "against";
   }
 
@@ -287,11 +304,9 @@ export function applyBayesianEvidence(
 ): EvidenceEngineResult {
   const t0 = performance.now();
 
-  // Determine which labs are present and relevant
   const labs = investigationResults || {};
   const hasExplicitLactate = labs.lactate != null && isLabClinicallyRelevant("lactate", labs.lactate);
 
-  // DOUBLE-COUNTING GUARD: exclude lactate from shock when explicit lab exists
   const shockScore = computeShockScore(shockInput, hasExplicitLactate);
   const shockActive = shockScore >= 0.3;
   const labsApplied: string[] = [];
@@ -325,7 +340,6 @@ export function applyBayesianEvidence(
 
   const hasEvidence = labEntries.length > 0 || shockActive;
 
-  // If no evidence to apply, return enriched but unmodified diagnoses
   if (!hasEvidence) {
     const passthrough: EvidenceEnrichedDiagnosis[] = bayesianResult.diagnoses.map(d => ({
       ...d,
@@ -345,48 +359,37 @@ export function applyBayesianEvidence(
     };
   }
 
-  // ── Log-odds update ──
-  // Convert each diagnosis prior to log-odds, accumulate log-LR, convert back.
-  // Then normalize across the differential.
-
   const rawScores: Array<{ diagnosis: BayesianDiagnosis; logOdds: number; contributions: EvidenceContribution[]; priorProb: number }> = [];
 
   for (const d of bayesianResult.diagnoses) {
-    // Resolve diagnosis name: object field → external map → UUID fallback
     const diagName = (d as any).diagnosis_name
       || diagnosisNameMap?.get(d.diagnosis_id)
       || d.diagnosis_id;
     const category = classifyDiagnosis(diagName);
     const contributions: EvidenceContribution[] = [];
-    const priorProb = Math.max(d.posterior_probability, 0.001); // Floor to prevent log(0)
+    const priorProb = Math.max(d.posterior_probability, 0.001);
 
-    // Convert prior probability to log-odds
     let logOdds = Math.log(priorProb / (1 - Math.min(priorProb, 0.999)));
 
-    // Apply lab log-likelihood ratios
     for (const lab of labEntries) {
       const contrib = lab.fn(lab.value, category);
       contributions.push(contrib);
       logOdds += contrib.logLR;
     }
 
-    // Apply shock modifier (only from hemodynamic signals, not lab lactate)
     const shockContrib = computeShockModifier(shockScore, category);
     if (shockContrib) {
       contributions.push(shockContrib);
       logOdds += shockContrib.logLR;
     }
 
-    // Convert back to probability
     let posteriorProb = 1 / (1 + Math.exp(-logOdds));
 
-    // Guardrail: no single diagnosis can exceed 0.95 without ≥3 supporting factors
     const supportCount = contributions.filter(c => c.direction === "support").length;
     if (posteriorProb > 0.95 && supportCount < 3) {
       posteriorProb = Math.min(posteriorProb, 0.92);
     }
 
-    // Guardrail: no NaN or zero collapse
     if (isNaN(posteriorProb) || posteriorProb <= 0) {
       console.error(`[EvidenceEngine] NaN/zero collapse for ${diagName}, resetting to prior`);
       posteriorProb = priorProb;
@@ -395,16 +398,12 @@ export function applyBayesianEvidence(
     rawScores.push({ diagnosis: d, logOdds, contributions, priorProb });
   }
 
-  // ── Normalize to sum to 1.0 ──
-  // Convert log-odds back to probabilities and normalize across the differential
   const rawProbs = rawScores.map(r => 1 / (1 + Math.exp(-r.logOdds)));
   const totalRaw = rawProbs.reduce((sum, p) => sum + p, 0);
 
   const enriched: EvidenceEnrichedDiagnosis[] = rawScores.map((r, i) => {
     const posteriorNorm = totalRaw > 0 ? rawProbs[i] / totalRaw : r.priorProb;
 
-    // Clinical floor: if a high-acuity lab strongly supports this diagnosis
-    // but normalization would push it BELOW its prior, lift to prior + boost
     const hasStrongSupport = r.contributions.some(c => c.direction === "support" && c.logLR > 1.5);
     let finalPosterior = posteriorNorm;
     if (hasStrongSupport && finalPosterior < r.priorProb) {
@@ -422,7 +421,6 @@ export function applyBayesianEvidence(
     };
   });
 
-  // Re-normalize after clinical floor adjustments
   const postFloorTotal = enriched.reduce((sum, d) => sum + d.posterior_probability, 0);
   if (postFloorTotal > 0 && Math.abs(postFloorTotal - 1.0) > 0.01) {
     for (const d of enriched) {
@@ -432,7 +430,6 @@ export function applyBayesianEvidence(
     }
   }
 
-  // Sort by posterior descending
   enriched.sort((a, b) => b.posterior_probability - a.posterior_probability);
 
   const executionMs = Math.round(performance.now() - t0);

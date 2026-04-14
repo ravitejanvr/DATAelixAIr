@@ -309,25 +309,33 @@ function generateEngineConfig(
   return config;
 }
 
+// Dangerous condition tokens for pathway escalation (diagnosis-level, NOT patient input)
+const DANGEROUS_CONDITION_TOKENS: Record<string, string[]> = {
+  cardiovascular: ["myocardial", "acute coronary", "mi", "stemi", "nstemi"],
+  neurological: ["stroke", "meningitis", "hemorrhage", "cerebrovascular"],
+  gastrointestinal: ["appendicitis", "perforation", "obstruction"],
+};
+
 function determinePathways(
   worldState: ClinicalWorldState,
   input: PatientStateInput,
 ): string[] {
   const pathways: string[] = [];
 
+  // Pre-normalize dangerous conditions once
+  const dangerousNormalized = worldState.dangerous_conditions.map(d => d.toLowerCase());
+
   for (const sys of worldState.organ_systems) {
     switch (sys) {
       case "cardiovascular":
         pathways.push("cardiac_diagnostic_pathway");
-        if (worldState.dangerous_conditions.some(d => d.toLowerCase().includes("myocardial"))) {
+        if (dangerousNormalized.some(d => DANGEROUS_CONDITION_TOKENS.cardiovascular.some(t => d.includes(t)))) {
           pathways.push("acute_coronary_syndrome_protocol");
         }
         break;
       case "neurological":
         pathways.push("neurological_diagnostic_pathway");
-        if (worldState.dangerous_conditions.some(d =>
-          d.toLowerCase().includes("stroke") || d.toLowerCase().includes("meningitis")
-        )) {
+        if (dangerousNormalized.some(d => DANGEROUS_CONDITION_TOKENS.neurological.some(t => d.includes(t)))) {
           pathways.push("acute_neurological_emergency_protocol");
         }
         break;
@@ -336,7 +344,7 @@ function determinePathways(
         break;
       case "gastrointestinal":
         pathways.push("gastrointestinal_diagnostic_pathway");
-        if (worldState.dangerous_conditions.some(d => d.toLowerCase().includes("appendicitis"))) {
+        if (dangerousNormalized.some(d => DANGEROUS_CONDITION_TOKENS.gastrointestinal.some(t => d.includes(t)))) {
           pathways.push("acute_abdomen_protocol");
         }
         break;
