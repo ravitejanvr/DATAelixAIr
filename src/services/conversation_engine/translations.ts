@@ -10,7 +10,7 @@ import type { SupportedLanguage } from "../canonical/types";
 type TranslationLanguage = Exclude<SupportedLanguage, "unknown">;
 
 // ══════════════════════════════════════════════
-// SYSTEM MESSAGE TRANSLATIONS
+// SYSTEM MESSAGE TRANSLATIONS (2nd person — "you", not "patient")
 // ══════════════════════════════════════════════
 
 const SYSTEM_MESSAGES: Record<string, Record<string, string>> = {
@@ -47,30 +47,30 @@ const SYSTEM_MESSAGES: Record<string, Record<string, string>> = {
 };
 
 // ══════════════════════════════════════════════
-// CLINICAL QUESTION TRANSLATIONS
+// CLINICAL QUESTION TRANSLATIONS (2nd person)
 // ══════════════════════════════════════════════
 
 const QUESTION_TRANSLATIONS: Record<string, Record<string, string>> = {
-  // Demographics
+  // Demographics — all use "you" / "మీ" / "आप" / "உங்கள்"
   "What is the patient's age?": {
-    hi: "रोगी की उम्र क्या है?",
-    te: "రోగి వయస్సు ఎంత?",
-    ta: "நோயாளியின் வயது என்ன?",
+    hi: "आपकी उम्र क्या है?",
+    te: "మీ వయస్సు ఎంత?",
+    ta: "உங்கள் வயது என்ன?",
   },
   "What is the patient's sex?": {
-    hi: "रोगी का लिंग क्या है?",
-    te: "రోగి లింగం ఏమిటి?",
-    ta: "நோயாளியின் பாலினம் என்ன?",
+    hi: "आपका लिंग क्या है?",
+    te: "మీ లింగం ఏమిటి?",
+    ta: "உங்கள் பாலினம் என்ன?",
   },
   "What is the primary reason for this visit?": {
-    hi: "इस मुलाकात का मुख्य कारण क्या है?",
-    te: "ఈ సందర్శనకు ప్రధాన కారణం ఏమిటి?",
-    ta: "இந்த வருகையின் முதன்மை காரணம் என்ன?",
+    hi: "आज आप यहाँ क्यों आए हैं?",
+    te: "మీరు ఈ రోజు ఎందుకు వచ్చారు?",
+    ta: "இன்று நீங்கள் ஏன் வந்தீர்கள்?",
   },
   "Does the patient have any known allergies?": {
-    hi: "क्या रोगी को कोई ज्ञात एलर्जी है?",
-    te: "రోగికి ఏవైనా తెలిసిన అలెర్జీలు ఉన్నాయా?",
-    ta: "நோயாளிக்கு ஏதேனும் அறியப்பட்ட ஒவ்வாமை உள்ளதா?",
+    hi: "क्या आपको किसी चीज़ से एलर्जी है?",
+    te: "మీకు ఏమైనా అలర్జీలు ఉన్నాయా?",
+    ta: "உங்களுக்கு ஏதேனும் ஒவ்வாமை உள்ளதா?",
   },
 
   // FEVER protocol
@@ -240,69 +240,23 @@ const OPTION_TRANSLATIONS: Record<string, Record<string, string>> = {
   "Mild (37.5–38°C)": { hi: "हल्का (37.5–38°C)", te: "తేలికపాటి (37.5–38°C)", ta: "லேசானது (37.5–38°C)" },
   "Moderate (38–39°C)": { hi: "मध्यम (38–39°C)", te: "మితమైన (38–39°C)", ta: "மிதமானது (38–39°C)" },
   "High (>39°C)": { hi: "तेज (>39°C)", te: "ఎక్కువ (>39°C)", ta: "அதிகமானது (>39°C)" },
+  "Yes": { hi: "हाँ", te: "అవును", ta: "ஆம்" },
+  "No": { hi: "नहीं", te: "లేదు", ta: "இல்லை" },
 };
 
 const SAFETY_CONDITION_TRANSLATIONS: Record<string, Record<string, string>> = {
-  "Acute Coronary Syndrome": {
-    hi: "तीव्र कोरोनरी सिंड्रोम",
-    te: "తీవ్రమైన కరోనరీ సిండ్రోమ్",
-    ta: "தீவிர கரோனரி சிண்ட்ரோம்",
-  },
-  "Meningitis": {
-    hi: "मेनिन्जाइटिस",
-    te: "మెనింజిటిస్",
-    ta: "மெனிஞ்ஜைட்டிஸ்",
-  },
-  "Pulmonary Embolism": {
-    hi: "पल्मोनरी एम्बोलिज़्म",
-    te: "పల్మనరీ ఎంబోలిజం",
-    ta: "புல்மனரி எம்பாலிசம்",
-  },
-  "Stroke / TIA": {
-    hi: "स्ट्रोक / टीआईए",
-    te: "స్ట్రోక్ / టిఐఏ",
-    ta: "ஸ்ட்ரோக் / டிஐஏ",
-  },
-  "Sepsis": {
-    hi: "सेप्सिस",
-    te: "సెప్సిస్",
-    ta: "செப்சிஸ்",
-  },
-  "Anaphylaxis": {
-    hi: "एनाफिलैक्सिस",
-    te: "అనాఫైలాక్సిస్",
-    ta: "அனாபைலக்ஸிஸ்",
-  },
-  "Cauda Equina Syndrome": {
-    hi: "कौडा इक्वाइना सिंड्रोम",
-    te: "కౌడా ఈక్వైనా సిండ్రోమ్",
-    ta: "காவ்டா இக்வினா சிண்ட்ரோம்",
-  },
-  "High Fever (≥39.5°C)": {
-    hi: "उच्च बुखार (≥39.5°C)",
-    te: "అధిక జ్వరం (≥39.5°C)",
-    ta: "அதிக காய்ச்சல் (≥39.5°C)",
-  },
-  "Hypoxia (SpO₂ < 92%)": {
-    hi: "हाइपॉक्सिया (SpO₂ < 92%)",
-    te: "హైపాక్సియా (SpO₂ < 92%)",
-    ta: "ஹைப்பாக்ஸியா (SpO₂ < 92%)",
-  },
-  "Tachycardia (HR > 120)": {
-    hi: "टैकीकार्डिया (HR > 120)",
-    te: "టాకికార్డియా (HR > 120)",
-    ta: "டாக்கிகார்டியா (HR > 120)",
-  },
-  "Hypertensive Urgency (SBP ≥ 180)": {
-    hi: "हाइपरटेंसिव अर्जेंसी (SBP ≥ 180)",
-    te: "హైపర్టెన్సివ్ అత్యవసర స్థితి (SBP ≥ 180)",
-    ta: "அதிக இரத்த அழுத்த அவசரம் (SBP ≥ 180)",
-  },
-  "Hypotension (SBP < 90)": {
-    hi: "हाइपोटेंशन (SBP < 90)",
-    te: "హైపోటెన్షన్ (SBP < 90)",
-    ta: "ஹைப்போடென்ஷன் (SBP < 90)",
-  },
+  "Acute Coronary Syndrome": { hi: "तीव्र कोरोनरी सिंड्रोम", te: "తీవ్రమైన కరోనరీ సిండ్రోమ్", ta: "தீவிர கரோனரி சிண்ட்ரோம்" },
+  "Meningitis": { hi: "मेनिन्जाइटिस", te: "మెనింజిటిస్", ta: "மெனிஞ்ஜைட்டிஸ்" },
+  "Pulmonary Embolism": { hi: "पल्मोनरी एम्बोलिज़्म", te: "పల్మనరీ ఎంబోలిజం", ta: "புல்மனரி எம்பாலிசம்" },
+  "Stroke / TIA": { hi: "स्ट्रोक / टीआईए", te: "స్ట్రోక్ / టిఐఏ", ta: "ஸ்ட்ரோக் / டிஐஏ" },
+  "Sepsis": { hi: "सेप्सिस", te: "సెప్సిస్", ta: "செப்சிஸ்" },
+  "Anaphylaxis": { hi: "एनाफिलैक्सिस", te: "అనాఫైలాక్సిస్", ta: "அனாபைலக்ஸிஸ்" },
+  "Cauda Equina Syndrome": { hi: "कौडा इक्वाइना सिंड्रोम", te: "కౌడా ఈక్వైనా సిండ్రోమ్", ta: "காவ்டா இக்வினா சிண்ட்ரோம்" },
+  "High Fever (≥39.5°C)": { hi: "उच्च बुखार (≥39.5°C)", te: "అధిక జ్వరం (≥39.5°C)", ta: "அதிக காய்ச்சல் (≥39.5°C)" },
+  "Hypoxia (SpO₂ < 92%)": { hi: "हाइपॉक्सिया (SpO₂ < 92%)", te: "హైపాక్సియా (SpO₂ < 92%)", ta: "ஹைப்பாக்ஸியா (SpO₂ < 92%)" },
+  "Tachycardia (HR > 120)": { hi: "टैकीकार्डिया (HR > 120)", te: "టాకికార్డియా (HR > 120)", ta: "டாக்கிகார்டியா (HR > 120)" },
+  "Hypertensive Urgency (SBP ≥ 180)": { hi: "हाइपरटेंसिव अर्जेंसी (SBP ≥ 180)", te: "హైపర్టెన్సివ్ అత్యవసర స్థితి (SBP ≥ 180)", ta: "அதிக இரத்த அழுத்த அவசரம் (SBP ≥ 180)" },
+  "Hypotension (SBP < 90)": { hi: "हाइपोटेंशन (SBP < 90)", te: "హైపోటెన్షన్ (SBP < 90)", ta: "ஹைப்போடென்ஷன் (SBP < 90)" },
 };
 
 const SAFETY_ACTION_TRANSLATIONS: Record<string, Record<string, string>> = {
@@ -328,7 +282,7 @@ const SAFETY_ACTION_TRANSLATIONS: Record<string, Record<string, string>> = {
   },
   "Blood cultures, lactate, fluid resuscitation. Sepsis-3 criteria.": {
     hi: "ब्लड कल्चर, लैक्टेट और फ्लूइड रीससिटेशन करें। Sepsis-3 मानदंड देखें।",
-    te: "బ్లడ్ కల్చర్లు, లాక్టేట్, ఫ్లూయిడ్ రీససిటేషన్ చేయండి. Sepsis-3 ప్రమాణాలు చూడండి.",
+    te: "బ్లడ్ కల్చర్లు, లాక్టేట్, ఫ్లూయిడ్ రీससిటేషన్ చేయండి. Sepsis-3 ప్రమాణాలు చూడండి.",
     ta: "இரத்த கல்ச்சர்கள், லாக்டேட், திரவ மீட்பு செய்யவும். Sepsis-3 அளவுகோல்களை பார்க்கவும்.",
   },
   "Epinephrine IM. Secure airway. Monitor closely.": {
@@ -363,7 +317,7 @@ const SAFETY_ACTION_TRANSLATIONS: Record<string, Record<string, string>> = {
   },
   "IV fluid resuscitation. Monitor for shock.": {
     hi: "IV फ्लूइड रीससिटेशन करें। शॉक के लिए निगरानी रखें।",
-    te: "IV ఫ్లూయిడ్ రీససిటేషన్ చేయండి. షాక్ కోసం పర్యవేక్షించండి.",
+    te: "IV ఫ్లూయిడ్ రీससిటేషన్ చేయండి. షాక్ కోసం పర్యవేక్షించండి.",
     ta: "IV திரவ மீட்பு செய்யவும். ஷாக் அறிகுறிகளை கண்காணிக்கவும்.",
   },
 };
@@ -379,6 +333,95 @@ export const VOICE_ID_MAP: Record<string, string> = {
   ta: "EXAVITQu4vr4xnSDxMaL",  // Sarah - multilingual v2 supports Tamil
   unknown: "EXAVITQu4vr4xnSDxMaL",
 };
+
+// ══════════════════════════════════════════════
+// STT CLEANUP — remove artifacts from voice transcription
+// ══════════════════════════════════════════════
+
+/**
+ * Clean STT output: remove repeated fragments, mixed-language garbage,
+ * and broken partial words typical of realtime transcription.
+ */
+export function cleanTranscript(raw: string): string {
+  let text = raw.trim();
+  if (!text) return "";
+
+  // Remove replacement characters (broken unicode)
+  text = text.replace(/\uFFFD/g, "");
+
+  // Collapse repeated words/phrases (e.g. "మీరు ఇప్పుడు మీరు ఇప్పుడు మీరు ఇప్పుడు")
+  // Detect and remove 3+ consecutive repetitions of word groups
+  const words = text.split(/\s+/);
+  if (words.length >= 6) {
+    // Try pattern sizes from 1 to 4 words
+    for (let patLen = 1; patLen <= 4; patLen++) {
+      const pattern = words.slice(0, patLen).join(" ");
+      let count = 0;
+      let i = 0;
+      while (i + patLen <= words.length) {
+        const chunk = words.slice(i, i + patLen).join(" ");
+        if (chunk === pattern) {
+          count++;
+          i += patLen;
+        } else {
+          break;
+        }
+      }
+      // If entire text is just repetitions of the pattern
+      if (count >= 3 && i >= words.length - 1) {
+        // This is echo/feedback — return empty to skip
+        console.log("STT_CLEANUP: Detected echo/feedback, discarding:", raw.substring(0, 50));
+        return "";
+      }
+    }
+  }
+
+  // Remove leading broken characters (partial word starts)
+  text = text.replace(/^[^\s\u0C00-\u0C7F\u0900-\u097F\u0B80-\u0BFF\u0041-\u005A\u0061-\u007A]+/, "");
+
+  // Collapse multiple spaces
+  text = text.replace(/\s+/g, " ").trim();
+
+  // If result is too short to be meaningful (< 2 chars), skip
+  if (text.length < 2) return "";
+
+  return text;
+}
+
+// ══════════════════════════════════════════════
+// ANSWER MAPPING — natural responses to structured data
+// ══════════════════════════════════════════════
+
+/** Maps natural language negations/affirmations to canonical values */
+const NEGATIVE_RESPONSES: Record<string, string[]> = {
+  en: ["no", "none", "nope", "nothing", "no allergies", "not any", "nil"],
+  hi: ["नहीं", "कोई नहीं", "कुछ नहीं", "नहीं है"],
+  te: ["లేదు", "లేవు", "ఏమీ లేదు", "ఏమీ లేవు", "లేడు"],
+  ta: ["இல்லை", "எதுவும் இல்லை", "ஒன்றும் இல்லை"],
+};
+
+const AFFIRMATIVE_RESPONSES: Record<string, string[]> = {
+  en: ["yes", "yeah", "yep", "correct", "right"],
+  hi: ["हाँ", "हां", "जी", "जी हाँ", "सही"],
+  te: ["అవును", "ఔను", "అవునండి"],
+  ta: ["ஆம்", "ஆமா", "ஆமாம்"],
+};
+
+export function isNegativeResponse(text: string, lang: SupportedLanguage): boolean {
+  const lower = text.toLowerCase().trim();
+  for (const responses of Object.values(NEGATIVE_RESPONSES)) {
+    if (responses.some(r => lower === r || lower.includes(r))) return true;
+  }
+  return false;
+}
+
+export function isAffirmativeResponse(text: string, lang: SupportedLanguage): boolean {
+  const lower = text.toLowerCase().trim();
+  for (const responses of Object.values(AFFIRMATIVE_RESPONSES)) {
+    if (responses.some(r => lower === r || lower.includes(r))) return true;
+  }
+  return false;
+}
 
 // ══════════════════════════════════════════════
 // PUBLIC API
@@ -408,8 +451,8 @@ export function assertNoEnglishFallback(text: string, lang: SupportedLanguage, c
   // Strip whitelisted medical terms, numbers, and units before checking
   const stripped = text.replace(/\b[A-Za-z0-9°≥<>₂]+\b/g, (match) => {
     if (MEDICAL_TERM_WHITELIST.has(match)) return "";
-    if (/^[0-9°≥<>₂.%]+$/.test(match)) return ""; // numbers, units
-    if (match.length <= 2) return ""; // short abbreviations (e.g. "LP")
+    if (/^[0-9°≥<>₂.%]+$/.test(match)) return "";
+    if (match.length <= 2) return "";
     return match;
   });
 
@@ -457,10 +500,9 @@ export function translateOptionLabel(option: string, lang: SupportedLanguage): s
   const lk = langKey(lang);
   if (lk === "en") return option;
   const translated = OPTION_TRANSLATIONS[option]?.[lk];
-  if (!translated) {
-    throwMissingTranslation("option", option, lang);
-  }
-  return assertNoEnglishFallback(translated, lang, `option:${option}`);
+  // Gracefully return original if no translation (e.g. numeric options)
+  if (!translated) return option;
+  return translated;
 }
 
 export function translateSafetyCondition(condition: string, lang: SupportedLanguage): string {

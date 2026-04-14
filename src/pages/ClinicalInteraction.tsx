@@ -22,34 +22,61 @@ import { getVoiceId } from "@/services/conversation_engine/translations";
 
 const engine = new ConversationEngine();
 
-/** Play TTS audio for voice mode, using language-appropriate voice */
-async function playTTS(text: string, lang: SupportedLanguage, voiceId?: string): Promise<void> {
-  console.log("LANG:", lang);
-  console.log("INPUT:", text);
-  console.log("OUTPUT:", { type: "tts", voiceId });
+/** Track whether TTS is currently playing to prevent mic feedback */
+let isTTSPlaying = false;
 
-  const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify({ text, voiceId, language: lang }),
+/** Play TTS audio for voice mode, using language-appropriate voice.
+ *  Accepts optional callback to mute/unmute mic during playback. */
+async function playTTS(
+  text: string,
+  lang: SupportedLanguage,
+  voiceId?: string,
+  onMuteToggle?: (muted: boolean) => void
+): Promise<void> {
+  console.log("TTS_PLAY:", { lang, voiceId, textLen: text.length });
+
+  // Mute mic before TTS to prevent echo feedback
+  isTTSPlaying = true;
+  onMuteToggle?.(true);
+
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ text, voiceId, language: lang }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(await response.text());
     }
-  );
 
-  if (!response.ok) {
-    throw new Error(await response.text());
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+
+    await new Promise<void>((resolve, reject) => {
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+      audio.onerror = (e) => {
+        URL.revokeObjectURL(url);
+        reject(e);
+      };
+      audio.play().catch(reject);
+    });
+  } finally {
+    // Unmute mic after TTS finishes
+    isTTSPlaying = false;
+    onMuteToggle?.(false);
   }
-
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const audio = new Audio(url);
-  await audio.play();
-  audio.onended = () => URL.revokeObjectURL(url);
 }
 
 export default function ClinicalInteraction() {
@@ -67,10 +94,13 @@ export default function ClinicalInteraction() {
     modelId: "scribe_v2_realtime",
     commitStrategy: CommitStrategy.VAD,
     onPartialTranscript: (data) => {
+      // Ignore partials during TTS playback (echo prevention)
+      if (isTTSPlaying) return;
       if (data.text) setLiveTranscript(data.text);
     },
     onCommittedTranscript: async (data) => {
-      if (!data.text || !engine.isUserTurn()) return;
+      // Block processing during TTS playback or if not user's turn
+      if (isTTSPlaying || !data.text || !engine.isUserTurn()) return;
 
       try {
         setLiveTranscript("");
@@ -80,7 +110,10 @@ export default function ClinicalInteraction() {
         if (engine.getMode() === "voice") {
           const responseText = engine.getLastResponseText();
           const lang = engine.getLanguage();
-          if (responseText) await playTTS(responseText, lang, getVoiceId(lang));
+          if (responseText) {
+            // Disconnect mic during TTS, reconnect after
+            await playTTS(responseText, lang, getVoiceId(lang));
+          }
         }
       } catch (error: any) {
         console.error("Voice processing failed:", error);
