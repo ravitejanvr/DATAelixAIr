@@ -17,11 +17,12 @@ import {
 } from "lucide-react";
 import SEO from "@/components/SEO";
 import { supabase } from "@/integrations/supabase/client";
+import { getVoiceId } from "@/services/conversation_engine/translations";
 
 const engine = new ConversationEngine();
 
-/** Play TTS audio for voice mode */
-async function playTTS(text: string): Promise<void> {
+/** Play TTS audio for voice mode, using language-appropriate voice */
+async function playTTS(text: string, voiceId?: string): Promise<void> {
   try {
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
@@ -32,7 +33,7 @@ async function playTTS(text: string): Promise<void> {
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, voiceId }),
       }
     );
     if (!response.ok) return;
