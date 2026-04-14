@@ -8,8 +8,9 @@
  *
  * Rules:
  * - Tracks asked questions (no repetition)
- * - Prioritizes critical → high → medium questions
+ * - Prioritizes: symptom expansion → severity → associated → risk → demographics
  * - No raw strings beyond canonicalization boundary
+ * - Conversational tone for questions
  */
 
 import { SessionContextManager } from "../session_context";
@@ -21,10 +22,34 @@ import type { ConversationMessage, UIState } from "./types";
 
 export type { ConversationMessage, UIState } from "./types";
 
+/** Question category priority order */
+const CATEGORY_PRIORITY: Record<string, number> = {
+  symptom_expansion: 0,
+  severity: 1,
+  associated_symptoms: 2,
+  risk_factors: 3,
+  history: 4,
+  demographics: 5,
+};
+
+/** Conversational rewrites for robotic question text */
+function toConversationalTone(text: string): string {
+  // Already conversational — skip
+  if (/^(can you|could you|how|what|do you|have you|are you|is there|does|did|when|where)/i.test(text)) {
+    return text;
+  }
+  // Wrap terse prompts
+  if (/^(duration|severity|onset|location)/i.test(text)) {
+    return `Can you tell me more about the ${text.toLowerCase()}?`;
+  }
+  return text;
+}
+
 export class ConversationEngine {
   private session: SessionContextManager;
   private messages: ConversationMessage[] = [];
   private askedQuestionIds = new Set<string>();
+  private askedQuestionTexts = new Set<string>();
   private pendingQuestions: ClinicalQuestion[] = [];
   private latestPipelineResult: PipelineOutput | null = null;
   private isProcessing = false;
@@ -38,55 +63,43 @@ export class ConversationEngine {
   // CORE INTERACTION METHODS
   // ══════════════════════════════════════════════
 
-  /**
-   * Process text input from user (typed or transcribed).
-   * Full flow: extract → canonicalize → update context → run pipeline → generate questions.
-   */
   async processTextInput(text: string): Promise<UIState> {
     this.isProcessing = true;
 
-    // Add user message
     const userMsg = this.addMessage("user", text);
 
     // Extract symptoms via scribe adapter
     const extracted = extractFromTranscript(text);
-
-    // Update session context (canonicalization happens inside)
     this.session.updateFromExtraction(extracted, "patient_text");
 
-    // Track which features were extracted for this message
+    // Track extracted features on user message
     const features = this.session.getCanonicalFeatures();
-    const featureIds = features.map(f => f.feature_id);
-    userMsg.extracted_features = featureIds;
+    userMsg.extracted_features = features.map(f => f.feature_id);
 
-    // Run pipeline
+    // Run pipeline + generate response
     await this.runPipeline();
-
-    // Generate system response
     this.generateSystemResponse();
 
     this.isProcessing = false;
     return this.getCurrentState();
   }
 
-  /**
-   * Answer a follow-up question.
-   */
   async answerQuestion(questionId: string, answer: string): Promise<UIState> {
     this.isProcessing = true;
 
-    // Mark as answered
+    // Mark question as answered (both ID and text)
     this.askedQuestionIds.add(questionId);
-    this.session.updateFromAnswers(questionId, answer);
-
-    // Add user answer message
     const question = this.pendingQuestions.find(q => q.question_id === questionId);
+    if (question) {
+      this.askedQuestionTexts.add(this.normalizeQuestionText(question.text));
+    }
+
+    this.session.updateFromAnswers(questionId, answer);
     this.addMessage("user", answer);
 
     // Remove from pending
     this.pendingQuestions = this.pendingQuestions.filter(q => q.question_id !== questionId);
 
-    // Re-run pipeline with updated context
     await this.runPipeline();
     this.generateSystemResponse();
 
@@ -94,9 +107,6 @@ export class ConversationEngine {
     return this.getCurrentState();
   }
 
-  /**
-   * Attach vitals to the session.
-   */
   async attachVitals(vitals: PipelineVitals): Promise<UIState> {
     this.session.attachVitals(vitals);
     this.addMessage("system", "Vitals recorded.");
@@ -104,9 +114,6 @@ export class ConversationEngine {
     return this.getCurrentState();
   }
 
-  /**
-   * Attach files to the session.
-   */
   async attachFiles(files: UploadedFile[]): Promise<UIState> {
     this.session.attachFiles(files);
     const names = files.map(f => f.file_name).join(", ");
@@ -115,18 +122,12 @@ export class ConversationEngine {
     return this.getCurrentState();
   }
 
-  /**
-   * Set patient demographics.
-   */
   async setDemographics(data: { age?: number; sex?: string; name?: string }): Promise<UIState> {
     this.session.setDemographics(data);
     await this.runPipeline();
     return this.getCurrentState();
   }
 
-  /**
-   * Get current UI state.
-   */
   getCurrentState(): UIState {
     const snapshot = this.session.getSnapshot();
     return {
@@ -141,13 +142,11 @@ export class ConversationEngine {
     };
   }
 
-  /**
-   * Reset the entire session.
-   */
   reset(): void {
     this.session.reset();
     this.messages = [];
     this.askedQuestionIds.clear();
+    this.askedQuestionTexts.clear();
     this.pendingQuestions = [];
     this.latestPipelineResult = null;
     this.isProcessing = false;
@@ -162,10 +161,19 @@ export class ConversationEngine {
     const input = this.session.toPipelineInput();
     this.latestPipelineResult = await runClinicalPipelineV4(input);
 
-    // Update pending questions (filter out already asked)
+    // Filter out already-asked questions using both ID and normalized text
     const newQuestions = this.latestPipelineResult.questions.questions
-      .filter(q => !this.askedQuestionIds.has(q.question_id))
+      .filter(q => {
+        if (this.askedQuestionIds.has(q.question_id)) return false;
+        if (this.askedQuestionTexts.has(this.normalizeQuestionText(q.text))) return false;
+        return true;
+      })
       .sort((a, b) => {
+        // Sort by category priority first, then by priority level
+        const catA = CATEGORY_PRIORITY[a.category] ?? 99;
+        const catB = CATEGORY_PRIORITY[b.category] ?? 99;
+        if (catA !== catB) return catA - catB;
+
         const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
         return (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3);
       });
@@ -179,26 +187,37 @@ export class ConversationEngine {
     const result = this.latestPipelineResult;
     const features = this.session.getCanonicalFeatures();
 
-    // Summary of what was detected
+    // Summary of detections
     if (features.length > 0) {
       const featureList = features.map(f => f.feature_id).join(", ");
       this.addMessage("system",
-        `Detected: ${featureList}. Confidence: ${(result.confidence.overall_confidence * 100).toFixed(0)}%`
+        `Noted: ${featureList}. Confidence: ${(result.confidence.overall_confidence * 100).toFixed(0)}%`
       );
     }
 
     // Safety alerts
-    if (result.safety.safety_alerts.length > 0) {
-      for (const alert of result.safety.safety_alerts) {
-        this.addMessage("system", `⚠️ Safety Alert: ${alert.condition} — ${alert.action}`);
-      }
+    for (const alert of result.safety.safety_alerts) {
+      this.addMessage("system", `⚠️ ${alert.condition} — ${alert.action}`);
     }
 
-    // Ask next priority question
+    // Ask next question (only one at a time, conversational tone)
     if (this.pendingQuestions.length > 0) {
       const nextQ = this.pendingQuestions[0];
-      this.addMessage("question", nextQ.text, nextQ);
+      const conversationalText = toConversationalTone(nextQ.text);
+
+      // Double-check we haven't asked this exact text before
+      const normalized = this.normalizeQuestionText(conversationalText);
+      if (!this.askedQuestionTexts.has(normalized)) {
+        this.askedQuestionTexts.add(normalized);
+        this.askedQuestionIds.add(nextQ.question_id);
+        this.addMessage("question", conversationalText, nextQ);
+      }
     }
+  }
+
+  /** Normalize question text for dedup comparison */
+  private normalizeQuestionText(text: string): string {
+    return text.toLowerCase().replace(/[^a-z0-9]/g, "");
   }
 
   private addMessage(
