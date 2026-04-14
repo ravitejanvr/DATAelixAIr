@@ -74,7 +74,7 @@ export default function ClinicalInteraction() {
       // TTS response in voice mode
       if (engine.getMode() === "voice") {
         const responseText = engine.getLastResponseText();
-        if (responseText) await playTTS(responseText);
+        if (responseText) await playTTS(responseText, getVoiceId(engine.getLanguage()));
       }
     },
   });
@@ -116,7 +116,7 @@ export default function ClinicalInteraction() {
 
       // Play greeting TTS
       if (greeting) {
-        await playTTS(greeting);
+        await playTTS(greeting, getVoiceId(engine.getLanguage()));
       }
 
       await scribe.connect({
@@ -137,7 +137,7 @@ export default function ClinicalInteraction() {
     setState(newState);
     if (engine.getMode() === "voice") {
       const responseText = engine.getLastResponseText();
-      if (responseText) playTTS(responseText);
+      if (responseText) playTTS(responseText, getVoiceId(engine.getLanguage()));
     }
   }, []);
 
