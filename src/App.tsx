@@ -58,6 +58,7 @@ import PilotRequest from "./pages/PilotRequest";
 import AiPipelineTest from "./pages/AiPipelineTest";
 import PipelineTrace from "./pages/PipelineTrace";
 import GPBenchmarkDashboard from "./pages/GPBenchmarkDashboard";
+import ClinicalInteraction from "./pages/ClinicalInteraction";
 import ModifierSensitivityTest from "./pages/ModifierSensitivityTest";
 import DiagnosticSimulator from "./pages/DiagnosticSimulator";
 import CockpitPlayground from "./pages/CockpitPlayground";
@@ -203,6 +204,7 @@ const App = () => (
               <Route path="/admin/cockpit-playground" element={<ProtectedRoute allowedRoles={["platform_admin"]}><CockpitPlayground /></ProtectedRoute>} />
               <Route path="/admin/v2-evaluation" element={<ProtectedRoute allowedRoles={["platform_admin"]}><V2Evaluation /></ProtectedRoute>} />
               <Route path="/admin/v3-benchmark" element={<ProtectedRoute allowedRoles={["platform_admin"]}><V3BenchmarkDashboard /></ProtectedRoute>} />
+              <Route path="/admin/clinical-interaction" element={<ProtectedRoute allowedRoles={["platform_admin", "doctor"]}><ClinicalInteraction /></ProtectedRoute>} />
 
               {/* Layer 1: Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
