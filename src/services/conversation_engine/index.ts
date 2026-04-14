@@ -491,6 +491,95 @@ export class ConversationEngine {
     return text.toLowerCase().replace(/[^a-z0-9]/g, "");
   }
 
+  /**
+   * Run LLM extraction — extracts entities + generates next question dynamically.
+   * Falls back to null if LLM call fails (pipeline questions used as fallback).
+   */
+  private async runLLMExtraction(userInput: string): Promise<LLMExtractionResult | null> {
+    try {
+      const result = await extractClinicalEntitiesLLM(
+        userInput,
+        this.sessionState.collectedFields,
+        this.sessionState.language
+      );
+
+      if (!result) return null;
+
+      // Merge extracted entities into collected fields
+      this.sessionState.collectedFields = mergeEntitiesIntoCollected(
+        this.sessionState.collectedFields,
+        result.extracted_entities
+      );
+
+      // Update session context with extracted demographics
+      if (result.extracted_entities.age || result.extracted_entities.sex) {
+        this.session.setDemographics({
+          age: result.extracted_entities.age,
+          sex: result.extracted_entities.sex,
+        });
+      }
+
+      if (result.extracted_entities.medications?.length) {
+        this.session.setMedications(result.extracted_entities.medications);
+      }
+
+      if (result.extracted_entities.allergies?.length) {
+        this.session.setAllergies(result.extracted_entities.allergies);
+      }
+
+      console.log("[LLM] Collected fields:", JSON.stringify(this.sessionState.collectedFields));
+      console.log("[LLM] Acknowledgment:", result.acknowledgment);
+      console.log("[LLM] Next question:", result.next_question?.text);
+      console.log("[LLM] All fields collected:", result.all_fields_collected);
+
+      return result;
+    } catch (err) {
+      console.error("[LLM] Extraction failed, falling back to pipeline:", err);
+      return null;
+    }
+  }
+
+  /**
+   * Append LLM-generated acknowledgment + dynamic question to messages.
+   */
+  private appendLLMResponse(result: LLMExtractionResult): void {
+    // Add acknowledgment as system message
+    if (result.acknowledgment) {
+      this.addMessage("system", result.acknowledgment);
+    }
+
+    // Add dynamic question if not all fields are collected
+    if (!result.all_fields_collected && result.next_question) {
+      const q = result.next_question;
+      const questionId = `llm_q_${q.field}_${this.messageCounter}`;
+
+      // Track to prevent re-asking
+      this.askedQuestionIds.add(questionId);
+      this.askedQuestionTexts.add(this.normalizeQuestionText(q.text));
+      this.sessionState.lastQuestionId = questionId;
+
+      // Build a ClinicalQuestion-compatible object for the UI
+      const clinicalQuestion: ClinicalQuestion = {
+        question_id: questionId,
+        text: q.text,
+        category: q.field,
+        priority: q.priority,
+        options: q.options,
+      };
+
+      // Build option labels (already in user's language from LLM)
+      const optionLabels = q.options
+        ? Object.fromEntries(q.options.map(opt => [opt, opt]))
+        : undefined;
+
+      const msg = this.addMessage("question", q.text, clinicalQuestion, optionLabels);
+      msg.llm_question = q;
+
+      // Add to pending questions
+      this.pendingQuestions = [clinicalQuestion];
+    }
+  }
+
   private addMessage(
     role: ConversationMessage["role"],
     content: string,
