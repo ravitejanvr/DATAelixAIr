@@ -25,12 +25,56 @@ const engine = new ConversationEngine();
 /** Track whether TTS is currently playing to prevent mic feedback */
 let isTTSPlaying = false;
 
+/** Indic languages that MUST use Google Cloud TTS for native pronunciation */
+const GOOGLE_TTS_LANGUAGES = new Set(["te", "hi", "ta"]);
+
 /**
- * Play TTS using ElevenLabs edge function — ALL languages.
- * ElevenLabs Multilingual v2 supports Telugu, Hindi, Tamil natively.
+ * Play TTS using Google Cloud TTS edge function — for Indic languages ONLY.
+ * Produces native Indian pronunciation (te-IN, hi-IN, ta-IN).
+ * NO fallback. Failure = hard error.
+ */
+async function playGoogleTTS(text: string, language: string): Promise<void> {
+  console.log("[TTS_GOOGLE]", { provider: "google", language, textPreview: text.substring(0, 80) });
+
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-tts`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({ text, language }),
+    }
+  );
+
+  const contentType = response.headers.get("Content-Type") || "";
+  if (contentType.includes("application/json")) {
+    const errData = await response.json();
+    throw new Error(`Google TTS failed: ${errData.error} — ${errData.message || errData.details || ""}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Google TTS HTTP error: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+
+  await new Promise<void>((resolve, reject) => {
+    audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+    audio.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    audio.play().catch(reject);
+  });
+}
+
+/**
+ * Play TTS using ElevenLabs edge function — English and other non-Indic languages.
  */
 async function playElevenLabsTTS(text: string, voiceId: string): Promise<void> {
-  console.log("[TTS_INPUT]", { voiceId, textLen: text.length, text: text.substring(0, 100) });
+  console.log("[TTS_ELEVENLABS]", { provider: "elevenlabs", voiceId, textPreview: text.substring(0, 80) });
 
   const response = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
@@ -45,20 +89,14 @@ async function playElevenLabsTTS(text: string, voiceId: string): Promise<void> {
     }
   );
 
-  // Check content type — JSON means error/fallback, audio means success
   const contentType = response.headers.get("Content-Type") || "";
   if (contentType.includes("application/json")) {
-    const jsonData = await response.json();
-    if (jsonData?.fallback) {
-      console.warn("[TTS] ElevenLabs unavailable, falling back to browser TTS");
-      playBrowserTTS(text);
-      return;
-    }
-    throw new Error(jsonData?.error || "TTS failed");
+    const errData = await response.json();
+    throw new Error(`ElevenLabs TTS failed: ${errData.error || "unknown"}`);
   }
 
   if (!response.ok) {
-    throw new Error(`TTS error: ${response.status}`);
+    throw new Error(`ElevenLabs TTS HTTP error: ${response.status}`);
   }
 
   const blob = await response.blob();
@@ -72,33 +110,35 @@ async function playElevenLabsTTS(text: string, voiceId: string): Promise<void> {
   });
 }
 
-/** Browser TTS fallback — only used when ElevenLabs is unavailable */
-function playBrowserTTS(text: string): void {
-  if (!window.speechSynthesis) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.9;
-  window.speechSynthesis.speak(utterance);
-}
-
 /**
- * TTS Router: purify text for language, then route through ElevenLabs.
+ * TTS Router: strict provider routing based on language.
+ * Telugu/Hindi/Tamil → Google Cloud TTS (native Indian voices)
+ * English/Other → ElevenLabs
+ * NO browser fallback. NO silent degradation.
  */
 async function playTTS(
   text: string,
   lang: SupportedLanguage,
   voiceId?: string,
 ): Promise<void> {
-  // Purify text — strip any English leakage for non-English sessions
   const purifiedText = purifyForLanguage(text, lang);
-  const resolvedVoiceId = voiceId || getVoiceId(lang);
-  console.log("[TTS_ROUTE]", { lang, provider: "elevenlabs", voiceId: resolvedVoiceId, textLen: purifiedText.length });
+  const isIndicLanguage = GOOGLE_TTS_LANGUAGES.has(lang);
+  const provider = isIndicLanguage ? "google" : "elevenlabs";
+
+  console.log("[TTS_ROUTE]", { lang, provider, textLen: purifiedText.length });
 
   isTTSPlaying = true;
   try {
-    await playElevenLabsTTS(purifiedText, resolvedVoiceId);
+    if (isIndicLanguage) {
+      await playGoogleTTS(purifiedText, lang);
+    } else {
+      const resolvedVoiceId = voiceId || getVoiceId(lang);
+      await playElevenLabsTTS(purifiedText, resolvedVoiceId);
+    }
   } catch (err) {
-    console.error("[TTS] ElevenLabs failed, using browser fallback:", err);
-    playBrowserTTS(purifiedText);
+    // HARD FAILURE — no fallback
+    console.error(`[TTS] ${provider} FAILED for ${lang}:`, err);
+    throw err;
   } finally {
     isTTSPlaying = false;
   }
