@@ -17,6 +17,8 @@ export interface ConversationMessage {
   timestamp: string;
   /** For question messages: the question object */
   question?: ClinicalQuestion;
+  /** Localized option labels keyed by canonical/raw option value */
+  question_option_labels?: Record<string, string>;
   /** For user messages: extracted features from this message */
   extracted_features?: string[];
 }

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { ConversationEngine } from "@/services/conversation_engine";
 import type { UIState, ConversationMessage } from "@/services/conversation_engine/types";
+import type { SupportedLanguage } from "@/services/canonical/types";
 import { processUploadedFile } from "@/services/file_adapter";
 import { Chip, ChipGroup } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
@@ -22,29 +23,33 @@ import { getVoiceId } from "@/services/conversation_engine/translations";
 const engine = new ConversationEngine();
 
 /** Play TTS audio for voice mode, using language-appropriate voice */
-async function playTTS(text: string, voiceId?: string): Promise<void> {
-  try {
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ text, voiceId }),
-      }
-    );
-    if (!response.ok) return;
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    await audio.play();
-    audio.onended = () => URL.revokeObjectURL(url);
-  } catch (e) {
-    console.error("TTS playback failed:", e);
+async function playTTS(text: string, lang: SupportedLanguage, voiceId?: string): Promise<void> {
+  console.log("LANG:", lang);
+  console.log("INPUT:", text);
+  console.log("OUTPUT:", { type: "tts", voiceId });
+
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({ text, voiceId, language: lang }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await response.text());
   }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  await audio.play();
+  audio.onended = () => URL.revokeObjectURL(url);
 }
 
 export default function ClinicalInteraction() {
@@ -65,16 +70,21 @@ export default function ClinicalInteraction() {
       if (data.text) setLiveTranscript(data.text);
     },
     onCommittedTranscript: async (data) => {
-      if (!data.text) return;
-      // Turn-based guard: only process if it's user's turn
-      if (!engine.isUserTurn()) return;
-      setLiveTranscript("");
-      const newState = await engine.processTextInput(data.text);
-      setState(newState);
-      // TTS response in voice mode
-      if (engine.getMode() === "voice") {
-        const responseText = engine.getLastResponseText();
-        if (responseText) await playTTS(responseText, getVoiceId(engine.getLanguage()));
+      if (!data.text || !engine.isUserTurn()) return;
+
+      try {
+        setLiveTranscript("");
+        const newState = await engine.processTextInput(data.text);
+        setState(newState);
+
+        if (engine.getMode() === "voice") {
+          const responseText = engine.getLastResponseText();
+          const lang = engine.getLanguage();
+          if (responseText) await playTTS(responseText, lang, getVoiceId(lang));
+        }
+      } catch (error: any) {
+        console.error("Voice processing failed:", error);
+        toast({ title: "Language Lock Error", description: error.message, variant: "destructive" });
       }
     },
   });
@@ -88,10 +98,15 @@ export default function ClinicalInteraction() {
     const text = textInput.trim();
     if (!text || state.is_processing) return;
     setTextInput("");
-    engine.setMode("text");
-    const newState = await engine.processTextInput(text);
-    setState(newState);
-  }, [textInput, state.is_processing]);
+    try {
+      engine.setMode("text");
+      const newState = await engine.processTextInput(text);
+      setState(newState);
+    } catch (error: any) {
+      console.error("Text processing failed:", error);
+      toast({ title: "Language Lock Error", description: error.message, variant: "destructive" });
+    }
+  }, [textInput, state.is_processing, toast]);
 
   const handleToggleRecording = useCallback(async () => {
     if (isRecording) {
@@ -116,7 +131,8 @@ export default function ClinicalInteraction() {
 
       // Play greeting TTS
       if (greeting) {
-        await playTTS(greeting, getVoiceId(engine.getLanguage()));
+        const lang = engine.getLanguage();
+        await playTTS(greeting, lang, getVoiceId(lang));
       }
 
       await scribe.connect({
@@ -133,13 +149,20 @@ export default function ClinicalInteraction() {
   }, [isRecording, scribe, toast]);
 
   const handleAnswerQuestion = useCallback(async (questionId: string, answer: string) => {
-    const newState = await engine.answerQuestion(questionId, answer);
-    setState(newState);
-    if (engine.getMode() === "voice") {
-      const responseText = engine.getLastResponseText();
-      if (responseText) playTTS(responseText, getVoiceId(engine.getLanguage()));
+    try {
+      const newState = await engine.answerQuestion(questionId, answer);
+      setState(newState);
+
+      if (engine.getMode() === "voice") {
+        const responseText = engine.getLastResponseText();
+        const lang = engine.getLanguage();
+        if (responseText) await playTTS(responseText, lang, getVoiceId(lang));
+      }
+    } catch (error: any) {
+      console.error("Question answer failed:", error);
+      toast({ title: "Language Lock Error", description: error.message, variant: "destructive" });
     }
-  }, []);
+  }, [toast]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -492,7 +515,7 @@ function MessageBubble({
             <div className="flex flex-wrap gap-1.5">
               {q.options.map(opt => (
                 <Button key={opt} variant="outline" size="sm" className="text-xs h-7 rounded-full" onClick={() => onAnswer(q.question_id, opt)}>
-                  {opt}
+                  {message.question_option_labels?.[opt] ?? opt}
                 </Button>
               ))}
             </div>

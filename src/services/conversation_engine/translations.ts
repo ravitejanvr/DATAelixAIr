@@ -1,16 +1,13 @@
 /**
  * Multilingual Translation Layer for Conversation Engine
  *
- * Provides translations for:
- *   - Clinical questions (from Question Engine protocols)
- *   - System messages (greeting, confirmations, alerts)
- *   - Conversational tone wrappers
- *
- * Supported languages: English, Hindi, Telugu
- * Rule: If no translation exists, return English as fallback ONLY if language is "en" or "unknown"
+ * Rule: once a session language is locked to a non-English language,
+ * missing translations MUST throw instead of silently leaking English.
  */
 
 import type { SupportedLanguage } from "../canonical/types";
+
+type TranslationLanguage = Exclude<SupportedLanguage, "unknown">;
 
 // ══════════════════════════════════════════════
 // SYSTEM MESSAGE TRANSLATIONS
@@ -24,10 +21,10 @@ const SYSTEM_MESSAGES: Record<string, Record<string, string>> = {
     ta: "வணக்கம், இன்று உங்களுக்கு என்ன பிரச்சனை?",
   },
   noted: {
-    en: "Noted: {features}. Confidence: {confidence}%",
-    hi: "नोट किया: {features}। विश्वसनीयता: {confidence}%",
-    te: "గమనించాను: {features}. నమ్మకం: {confidence}%",
-    ta: "குறிப்பிடப்பட்டது: {features}. நம்பகத்தன்மை: {confidence}%",
+    en: "I've noted your symptoms. Confidence: {confidence}%",
+    hi: "मैंने आपके लक्षण नोट कर लिए हैं। विश्वसनीयता: {confidence}%",
+    te: "మీ లక్షణాలను గమనించాను. నమ్మకం: {confidence}%",
+    ta: "உங்கள் அறிகுறிகளை பதிவு செய்துள்ளேன். நம்பகத்தன்மை: {confidence}%",
   },
   safety_alert: {
     en: "⚠️ {condition} — {action}",
@@ -245,6 +242,132 @@ const OPTION_TRANSLATIONS: Record<string, Record<string, string>> = {
   "High (>39°C)": { hi: "तेज (>39°C)", te: "ఎక్కువ (>39°C)", ta: "அதிகமானது (>39°C)" },
 };
 
+const SAFETY_CONDITION_TRANSLATIONS: Record<string, Record<string, string>> = {
+  "Acute Coronary Syndrome": {
+    hi: "तीव्र कोरोनरी सिंड्रोम",
+    te: "తీవ్రమైన కరోనరీ సిండ్రోమ్",
+    ta: "தீவிர கரோனரி சிண்ட்ரோம்",
+  },
+  "Meningitis": {
+    hi: "मेनिन्जाइटिस",
+    te: "మెనింజిటిస్",
+    ta: "மெனிஞ்ஜைட்டிஸ்",
+  },
+  "Pulmonary Embolism": {
+    hi: "पल्मोनरी एम्बोलिज़्म",
+    te: "పల్మనరీ ఎంబోలిజం",
+    ta: "புல்மனரி எம்பாலிசம்",
+  },
+  "Stroke / TIA": {
+    hi: "स्ट्रोक / टीआईए",
+    te: "స్ట్రోక్ / టిఐఏ",
+    ta: "ஸ்ட்ரோக் / டிஐஏ",
+  },
+  "Sepsis": {
+    hi: "सेप्सिस",
+    te: "సెప్సిస్",
+    ta: "செப்சிஸ்",
+  },
+  "Anaphylaxis": {
+    hi: "एनाफिलैक्सिस",
+    te: "అనాఫైలాక్సిస్",
+    ta: "அனாபைலக்ஸிஸ்",
+  },
+  "Cauda Equina Syndrome": {
+    hi: "कौडा इक्वाइना सिंड्रोम",
+    te: "కౌడా ఈక్వైనా సిండ్రోమ్",
+    ta: "காவ்டா இக்வினா சிண்ட்ரோம்",
+  },
+  "High Fever (≥39.5°C)": {
+    hi: "उच्च बुखार (≥39.5°C)",
+    te: "అధిక జ్వరం (≥39.5°C)",
+    ta: "அதிக காய்ச்சல் (≥39.5°C)",
+  },
+  "Hypoxia (SpO₂ < 92%)": {
+    hi: "हाइपॉक्सिया (SpO₂ < 92%)",
+    te: "హైపాక్సియా (SpO₂ < 92%)",
+    ta: "ஹைப்பாக்ஸியா (SpO₂ < 92%)",
+  },
+  "Tachycardia (HR > 120)": {
+    hi: "टैकीकार्डिया (HR > 120)",
+    te: "టాకికార్డియా (HR > 120)",
+    ta: "டாக்கிகார்டியா (HR > 120)",
+  },
+  "Hypertensive Urgency (SBP ≥ 180)": {
+    hi: "हाइपरटेंसिव अर्जेंसी (SBP ≥ 180)",
+    te: "హైపర్టెన్సివ్ అత్యవసర స్థితి (SBP ≥ 180)",
+    ta: "அதிக இரத்த அழுத்த அவசரம் (SBP ≥ 180)",
+  },
+  "Hypotension (SBP < 90)": {
+    hi: "हाइपोटेंशन (SBP < 90)",
+    te: "హైపోటెన్షన్ (SBP < 90)",
+    ta: "ஹைப்போடென்ஷன் (SBP < 90)",
+  },
+};
+
+const SAFETY_ACTION_TRANSLATIONS: Record<string, Record<string, string>> = {
+  "Immediate ECG, troponin, aspirin. Consider emergency referral.": {
+    hi: "तुरंत ECG, ट्रोपोनिन और एस्पिरिन दें। आपातकालीन रेफरल पर विचार करें।",
+    te: "తక్షణం ECG, ట్రోపోనిన్, ఆస్పిరిన్ ఇవ్వండి. అత్యవసర రిఫరల్‌ను పరిగణించండి.",
+    ta: "உடனடி ECG, டிரோபோனின், அஸ்பிரின். அவசர ரெஃபரலை பரிசீலிக்கவும்.",
+  },
+  "Urgent LP. Start empirical antibiotics immediately.": {
+    hi: "तुरंत LP करें। अनुभवाधारित एंटीबायोटिक्स तुरंत शुरू करें।",
+    te: "తక్షణం LP చేయండి. అనుభవాధారిత యాంటీబయాటిక్స్ వెంటనే ప్రారంభించండి.",
+    ta: "அவசர LP செய்யவும். அனுபவ அடிப்படையிலான ஆன்டிபயாட்டிக்ஸை உடனே தொடங்கவும்.",
+  },
+  "CTPA. Start anticoagulation if high clinical probability.": {
+    hi: "CTPA करें। नैदानिक संभावना अधिक हो तो एंटीकोआग्यूलेशन शुरू करें।",
+    te: "CTPA చేయండి. క్లినికల్ అవకాశాలు ఎక్కువైతే యాంటీకోగ్యులేషన్ ప్రారంభించండి.",
+    ta: "CTPA செய்யவும். மருத்துவ சாத்தியம் அதிகமாக இருந்தால் ஆன்டிகோகுலேஷனை தொடங்கவும்.",
+  },
+  "FAST assessment. Urgent CT head. Neurology referral.": {
+    hi: "FAST आकलन करें। तुरंत CT हेड करें। न्यूरोलॉजी रेफरल दें।",
+    te: "FAST అంచనా వేయండి. అత్యవసర CT head చేయండి. న్యూరాలజీ రిఫరల్ ఇవ్వండి.",
+    ta: "FAST மதிப்பீடு செய்யவும். அவசர CT head எடுக்கவும். நரம்பியல் ரெஃபரல் செய்யவும்.",
+  },
+  "Blood cultures, lactate, fluid resuscitation. Sepsis-3 criteria.": {
+    hi: "ब्लड कल्चर, लैक्टेट और फ्लूइड रीससिटेशन करें। Sepsis-3 मानदंड देखें।",
+    te: "బ్లడ్ కల్చర్లు, లాక్టేట్, ఫ్లూయిడ్ రీససిటేషన్ చేయండి. Sepsis-3 ప్రమాణాలు చూడండి.",
+    ta: "இரத்த கல்ச்சர்கள், லாக்டேட், திரவ மீட்பு செய்யவும். Sepsis-3 அளவுகோல்களை பார்க்கவும்.",
+  },
+  "Epinephrine IM. Secure airway. Monitor closely.": {
+    hi: "इंट्रामस्क्युलर एपिनेफ्रिन दें। वायुमार्ग सुरक्षित करें। नज़दीकी निगरानी रखें।",
+    te: "IM ఎపినెఫ్రిన్ ఇవ్వండి. వాయుమార్గాన్ని భద్రపరచండి. సమీపంగా పర్యవేక్షించండి.",
+    ta: "IM எபினெப்ரின் கொடுக்கவும். காற்றுவழியை பாதுகாக்கவும். நெருக்கமாக கண்காணிக்கவும்.",
+  },
+  "Urgent MRI spine. Surgical consultation.": {
+    hi: "तुरंत MRI spine करें। सर्जिकल परामर्श लें।",
+    te: "అత్యవసరంగా MRI spine చేయండి. శస్త్రచికిత్స సలహా పొందండి.",
+    ta: "அவசர MRI spine செய்யவும். அறுவை சிகிச்சை ஆலோசனை பெறவும்.",
+  },
+  "Investigate source. Blood cultures if >40°C.": {
+    hi: "कारण की जाँच करें। तापमान >40°C हो तो ब्लड कल्चर करें।",
+    te: "కారణాన్ని పరిశీలించండి. >40°C అయితే బ్లడ్ కల్చర్లు చేయండి.",
+    ta: "காரணத்தை ஆராயவும். >40°C என்றால் இரத்த கல்ச்சர்கள் எடுக்கவும்.",
+  },
+  "Supplemental oxygen. Investigate cause urgently.": {
+    hi: "पूरक ऑक्सीजन दें। कारण की तुरंत जाँच करें।",
+    te: "అదనపు ఆక్సిజన్ ఇవ్వండి. కారణాన్ని అత్యవసరంగా పరిశీలించండి.",
+    ta: "சேர்க்கை ஆக்சிஜன் கொடுக்கவும். காரணத்தை அவசரமாக ஆராயவும்.",
+  },
+  "ECG. Assess for dehydration, infection, or cardiac cause.": {
+    hi: "ECG करें। डिहाइड्रेशन, संक्रमण या हृदय कारण का आकलन करें।",
+    te: "ECG చేయండి. డీహైడ్రేషన్, ఇన్ఫెక్షన్ లేదా గుండె కారణాన్ని అంచనా వేయండి.",
+    ta: "ECG செய்யவும். நீரிழப்பு, தொற்று அல்லது இதய காரணத்தை மதிப்பிடவும்.",
+  },
+  "Assess for target organ damage. Oral antihypertensive.": {
+    hi: "लक्षित अंग क्षति का आकलन करें। मौखिक एंटीहाइपरटेंसिव दें।",
+    te: "లక్ష్య అవయవ నష్టాన్ని అంచనా వేయండి. మౌఖిక యాంటీహైపర్టెన్సివ్ ఇవ్వండి.",
+    ta: "இலக்கு உறுப்புச் சேதத்தை மதிப்பிடவும். வாய்வழி இரத்தஅழுத்தக் கட்டுப்பாட்டு மருந்து கொடுக்கவும்.",
+  },
+  "IV fluid resuscitation. Monitor for shock.": {
+    hi: "IV फ्लूइड रीससिटेशन करें। शॉक के लिए निगरानी रखें।",
+    te: "IV ఫ్లూయిడ్ రీససిటేషన్ చేయండి. షాక్ కోసం పర్యవేక్షించండి.",
+    ta: "IV திரவ மீட்பு செய்யவும். ஷாக் அறிகுறிகளை கண்காணிக்கவும்.",
+  },
+};
+
 // ══════════════════════════════════════════════
 // VOICE ID MAP PER LANGUAGE
 // ══════════════════════════════════════════════
@@ -262,9 +385,20 @@ export const VOICE_ID_MAP: Record<string, string> = {
 // ══════════════════════════════════════════════
 
 /** Resolve language key from SupportedLanguage */
-function langKey(lang: SupportedLanguage): string {
+function langKey(lang: SupportedLanguage): TranslationLanguage {
   if (lang === "unknown") return "en";
   return lang;
+}
+
+function throwMissingTranslation(kind: string, source: string, lang: SupportedLanguage): never {
+  throw new Error(`[language-lock] Missing ${kind} translation for ${lang}: ${source}`);
+}
+
+export function assertNoEnglishFallback(text: string, lang: SupportedLanguage, context: string): string {
+  if (lang !== "en" && lang !== "unknown" && /[A-Za-z]{3,}/.test(text)) {
+    throw new Error(`[language-lock] English fallback detected in ${context} for ${lang}: ${text}`);
+  }
+  return text;
 }
 
 /** Get a system message in the specified language */
@@ -274,28 +408,60 @@ export function getSystemMessage(
   vars?: Record<string, string>
 ): string {
   const lk = langKey(lang);
-  let msg = SYSTEM_MESSAGES[key]?.[lk] ?? SYSTEM_MESSAGES[key]?.en ?? key;
+  const translations = SYSTEM_MESSAGES[key];
+  if (lk !== "en" && !translations?.[lk]) {
+    throwMissingTranslation("system message", String(key), lang);
+  }
+  let msg = translations?.[lk] ?? translations?.en ?? key;
   if (vars) {
     for (const [k, v] of Object.entries(vars)) {
       msg = msg.replace(`{${k}}`, v);
     }
   }
-  return msg;
+  if (key === "files_attached") return msg;
+  return assertNoEnglishFallback(msg, lang, `system:${String(key)}`);
 }
 
 /** Translate a clinical question text to target language */
 export function translateQuestion(text: string, lang: SupportedLanguage): string {
   const lk = langKey(lang);
   if (lk === "en") return text;
-  return QUESTION_TRANSLATIONS[text]?.[lk] ?? text;
+  const translated = QUESTION_TRANSLATIONS[text]?.[lk];
+  if (!translated) {
+    throwMissingTranslation("question", text, lang);
+  }
+  return assertNoEnglishFallback(translated, lang, `question:${text}`);
 }
 
-/** Translate options array */
-export function translateOptions(options: string[] | undefined, lang: SupportedLanguage): string[] | undefined {
-  if (!options) return undefined;
+/** Translate a single option label for display while keeping raw option values canonical */
+export function translateOptionLabel(option: string, lang: SupportedLanguage): string {
   const lk = langKey(lang);
-  if (lk === "en") return options;
-  return options.map(o => OPTION_TRANSLATIONS[o]?.[lk] ?? o);
+  if (lk === "en") return option;
+  const translated = OPTION_TRANSLATIONS[option]?.[lk];
+  if (!translated) {
+    throwMissingTranslation("option", option, lang);
+  }
+  return assertNoEnglishFallback(translated, lang, `option:${option}`);
+}
+
+export function translateSafetyCondition(condition: string, lang: SupportedLanguage): string {
+  const lk = langKey(lang);
+  if (lk === "en") return condition;
+  const translated = SAFETY_CONDITION_TRANSLATIONS[condition]?.[lk];
+  if (!translated) {
+    throwMissingTranslation("safety condition", condition, lang);
+  }
+  return assertNoEnglishFallback(translated, lang, `safety-condition:${condition}`);
+}
+
+export function translateSafetyAction(action: string, lang: SupportedLanguage): string {
+  const lk = langKey(lang);
+  if (lk === "en") return action;
+  const translated = SAFETY_ACTION_TRANSLATIONS[action]?.[lk];
+  if (!translated) {
+    throwMissingTranslation("safety action", action, lang);
+  }
+  return assertNoEnglishFallback(translated, lang, `safety-action:${action}`);
 }
 
 /** Conversational tone in target language */
@@ -303,14 +469,17 @@ export function toConversationalTone(text: string, lang: SupportedLanguage): str
   const lk = langKey(lang);
   // Already conversational?
   if (/^(can you|could you|how|what|do you|have you|are you|is there|does|did|when|where|क्या|कैसे|कब|कहाँ|ఏమి|ఎంత|ఎక్కడ|எப்படி|எங்கே|என்ன)/i.test(text)) {
-    return text;
+    return assertNoEnglishFallback(text, lang, "conversational-tone");
   }
   // Terse label → wrap in conversational prefix
   if (/^(duration|severity|onset|location)/i.test(text)) {
+    if (lk !== "en") {
+      throwMissingTranslation("conversational label", text, lang);
+    }
     const prefix = CONVERSATIONAL_PREFIX[lk] ?? CONVERSATIONAL_PREFIX.en;
-    return `${prefix} ${text.toLowerCase()}?`;
+    return assertNoEnglishFallback(`${prefix} ${text.toLowerCase()}?`, lang, "conversational-tone");
   }
-  return text;
+  return assertNoEnglishFallback(text, lang, "conversational-tone");
 }
 
 /** Get voice ID for a language */

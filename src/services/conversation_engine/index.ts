@@ -23,10 +23,13 @@ import type { PipelineOutput, ClinicalQuestion, PipelineVitals } from "../pipeli
 import type { SupportedLanguage } from "../canonical/types";
 import type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
 import {
+  assertNoEnglishFallback,
   getSystemMessage,
+  translateOptionLabel,
   translateQuestion,
+  translateSafetyAction,
+  translateSafetyCondition,
   toConversationalTone as toConversationalToneML,
-  getVoiceId,
 } from "./translations";
 
 export type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
@@ -41,15 +44,23 @@ const CATEGORY_PRIORITY: Record<string, number> = {
   demographics: 5,
 };
 
-/** Conversational rewrites for robotic question text */
-function toConversationalTone(text: string): string {
-  if (/^(can you|could you|how|what|do you|have you|are you|is there|does|did|when|where)/i.test(text)) {
-    return text;
-  }
-  if (/^(duration|severity|onset|location)/i.test(text)) {
-    return `Can you tell me more about the ${text.toLowerCase()}?`;
-  }
-  return text;
+type ResponseInput =
+  | { type: "greeting" }
+  | { type: "pipeline"; input: string }
+  | { type: "vitals_recorded" }
+  | { type: "files_attached"; names: string }
+  | { type: "demographics_updated" };
+
+interface GeneratedMessage {
+  role: "system" | "question";
+  content: string;
+  question?: ClinicalQuestion;
+  questionOptionLabels?: Record<string, string>;
+}
+
+interface GeneratedResponse {
+  messages: GeneratedMessage[];
+  primaryText: string | null;
 }
 
 export class ConversationEngine {
@@ -85,8 +96,10 @@ export class ConversationEngine {
 
   setMode(mode: InteractionMode): void {
     this.sessionState.mode = mode;
-    if (mode === "voice") {
-      this.sessionState.voice.isActive = true;
+    this.sessionState.voice.isActive = mode === "voice";
+    if (mode === "text") {
+      this.sessionState.voice.turn = "idle";
+      this.sessionState.voice.isProcessing = false;
     }
   }
 
@@ -111,8 +124,9 @@ export class ConversationEngine {
     let greeting: string | null = null;
     if (!this.sessionState.voice.hasGreeted) {
       this.sessionState.voice.hasGreeted = true;
-      greeting = getSystemMessage("greeting", this.sessionState.language);
-      this.addMessage("system", greeting);
+      const response = this.generateResponse({ type: "greeting" }, this.sessionState);
+      this.appendGeneratedResponse(response);
+      greeting = response.primaryText;
     }
 
     this.sessionState.voice.turn = "user";
@@ -123,6 +137,7 @@ export class ConversationEngine {
   stopVoiceSession(): UIState {
     this.sessionState.voice.isActive = false;
     this.sessionState.voice.turn = "idle";
+    this.sessionState.voice.isProcessing = false;
     return this.getCurrentState();
   }
 
@@ -152,6 +167,9 @@ export class ConversationEngine {
   // ══════════════════════════════════════════════
 
   async processTextInput(text: string): Promise<UIState> {
+    const trimmedText = text.trim();
+    if (!trimmedText) return this.getCurrentState();
+
     // Turn-based guard for voice mode
     if (this.sessionState.mode === "voice") {
       if (this.sessionState.voice.isProcessing) return this.getCurrentState();
@@ -161,14 +179,14 @@ export class ConversationEngine {
     this.isProcessing = true;
 
     // Detect language on first meaningful input (language lock)
-    if (this.sessionState.language === "unknown") {
-      this.sessionState.language = detectLanguage(text);
-    }
+    this.lockSessionLanguage(trimmedText);
+    console.log("LANG:", this.sessionState.language);
+    console.log("INPUT:", trimmedText);
 
-    const userMsg = this.addMessage("user", text);
+    const userMsg = this.addMessage("user", trimmedText);
 
     // Extract symptoms via scribe adapter
-    const extracted = extractFromTranscript(text);
+    const extracted = extractFromTranscript(trimmedText);
     this.session.updateFromExtraction(extracted, "patient_text");
 
     // Track extracted features on user message
@@ -177,7 +195,9 @@ export class ConversationEngine {
 
     // Run pipeline + generate response
     await this.runPipeline();
-    this.generateSystemResponse();
+    this.appendGeneratedResponse(
+      this.generateResponse({ type: "pipeline", input: trimmedText }, this.sessionState)
+    );
 
     this.isProcessing = false;
 
@@ -191,7 +211,13 @@ export class ConversationEngine {
   }
 
   async answerQuestion(questionId: string, answer: string): Promise<UIState> {
+    const normalizedAnswer = answer.trim();
+    if (!normalizedAnswer) return this.getCurrentState();
+
     this.isProcessing = true;
+    this.lockSessionLanguage(normalizedAnswer);
+    console.log("LANG:", this.sessionState.language);
+    console.log("INPUT:", normalizedAnswer);
 
     // Mark question as answered (both ID and text)
     this.askedQuestionIds.add(questionId);
@@ -200,14 +226,16 @@ export class ConversationEngine {
       this.askedQuestionTexts.add(this.normalizeQuestionText(question.text));
     }
 
-    this.session.updateFromAnswers(questionId, answer);
-    this.addMessage("user", answer);
+    this.session.updateFromAnswers(questionId, normalizedAnswer);
+    this.addMessage("user", normalizedAnswer);
 
     // Remove from pending
     this.pendingQuestions = this.pendingQuestions.filter(q => q.question_id !== questionId);
 
     await this.runPipeline();
-    this.generateSystemResponse();
+    this.appendGeneratedResponse(
+      this.generateResponse({ type: "pipeline", input: normalizedAnswer }, this.sessionState)
+    );
 
     this.isProcessing = false;
     return this.getCurrentState();
@@ -215,22 +243,29 @@ export class ConversationEngine {
 
   async attachVitals(vitals: PipelineVitals): Promise<UIState> {
     this.session.attachVitals(vitals);
-    this.addMessage("system", getSystemMessage("vitals_recorded", this.sessionState.language));
     await this.runPipeline();
+    this.appendGeneratedResponse(
+      this.generateResponse({ type: "vitals_recorded" }, this.sessionState)
+    );
     return this.getCurrentState();
   }
 
   async attachFiles(files: UploadedFile[]): Promise<UIState> {
     this.session.attachFiles(files);
     const names = files.map(f => f.file_name).join(", ");
-    this.addMessage("system", getSystemMessage("files_attached", this.sessionState.language, { names }));
     await this.runPipeline();
+    this.appendGeneratedResponse(
+      this.generateResponse({ type: "files_attached", names }, this.sessionState)
+    );
     return this.getCurrentState();
   }
 
   async setDemographics(data: { age?: number; sex?: string; name?: string }): Promise<UIState> {
     this.session.setDemographics(data);
     await this.runPipeline();
+    this.appendGeneratedResponse(
+      this.generateResponse({ type: "demographics_updated" }, this.sessionState)
+    );
     return this.getCurrentState();
   }
 
@@ -298,43 +333,127 @@ export class ConversationEngine {
     this.pendingQuestions = newQuestions;
   }
 
-  private generateSystemResponse(): void {
-    if (!this.latestPipelineResult) return;
+  private generateResponse(input: ResponseInput, session: SessionState): GeneratedResponse {
+    const lang = session.language;
+    const messages: GeneratedMessage[] = [];
 
-    const lang = this.sessionState.language;
-    const result = this.latestPipelineResult;
-    const features = this.session.getCanonicalFeatures();
+    const pushMessage = (
+      role: GeneratedMessage["role"],
+      content: string,
+      context: string,
+      question?: ClinicalQuestion,
+      questionOptionLabels?: Record<string, string>,
+      validate = true
+    ) => {
+      messages.push({
+        role,
+        content: validate ? assertNoEnglishFallback(content, lang, context) : content,
+        question,
+        questionOptionLabels,
+      });
+    };
 
-    // Summary of detections (in session language)
-    if (features.length > 0) {
-      const featureList = features.map(f => f.feature_id).join(", ");
-      const confidence = (result.confidence.overall_confidence * 100).toFixed(0);
-      this.addMessage("system", getSystemMessage("noted", lang, { features: featureList, confidence }));
-    }
+    console.log("LANG:", lang);
+    console.log("INPUT:", input);
 
-    // Safety alerts
-    for (const alert of result.safety.safety_alerts) {
-      this.addMessage("system", getSystemMessage("safety_alert", lang, {
-        condition: alert.condition,
-        action: alert.action,
-      }));
-    }
-
-    // Ask next question (translated + conversational tone)
-    if (this.pendingQuestions.length > 0) {
-      const nextQ = this.pendingQuestions[0];
-      // Translate question text to session language
-      const translatedText = translateQuestion(nextQ.text, lang);
-      const conversationalText = toConversationalToneML(translatedText, lang);
-
-      // Dedup on original English text (language-invariant)
-      const normalized = this.normalizeQuestionText(nextQ.text);
-      if (!this.askedQuestionTexts.has(normalized)) {
-        this.askedQuestionTexts.add(normalized);
-        this.askedQuestionIds.add(nextQ.question_id);
-        this.sessionState.lastQuestionId = nextQ.question_id;
-        this.addMessage("question", conversationalText, nextQ);
+    if (input.type === "greeting") {
+      if (lang !== "unknown") {
+        pushMessage("system", getSystemMessage("greeting", lang), "greeting");
       }
+      console.log("OUTPUT:", messages.map(message => message.content));
+      return {
+        messages,
+        primaryText: messages.length > 0 ? messages[messages.length - 1].content : null,
+      };
+    }
+
+    if (input.type === "vitals_recorded") {
+      pushMessage("system", getSystemMessage("vitals_recorded", lang), "vitals_recorded");
+    }
+
+    if (input.type === "files_attached") {
+      pushMessage(
+        "system",
+        getSystemMessage("files_attached", lang, { names: input.names }),
+        "files_attached",
+        undefined,
+        undefined,
+        false
+      );
+    }
+
+    if (this.latestPipelineResult) {
+      const result = this.latestPipelineResult;
+      const features = this.session.getCanonicalFeatures();
+
+      if (features.length > 0) {
+        const confidence = (result.confidence.overall_confidence * 100).toFixed(0);
+        pushMessage("system", getSystemMessage("noted", lang, { confidence }), "pipeline_noted");
+      }
+
+      for (const alert of result.safety.safety_alerts) {
+        pushMessage(
+          "system",
+          getSystemMessage("safety_alert", lang, {
+            condition: translateSafetyCondition(alert.condition, lang),
+            action: translateSafetyAction(alert.action, lang),
+          }),
+          `safety:${alert.alert_id}`
+        );
+      }
+
+      if (this.pendingQuestions.length > 0) {
+        const nextQ = this.pendingQuestions[0];
+        const normalized = this.normalizeQuestionText(nextQ.text);
+
+        if (!this.askedQuestionTexts.has(normalized)) {
+          const translatedText = translateQuestion(nextQ.text, lang);
+          const conversationalText = toConversationalToneML(translatedText, lang);
+          const questionOptionLabels = nextQ.options
+            ? Object.fromEntries(nextQ.options.map(option => [option, translateOptionLabel(option, lang)]))
+            : undefined;
+
+          this.askedQuestionTexts.add(normalized);
+          this.askedQuestionIds.add(nextQ.question_id);
+          this.sessionState.lastQuestionId = nextQ.question_id;
+
+          pushMessage(
+            "question",
+            conversationalText,
+            `question:${nextQ.question_id}`,
+            nextQ,
+            questionOptionLabels
+          );
+        }
+      }
+    }
+
+    console.log("OUTPUT:", messages.map(message => message.content));
+
+    const primaryMessage = [...messages].reverse().find(
+      message => message.role === "question" || message.role === "system"
+    );
+
+    return {
+      messages,
+      primaryText: primaryMessage?.content ?? null,
+    };
+  }
+
+  private lockSessionLanguage(text: string): void {
+    if (this.sessionState.language !== "unknown") return;
+
+    const detectedLanguage = detectLanguage(text);
+    console.log("DETECTED_LANG:", detectedLanguage);
+
+    if (detectedLanguage !== "unknown") {
+      this.sessionState.language = detectedLanguage;
+    }
+  }
+
+  private appendGeneratedResponse(response: GeneratedResponse): void {
+    for (const message of response.messages) {
+      this.addMessage(message.role, message.content, message.question, message.questionOptionLabels);
     }
   }
 
@@ -346,7 +465,8 @@ export class ConversationEngine {
   private addMessage(
     role: ConversationMessage["role"],
     content: string,
-    question?: ClinicalQuestion
+    question?: ClinicalQuestion,
+    questionOptionLabels?: Record<string, string>
   ): ConversationMessage {
     const msg: ConversationMessage = {
       id: `msg_${this.messageCounter++}`,
@@ -354,6 +474,7 @@ export class ConversationEngine {
       content,
       timestamp: new Date().toISOString(),
       question,
+      question_option_labels: questionOptionLabels,
     };
     this.messages.push(msg);
     return msg;
