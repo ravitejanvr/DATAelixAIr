@@ -93,9 +93,11 @@ export interface QuestionEngineOutput {
 export interface ClinicalQuestion {
   question_id: string;
   text: string;
-  category: "symptom_detail" | "duration" | "severity" | "history" | "risk_factor" | "vital" | "allergy";
+  category: "symptom_detail" | "duration" | "severity" | "history" | "risk_factor" | "vital" | "allergy"
+    | "chief_complaint" | "associated_symptoms" | "red_flags" | "medications" | "age" | "sex"
+    | "medical_history" | "family_history" | "risk_factors" | string;
   priority: "critical" | "high" | "medium" | "low";
-  triggered_by: string;  // canonical_id that triggered this
+  triggered_by?: string;  // canonical_id that triggered this (optional for LLM-generated)
   options?: string[];
 }
 
