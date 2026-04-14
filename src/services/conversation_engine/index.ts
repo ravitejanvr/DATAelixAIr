@@ -91,6 +91,7 @@ export class ConversationEngine {
       transcriptBuffer: [],
       lastQuestionId: null,
       voice: { isActive: false, turn: "idle", hasGreeted: false, isProcessing: false },
+      collectedFields: {},
     };
   }
 
