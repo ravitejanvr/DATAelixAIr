@@ -27,7 +27,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   // ── Constitutional ──
   FEVER: {
     canonical_id: "FEVER", label: "Fever", snomed_id: "386661006", category: "constitutional",
-    synonyms: ["fever", "pyrexia", "high temperature", "febrile", "bukhar", "high fever", "temperature", "low grade fever", "slight fever", "mild fever"],
+    synonyms: ["fever", "pyrexia", "high temperature", "febrile", "bukhar", "high fever", "temperature", "low grade fever", "slight fever", "mild fever", "बुखार", "జ్వరం", "காய்ச்சல்"],
   },
   CHILLS: {
     canonical_id: "CHILLS", label: "Chills", snomed_id: "43724002", category: "constitutional",
@@ -61,7 +61,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   // ── Respiratory ──
   COUGH: {
     canonical_id: "COUGH", label: "Cough", snomed_id: "49727002", category: "respiratory",
-    synonyms: ["cough", "khansi"],
+    synonyms: ["cough", "khansi", "खांसी", "దగ్గు", "இருமல்"],
   },
   PRODUCTIVE_COUGH: {
     canonical_id: "PRODUCTIVE_COUGH", label: "Productive Cough", snomed_id: "28743005", category: "respiratory",
@@ -73,7 +73,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   },
   DYSPNEA: {
     canonical_id: "DYSPNEA", label: "Dyspnea", snomed_id: "267036007", category: "respiratory",
-    synonyms: ["dyspnea", "breathlessness", "shortness of breath", "difficulty breathing", "breathing difficulty", "can't breathe", "labored breathing", "sob", "sans lene mein taklif"],
+    synonyms: ["dyspnea", "breathlessness", "shortness of breath", "difficulty breathing", "breathing difficulty", "can't breathe", "labored breathing", "sob", "sans lene mein taklif", "सांस की तकलीफ", "ఊపిరి ఆడటం లేదు", "மூச்சுத்திணறல்"],
   },
   WHEEZING: {
     canonical_id: "WHEEZING", label: "Wheezing", snomed_id: "56018004", category: "respiratory",
@@ -99,7 +99,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   // ── Cardiovascular ──
   CHEST_PAIN: {
     canonical_id: "CHEST_PAIN", label: "Chest Pain", snomed_id: "29857009", category: "cardiovascular",
-    synonyms: ["chest pain", "thoracic pain", "seene mein dard", "chest tightness", "chest pressure", "chest discomfort"],
+    synonyms: ["chest pain", "thoracic pain", "seene mein dard", "chest tightness", "chest pressure", "chest discomfort", "सीने में दर्द", "ఛాతీ నొప్పి", "நெஞ்சு வலி"],
   },
   PALPITATIONS: {
     canonical_id: "PALPITATIONS", label: "Palpitations", snomed_id: "80313002", category: "cardiovascular",
@@ -133,7 +133,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   // ── Gastrointestinal ──
   ABDOMINAL_PAIN: {
     canonical_id: "ABDOMINAL_PAIN", label: "Abdominal Pain", snomed_id: "21522001", category: "gastrointestinal",
-    synonyms: ["abdominal pain", "stomach pain", "tummy pain", "belly pain", "stomach ache", "abdominal discomfort", "pet dard", "pet mein dard"],
+    synonyms: ["abdominal pain", "stomach pain", "tummy pain", "belly pain", "stomach ache", "abdominal discomfort", "pet dard", "pet mein dard", "पेट दर्द", "కడుపు నొప్పి", "வயிற்று வலி"],
   },
   NAUSEA: {
     canonical_id: "NAUSEA", label: "Nausea", snomed_id: "422587007", category: "gastrointestinal",
@@ -141,11 +141,11 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   },
   VOMITING: {
     canonical_id: "VOMITING", label: "Vomiting", snomed_id: "422400008", category: "gastrointestinal",
-    synonyms: ["vomiting", "emesis", "throwing up", "puking", "ulti"],
+    synonyms: ["vomiting", "emesis", "throwing up", "puking", "ulti", "उल्टी", "వాంతి", "வாந்தி"],
   },
   DIARRHEA: {
     canonical_id: "DIARRHEA", label: "Diarrhea", snomed_id: "62315008", category: "gastrointestinal",
-    synonyms: ["diarrhea", "diarrhoea", "loose motions", "loose stools", "watery stools", "frequent stools", "dast"],
+    synonyms: ["diarrhea", "diarrhoea", "loose motions", "loose stools", "watery stools", "frequent stools", "dast", "दस्त", "విరేచనాలు", "வயிற்றுப்போக்கு"],
   },
   HEARTBURN: {
     canonical_id: "HEARTBURN", label: "Heartburn", snomed_id: "16331000", category: "gastrointestinal",
@@ -187,11 +187,11 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   // ── Neurological ──
   HEADACHE: {
     canonical_id: "HEADACHE", label: "Headache", snomed_id: "25064002", category: "neurological",
-    synonyms: ["headache", "head pain", "cephalalgia", "sir dard", "sir mein dard", "migraine"],
+    synonyms: ["headache", "head pain", "cephalalgia", "sir dard", "sir mein dard", "migraine", "सिर दर्द", "తలనొప్పి", "தலைவலி"],
   },
   DIZZINESS: {
     canonical_id: "DIZZINESS", label: "Dizziness", snomed_id: "404640003", category: "neurological",
-    synonyms: ["dizziness", "vertigo", "lightheadedness", "giddiness", "room spinning", "chakkar", "chakkar aa raha hai"],
+    synonyms: ["dizziness", "vertigo", "lightheadedness", "giddiness", "room spinning", "chakkar", "chakkar aa raha hai", "चक्कर", "తల తిరగడం", "தலைச்சுற்றல்"],
   },
   SYNCOPE: {
     canonical_id: "SYNCOPE", label: "Syncope", snomed_id: "271594007", category: "neurological",
@@ -215,7 +215,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   },
   WEAKNESS: {
     canonical_id: "WEAKNESS", label: "Weakness", snomed_id: "13791008", category: "neurological",
-    synonyms: ["weakness", "weakness in arm", "weakness in leg", "general weakness", "body weakness"],
+    synonyms: ["weakness", "weakness in arm", "weakness in leg", "general weakness", "body weakness", "कमज़ोरी", "బలహీనత", "பலவீனம்"],
   },
   SPEECH_DIFFICULTY: {
     canonical_id: "SPEECH_DIFFICULTY", label: "Speech Difficulty", snomed_id: "29164008", category: "neurological",
