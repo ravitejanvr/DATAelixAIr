@@ -2,9 +2,12 @@
  * Conversation Engine Types — V4 Interaction Layer
  */
 
-import type { CanonicalFeature } from "../canonical/types";
+import type { CanonicalFeature, SupportedLanguage } from "../canonical/types";
 import type { ClinicalQuestion, PipelineOutput } from "../pipeline/types";
 import type { TrackedFeature, UploadedFile } from "../session_context/types";
+
+/** Interaction mode */
+export type InteractionMode = "voice" | "text";
 
 /** A single message in the conversation */
 export interface ConversationMessage {
@@ -18,6 +21,14 @@ export interface ConversationMessage {
   extracted_features?: string[];
 }
 
+/** Persistent session state */
+export interface SessionState {
+  mode: InteractionMode;
+  language: SupportedLanguage;
+  transcriptBuffer: string[];
+  lastQuestionId: string | null;
+}
+
 /** Current state exposed to UI */
 export interface UIState {
   messages: ConversationMessage[];
@@ -28,4 +39,5 @@ export interface UIState {
   is_processing: boolean;
   turn_count: number;
   minimum_context_met: boolean;
+  session: SessionState;
 }
