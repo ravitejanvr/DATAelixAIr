@@ -22,6 +22,12 @@ import { runClinicalPipelineV4 } from "../pipeline";
 import type { PipelineOutput, ClinicalQuestion, PipelineVitals } from "../pipeline/types";
 import type { SupportedLanguage } from "../canonical/types";
 import type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
+import {
+  getSystemMessage,
+  translateQuestion,
+  toConversationalTone as toConversationalToneML,
+  getVoiceId,
+} from "./translations";
 
 export type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
 
@@ -105,7 +111,7 @@ export class ConversationEngine {
     let greeting: string | null = null;
     if (!this.sessionState.voice.hasGreeted) {
       this.sessionState.voice.hasGreeted = true;
-      greeting = "Hello, what brings you in today?";
+      greeting = getSystemMessage("greeting", this.sessionState.language);
       this.addMessage("system", greeting);
     }
 
@@ -209,7 +215,7 @@ export class ConversationEngine {
 
   async attachVitals(vitals: PipelineVitals): Promise<UIState> {
     this.session.attachVitals(vitals);
-    this.addMessage("system", "Vitals recorded.");
+    this.addMessage("system", getSystemMessage("vitals_recorded", this.sessionState.language));
     await this.runPipeline();
     return this.getCurrentState();
   }
@@ -217,7 +223,7 @@ export class ConversationEngine {
   async attachFiles(files: UploadedFile[]): Promise<UIState> {
     this.session.attachFiles(files);
     const names = files.map(f => f.file_name).join(", ");
-    this.addMessage("system", `Files attached: ${names}`);
+    this.addMessage("system", getSystemMessage("files_attached", this.sessionState.language, { names }));
     await this.runPipeline();
     return this.getCurrentState();
   }
@@ -295,28 +301,34 @@ export class ConversationEngine {
   private generateSystemResponse(): void {
     if (!this.latestPipelineResult) return;
 
+    const lang = this.sessionState.language;
     const result = this.latestPipelineResult;
     const features = this.session.getCanonicalFeatures();
 
-    // Summary of detections
+    // Summary of detections (in session language)
     if (features.length > 0) {
       const featureList = features.map(f => f.feature_id).join(", ");
-      this.addMessage("system",
-        `Noted: ${featureList}. Confidence: ${(result.confidence.overall_confidence * 100).toFixed(0)}%`
-      );
+      const confidence = (result.confidence.overall_confidence * 100).toFixed(0);
+      this.addMessage("system", getSystemMessage("noted", lang, { features: featureList, confidence }));
     }
 
     // Safety alerts
     for (const alert of result.safety.safety_alerts) {
-      this.addMessage("system", `⚠️ ${alert.condition} — ${alert.action}`);
+      this.addMessage("system", getSystemMessage("safety_alert", lang, {
+        condition: alert.condition,
+        action: alert.action,
+      }));
     }
 
-    // Ask next question (only one at a time, conversational tone)
+    // Ask next question (translated + conversational tone)
     if (this.pendingQuestions.length > 0) {
       const nextQ = this.pendingQuestions[0];
-      const conversationalText = toConversationalTone(nextQ.text);
+      // Translate question text to session language
+      const translatedText = translateQuestion(nextQ.text, lang);
+      const conversationalText = toConversationalToneML(translatedText, lang);
 
-      const normalized = this.normalizeQuestionText(conversationalText);
+      // Dedup on original English text (language-invariant)
+      const normalized = this.normalizeQuestionText(nextQ.text);
       if (!this.askedQuestionTexts.has(normalized)) {
         this.askedQuestionTexts.add(normalized);
         this.askedQuestionIds.add(nextQ.question_id);
