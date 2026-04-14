@@ -146,9 +146,15 @@ export class ConversationEngine {
   // ══════════════════════════════════════════════
 
   async processTextInput(text: string): Promise<UIState> {
+    // Turn-based guard for voice mode
+    if (this.sessionState.mode === "voice") {
+      if (this.sessionState.voice.isProcessing) return this.getCurrentState();
+      this.sessionState.voice.turn = "system";
+      this.sessionState.voice.isProcessing = true;
+    }
     this.isProcessing = true;
 
-    // Detect language on first meaningful input
+    // Detect language on first meaningful input (language lock)
     if (this.sessionState.language === "unknown") {
       this.sessionState.language = detectLanguage(text);
     }
@@ -168,6 +174,13 @@ export class ConversationEngine {
     this.generateSystemResponse();
 
     this.isProcessing = false;
+
+    // Release turn back to user
+    if (this.sessionState.mode === "voice") {
+      this.sessionState.voice.isProcessing = false;
+      this.sessionState.voice.turn = "user";
+    }
+
     return this.getCurrentState();
   }
 
