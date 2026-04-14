@@ -43,6 +43,7 @@ import {
 } from "./llm_extraction";
 import {
   assertNoEnglishFallback,
+  purifyForLanguage,
   getSystemMessage,
   translateOptionLabel,
   translateQuestion,
