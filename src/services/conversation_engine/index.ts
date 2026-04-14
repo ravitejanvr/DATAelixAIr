@@ -195,19 +195,30 @@ export class ConversationEngine {
 
     const userMsg = this.addMessage("user", trimmedText);
 
-    // Extract symptoms via scribe adapter
+    // ── DUAL EXTRACTION: regex (fast) + LLM (intelligent) ──
+
+    // 1. Regex-based extraction for immediate canonical mapping
     const extracted = extractFromTranscript(trimmedText);
     this.session.updateFromExtraction(extracted, "patient_text");
 
-    // Track extracted features on user message
     const features = this.session.getCanonicalFeatures();
     userMsg.extracted_features = features.map(f => f.feature_id);
 
-    // Run pipeline + generate response
+    // 2. LLM-based extraction for intelligent entity understanding + next question
+    const llmResult = await this.runLLMExtraction(trimmedText);
+
+    // Run pipeline with accumulated context
     await this.runPipeline();
-    this.appendGeneratedResponse(
-      this.generateResponse({ type: "pipeline", input: trimmedText }, this.sessionState)
-    );
+
+    // Generate response using LLM result (acknowledgment + dynamic question)
+    if (llmResult) {
+      this.appendLLMResponse(llmResult);
+    } else {
+      // Fallback: use pipeline-generated questions
+      this.appendGeneratedResponse(
+        this.generateResponse({ type: "pipeline", input: trimmedText }, this.sessionState)
+      );
+    }
 
     this.isProcessing = false;
 
