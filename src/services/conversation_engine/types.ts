@@ -6,6 +6,7 @@ import type { CanonicalFeature, SupportedLanguage } from "../canonical/types";
 import type { ClinicalQuestion, PipelineOutput } from "../pipeline/types";
 import type { TrackedFeature, UploadedFile } from "../session_context/types";
 import type { CollectedFields, LLMNextQuestion } from "./llm_extraction";
+import type { ConversationState } from "./turn_controller";
 
 /** Interaction mode */
 export type InteractionMode = "voice" | "text";
@@ -29,9 +30,7 @@ export interface ConversationMessage {
 /** Voice session state for turn-based control */
 export interface VoiceSession {
   isActive: boolean;
-  turn: "user" | "system" | "idle";
   hasGreeted: boolean;
-  isProcessing: boolean;
 }
 
 /** Persistent session state */
@@ -43,6 +42,8 @@ export interface SessionState {
   voice: VoiceSession;
   /** LLM-tracked collected fields */
   collectedFields: CollectedFields;
+  /** FSM state from TurnController */
+  fsm_state: ConversationState;
 }
 
 /** Current state exposed to UI */
