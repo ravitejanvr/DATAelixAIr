@@ -90,13 +90,8 @@ export default function ClinicalInteraction() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Pre-load Web Speech voices (some browsers load async)
-  useEffect(() => {
-    window.speechSynthesis?.getVoices();
-    window.speechSynthesis?.addEventListener?.("voiceschanged", () => {
-      window.speechSynthesis.getVoices();
-    });
-  }, []);
+  // ElevenLabs Scribe for realtime STT
+
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
     commitStrategy: CommitStrategy.VAD,
