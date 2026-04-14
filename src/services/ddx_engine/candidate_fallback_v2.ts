@@ -7,30 +7,31 @@
  *   3. Context-aware candidate ranking (age, sex, history adjustments)
  *   4. Integration with Phase 5 candidate hints from context expander
  *
+ * 🚫 RAW STRING USAGE FORBIDDEN — All symptom matching uses canonical feature IDs
+ *
  * Still tags all candidates with source = "fallback_v2" for traceability.
  * Replaces applyCandidateFallback when Phase 5 is enabled.
  */
 
 import type { DDXDiagnosis, DDXResult } from "../ddx_engine/client";
 import type { CandidateHint } from "../context_candidate_expander";
+import { resolveCanonicalId } from "@/services/canonical";
 
 const SPARSE_THRESHOLD = 3;
 const MAX_FALLBACK_CANDIDATES = 5;
-const MAX_TOTAL_INJECTED = 8; // fallback + hints combined cap
+const MAX_TOTAL_INJECTED = 8;
 
-// ── Weighted Fallback Rules ──
+// ── Weighted Fallback Rules using CANONICAL FEATURE IDs ──
 
 interface WeightedFallbackRule {
   id: string;
-  keywords: string[];
-  min_keyword_matches: number;
-  /** Base confidence multiplier for this cluster (0-1) */
+  feature_ids: string[];         // Canonical feature IDs
+  min_feature_matches: number;
   cluster_confidence: number;
   candidates: Array<{
     diagnosis_name: string;
     category: string;
     must_not_miss: boolean;
-    /** Base probability score (0-100) — modulated by match strength */
     base_score: number;
   }>;
 }
@@ -38,8 +39,8 @@ interface WeightedFallbackRule {
 const WEIGHTED_RULES: WeightedFallbackRule[] = [
   {
     id: "cardiac_cluster",
-    keywords: ["chest pain", "palpitations", "diaphoresis", "crushing chest", "left arm pain", "jaw pain", "exertional dyspnea"],
-    min_keyword_matches: 1,
+    feature_ids: ["CHEST_PAIN", "PALPITATIONS", "DIAPHORESIS", "DYSPNEA", "PLEURITIC_CHEST_PAIN"],
+    min_feature_matches: 1,
     cluster_confidence: 0.8,
     candidates: [
       { diagnosis_name: "Acute Coronary Syndrome", category: "cardiovascular", must_not_miss: true, base_score: 15 },
@@ -50,8 +51,8 @@ const WEIGHTED_RULES: WeightedFallbackRule[] = [
   },
   {
     id: "neuro_cluster",
-    keywords: ["headache", "confusion", "seizure", "weakness", "numbness", "slurred speech", "facial droop", "visual disturbance", "photophobia", "neck stiffness"],
-    min_keyword_matches: 2,
+    feature_ids: ["HEADACHE", "CONFUSION", "SEIZURE", "WEAKNESS", "TINGLING", "SPEECH_DIFFICULTY", "FACIAL_DROOP", "BLURRED_VISION", "PHOTOPHOBIA", "NECK_STIFFNESS"],
+    min_feature_matches: 2,
     cluster_confidence: 0.7,
     candidates: [
       { diagnosis_name: "Stroke", category: "neurological", must_not_miss: true, base_score: 15 },
@@ -62,8 +63,8 @@ const WEIGHTED_RULES: WeightedFallbackRule[] = [
   },
   {
     id: "respiratory_cluster",
-    keywords: ["shortness of breath", "dyspnea", "cough", "wheezing", "hemoptysis", "pleuritic chest pain", "stridor"],
-    min_keyword_matches: 1,
+    feature_ids: ["DYSPNEA", "COUGH", "WHEEZING", "HEMOPTYSIS", "PLEURITIC_CHEST_PAIN", "STRIDOR"],
+    min_feature_matches: 1,
     cluster_confidence: 0.75,
     candidates: [
       { diagnosis_name: "Pulmonary Embolism", category: "respiratory", must_not_miss: true, base_score: 12 },
@@ -74,8 +75,8 @@ const WEIGHTED_RULES: WeightedFallbackRule[] = [
   },
   {
     id: "abdominal_cluster",
-    keywords: ["abdominal pain", "nausea", "vomiting", "diarrhea", "constipation", "abdominal cramps", "melena", "hematemesis"],
-    min_keyword_matches: 2,
+    feature_ids: ["ABDOMINAL_PAIN", "NAUSEA", "VOMITING", "DIARRHEA", "CONSTIPATION", "ABDOMINAL_CRAMPS", "MELENA", "HEMATEMESIS"],
+    min_feature_matches: 2,
     cluster_confidence: 0.7,
     candidates: [
       { diagnosis_name: "Appendicitis", category: "gastrointestinal", must_not_miss: true, base_score: 12 },
@@ -86,8 +87,8 @@ const WEIGHTED_RULES: WeightedFallbackRule[] = [
   },
   {
     id: "sepsis_cluster",
-    keywords: ["fever", "chills", "rigors", "confusion", "tachycardia", "hypotension"],
-    min_keyword_matches: 2,
+    feature_ids: ["FEVER", "CHILLS", "CONFUSION", "TACHYCARDIA"],
+    min_feature_matches: 2,
     cluster_confidence: 0.85,
     candidates: [
       { diagnosis_name: "Sepsis", category: "infectious", must_not_miss: true, base_score: 15 },
@@ -97,8 +98,8 @@ const WEIGHTED_RULES: WeightedFallbackRule[] = [
   },
   {
     id: "pediatric_cluster",
-    keywords: ["leukocoria", "strabismus", "white pupil", "eye swelling", "proptosis"],
-    min_keyword_matches: 1,
+    feature_ids: ["LEUKOCORIA"],
+    min_feature_matches: 1,
     cluster_confidence: 0.9,
     candidates: [
       { diagnosis_name: "Retinoblastoma", category: "oncological", must_not_miss: true, base_score: 12 },
@@ -107,8 +108,8 @@ const WEIGHTED_RULES: WeightedFallbackRule[] = [
   },
   {
     id: "endocrine_cluster",
-    keywords: ["polyuria", "polydipsia", "weight loss", "fatigue", "blurred vision", "fruity breath"],
-    min_keyword_matches: 2,
+    feature_ids: ["POLYURIA", "POLYDIPSIA", "WEIGHT_LOSS", "FATIGUE", "BLURRED_VISION", "FRUITY_BREATH"],
+    min_feature_matches: 2,
     cluster_confidence: 0.75,
     candidates: [
       { diagnosis_name: "Diabetic Ketoacidosis", category: "endocrine", must_not_miss: true, base_score: 14 },
@@ -118,8 +119,8 @@ const WEIGHTED_RULES: WeightedFallbackRule[] = [
   },
   {
     id: "toxicology_cluster",
-    keywords: ["tremor", "confusion", "ataxia", "nausea", "vomiting", "blurred vision", "polyuria"],
-    min_keyword_matches: 2,
+    feature_ids: ["CONFUSION", "NAUSEA", "VOMITING", "BLURRED_VISION", "POLYURIA"],
+    min_feature_matches: 2,
     cluster_confidence: 0.65,
     candidates: [
       { diagnosis_name: "Lithium Toxicity", category: "toxicological", must_not_miss: true, base_score: 10 },
@@ -129,8 +130,8 @@ const WEIGHTED_RULES: WeightedFallbackRule[] = [
   },
   {
     id: "surgical_cluster",
-    keywords: ["scrotal pain", "perineal pain", "testicular pain", "scrotal swelling", "foul smell", "crepitus", "skin necrosis"],
-    min_keyword_matches: 1,
+    feature_ids: ["CREPITUS"],
+    min_feature_matches: 1,
     cluster_confidence: 0.8,
     candidates: [
       { diagnosis_name: "Fournier Gangrene", category: "surgical", must_not_miss: true, base_score: 12 },
@@ -140,8 +141,8 @@ const WEIGHTED_RULES: WeightedFallbackRule[] = [
   },
   {
     id: "allergic_cluster",
-    keywords: ["rash", "urticaria", "swelling", "difficulty breathing", "angioedema", "itching"],
-    min_keyword_matches: 2,
+    feature_ids: ["RASH", "SWELLING", "DYSPNEA", "ITCHING"],
+    min_feature_matches: 2,
     cluster_confidence: 0.75,
     candidates: [
       { diagnosis_name: "Anaphylaxis", category: "immunological", must_not_miss: true, base_score: 15 },
@@ -151,8 +152,8 @@ const WEIGHTED_RULES: WeightedFallbackRule[] = [
   },
   {
     id: "spinal_cluster",
-    keywords: ["back pain", "leg weakness", "urinary retention", "saddle anesthesia", "bowel incontinence", "bilateral leg pain"],
-    min_keyword_matches: 2,
+    feature_ids: ["BACK_PAIN", "WEAKNESS", "SADDLE_ANESTHESIA", "URINARY_INCONTINENCE"],
+    min_feature_matches: 2,
     cluster_confidence: 0.85,
     candidates: [
       { diagnosis_name: "Cauda Equina Syndrome", category: "neurological", must_not_miss: true, base_score: 14 },
@@ -172,7 +173,29 @@ export interface FallbackV2Meta {
 }
 
 /**
+ * Convert raw symptom strings to canonical feature IDs.
+ */
+function buildFeatureSet(symptoms: string[]): Set<string> {
+  const featureSet = new Set<string>();
+  for (const s of symptoms) {
+    const trimmed = String(s).trim();
+    if (!trimmed) continue;
+    if (/^[A-Z][A-Z0-9_]+$/.test(trimmed)) {
+      featureSet.add(trimmed);
+    } else {
+      const canonicalId = resolveCanonicalId(trimmed);
+      if (canonicalId) {
+        featureSet.add(canonicalId);
+      }
+    }
+  }
+  return featureSet;
+}
+
+/**
  * Apply candidate fallback v2 with probability weighting and context hints.
+ *
+ * 🚫 RAW STRING USAGE FORBIDDEN BEYOND THIS POINT
  */
 export function applyCandidateFallbackV2(
   ddxResult: DDXResult | null,
@@ -187,7 +210,6 @@ export function applyCandidateFallbackV2(
 ): { ddx: DDXResult | null; fallback: FallbackV2Meta } {
   const organicCount = ddxResult?.differential_diagnoses?.length ?? 0;
 
-  // Check if fallback is needed
   if (organicCount >= SPARSE_THRESHOLD && ddxResult && candidateHints.length === 0) {
     return {
       ddx: ddxResult,
@@ -203,13 +225,14 @@ export function applyCandidateFallbackV2(
     };
   }
 
-  const normalizedSymptoms = new Set(
-    symptoms.map(s => String(s).toLowerCase().trim()).filter(Boolean)
-  );
+  // 🚫 RAW STRING USAGE FORBIDDEN — Convert to canonical IDs
+  const featureSet = buildFeatureSet(symptoms);
 
-  // Medication-based signal injection
+  // Medication-based signal: check for lithium
   const meds = (context?.medications || []).map(m => m.toLowerCase());
-  if (meds.some(m => m.includes("lithium"))) normalizedSymptoms.add("lithium");
+  if (meds.some(m => m === "lithium" || m.startsWith("lithium "))) {
+    featureSet.add("_MED_LITHIUM");
+  }
 
   // Existing candidate names for dedup
   const existingNames = new Set(
@@ -231,7 +254,7 @@ export function applyCandidateFallbackV2(
       diagnosis_name: hint.diagnosis_name,
       icd10_code: null,
       category: hint.source,
-      probability: Math.round(hint.confidence * 10), // Scale confidence to initial score
+      probability: Math.round(hint.confidence * 10),
       supporting_symptoms: [],
       contradicting_factors: [],
       symptom_coverage: "context_hint",
@@ -247,14 +270,18 @@ export function applyCandidateFallbackV2(
     for (const rule of WEIGHTED_RULES) {
       if (fallbackCandidates.length >= MAX_TOTAL_INJECTED) break;
 
-      const matchedKeywords = rule.keywords.filter(k =>
-        [...normalizedSymptoms].some(s => s.includes(k) || k.includes(s))
-      );
-      const matchCount = matchedKeywords.length;
+      // Match canonical feature IDs
+      const matchedFeatures = rule.feature_ids.filter(fid => featureSet.has(fid));
+      let matchCount = matchedFeatures.length;
 
-      if (matchCount >= rule.min_keyword_matches) {
+      // Special: toxicology cluster also activates on lithium medication
+      if (rule.id === "toxicology_cluster" && featureSet.has("_MED_LITHIUM")) {
+        matchCount++;
+      }
+
+      if (matchCount >= rule.min_feature_matches) {
         rulesMatched.push(rule.id);
-        const matchStrength = Math.min(1, matchCount / Math.max(rule.min_keyword_matches * 2, 3));
+        const matchStrength = Math.min(1, matchCount / Math.max(rule.min_feature_matches * 2, 3));
 
         for (const candidate of rule.candidates) {
           if (fallbackCandidates.length >= MAX_TOTAL_INJECTED) break;
@@ -263,7 +290,6 @@ export function applyCandidateFallbackV2(
           if (existingNames.has(nameKey)) continue;
           if (fallbackCandidates.some(f => f.diagnosis_name.toLowerCase() === nameKey)) continue;
 
-          // Weighted probability: base_score * cluster_confidence * match_strength
           const weightedScore = Math.round(
             candidate.base_score * rule.cluster_confidence * (0.5 + matchStrength * 0.5)
           );
@@ -274,7 +300,7 @@ export function applyCandidateFallbackV2(
             icd10_code: null,
             category: candidate.category,
             probability: weightedScore,
-            supporting_symptoms: matchedKeywords,
+            supporting_symptoms: matchedFeatures, // Canonical IDs
             contradicting_factors: [],
             symptom_coverage: "fallback_v2",
             must_not_miss: candidate.must_not_miss,
@@ -292,7 +318,6 @@ export function applyCandidateFallbackV2(
     return fallbackCandidates.some(f => f.diagnosis_name.toLowerCase().trim() === k);
   }).length;
 
-  // Build augmented DDX
   const baseDDX: DDXResult = ddxResult || {
     differential_diagnoses: [],
     recommended_labs: [],
