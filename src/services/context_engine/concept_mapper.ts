@@ -1,11 +1,12 @@
 /**
- * PCIE — Clinical Concept Mapping Module
+ * PCIE — Clinical Concept Mapping Module (V4 DELEGATING)
  * 
- * Maps extracted symptom phrases to canonical clinical concepts
- * using: symptom_language_map → clinical_condition_map → knowledge graph synonyms.
+ * Maps extracted symptom phrases to canonical clinical concepts.
+ * V4: Checks canonical normalizer FIRST, then falls back to
+ * symptom_language_map → clinical_condition_map → passthrough.
  */
-
 import { supabase } from "@/integrations/supabase/client";
+import { resolveCanonicalId, getCanonicalEntry } from "@/services/canonical/normalizer";
 
 export interface MappedConcept {
   original_phrase: string;
@@ -88,6 +89,20 @@ export async function mapToClinicalConcepts(
     const lower = phrase.toLowerCase().trim();
     if (!lower) continue;
 
+    // V4: Check canonical normalizer FIRST
+    const canonicalId = resolveCanonicalId(lower);
+    if (canonicalId) {
+      const entry = getCanonicalEntry(canonicalId);
+      results.push({
+        original_phrase: phrase,
+        canonical_concept: entry?.label ?? canonicalId,
+        snomed_id: entry?.snomed_id ?? null,
+        confidence: 1.0,
+        source: "synonym_fallback", // canonical system
+      });
+      continue;
+    }
+
     // 1. Check symptom_language_map cache
     const cached = synonymCache?.get(lower);
     if (cached) {
@@ -101,7 +116,7 @@ export async function mapToClinicalConcepts(
       continue;
     }
 
-    // 2. Check built-in synonyms
+    // 2. Check built-in synonyms (DEPRECATED — kept for coverage gap)
     const builtIn = BUILT_IN_SYNONYMS[lower];
     if (builtIn) {
       results.push({
