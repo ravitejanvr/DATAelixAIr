@@ -1,27 +1,27 @@
 /**
- * Conversation Engine — V4 Closed-Loop Interaction
+ * Conversation Engine — V4 Unified Clinical Interaction Pipeline
  *
- * Manages the closed-loop flow:
- *   User Input → Scribe Adapter → Canonicalization →
- *   SessionContext.update() → runClinicalPipelineV4() →
- *   Question Engine → Ask next question → Repeat
+ * SINGLE execution flow:
+ *   User Input → normalizeTranscript() → processTranscript() (scribe+canonical)
+ *   → LLM extraction → merge into SessionContextManager (SSOT)
+ *   → runClinicalPipelineV4() → question generation → UI
  *
  * Rules:
- * - Tracks asked questions (no repetition)
- * - Prioritizes: symptom expansion → severity → associated → risk → demographics
+ * - SessionContextManager is the ONLY state store
  * - No raw strings beyond canonicalization boundary
- * - Conversational tone for questions
- * - Session state tracks mode + language across turns
+ * - Questions adapt to already-known context
+ * - Unicode-safe deduplication for multilingual support
  */
 
 import { SessionContextManager } from "../session_context";
 import type { UploadedFile } from "../session_context/types";
-import { extractFromTranscript } from "../scribe_adapter/extractor";
+import { processTranscript } from "../scribe_adapter";
 import { detectLanguage } from "../canonical/normalizer";
 import { runClinicalPipelineV4 } from "../pipeline";
 import type { PipelineOutput, ClinicalQuestion, PipelineVitals } from "../pipeline/types";
 import type { SupportedLanguage } from "../canonical/types";
 import type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
+import { normalizeTranscript } from "./transcript_normalizer";
 import {
   extractClinicalEntitiesLLM,
   mergeEntitiesIntoCollected,
@@ -172,13 +172,26 @@ export class ConversationEngine {
   }
 
   // ══════════════════════════════════════════════
-  // CORE INTERACTION METHODS
+  // CORE INTERACTION — UNIFIED PIPELINE
   // ══════════════════════════════════════════════
 
+  /**
+   * MAIN ENTRY POINT for all user input (voice or text).
+   *
+   * Execution order (CORRECT):
+   *   1. Clean + normalize transcript
+   *   2. Detect & lock language
+   *   3. Run scribe extraction + canonicalization (processTranscript)
+   *   4. Run LLM extraction (semantic understanding)
+   *   5. Sync ALL results into SessionContextManager (SSOT)
+   *   6. Run clinical pipeline (reasoning + question generation)
+   *   7. Generate response (acknowledgment + next question)
+   *   8. Render to UI
+   */
   async processTextInput(text: string): Promise<UIState> {
-    // Clean STT artifacts (echo, repetition, broken unicode)
-    const trimmedText = cleanTranscript(text);
-    if (!trimmedText) return this.getCurrentState();
+    // ── Step 1: Clean STT artifacts ──
+    const cleanedText = cleanTranscript(text);
+    if (!cleanedText) return this.getCurrentState();
 
     // Turn-based guard for voice mode
     if (this.sessionState.mode === "voice") {
@@ -188,35 +201,54 @@ export class ConversationEngine {
     }
     this.isProcessing = true;
 
-    // Detect language on first meaningful input (language lock)
-    this.lockSessionLanguage(trimmedText);
-    console.log("LANG:", this.sessionState.language);
-    console.log("INPUT:", trimmedText);
+    // ── Step 2: Detect & lock language ──
+    this.lockSessionLanguage(cleanedText);
+    console.log("[PIPELINE] Lang:", this.sessionState.language, "| Input:", cleanedText);
 
-    const userMsg = this.addMessage("user", trimmedText);
+    // ── Step 3: Normalize transcript for extraction ──
+    const normalizedText = normalizeTranscript(cleanedText, this.sessionState.language);
 
-    // ── DUAL EXTRACTION: regex (fast) + LLM (intelligent) ──
+    const userMsg = this.addMessage("user", cleanedText);
 
-    // 1. Regex-based extraction for immediate canonical mapping
-    const extracted = extractFromTranscript(trimmedText);
-    this.session.updateFromExtraction(extracted, "patient_text");
+    // ── Step 4: Scribe extraction + canonicalization (ALWAYS runs) ──
+    const scribeOutput = processTranscript(normalizedText);
+    console.log("[SCRIBE] Extracted:", scribeOutput.extracted_symptoms.length, "symptoms,",
+      scribeOutput.canonicalization?.features.length ?? 0, "canonical features");
 
-    const features = this.session.getCanonicalFeatures();
-    userMsg.extracted_features = features.map(f => f.feature_id);
+    // Write scribe canonical features into SessionContextManager
+    if (scribeOutput.canonicalization?.features.length) {
+      this.session.updateFromCanonicalFeatures(
+        scribeOutput.canonicalization.features,
+        "patient_text"
+      );
+    }
+    // Also write raw extraction (for duration/severity enrichment)
+    if (scribeOutput.extracted_symptoms.length > 0) {
+      this.session.updateFromExtraction(scribeOutput.extracted_symptoms, "patient_text");
+    }
 
-    // 2. LLM-based extraction for intelligent entity understanding + next question
-    const llmResult = await this.runLLMExtraction(trimmedText);
+    // Tag user message with extracted features
+    userMsg.extracted_features = this.session.getCanonicalFeatures().map(f => f.feature_id);
 
-    // Run pipeline with accumulated context
+    // ── Step 5: LLM extraction (semantic understanding) — runs in parallel intent ──
+    const llmResult = await this.runLLMExtraction(normalizedText);
+
+    // ── Step 6: Sync LLM entities into SessionContextManager (SSOT) ──
+    if (llmResult?.extracted_entities) {
+      this.session.syncFromLLMEntities(llmResult.extracted_entities, "patient_text");
+      console.log("[SYNC] Session features after merge:", this.session.getCanonicalFeatures().length);
+    }
+
+    // ── Step 7: Run clinical pipeline with UNIFIED state ──
     await this.runPipeline();
 
-    // Generate response using LLM result (acknowledgment + dynamic question)
+    // ── Step 8: Generate response ──
     if (llmResult) {
       this.appendLLMResponse(llmResult);
     } else {
       // Fallback: use pipeline-generated questions
       this.appendGeneratedResponse(
-        this.generateResponse({ type: "pipeline", input: trimmedText }, this.sessionState)
+        this.generateResponse({ type: "pipeline", input: cleanedText }, this.sessionState)
       );
     }
 
@@ -237,10 +269,8 @@ export class ConversationEngine {
 
     this.isProcessing = true;
     this.lockSessionLanguage(normalizedAnswer);
-    console.log("LANG:", this.sessionState.language);
-    console.log("INPUT:", normalizedAnswer);
 
-    // Mark question as answered (both ID and text)
+    // Mark question as answered
     this.askedQuestionIds.add(questionId);
     const question = this.pendingQuestions.find(q => q.question_id === questionId);
     if (question) {
@@ -249,13 +279,22 @@ export class ConversationEngine {
 
     this.session.updateFromAnswers(questionId, normalizedAnswer);
     this.addMessage("user", normalizedAnswer);
-
-    // Remove from pending
     this.pendingQuestions = this.pendingQuestions.filter(q => q.question_id !== questionId);
 
-    // LLM extraction for intelligent understanding
-    const llmResult = await this.runLLMExtraction(normalizedAnswer);
+    // Normalize + scribe extract the answer too
+    const normalized = normalizeTranscript(normalizedAnswer, this.sessionState.language);
+    const scribeOutput = processTranscript(normalized);
+    if (scribeOutput.canonicalization?.features.length) {
+      this.session.updateFromCanonicalFeatures(scribeOutput.canonicalization.features, "question_answer");
+    }
 
+    // LLM extraction
+    const llmResult = await this.runLLMExtraction(normalized);
+    if (llmResult?.extracted_entities) {
+      this.session.syncFromLLMEntities(llmResult.extracted_entities, "question_answer");
+    }
+
+    // Pipeline with unified state
     await this.runPipeline();
 
     if (llmResult) {
@@ -345,10 +384,13 @@ export class ConversationEngine {
     this.latestPipelineResult = await runClinicalPipelineV4(input);
 
     // Filter out already-asked questions using both ID and normalized text
+    // Also skip questions for data we already have in session
     const newQuestions = this.latestPipelineResult.questions.questions
       .filter(q => {
         if (this.askedQuestionIds.has(q.question_id)) return false;
         if (this.askedQuestionTexts.has(this.normalizeQuestionText(q.text))) return false;
+        // Skip questions for already-collected data
+        if (this.session.hasData(q.category)) return false;
         return true;
       })
       .sort((a, b) => {
@@ -382,14 +424,10 @@ export class ConversationEngine {
       });
     };
 
-    console.log("LANG:", lang);
-    console.log("INPUT:", input);
-
     if (input.type === "greeting") {
       if (lang !== "unknown") {
         pushMessage("system", getSystemMessage("greeting", lang), "greeting");
       }
-      console.log("OUTPUT:", messages.map(message => message.content));
       return {
         messages,
         primaryText: messages.length > 0 ? messages[messages.length - 1].content : null,
@@ -457,8 +495,6 @@ export class ConversationEngine {
       }
     }
 
-    console.log("OUTPUT:", messages.map(message => message.content));
-
     const primaryMessage = [...messages].reverse().find(
       message => message.role === "question" || message.role === "system"
     );
@@ -473,8 +509,6 @@ export class ConversationEngine {
     if (this.sessionState.language !== "unknown") return;
 
     const detectedLanguage = detectLanguage(text);
-    console.log("DETECTED_LANG:", detectedLanguage);
-
     if (detectedLanguage !== "unknown") {
       this.sessionState.language = detectedLanguage;
     }
@@ -486,9 +520,16 @@ export class ConversationEngine {
     }
   }
 
-  /** Normalize question text for dedup comparison */
+  /**
+   * Unicode-safe question text normalization for dedup comparison.
+   * Handles Telugu, Hindi, Tamil, and English correctly.
+   */
   private normalizeQuestionText(text: string): string {
-    return text.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return text
+      .normalize("NFKD")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   /**
@@ -511,26 +552,12 @@ export class ConversationEngine {
         result.extracted_entities
       );
 
-      // Update session context with extracted demographics
-      if (result.extracted_entities.age || result.extracted_entities.sex) {
-        this.session.setDemographics({
-          age: result.extracted_entities.age,
-          sex: result.extracted_entities.sex,
-        });
-      }
-
-      if (result.extracted_entities.medications?.length) {
-        this.session.setMedications(result.extracted_entities.medications);
-      }
-
-      if (result.extracted_entities.allergies?.length) {
-        this.session.setAllergies(result.extracted_entities.allergies);
-      }
+      // Demographics and medications also written to SessionContextManager
+      // (syncFromLLMEntities handles this in the caller)
 
       console.log("[LLM] Collected fields:", JSON.stringify(this.sessionState.collectedFields));
       console.log("[LLM] Acknowledgment:", result.acknowledgment);
       console.log("[LLM] Next question:", result.next_question?.text);
-      console.log("[LLM] All fields collected:", result.all_fields_collected);
 
       return result;
     } catch (err) {
@@ -558,7 +585,6 @@ export class ConversationEngine {
       this.askedQuestionTexts.add(this.normalizeQuestionText(q.text));
       this.sessionState.lastQuestionId = questionId;
 
-      // Build a ClinicalQuestion-compatible object for the UI
       const clinicalQuestion: ClinicalQuestion = {
         question_id: questionId,
         text: q.text,
@@ -567,7 +593,6 @@ export class ConversationEngine {
         options: q.options,
       };
 
-      // Build option labels (already in user's language from LLM)
       const optionLabels = q.options
         ? Object.fromEntries(q.options.map(opt => [opt, opt]))
         : undefined;
@@ -575,7 +600,6 @@ export class ConversationEngine {
       const msg = this.addMessage("question", q.text, clinicalQuestion, optionLabels);
       msg.llm_question = q;
 
-      // Add to pending questions
       this.pendingQuestions = [clinicalQuestion];
     }
   }
