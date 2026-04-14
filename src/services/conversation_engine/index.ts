@@ -506,8 +506,16 @@ export class ConversationEngine {
     lang: SupportedLanguage,
   ): void {
     // Always emit LLM acknowledgment first (if available and meaningful)
+    // CRITICAL: pass through translation validation to prevent English leakage
     if (llmResult?.acknowledgment) {
-      this.addMessage("system", llmResult.acknowledgment);
+      let ack = llmResult.acknowledgment;
+      try {
+        ack = assertNoEnglishFallback(ack, lang, "llm-acknowledgment");
+      } catch {
+        // LLM returned English in a non-English session — use localized fallback
+        ack = getAcknowledgment(lang);
+      }
+      this.addMessage("system", ack);
     }
 
     switch (action.type) {
@@ -607,11 +615,31 @@ export class ConversationEngine {
     }
   }
 
+  /**
+   * Smart language lock: locks on first meaningful clinical input.
+   * Allows re-evaluation if Unicode script of new input contradicts locked language.
+   */
   private lockSessionLanguage(text: string): void {
-    if (this.sessionState.language !== "unknown") return;
     const detectedLanguage = detectLanguage(text);
-    if (detectedLanguage !== "unknown") {
+    if (detectedLanguage === "unknown") return;
+
+    if (this.sessionState.language === "unknown") {
+      // First detection — lock
       this.sessionState.language = detectedLanguage;
+      console.log("[LANG] Locked to:", detectedLanguage);
+      return;
+    }
+
+    // Re-evaluate: if user switched script (e.g. English → Telugu), update
+    if (detectedLanguage !== this.sessionState.language) {
+      const hasIndicScript = /[\u0C00-\u0C7F\u0900-\u097F\u0B80-\u0BFF]/.test(text);
+      const currentIsEnglish = this.sessionState.language === "en";
+
+      // Allow switching FROM English TO Indic, or between Indic languages
+      if (hasIndicScript || currentIsEnglish) {
+        console.log("[LANG] Re-evaluating:", this.sessionState.language, "→", detectedLanguage);
+        this.sessionState.language = detectedLanguage;
+      }
     }
   }
 
