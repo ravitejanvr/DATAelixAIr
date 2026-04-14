@@ -99,7 +99,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   // ── Cardiovascular ──
   CHEST_PAIN: {
     canonical_id: "CHEST_PAIN", label: "Chest Pain", snomed_id: "29857009", category: "cardiovascular",
-    synonyms: ["chest pain", "thoracic pain", "seene mein dard", "chest tightness", "chest pressure", "chest discomfort"],
+    synonyms: ["chest pain", "thoracic pain", "seene mein dard", "chest tightness", "chest pressure", "chest discomfort", "सीने में दर्द", "ఛాతీ నొప్పి", "நெஞ்சு வலி"],
   },
   PALPITATIONS: {
     canonical_id: "PALPITATIONS", label: "Palpitations", snomed_id: "80313002", category: "cardiovascular",
@@ -133,7 +133,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   // ── Gastrointestinal ──
   ABDOMINAL_PAIN: {
     canonical_id: "ABDOMINAL_PAIN", label: "Abdominal Pain", snomed_id: "21522001", category: "gastrointestinal",
-    synonyms: ["abdominal pain", "stomach pain", "tummy pain", "belly pain", "stomach ache", "abdominal discomfort", "pet dard", "pet mein dard"],
+    synonyms: ["abdominal pain", "stomach pain", "tummy pain", "belly pain", "stomach ache", "abdominal discomfort", "pet dard", "pet mein dard", "पेट दर्द", "కడుపు నొప్పి", "வயிற்று வலி"],
   },
   NAUSEA: {
     canonical_id: "NAUSEA", label: "Nausea", snomed_id: "422587007", category: "gastrointestinal",
@@ -141,11 +141,11 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   },
   VOMITING: {
     canonical_id: "VOMITING", label: "Vomiting", snomed_id: "422400008", category: "gastrointestinal",
-    synonyms: ["vomiting", "emesis", "throwing up", "puking", "ulti"],
+    synonyms: ["vomiting", "emesis", "throwing up", "puking", "ulti", "उल्टी", "వాంతి", "வாந்தி"],
   },
   DIARRHEA: {
     canonical_id: "DIARRHEA", label: "Diarrhea", snomed_id: "62315008", category: "gastrointestinal",
-    synonyms: ["diarrhea", "diarrhoea", "loose motions", "loose stools", "watery stools", "frequent stools", "dast"],
+    synonyms: ["diarrhea", "diarrhoea", "loose motions", "loose stools", "watery stools", "frequent stools", "dast", "दस्त", "విరేచనాలు", "வயிற்றுப்போக்கு"],
   },
   HEARTBURN: {
     canonical_id: "HEARTBURN", label: "Heartburn", snomed_id: "16331000", category: "gastrointestinal",
