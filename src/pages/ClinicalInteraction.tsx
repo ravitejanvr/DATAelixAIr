@@ -303,6 +303,7 @@ export default function ClinicalInteraction() {
                 {state.minimum_context_met ? "Context Met" : "Needs Data"}
               </Badge>
               <Badge variant="outline" className="text-[10px]">Turn {state.turn_count}</Badge>
+              <Badge variant="outline" className="text-[10px] font-mono">{state.session.fsm_state}</Badge>
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleReset}>
                 <RotateCcw className="h-3.5 w-3.5" />
               </Button>
