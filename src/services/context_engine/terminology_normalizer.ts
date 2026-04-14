@@ -1,9 +1,14 @@
 /**
- * PCIE — Terminology Normalizer
+ * PCIE — Terminology Normalizer (V4 DELEGATING WRAPPER)
  * 
- * Resolves symptom synonyms to canonical forms recognized by the knowledge graph.
- * This ensures the reasoning pipeline matches symptoms regardless of phrasing.
+ * This module now delegates to the canonical normalizer for synonym resolution.
+ * The legacy SYNONYM_MAP is preserved as a FALLBACK for terms not yet in the
+ * canonical system, but the canonical normalizer is checked FIRST.
+ * 
+ * Migration path: As canonical coverage reaches 100%, this file can be deleted.
  */
+
+import { resolveCanonicalId, getCanonicalEntry } from "@/services/canonical/normalizer";
 
 const SYNONYM_MAP: Record<string, string> = {
   // Respiratory
@@ -322,9 +327,19 @@ const SYNONYM_MAP: Record<string, string> = {
 
 /**
  * Normalize a single symptom string to its canonical form.
+ * V4: Checks canonical normalizer FIRST, falls back to legacy SYNONYM_MAP.
  */
 export function normalizeSymptom(symptom: string): string {
   const lower = symptom.toLowerCase().trim();
+  
+  // V4: Try canonical normalizer first
+  const canonicalId = resolveCanonicalId(lower);
+  if (canonicalId) {
+    const entry = getCanonicalEntry(canonicalId);
+    return entry?.label.toLowerCase() ?? lower;
+  }
+  
+  // Fallback to legacy map for terms not yet canonicalized
   return SYNONYM_MAP[lower] || lower;
 }
 
