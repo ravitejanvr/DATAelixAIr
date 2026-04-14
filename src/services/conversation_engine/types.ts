@@ -21,12 +21,21 @@ export interface ConversationMessage {
   extracted_features?: string[];
 }
 
+/** Voice session state for turn-based control */
+export interface VoiceSession {
+  isActive: boolean;
+  turn: "user" | "system" | "idle";
+  hasGreeted: boolean;
+  isProcessing: boolean;
+}
+
 /** Persistent session state */
 export interface SessionState {
   mode: InteractionMode;
   language: SupportedLanguage;
   transcriptBuffer: string[];
   lastQuestionId: string | null;
+  voice: VoiceSession;
 }
 
 /** Current state exposed to UI */

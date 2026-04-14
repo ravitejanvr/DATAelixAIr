@@ -21,9 +21,9 @@ import { detectLanguage } from "../canonical/normalizer";
 import { runClinicalPipelineV4 } from "../pipeline";
 import type { PipelineOutput, ClinicalQuestion, PipelineVitals } from "../pipeline/types";
 import type { SupportedLanguage } from "../canonical/types";
-import type { ConversationMessage, UIState, SessionState, InteractionMode } from "./types";
+import type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
 
-export type { ConversationMessage, UIState, SessionState, InteractionMode } from "./types";
+export type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
 
 /** Question category priority order */
 const CATEGORY_PRIORITY: Record<string, number> = {
@@ -57,12 +57,17 @@ export class ConversationEngine {
   private messageCounter = 0;
 
   /** Persistent session state exposed to UI */
-  private sessionState: SessionState = {
-    mode: "text",
-    language: "unknown",
-    transcriptBuffer: [],
-    lastQuestionId: null,
-  };
+  private sessionState: SessionState = this.defaultSessionState();
+
+  private defaultSessionState(): SessionState {
+    return {
+      mode: "text",
+      language: "unknown",
+      transcriptBuffer: [],
+      lastQuestionId: null,
+      voice: { isActive: false, turn: "idle", hasGreeted: false, isProcessing: false },
+    };
+  }
 
   constructor() {
     this.session = new SessionContextManager();
@@ -74,6 +79,9 @@ export class ConversationEngine {
 
   setMode(mode: InteractionMode): void {
     this.sessionState.mode = mode;
+    if (mode === "voice") {
+      this.sessionState.voice.isActive = true;
+    }
   }
 
   getMode(): InteractionMode {
@@ -82,6 +90,40 @@ export class ConversationEngine {
 
   getLanguage(): SupportedLanguage {
     return this.sessionState.language;
+  }
+
+  getVoiceSession(): VoiceSession {
+    return { ...this.sessionState.voice };
+  }
+
+  /** Start a voice session. Returns greeting text if first time. */
+  startVoiceSession(): { greeting: string | null; state: UIState } {
+    this.sessionState.mode = "voice";
+    this.sessionState.voice.isActive = true;
+    this.sessionState.voice.turn = "system";
+
+    let greeting: string | null = null;
+    if (!this.sessionState.voice.hasGreeted) {
+      this.sessionState.voice.hasGreeted = true;
+      greeting = "Hello, what brings you in today?";
+      this.addMessage("system", greeting);
+    }
+
+    this.sessionState.voice.turn = "user";
+    return { greeting, state: this.getCurrentState() };
+  }
+
+  /** Stop voice session */
+  stopVoiceSession(): UIState {
+    this.sessionState.voice.isActive = false;
+    this.sessionState.voice.turn = "idle";
+    return this.getCurrentState();
+  }
+
+  /** Check if system is ready for user input (turn-based guard) */
+  isUserTurn(): boolean {
+    if (this.sessionState.mode !== "voice") return true;
+    return this.sessionState.voice.turn === "user" && !this.sessionState.voice.isProcessing;
   }
 
   /** Buffer a voice transcript chunk without triggering pipeline */
@@ -104,9 +146,15 @@ export class ConversationEngine {
   // ══════════════════════════════════════════════
 
   async processTextInput(text: string): Promise<UIState> {
+    // Turn-based guard for voice mode
+    if (this.sessionState.mode === "voice") {
+      if (this.sessionState.voice.isProcessing) return this.getCurrentState();
+      this.sessionState.voice.turn = "system";
+      this.sessionState.voice.isProcessing = true;
+    }
     this.isProcessing = true;
 
-    // Detect language on first meaningful input
+    // Detect language on first meaningful input (language lock)
     if (this.sessionState.language === "unknown") {
       this.sessionState.language = detectLanguage(text);
     }
@@ -126,6 +174,13 @@ export class ConversationEngine {
     this.generateSystemResponse();
 
     this.isProcessing = false;
+
+    // Release turn back to user
+    if (this.sessionState.mode === "voice") {
+      this.sessionState.voice.isProcessing = false;
+      this.sessionState.voice.turn = "user";
+    }
+
     return this.getCurrentState();
   }
 
@@ -208,12 +263,7 @@ export class ConversationEngine {
     this.latestPipelineResult = null;
     this.isProcessing = false;
     this.messageCounter = 0;
-    this.sessionState = {
-      mode: "text",
-      language: "unknown",
-      transcriptBuffer: [],
-      lastQuestionId: null,
-    };
+    this.sessionState = this.defaultSessionState();
   }
 
   // ══════════════════════════════════════════════
