@@ -2,28 +2,81 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { ConversationEngine } from "@/services/conversation_engine";
 import type { UIState, ConversationMessage } from "@/services/conversation_engine/types";
 import { processUploadedFile } from "@/services/file_adapter";
-import VoiceRecorder from "@/components/VoiceRecorder";
 import { Chip, ChipGroup } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
+import { useScribe, CommitStrategy } from "@elevenlabs/react";
 import {
   Send, Upload, RotateCcw, AlertTriangle,
-  Brain, Shield, Activity, CheckCircle2, Clock, FileText, Mic,
+  Brain, Shield, Activity, CheckCircle2, Clock, FileText,
+  Mic, Square, Volume2,
 } from "lucide-react";
 import SEO from "@/components/SEO";
+import { supabase } from "@/integrations/supabase/client";
 
 const engine = new ConversationEngine();
+
+/** Play TTS audio for voice mode */
+async function playTTS(text: string): Promise<void> {
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ text }),
+      }
+    );
+    if (!response.ok) return;
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    await audio.play();
+    audio.onended = () => URL.revokeObjectURL(url);
+  } catch (e) {
+    console.error("TTS playback failed:", e);
+  }
+}
 
 export default function ClinicalInteraction() {
   const [state, setState] = useState<UIState>(engine.getCurrentState());
   const [textInput, setTextInput] = useState("");
-  const [showVoice, setShowVoice] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isConnectingMic, setIsConnectingMic] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  // ElevenLabs Scribe for realtime STT
+  const scribe = useScribe({
+    modelId: "scribe_v2_realtime",
+    commitStrategy: CommitStrategy.VAD,
+    onPartialTranscript: (data) => {
+      if (data.text) setLiveTranscript(data.text);
+    },
+    onCommittedTranscript: async (data) => {
+      if (data.text) {
+        setLiveTranscript("");
+        // Process committed transcript through pipeline
+        const newState = await engine.processTextInput(data.text);
+        setState(newState);
+        // TTS response in voice mode
+        if (engine.getMode() === "voice") {
+          const responseText = engine.getLastResponseText();
+          if (responseText) playTTS(responseText);
+        }
+      }
+    },
+  });
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -34,36 +87,65 @@ export default function ClinicalInteraction() {
     const text = textInput.trim();
     if (!text || state.is_processing) return;
     setTextInput("");
+    engine.setMode("text");
     const newState = await engine.processTextInput(text);
     setState(newState);
   }, [textInput, state.is_processing]);
 
-  const handleTranscriptUpdate = useCallback(async (transcript: string) => {
-    if (!transcript.trim()) return;
-    const newState = await engine.processTextInput(transcript);
-    setState(newState);
-  }, []);
+  const handleToggleRecording = useCallback(async () => {
+    if (isRecording) {
+      // Stop recording
+      scribe.disconnect();
+      setIsRecording(false);
+      setLiveTranscript("");
+      return;
+    }
+
+    // Start recording
+    setIsConnectingMic(true);
+    engine.setMode("voice");
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const { data, error } = await supabase.functions.invoke("elevenlabs-scribe-token");
+      if (error || !data?.token) throw new Error(error?.message || "Failed to get token");
+
+      await scribe.connect({
+        token: data.token,
+        microphone: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      setIsRecording(true);
+    } catch (err: any) {
+      console.error("Mic failed:", err);
+      toast({ title: "Microphone Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsConnectingMic(false);
+    }
+  }, [isRecording, scribe, toast]);
 
   const handleAnswerQuestion = useCallback(async (questionId: string, answer: string) => {
     const newState = await engine.answerQuestion(questionId, answer);
     setState(newState);
+    if (engine.getMode() === "voice") {
+      const responseText = engine.getLastResponseText();
+      if (responseText) playTTS(responseText);
+    }
   }, []);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
-    const processed = await Promise.all(
-      Array.from(files).map(f => processUploadedFile(f))
-    );
+    const processed = await Promise.all(Array.from(files).map(f => processUploadedFile(f)));
     const newState = await engine.attachFiles(processed);
     setState(newState);
   }, []);
 
   const handleReset = useCallback(() => {
+    if (isRecording) scribe.disconnect();
+    setIsRecording(false);
+    setLiveTranscript("");
     engine.reset();
     setState(engine.getCurrentState());
-    setShowVoice(false);
-  }, []);
+  }, [isRecording, scribe]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -86,8 +168,15 @@ export default function ClinicalInteraction() {
             <div className="flex items-center gap-2">
               <Brain className="h-5 w-5 text-primary" />
               <h1 className="font-semibold text-foreground text-sm">Clinical Interaction</h1>
+              {state.session.language !== "unknown" && (
+                <Badge variant="outline" className="text-[10px] uppercase">{state.session.language}</Badge>
+              )}
             </div>
             <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-[10px] gap-1">
+                {state.session.mode === "voice" ? <Volume2 className="h-2.5 w-2.5" /> : <Send className="h-2.5 w-2.5" />}
+                {state.session.mode}
+              </Badge>
               <Badge variant={state.minimum_context_met ? "default" : "destructive"} className="text-[10px]">
                 {state.minimum_context_met ? "Context Met" : "Needs Data"}
               </Badge>
@@ -140,10 +229,15 @@ export default function ClinicalInteraction() {
             </div>
           </div>
 
-          {/* Voice Recorder (expandable) */}
-          {showVoice && (
+          {/* Live Transcript Preview */}
+          {(isRecording || liveTranscript) && (
             <div className="px-4 py-2 border-t border-border bg-muted/20 shrink-0">
-              <VoiceRecorder onTranscriptUpdate={handleTranscriptUpdate} disabled={state.is_processing} />
+              <div className="max-w-2xl mx-auto flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-destructive animate-pulse shrink-0" />
+                <p className="text-xs text-muted-foreground italic truncate">
+                  {liveTranscript || "Listening... speak naturally in any language"}
+                </p>
+              </div>
             </div>
           )}
 
@@ -154,23 +248,26 @@ export default function ClinicalInteraction() {
                 <Upload className="h-4 w-4" />
               </Button>
               <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" multiple onChange={handleFileUpload} />
+
               <Button
-                variant={showVoice ? "default" : "outline"}
+                variant={isRecording ? "destructive" : "outline"}
                 size="icon"
                 className="h-9 w-9 shrink-0"
-                onClick={() => setShowVoice(v => !v)}
+                onClick={handleToggleRecording}
+                disabled={isConnectingMic || state.is_processing}
               >
-                <Mic className="h-4 w-4" />
+                {isRecording ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4 w-4" />}
               </Button>
+
               <Input
                 value={textInput}
                 onChange={e => setTextInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Describe symptoms..."
                 className="flex-1 h-9 text-sm"
-                disabled={state.is_processing}
+                disabled={state.is_processing || isRecording}
               />
-              <Button onClick={handleSendText} disabled={!textInput.trim() || state.is_processing} size="icon" className="h-9 w-9 shrink-0">
+              <Button onClick={handleSendText} disabled={!textInput.trim() || state.is_processing || isRecording} size="icon" className="h-9 w-9 shrink-0">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
