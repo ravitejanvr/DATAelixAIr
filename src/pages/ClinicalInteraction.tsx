@@ -25,56 +25,13 @@ const engine = new ConversationEngine();
 /** Track whether TTS is currently playing to prevent mic feedback */
 let isTTSPlaying = false;
 
-/** Language → BCP 47 tag for Web Speech API */
-const WEB_SPEECH_LANG_MAP: Record<string, string> = {
-  te: "te-IN",
-  hi: "hi-IN",
-  ta: "ta-IN",
-};
-
 /**
- * Play TTS using the browser's native Web Speech API.
- * Returns a promise that resolves when speech finishes.
- * Native voices have proper pronunciation for Indian languages.
- */
-function playNativeTTS(text: string, langTag: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (!window.speechSynthesis) {
-      reject(new Error("Web Speech API not supported"));
-      return;
-    }
-
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = langTag;
-    utterance.rate = 0.95; // Slightly slower for clinical clarity
-    utterance.pitch = 1.0;
-
-    // Try to find a matching voice
-    const voices = window.speechSynthesis.getVoices();
-    const matchingVoice = voices.find(v => v.lang === langTag)
-      || voices.find(v => v.lang.startsWith(langTag.split("-")[0]));
-    if (matchingVoice) {
-      utterance.voice = matchingVoice;
-    }
-
-    utterance.onend = () => resolve();
-    utterance.onerror = (e) => {
-      // "interrupted" is not a real error — happens on cancel
-      if (e.error === "interrupted") { resolve(); return; }
-      reject(new Error(`Speech error: ${e.error}`));
-    };
-
-    window.speechSynthesis.speak(utterance);
-  });
-}
-
-/**
- * Play TTS using ElevenLabs edge function (for English or fallback).
+ * Play TTS using ElevenLabs edge function — ALL languages.
+ * ElevenLabs Multilingual v2 supports Telugu, Hindi, Tamil natively.
  */
 async function playElevenLabsTTS(text: string, voiceId: string): Promise<void> {
+  console.log("[TTS_INPUT]", { voiceId, textLen: text.length, text: text.substring(0, 100) });
+
   const response = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
     {
@@ -104,26 +61,20 @@ async function playElevenLabsTTS(text: string, voiceId: string): Promise<void> {
 }
 
 /**
- * TTS Router: routes to native Web Speech API for Indian languages
- * (better pronunciation) and ElevenLabs for English.
+ * TTS Router: ALL languages go through ElevenLabs Multilingual v2.
+ * No browser Web Speech API fallback — ElevenLabs handles Telugu/Hindi/Tamil natively.
  */
 async function playTTS(
   text: string,
   lang: SupportedLanguage,
   voiceId?: string,
 ): Promise<void> {
-  const nativeLangTag = WEB_SPEECH_LANG_MAP[lang];
-  console.log("TTS_ROUTE:", { lang, provider: nativeLangTag ? "native" : "elevenlabs", textLen: text.length });
+  const resolvedVoiceId = voiceId || getVoiceId(lang);
+  console.log("[TTS_ROUTE]", { lang, provider: "elevenlabs", voiceId: resolvedVoiceId, textLen: text.length });
 
   isTTSPlaying = true;
   try {
-    if (nativeLangTag) {
-      // Use native Web Speech API for Indian languages
-      await playNativeTTS(text, nativeLangTag);
-    } else {
-      // Use ElevenLabs for English and unknown
-      await playElevenLabsTTS(text, voiceId || "EXAVITQu4vr4xnSDxMaL");
-    }
+    await playElevenLabsTTS(text, resolvedVoiceId);
   } finally {
     isTTSPlaying = false;
   }
