@@ -74,7 +74,7 @@ export default function ClinicalInteraction() {
 
   return (
     <div className="min-h-screen bg-background">
-      <SEO title="Clinical Interaction — V4" />
+      <SEO title="Clinical Interaction — V4" description="Interactive clinical reasoning test harness for the V4 pipeline" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 h-screen">
         {/* ═══ LEFT: Chat Panel ═══ */}
         <div className="lg:col-span-2 flex flex-col border-r border-border">
