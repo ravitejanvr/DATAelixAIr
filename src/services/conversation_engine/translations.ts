@@ -394,8 +394,27 @@ function throwMissingTranslation(kind: string, source: string, lang: SupportedLa
   throw new Error(`[language-lock] Missing ${kind} translation for ${lang}: ${source}`);
 }
 
+/** Medical/technical abbreviations allowed in all languages */
+const MEDICAL_TERM_WHITELIST = new Set([
+  "ECG", "MRI", "CT", "LP", "CTPA", "FAST", "IV", "IM", "HR", "SBP",
+  "SpO", "Sepsis", "head", "spine", "PCR", "CBC", "CRP", "ESR", "ABG",
+  "ICU", "OPD", "BP", "CPR", "AED", "BPM", "mmHg", "mg", "ml", "kg",
+  "TIA", "GCS", "AVPU", "APGAR", "BMI", "HbA1c", "LDH", "TSH", "INR",
+]);
+
 export function assertNoEnglishFallback(text: string, lang: SupportedLanguage, context: string): string {
-  if (lang !== "en" && lang !== "unknown" && /[A-Za-z]{3,}/.test(text)) {
+  if (lang === "en" || lang === "unknown") return text;
+
+  // Strip whitelisted medical terms, numbers, and units before checking
+  const stripped = text.replace(/\b[A-Za-z0-9°≥<>₂]+\b/g, (match) => {
+    if (MEDICAL_TERM_WHITELIST.has(match)) return "";
+    if (/^[0-9°≥<>₂.%]+$/.test(match)) return ""; // numbers, units
+    if (match.length <= 2) return ""; // short abbreviations (e.g. "LP")
+    return match;
+  });
+
+  // Check if remaining text has 4+ consecutive Latin alpha chars (likely English sentence)
+  if (/[A-Za-z]{4,}/.test(stripped)) {
     throw new Error(`[language-lock] English fallback detected in ${context} for ${lang}: ${text}`);
   }
   return text;
