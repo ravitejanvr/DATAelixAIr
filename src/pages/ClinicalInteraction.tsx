@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import SEO from "@/components/SEO";
 import { supabase } from "@/integrations/supabase/client";
-import { getVoiceId } from "@/services/conversation_engine/translations";
+import { getVoiceId, purifyForLanguage } from "@/services/conversation_engine/translations";
 
 const engine = new ConversationEngine();
 

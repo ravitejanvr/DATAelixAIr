@@ -437,6 +437,35 @@ function throwMissingTranslation(kind: string, source: string, lang: SupportedLa
   throw new Error(`[language-lock] Missing ${kind} translation for ${lang}: ${source}`);
 }
 
+/**
+ * Purify text for non-English languages: strip parenthetical English translations,
+ * bracketed content, and stray Latin-script words (except medical abbreviations).
+ * This is the LAST gate before TTS and UI display.
+ */
+export function purifyForLanguage(text: string, lang: SupportedLanguage): string {
+  if (lang === "en" || lang === "unknown") return text;
+
+  let cleaned = text;
+
+  // 1. Remove parenthetical English translations: "(I understand you have fever)"
+  cleaned = cleaned.replace(/\s*\([A-Za-z][A-Za-z\s,.'?!;:]+\)/g, "");
+
+  // 2. Remove bracketed English: "[blood in vomit]"
+  cleaned = cleaned.replace(/\s*\[[A-Za-z][A-Za-z\s,.'?!;:]+\]/g, "");
+
+  // 3. Remove stray English words (4+ Latin chars) but keep medical abbreviations
+  cleaned = cleaned.replace(/\b([A-Za-z]{4,})\b/g, (match) => {
+    if (MEDICAL_TERM_WHITELIST.has(match.toUpperCase())) return match;
+    return "";
+  });
+
+  // 4. Clean up resulting double spaces and trailing punctuation
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  cleaned = cleaned.replace(/\s+([?।.!,])/g, "$1");
+
+  return cleaned;
+}
+
 /** Medical/technical abbreviations allowed in all languages */
 const MEDICAL_TERM_WHITELIST = new Set([
   "ECG", "MRI", "CT", "LP", "CTPA", "FAST", "IV", "IM", "HR", "SBP",
