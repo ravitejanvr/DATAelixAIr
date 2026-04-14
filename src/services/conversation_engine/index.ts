@@ -21,9 +21,9 @@ import { detectLanguage } from "../canonical/normalizer";
 import { runClinicalPipelineV4 } from "../pipeline";
 import type { PipelineOutput, ClinicalQuestion, PipelineVitals } from "../pipeline/types";
 import type { SupportedLanguage } from "../canonical/types";
-import type { ConversationMessage, UIState, SessionState, InteractionMode } from "./types";
+import type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
 
-export type { ConversationMessage, UIState, SessionState, InteractionMode } from "./types";
+export type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
 
 /** Question category priority order */
 const CATEGORY_PRIORITY: Record<string, number> = {
