@@ -111,7 +111,7 @@ export class ConversationEngine {
     let greeting: string | null = null;
     if (!this.sessionState.voice.hasGreeted) {
       this.sessionState.voice.hasGreeted = true;
-      greeting = "Hello, what brings you in today?";
+      greeting = getSystemMessage("greeting", this.sessionState.language);
       this.addMessage("system", greeting);
     }
 
@@ -215,7 +215,7 @@ export class ConversationEngine {
 
   async attachVitals(vitals: PipelineVitals): Promise<UIState> {
     this.session.attachVitals(vitals);
-    this.addMessage("system", "Vitals recorded.");
+    this.addMessage("system", getSystemMessage("vitals_recorded", this.sessionState.language));
     await this.runPipeline();
     return this.getCurrentState();
   }
@@ -223,7 +223,7 @@ export class ConversationEngine {
   async attachFiles(files: UploadedFile[]): Promise<UIState> {
     this.session.attachFiles(files);
     const names = files.map(f => f.file_name).join(", ");
-    this.addMessage("system", `Files attached: ${names}`);
+    this.addMessage("system", getSystemMessage("files_attached", this.sessionState.language, { names }));
     await this.runPipeline();
     return this.getCurrentState();
   }
