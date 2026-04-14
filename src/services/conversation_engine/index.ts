@@ -301,28 +301,34 @@ export class ConversationEngine {
   private generateSystemResponse(): void {
     if (!this.latestPipelineResult) return;
 
+    const lang = this.sessionState.language;
     const result = this.latestPipelineResult;
     const features = this.session.getCanonicalFeatures();
 
-    // Summary of detections
+    // Summary of detections (in session language)
     if (features.length > 0) {
       const featureList = features.map(f => f.feature_id).join(", ");
-      this.addMessage("system",
-        `Noted: ${featureList}. Confidence: ${(result.confidence.overall_confidence * 100).toFixed(0)}%`
-      );
+      const confidence = (result.confidence.overall_confidence * 100).toFixed(0);
+      this.addMessage("system", getSystemMessage("noted", lang, { features: featureList, confidence }));
     }
 
     // Safety alerts
     for (const alert of result.safety.safety_alerts) {
-      this.addMessage("system", `⚠️ ${alert.condition} — ${alert.action}`);
+      this.addMessage("system", getSystemMessage("safety_alert", lang, {
+        condition: alert.condition,
+        action: alert.action,
+      }));
     }
 
-    // Ask next question (only one at a time, conversational tone)
+    // Ask next question (translated + conversational tone)
     if (this.pendingQuestions.length > 0) {
       const nextQ = this.pendingQuestions[0];
-      const conversationalText = toConversationalTone(nextQ.text);
+      // Translate question text to session language
+      const translatedText = translateQuestion(nextQ.text, lang);
+      const conversationalText = toConversationalToneML(translatedText, lang);
 
-      const normalized = this.normalizeQuestionText(conversationalText);
+      // Dedup on original English text (language-invariant)
+      const normalized = this.normalizeQuestionText(nextQ.text);
       if (!this.askedQuestionTexts.has(normalized)) {
         this.askedQuestionTexts.add(normalized);
         this.askedQuestionIds.add(nextQ.question_id);
