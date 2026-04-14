@@ -187,11 +187,11 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   // ── Neurological ──
   HEADACHE: {
     canonical_id: "HEADACHE", label: "Headache", snomed_id: "25064002", category: "neurological",
-    synonyms: ["headache", "head pain", "cephalalgia", "sir dard", "sir mein dard", "migraine"],
+    synonyms: ["headache", "head pain", "cephalalgia", "sir dard", "sir mein dard", "migraine", "सिर दर्द", "తలనొప్పి", "தலைவலி"],
   },
   DIZZINESS: {
     canonical_id: "DIZZINESS", label: "Dizziness", snomed_id: "404640003", category: "neurological",
-    synonyms: ["dizziness", "vertigo", "lightheadedness", "giddiness", "room spinning", "chakkar", "chakkar aa raha hai"],
+    synonyms: ["dizziness", "vertigo", "lightheadedness", "giddiness", "room spinning", "chakkar", "chakkar aa raha hai", "चक्कर", "తల తిరగడం", "தலைச்சுற்றல்"],
   },
   SYNCOPE: {
     canonical_id: "SYNCOPE", label: "Syncope", snomed_id: "271594007", category: "neurological",
@@ -215,7 +215,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   },
   WEAKNESS: {
     canonical_id: "WEAKNESS", label: "Weakness", snomed_id: "13791008", category: "neurological",
-    synonyms: ["weakness", "weakness in arm", "weakness in leg", "general weakness", "body weakness"],
+    synonyms: ["weakness", "weakness in arm", "weakness in leg", "general weakness", "body weakness", "कमज़ोरी", "బలహీనత", "பலவீனம்"],
   },
   SPEECH_DIFFICULTY: {
     canonical_id: "SPEECH_DIFFICULTY", label: "Speech Difficulty", snomed_id: "29164008", category: "neurological",
