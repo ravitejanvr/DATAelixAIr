@@ -253,10 +253,18 @@ export class ConversationEngine {
     // Remove from pending
     this.pendingQuestions = this.pendingQuestions.filter(q => q.question_id !== questionId);
 
+    // LLM extraction for intelligent understanding
+    const llmResult = await this.runLLMExtraction(normalizedAnswer);
+
     await this.runPipeline();
-    this.appendGeneratedResponse(
-      this.generateResponse({ type: "pipeline", input: normalizedAnswer }, this.sessionState)
-    );
+
+    if (llmResult) {
+      this.appendLLMResponse(llmResult);
+    } else {
+      this.appendGeneratedResponse(
+        this.generateResponse({ type: "pipeline", input: normalizedAnswer }, this.sessionState)
+      );
+    }
 
     this.isProcessing = false;
     return this.getCurrentState();
