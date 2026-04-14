@@ -577,7 +577,7 @@ export class ConversationEngine {
     this.session.updateFromAnswers(lastQuestion.question_id, text);
 
     // Handle negation — mark field as "collected with none"
-    if (intent === "NEGATION" || isNegativeResponse(text)) {
+    if (intent === "NEGATION" || isNegativeResponse(text, this.sessionState.language)) {
       const category = lastQuestion.category;
       if (category === "allergies") {
         this.session.setAllergies(["none"]);
