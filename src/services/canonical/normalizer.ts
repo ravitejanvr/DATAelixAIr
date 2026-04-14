@@ -353,6 +353,104 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
     canonical_id: "SADDLE_ANESTHESIA", label: "Saddle Anesthesia", snomed_id: "3723001", category: "neurological",
     synonyms: ["saddle anesthesia", "saddle numbness", "saddle area numbness"],
   },
+
+  // ── Hallmark Signs (from terminology_normalizer consolidation) ──
+  FACIAL_PAIN: {
+    canonical_id: "FACIAL_PAIN", label: "Facial Pain", snomed_id: "95668009", category: "ent",
+    synonyms: ["facial pain", "sinus pressure", "sinus pain"],
+  },
+  STRIDOR: {
+    canonical_id: "STRIDOR", label: "Stridor", snomed_id: "70407001", category: "respiratory",
+    synonyms: ["stridor"],
+  },
+  BARKING_COUGH: {
+    canonical_id: "BARKING_COUGH", label: "Barking Cough", snomed_id: "17986004", category: "pediatric",
+    synonyms: ["barking cough"],
+  },
+  PROJECTILE_VOMITING: {
+    canonical_id: "PROJECTILE_VOMITING", label: "Projectile Vomiting", snomed_id: "249488009", category: "pediatric",
+    synonyms: ["projectile vomiting"],
+  },
+  LEUKOCORIA: {
+    canonical_id: "LEUKOCORIA", label: "Leukocoria", snomed_id: "95725002", category: "ophthalmological",
+    synonyms: ["leukocoria", "white pupil", "white eye reflex", "white glow in eye"],
+  },
+  RED_EYE: {
+    canonical_id: "RED_EYE", label: "Red Eye", snomed_id: "75705005", category: "ophthalmological",
+    synonyms: ["red eye", "eye redness"],
+  },
+  CREPITUS: {
+    canonical_id: "CREPITUS", label: "Crepitus", snomed_id: "12698005", category: "musculoskeletal",
+    synonyms: ["crepitus", "gas in tissue"],
+  },
+  SIALORRHEA: {
+    canonical_id: "SIALORRHEA", label: "Sialorrhea", snomed_id: "59828007", category: "neurological",
+    synonyms: ["sialorrhea", "drooling", "excessive saliva"],
+  },
+  MOTTLED_SKIN: {
+    canonical_id: "MOTTLED_SKIN", label: "Mottled Skin", snomed_id: "72100002", category: "dermatological",
+    synonyms: ["mottled skin", "skin mottling"],
+  },
+  DERMATOMAL_RASH: {
+    canonical_id: "DERMATOMAL_RASH", label: "Dermatomal Rash", snomed_id: "400079006", category: "dermatological",
+    synonyms: ["dermatomal rash", "band-like rash"],
+  },
+  VESICULAR_RASH: {
+    canonical_id: "VESICULAR_RASH", label: "Vesicular Rash", snomed_id: "271761007", category: "dermatological",
+    synonyms: ["vesicular rash", "blisters", "vesicles"],
+  },
+  TRACHEAL_DEVIATION: {
+    canonical_id: "TRACHEAL_DEVIATION", label: "Tracheal Deviation", snomed_id: "4119001", category: "respiratory",
+    synonyms: ["tracheal deviation"],
+  },
+  PERICARDIAL_FRICTION_RUB: {
+    canonical_id: "PERICARDIAL_FRICTION_RUB", label: "Pericardial Friction Rub", snomed_id: "7036007", category: "cardiovascular",
+    synonyms: ["pericardial friction rub", "friction rub"],
+  },
+  BRUDZINSKI_SIGN: {
+    canonical_id: "BRUDZINSKI_SIGN", label: "Brudzinski Sign", snomed_id: "246770008", category: "neurological",
+    synonyms: ["brudzinski sign", "brudzinski's sign"],
+  },
+  GAIT_DISTURBANCE: {
+    canonical_id: "GAIT_DISTURBANCE", label: "Gait Disturbance", snomed_id: "22325002", category: "neurological",
+    synonyms: ["gait disturbance", "shuffling gait"],
+  },
+  URINARY_INCONTINENCE: {
+    canonical_id: "URINARY_INCONTINENCE", label: "Urinary Incontinence", snomed_id: "165232002", category: "genitourinary",
+    synonyms: ["urinary incontinence"],
+  },
+  COGNITIVE_DECLINE: {
+    canonical_id: "COGNITIVE_DECLINE", label: "Cognitive Decline", snomed_id: "386806002", category: "neurological",
+    synonyms: ["cognitive decline", "memory loss"],
+  },
+  LHERMITTE_SIGN: {
+    canonical_id: "LHERMITTE_SIGN", label: "Lhermitte Sign", snomed_id: "246578001", category: "neurological",
+    synonyms: ["lhermitte sign", "lhermittes sign", "electric down spine"],
+  },
+  FRUITY_BREATH: {
+    canonical_id: "FRUITY_BREATH", label: "Fruity Breath Odor", snomed_id: "300893006", category: "endocrine",
+    synonyms: ["fruity breath odor", "fruity breath", "fruity smell breath"],
+  },
+  HYPERPIGMENTATION: {
+    canonical_id: "HYPERPIGMENTATION", label: "Hyperpigmentation", snomed_id: "49765009", category: "dermatological",
+    synonyms: ["hyperpigmentation", "dark skin patches"],
+  },
+  ASCENDING_WEAKNESS: {
+    canonical_id: "ASCENDING_WEAKNESS", label: "Ascending Weakness", snomed_id: "249888000", category: "neurological",
+    synonyms: ["ascending weakness"],
+  },
+  HEMATEMESIS_SIGN: {
+    canonical_id: "HEMATEMESIS_SIGN", label: "Hematemesis", snomed_id: "8765009", category: "gastrointestinal",
+    synonyms: ["hematemesis", "vomiting blood", "blood in vomit"],
+  },
+  JAW_CLAUDICATION: {
+    canonical_id: "JAW_CLAUDICATION", label: "Jaw Claudication", snomed_id: "274738001", category: "cardiovascular",
+    synonyms: ["jaw claudication"],
+  },
+  SCALP_TENDERNESS: {
+    canonical_id: "SCALP_TENDERNESS", label: "Scalp Tenderness", snomed_id: "298327007", category: "neurological",
+    synonyms: ["scalp tenderness"],
+  },
 };
 
 // ══════════════════════════════════════════════
