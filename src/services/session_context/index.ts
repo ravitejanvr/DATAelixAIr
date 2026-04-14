@@ -21,6 +21,23 @@ import { canonicalize } from "../canonical/normalizer";
 
 export type { SessionSnapshot, UploadedFile, TrackedFeature, DataSource } from "./types";
 
+/**
+ * LLM-extracted entities that can be synced into the session.
+ * This interface is intentionally loose to accept LLM output.
+ */
+export interface LLMEntitySync {
+  symptoms?: Array<{ name: string; original_text?: string }>;
+  duration?: string;
+  severity?: "mild" | "moderate" | "severe" | "unknown";
+  associated_symptoms?: string[];
+  risk_factors?: string[];
+  medications?: string[];
+  allergies?: string[];
+  age?: number;
+  sex?: "male" | "female" | "other";
+  negations?: string[];
+}
+
 export class SessionContextManager {
   private features: Map<string, TrackedFeature> = new Map();
   private vitals: PipelineVitals | null = null;
@@ -104,7 +121,7 @@ export class SessionContextManager {
   }
 
   /**
-   * Update from canonical features directly (e.g., from file extraction).
+   * Update from canonical features directly (e.g., from file extraction or processTranscript).
    */
   updateFromCanonicalFeatures(features: CanonicalFeature[], source: DataSource): void {
     this.turnCount++;
@@ -112,6 +129,73 @@ export class SessionContextManager {
       this.mergeFeature(feature, source);
     }
     this.lastUpdated = new Date().toISOString();
+  }
+
+  /**
+   * Sync LLM-extracted entities into the session.
+   * This is the BRIDGE that unifies LLM intelligence with the canonical pipeline.
+   * LLM symptom names are canonicalized before storage — no raw strings stored.
+   */
+  syncFromLLMEntities(entities: LLMEntitySync, source: DataSource = "patient_text"): void {
+    const now = new Date().toISOString();
+
+    // Canonicalize LLM-extracted symptom names
+    if (entities.symptoms?.length) {
+      const symptomNames = entities.symptoms.map(s => s.name);
+      const canonResult = canonicalize(symptomNames, "patient");
+
+      for (const feature of canonResult.features) {
+        const enriched: CanonicalFeature = {
+          ...feature,
+          intensity: entities.severity ? this.mapSeverity(entities.severity) : feature.intensity,
+          duration: entities.duration || feature.duration,
+        };
+        this.mergeFeature(enriched, source);
+      }
+    }
+
+    // Canonicalize associated symptoms
+    if (entities.associated_symptoms?.length) {
+      const canonResult = canonicalize(entities.associated_symptoms, "patient");
+      for (const feature of canonResult.features) {
+        this.mergeFeature(feature, source);
+      }
+    }
+
+    // Update global duration on features that lack it
+    if (entities.duration) {
+      for (const [, tracked] of this.features) {
+        if (!tracked.feature.duration || tracked.feature.duration === "") {
+          tracked.feature = { ...tracked.feature, duration: entities.duration };
+        }
+      }
+    }
+
+    // Update global severity on "unknown" features
+    if (entities.severity && entities.severity !== "unknown") {
+      for (const [, tracked] of this.features) {
+        if (tracked.feature.intensity === "unknown") {
+          tracked.feature = { ...tracked.feature, intensity: this.mapSeverity(entities.severity) };
+        }
+      }
+    }
+
+    // Demographics
+    if (entities.age != null || entities.sex) {
+      this.setDemographics({ age: entities.age, sex: entities.sex });
+    }
+
+    // Medications
+    if (entities.medications?.length) {
+      this.setMedications(entities.medications);
+    }
+
+    // Allergies
+    if (entities.allergies?.length) {
+      this.setAllergies(entities.allergies);
+    }
+
+    this.lastUpdated = now;
   }
 
   /**
@@ -124,16 +208,13 @@ export class SessionContextManager {
     const now = new Date().toISOString();
 
     if (typeof answer === "number") {
-      // Numeric answer — likely vitals
       this.lastUpdated = now;
       return;
     }
 
-    // String answers may contain symptom references
     const answerTexts = Array.isArray(answer) ? answer : [answer];
     const canonResult = canonicalize(answerTexts, "patient");
 
-    // 🚫 RAW STRING USAGE FORBIDDEN BEYOND THIS POINT
     for (const feature of canonResult.features) {
       this.mergeFeature(feature, "question_answer");
     }
@@ -167,11 +248,8 @@ export class SessionContextManager {
    */
   attachFiles(files: UploadedFile[]): void {
     for (const file of files) {
-      // Deduplicate by file_id
       if (!this.files.some(f => f.file_id === file.file_id)) {
         this.files.push(file);
-
-        // Merge extracted labs into lab results
         if (file.extracted_labs) {
           for (const lab of file.extracted_labs) {
             if (!this.labResults.some(l => l.parameter === lab.parameter)) {
@@ -249,6 +327,34 @@ export class SessionContextManager {
   }
 
   /**
+   * Check if a specific data field is already collected.
+   * Used by question engine to skip already-known information.
+   */
+  hasData(field: string): boolean {
+    switch (field) {
+      case "symptoms":
+      case "chief_complaint":
+        return this.features.size > 0;
+      case "duration":
+        return Array.from(this.features.values()).some(t => t.feature.duration && t.feature.duration !== "");
+      case "severity":
+        return Array.from(this.features.values()).some(t => t.feature.intensity !== "unknown");
+      case "age":
+        return this.patientAge != null;
+      case "sex":
+        return this.patientSex != null;
+      case "medications":
+        return this.medications.length > 0;
+      case "allergies":
+        return this.allergies.length > 0;
+      case "medical_history":
+        return this.medicalHistory.length > 0;
+      default:
+        return false;
+    }
+  }
+
+  /**
    * Get full session snapshot.
    */
   getSnapshot(): SessionSnapshot {
@@ -317,12 +423,10 @@ export class SessionContextManager {
     // Upgrade logic: prefer more specific data
     const merged: CanonicalFeature = { ...existing.feature };
 
-    // Upgrade intensity if new is more specific than "unknown"
     if (feature.intensity !== "unknown" && existing.feature.intensity === "unknown") {
       merged.intensity = feature.intensity;
     }
 
-    // Upgrade duration if new is more specific
     if (feature.duration && (!existing.feature.duration || existing.feature.duration === "")) {
       merged.duration = feature.duration;
     }
