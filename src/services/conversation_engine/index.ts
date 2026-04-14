@@ -507,9 +507,9 @@ export class ConversationEngine {
     lang: SupportedLanguage,
   ): void {
     // Always emit LLM acknowledgment first (if available and meaningful)
-    // CRITICAL: pass through translation validation to prevent English leakage
+    // CRITICAL: purify to remove any English leakage (parenthetical translations, stray words)
     if (llmResult?.acknowledgment) {
-      let ack = llmResult.acknowledgment;
+      let ack = purifyForLanguage(llmResult.acknowledgment, lang);
       try {
         ack = assertNoEnglishFallback(ack, lang, "llm-acknowledgment");
       } catch {
