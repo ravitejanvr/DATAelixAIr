@@ -22,6 +22,12 @@ import { runClinicalPipelineV4 } from "../pipeline";
 import type { PipelineOutput, ClinicalQuestion, PipelineVitals } from "../pipeline/types";
 import type { SupportedLanguage } from "../canonical/types";
 import type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
+import {
+  getSystemMessage,
+  translateQuestion,
+  toConversationalTone as toConversationalToneML,
+  getVoiceId,
+} from "./translations";
 
 export type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
 
