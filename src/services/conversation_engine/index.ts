@@ -30,6 +30,8 @@ import {
   translateSafetyAction,
   translateSafetyCondition,
   toConversationalTone as toConversationalToneML,
+  cleanTranscript,
+  isNegativeResponse,
 } from "./translations";
 
 export type { ConversationMessage, UIState, SessionState, InteractionMode, VoiceSession } from "./types";
@@ -167,7 +169,8 @@ export class ConversationEngine {
   // ══════════════════════════════════════════════
 
   async processTextInput(text: string): Promise<UIState> {
-    const trimmedText = text.trim();
+    // Clean STT artifacts (echo, repetition, broken unicode)
+    const trimmedText = cleanTranscript(text);
     if (!trimmedText) return this.getCurrentState();
 
     // Turn-based guard for voice mode
