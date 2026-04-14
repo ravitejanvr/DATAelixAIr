@@ -43,6 +43,7 @@ import {
 } from "./llm_extraction";
 import {
   assertNoEnglishFallback,
+  purifyForLanguage,
   getSystemMessage,
   translateOptionLabel,
   translateQuestion,
@@ -506,9 +507,9 @@ export class ConversationEngine {
     lang: SupportedLanguage,
   ): void {
     // Always emit LLM acknowledgment first (if available and meaningful)
-    // CRITICAL: pass through translation validation to prevent English leakage
+    // CRITICAL: purify to remove any English leakage (parenthetical translations, stray words)
     if (llmResult?.acknowledgment) {
-      let ack = llmResult.acknowledgment;
+      let ack = purifyForLanguage(llmResult.acknowledgment, lang);
       try {
         ack = assertNoEnglishFallback(ack, lang, "llm-acknowledgment");
       } catch {
@@ -521,8 +522,10 @@ export class ConversationEngine {
     switch (action.type) {
       case "ask_question": {
         const q = action.question;
+        // Purify display text — strip any English leakage from LLM
+        const purifiedDisplayText = purifyForLanguage(action.displayText, lang);
         this.askedQuestionIds.add(q.question_id);
-        this.askedQuestionTexts.add(this.normalizeQuestionText(action.displayText));
+        this.askedQuestionTexts.add(this.normalizeQuestionText(purifiedDisplayText));
         this.sessionState.lastQuestionId = q.question_id;
 
         // Track attempt for this field
@@ -530,10 +533,10 @@ export class ConversationEngine {
         this.fieldAttempts.set(q.category, currentAttempts + 1);
 
         const optionLabels = q.options
-          ? Object.fromEntries(q.options.map(opt => [opt, translateOptionLabel(opt, lang)]))
+          ? Object.fromEntries(q.options.map(opt => [opt, translateOptionLabel(purifyForLanguage(opt, lang), lang)]))
           : undefined;
 
-        this.addMessage("question", action.displayText, q, optionLabels);
+        this.addMessage("question", purifiedDisplayText, q, optionLabels);
         this.pendingQuestions = [q]; // Exactly ONE pending question
         break;
       }

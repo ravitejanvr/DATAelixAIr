@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import SEO from "@/components/SEO";
 import { supabase } from "@/integrations/supabase/client";
-import { getVoiceId } from "@/services/conversation_engine/translations";
+import { getVoiceId, purifyForLanguage } from "@/services/conversation_engine/translations";
 
 const engine = new ConversationEngine();
 
@@ -45,8 +45,20 @@ async function playElevenLabsTTS(text: string, voiceId: string): Promise<void> {
     }
   );
 
+  // Check content type — JSON means error/fallback, audio means success
+  const contentType = response.headers.get("Content-Type") || "";
+  if (contentType.includes("application/json")) {
+    const jsonData = await response.json();
+    if (jsonData?.fallback) {
+      console.warn("[TTS] ElevenLabs unavailable, falling back to browser TTS");
+      playBrowserTTS(text);
+      return;
+    }
+    throw new Error(jsonData?.error || "TTS failed");
+  }
+
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw new Error(`TTS error: ${response.status}`);
   }
 
   const blob = await response.blob();
@@ -60,21 +72,33 @@ async function playElevenLabsTTS(text: string, voiceId: string): Promise<void> {
   });
 }
 
+/** Browser TTS fallback — only used when ElevenLabs is unavailable */
+function playBrowserTTS(text: string): void {
+  if (!window.speechSynthesis) return;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.9;
+  window.speechSynthesis.speak(utterance);
+}
+
 /**
- * TTS Router: ALL languages go through ElevenLabs Multilingual v2.
- * No browser Web Speech API fallback — ElevenLabs handles Telugu/Hindi/Tamil natively.
+ * TTS Router: purify text for language, then route through ElevenLabs.
  */
 async function playTTS(
   text: string,
   lang: SupportedLanguage,
   voiceId?: string,
 ): Promise<void> {
+  // Purify text — strip any English leakage for non-English sessions
+  const purifiedText = purifyForLanguage(text, lang);
   const resolvedVoiceId = voiceId || getVoiceId(lang);
-  console.log("[TTS_ROUTE]", { lang, provider: "elevenlabs", voiceId: resolvedVoiceId, textLen: text.length });
+  console.log("[TTS_ROUTE]", { lang, provider: "elevenlabs", voiceId: resolvedVoiceId, textLen: purifiedText.length });
 
   isTTSPlaying = true;
   try {
-    await playElevenLabsTTS(text, resolvedVoiceId);
+    await playElevenLabsTTS(purifiedText, resolvedVoiceId);
+  } catch (err) {
+    console.error("[TTS] ElevenLabs failed, using browser fallback:", err);
+    playBrowserTTS(purifiedText);
   } finally {
     isTTSPlaying = false;
   }
