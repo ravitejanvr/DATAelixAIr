@@ -11,16 +11,19 @@
  * - Prioritizes: symptom expansion → severity → associated → risk → demographics
  * - No raw strings beyond canonicalization boundary
  * - Conversational tone for questions
+ * - Session state tracks mode + language across turns
  */
 
 import { SessionContextManager } from "../session_context";
 import type { UploadedFile } from "../session_context/types";
 import { extractFromTranscript } from "../scribe_adapter/extractor";
+import { detectLanguage } from "../canonical/normalizer";
 import { runClinicalPipelineV4 } from "../pipeline";
 import type { PipelineOutput, ClinicalQuestion, PipelineVitals } from "../pipeline/types";
-import type { ConversationMessage, UIState } from "./types";
+import type { SupportedLanguage } from "../canonical/types";
+import type { ConversationMessage, UIState, SessionState, InteractionMode } from "./types";
 
-export type { ConversationMessage, UIState } from "./types";
+export type { ConversationMessage, UIState, SessionState, InteractionMode } from "./types";
 
 /** Question category priority order */
 const CATEGORY_PRIORITY: Record<string, number> = {
@@ -34,11 +37,9 @@ const CATEGORY_PRIORITY: Record<string, number> = {
 
 /** Conversational rewrites for robotic question text */
 function toConversationalTone(text: string): string {
-  // Already conversational — skip
   if (/^(can you|could you|how|what|do you|have you|are you|is there|does|did|when|where)/i.test(text)) {
     return text;
   }
-  // Wrap terse prompts
   if (/^(duration|severity|onset|location)/i.test(text)) {
     return `Can you tell me more about the ${text.toLowerCase()}?`;
   }
@@ -55,8 +56,47 @@ export class ConversationEngine {
   private isProcessing = false;
   private messageCounter = 0;
 
+  /** Persistent session state exposed to UI */
+  private sessionState: SessionState = {
+    mode: "text",
+    language: "unknown",
+    transcriptBuffer: [],
+    lastQuestionId: null,
+  };
+
   constructor() {
     this.session = new SessionContextManager();
+  }
+
+  // ══════════════════════════════════════════════
+  // SESSION STATE METHODS
+  // ══════════════════════════════════════════════
+
+  setMode(mode: InteractionMode): void {
+    this.sessionState.mode = mode;
+  }
+
+  getMode(): InteractionMode {
+    return this.sessionState.mode;
+  }
+
+  getLanguage(): SupportedLanguage {
+    return this.sessionState.language;
+  }
+
+  /** Buffer a voice transcript chunk without triggering pipeline */
+  bufferTranscript(chunk: string): void {
+    if (chunk.trim()) {
+      this.sessionState.transcriptBuffer.push(chunk.trim());
+    }
+  }
+
+  /** Flush transcript buffer and process as single input */
+  async flushTranscriptBuffer(): Promise<UIState> {
+    const fullText = this.sessionState.transcriptBuffer.join(" ").trim();
+    this.sessionState.transcriptBuffer = [];
+    if (!fullText) return this.getCurrentState();
+    return this.processTextInput(fullText);
   }
 
   // ══════════════════════════════════════════════
@@ -65,6 +105,11 @@ export class ConversationEngine {
 
   async processTextInput(text: string): Promise<UIState> {
     this.isProcessing = true;
+
+    // Detect language on first meaningful input
+    if (this.sessionState.language === "unknown") {
+      this.sessionState.language = detectLanguage(text);
+    }
 
     const userMsg = this.addMessage("user", text);
 
@@ -139,7 +184,19 @@ export class ConversationEngine {
       is_processing: this.isProcessing,
       turn_count: snapshot.turn_count,
       minimum_context_met: this.latestPipelineResult?.questions.minimum_context_met ?? false,
+      session: { ...this.sessionState },
     };
+  }
+
+  /** Get the last system/question message content (for TTS) */
+  getLastResponseText(): string | null {
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const msg = this.messages[i];
+      if (msg.role === "question" || msg.role === "system") {
+        return msg.content;
+      }
+    }
+    return null;
   }
 
   reset(): void {
@@ -151,6 +208,12 @@ export class ConversationEngine {
     this.latestPipelineResult = null;
     this.isProcessing = false;
     this.messageCounter = 0;
+    this.sessionState = {
+      mode: "text",
+      language: "unknown",
+      transcriptBuffer: [],
+      lastQuestionId: null,
+    };
   }
 
   // ══════════════════════════════════════════════
@@ -169,11 +232,9 @@ export class ConversationEngine {
         return true;
       })
       .sort((a, b) => {
-        // Sort by category priority first, then by priority level
         const catA = CATEGORY_PRIORITY[a.category] ?? 99;
         const catB = CATEGORY_PRIORITY[b.category] ?? 99;
         if (catA !== catB) return catA - catB;
-
         const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
         return (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3);
       });
@@ -205,11 +266,11 @@ export class ConversationEngine {
       const nextQ = this.pendingQuestions[0];
       const conversationalText = toConversationalTone(nextQ.text);
 
-      // Double-check we haven't asked this exact text before
       const normalized = this.normalizeQuestionText(conversationalText);
       if (!this.askedQuestionTexts.has(normalized)) {
         this.askedQuestionTexts.add(normalized);
         this.askedQuestionIds.add(nextQ.question_id);
+        this.sessionState.lastQuestionId = nextQ.question_id;
         this.addMessage("question", conversationalText, nextQ);
       }
     }
