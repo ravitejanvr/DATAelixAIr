@@ -94,10 +94,13 @@ export default function ClinicalInteraction() {
     modelId: "scribe_v2_realtime",
     commitStrategy: CommitStrategy.VAD,
     onPartialTranscript: (data) => {
+      // Ignore partials during TTS playback (echo prevention)
+      if (isTTSPlaying) return;
       if (data.text) setLiveTranscript(data.text);
     },
     onCommittedTranscript: async (data) => {
-      if (!data.text || !engine.isUserTurn()) return;
+      // Block processing during TTS playback or if not user's turn
+      if (isTTSPlaying || !data.text || !engine.isUserTurn()) return;
 
       try {
         setLiveTranscript("");
@@ -107,7 +110,10 @@ export default function ClinicalInteraction() {
         if (engine.getMode() === "voice") {
           const responseText = engine.getLastResponseText();
           const lang = engine.getLanguage();
-          if (responseText) await playTTS(responseText, lang, getVoiceId(lang));
+          if (responseText) {
+            // Disconnect mic during TTS, reconnect after
+            await playTTS(responseText, lang, getVoiceId(lang));
+          }
         }
       } catch (error: any) {
         console.error("Voice processing failed:", error);
