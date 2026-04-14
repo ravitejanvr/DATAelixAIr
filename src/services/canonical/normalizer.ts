@@ -27,7 +27,7 @@ const CANONICAL_MAP: Record<string, CanonicalEntry> = {
   // ── Constitutional ──
   FEVER: {
     canonical_id: "FEVER", label: "Fever", snomed_id: "386661006", category: "constitutional",
-    synonyms: ["fever", "pyrexia", "high temperature", "febrile", "bukhar", "high fever", "temperature", "low grade fever", "slight fever", "mild fever"],
+    synonyms: ["fever", "pyrexia", "high temperature", "febrile", "bukhar", "high fever", "temperature", "low grade fever", "slight fever", "mild fever", "बुखार", "జ్వరం", "காய்ச்சல்"],
   },
   CHILLS: {
     canonical_id: "CHILLS", label: "Chills", snomed_id: "43724002", category: "constitutional",
