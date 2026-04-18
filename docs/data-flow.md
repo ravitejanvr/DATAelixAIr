@@ -1,6 +1,6 @@
 # Data Flow
 
-**Document purpose:** Describe the end-to-end lifecycle of clinical data within the platform — from initial capture through validation, processing, persistence and output — in terms understandable to a non-technical reviewer.
+This document describes the end-to-end lifecycle of clinical data within the platform — from initial capture through validation, processing, persistence and output.
 
 ---
 
@@ -20,6 +20,8 @@ Clinical data passes through six logical stages. Each stage transforms the data 
                                                                        └──────────────────┘
 ```
 
+The shape of this pipeline is a direct response to the operating reality: clinical input arrives in inconsistent formats and multiple languages, and downstream consumers (records, audit, exports) need a single, structured representation they can rely on.
+
 ---
 
 ## 2. Stage-by-Stage Description
@@ -29,9 +31,9 @@ Clinical data passes through six logical stages. Each stage transforms the data 
 | Aspect | Description |
 |---|---|
 | Sources | Typed text, voice (speech-to-text), uploaded clinical documents (PDF, lab reports). |
-| Languages | English plus Hindi, Telugu and Tamil (multilingual support, including native scripts). |
+| Languages | English plus Hindi, Telugu and Tamil, including native scripts. |
 | Boundary | Inputs are accepted only via authenticated sessions. |
-| Contract | The raw input is treated as untrusted and unstructured. |
+| Contract | Raw input is treated as untrusted and unstructured. |
 
 ### Stage 2 — Normalisation
 

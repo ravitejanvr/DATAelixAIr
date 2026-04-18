@@ -1,31 +1,31 @@
 # Validation Framework
 
-**Document purpose:** Define how the platform protects data quality, enforces correctness and handles exceptions. Written for review by stakeholders concerned with assurance, quality and risk.
+This document describes how the platform protects data quality, enforces correctness and handles exceptions across the pipeline.
 
 ---
 
 ## 1. Objectives
 
-The validation framework exists to satisfy four assurance objectives:
+The validation framework exists to satisfy four practical goals:
 
 1. **Correctness.** The system produces the right output for known inputs.
-2. **Determinism.** The system produces the same output every time for the same input.
+2. **Determinism.** The same input produces the same output, every time.
 3. **Safety.** The system does not silently degrade in the presence of bad or partial input.
-4. **Traceability.** Every validation outcome is recorded and can be reviewed.
+4. **Traceability.** Every validation outcome is recorded and can be reviewed later.
 
-These objectives map directly to the System Contracts (`contracts/SYSTEM_CONTRACTS.md`), specifically the Validation Contract, the Determinism Contract and the Traceability Contract.
+These map directly to the System Contracts (`contracts/SYSTEM_CONTRACTS.md`) — specifically the Validation, Determinism and Traceability contracts.
 
 ---
 
 ## 2. Three-Tier Validation Model
 
-The framework operates at three tiers. Each tier addresses a different class of risk.
+Validation runs at three tiers. Each tier addresses a different class of risk.
 
-### Tier 1 — Pre-Implementation Validation (Design-Time)
+### Tier 1 — Pre-Implementation Validation (design-time)
 
 **Artefact:** `validation/VALIDATION_FIREWALL.md`
 
-A mandatory checklist applied before any new feature is built. Any "yes" answer halts the work.
+A checklist applied before any new feature is built. A "yes" answer to any of these halts the work.
 
 | Check | Purpose |
 |---|---|
@@ -35,11 +35,11 @@ A mandatory checklist applied before any new feature is built. Any "yes" answer 
 | Can test cases be written? | Prevent untestable behaviour. |
 | If wrong, does it break reasoning? | Identify safety-critical changes before they are coded. |
 
-This tier is a **governance gate**, not a code-level check. It exists so that architectural integrity is defended before implementation begins.
+This tier is an architectural gate, not a code-level check. It exists because most of the failures we have had to fix retroactively were avoidable at design time.
 
-### Tier 2 — Input Validation (Run-Time)
+### Tier 2 — Input Validation (run-time)
 
-Applied to every clinical input as it enters the pipeline. Implemented across the canonicalisation and context-builder stages.
+Applied to every clinical input as it enters the pipeline. Implemented across canonicalisation and the context builder.
 
 | Check | Failure handling |
 |---|---|
@@ -48,9 +48,9 @@ Applied to every clinical input as it enters the pipeline. Implemented across th
 | Language detected successfully | Stop and request clarification. |
 | All terms map to canonical IDs | Log unmapped terms; flag for clinician confirmation. |
 
-The policy is **fail fast**: a bad input never reaches the reasoning layer.
+The policy is fail fast: bad input never reaches the reasoning layer.
 
-### Tier 3 — Output Validation (Regression Suite)
+### Tier 3 — Output Validation (regression suite)
 
 **Artefacts:**
 - `validation/VALIDATION_SUITE.json` — declarative scenarios.
@@ -71,25 +71,25 @@ A scenario specifies an input and the expected behaviour:
 }
 ```
 
-The runner asserts:
+The runner asserts that:
 
 - The top-ranked diagnosis matches the expected outcome.
 - The expected diagnoses appear within the top-N candidate set.
-- Safety flags fire when expected and only when expected.
-- Identical inputs produce identical outputs (determinism check).
+- Safety flags fire when expected, and only when expected.
+- Identical inputs produce identical outputs.
 
 ---
 
 ## 3. Data Quality Checks
 
-The framework enforces six categories of data quality, each tied to a specific stage of the pipeline.
+The framework enforces six categories of data quality, each tied to a specific stage.
 
 | Category | Stage | Mechanism |
 |---|---|---|
-| **Schema conformance** | Input | Typed inputs at module boundaries; rejection of malformed payloads. |
+| **Schema conformance** | Input | Typed inputs at module boundaries; malformed payloads rejected. |
 | **Range plausibility** | Input | Bounded checks on vitals, ages, durations. |
 | **Language integrity** | Normalisation | Detected language is recorded and locked for the session. |
-| **Terminology resolution** | Canonicalisation | Every term must resolve to a canonical ID, or be flagged. |
+| **Terminology resolution** | Canonicalisation | Every term resolves to a canonical ID, or it is flagged. |
 | **Logical consistency** | Reasoning | Conflict-resolution rules between mutually exclusive clinical states. |
 | **Output completeness** | Authority | Confidence engine flags low-data results before they are returned. |
 
@@ -97,12 +97,7 @@ The framework enforces six categories of data quality, each tied to a specific s
 
 ## 4. Exception Handling Policy
 
-The system never returns a "best guess" silently. Every exception is either:
-
-- **Surfaced** to the clinician as a structured message, or
-- **Logged** to the audit trail with sufficient detail for later review.
-
-The decision tree is:
+The system never returns a "best guess" silently. Every exception is either surfaced to the clinician as a structured message, or logged to the audit trail with enough detail to review it later.
 
 ```
 Bad input?  ─── yes ──► Stop, request clarification, log.
@@ -122,38 +117,38 @@ Safety trigger fires?  ─── yes ──► Surface alert; ensure it appears 
 
 ## 5. Determinism Guarantee
 
-Reasoning layers may not contain non-deterministic operations (no randomness, no time-dependent branching, no uncached external calls). The validation suite includes determinism tests that run the same scenario twice and assert byte-identical results.
+Reasoning layers may not contain non-deterministic operations: no randomness, no time-dependent branching, no uncached external calls. The validation suite includes determinism tests that run the same scenario twice and assert byte-identical results.
 
 ---
 
-## 6. Roles and Responsibilities
+## 6. Ownership
 
-| Role | Responsibility |
+| Function | Responsibility |
 |---|---|
-| Business Analyst / System Owner | Define and maintain validation scenarios; review failures. |
+| System design | Define and maintain validation scenarios; review failures. |
 | Engineering | Implement run-time checks at each pipeline stage. |
-| Governance / Compliance | Audit the trace records produced by the validation runs. |
+| Governance | Audit the trace records produced by validation runs. |
 | Clinician | Review surfaced exceptions and confirm or override flagged terms. |
 
 ---
 
-## 7. How to Run the Validation Suite
+## 7. Running the Validation Suite
 
 The executable suite lives at `src/services/validation_suite/`. It exposes:
 
 - `runValidationSuite(...)` — runs all declared scenarios.
-- `runPerturbationSuite(...)` — runs a stress harness that varies inputs to test robustness.
+- `runPerturbationSuite(...)` — varies inputs to stress-test robustness.
 
-A reviewer does not need to execute the suite to assess the design. The presence of a declarative scenario file (`VALIDATION_SUITE.json`), a runner module, a perturbation harness and a pre-build checklist together demonstrate that validation is treated as a first-class concern, not an afterthought.
+The presence of a declarative scenario file (`VALIDATION_SUITE.json`), a runner module, a perturbation harness and the pre-build checklist together make validation a first-class concern in the development cycle rather than an afterthought.
 
 ---
 
-## 8. Summary of Assurance Posture
+## 8. Assurance Posture
 
 | Question | Answer |
 |---|---|
 | Is bad input rejected before it can affect clinical reasoning? | Yes — Tier 2. |
-| Is system behaviour reproducible? | Yes — determinism contract + suite. |
+| Is system behaviour reproducible? | Yes — determinism contract plus the suite. |
 | Is every validation outcome recorded? | Yes — traceability contract. |
 | Is there a gate that prevents architecturally unsafe features from being built? | Yes — Tier 1 (Validation Firewall). |
 | Is there an executable regression suite? | Yes — `src/services/validation_suite/`. |
