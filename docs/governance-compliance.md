@@ -1,16 +1,18 @@
 # Governance and Compliance
 
-**Document purpose:** Describe how the platform achieves auditability, data control, traceability and access governance. Written for review by assessors concerned with clinical safety, data protection and operational accountability.
+This document describes how the platform achieves auditability, data control, traceability and access governance.
 
 ---
 
 ## 1. Governance Posture
 
-The platform treats clinical data and AI-assisted decisions as **regulated artefacts**. Three commitments shape every design decision:
+The platform treats clinical data and AI-assisted decisions as regulated artefacts. Three commitments shape every design decision:
 
-1. **The clinician is always the final authority.** AI output is presented as assistance and is reviewable, editable and overridable.
+1. **The clinician is always the final authority.** AI output is presented as assistance — reviewable, editable, overridable.
 2. **Every action that touches clinical data is recorded.** The record is server-generated, append-only and tamper-resistant.
-3. **Tenant data does not cross tenant boundaries.** Isolation is enforced at the database, not at the application layer.
+3. **Tenant data does not cross tenant boundaries.** Isolation is enforced in the database, not in the application layer.
+
+These commitments exist because clinical environments need decisions to be reconstructable months or years after the fact, and because clinical data must never be visible to a clinic that did not create it.
 
 ---
 
@@ -18,13 +20,13 @@ The platform treats clinical data and AI-assisted decisions as **regulated artef
 
 ### 2.1 Role-Based Access Control (RBAC)
 
-Roles are stored in a dedicated `user_roles` table, separate from the user or profile record. This separation is intentional and prevents privilege-escalation attacks via profile mutation.
+Roles are stored in a dedicated `user_roles` table, separate from the user or profile record. This separation is intentional: storing the role on the profile would allow a profile-mutation flaw to escalate privileges.
 
 | Concern | Decision |
 |---|---|
 | Where roles are stored | Dedicated `user_roles` table. |
 | Who may assign roles | Server-side functions only. New users receive a hard-coded default role via a database trigger. |
-| How role checks are performed | Through a `SECURITY DEFINER` function (`has_role`) used in Row Level Security policies. |
+| How role checks are performed | Through a `SECURITY DEFINER` function (`has_role`) used inside Row Level Security policies. |
 | What the client may assert | Nothing. The client never asserts role, clinic membership or ownership. |
 
 ### 2.2 Three-Layer Trust Architecture
@@ -33,24 +35,24 @@ Roles are stored in a dedicated `user_roles` table, separate from the user or pr
 |---|---|
 | Identity | Authenticated user identity (email or phone OTP, plus managed OAuth where applicable). |
 | Clinic | Verified membership in a specific clinic; recorded server-side. |
-| Role | Role within that clinic (e.g. clinician, administrator, platform admin). |
+| Role | Role within that clinic (clinician, administrator, platform admin). |
 
-All authority decisions combine these three layers. A request without all three is rejected.
+A request without all three is rejected.
 
 ---
 
 ## 3. Tenant Isolation
 
-Tenant isolation is enforced through Row Level Security (RLS) on every clinical table. Policies scope reads and writes by `clinic_id` and validate the requesting user's membership through the `has_role` function.
+Tenant isolation is enforced through Row Level Security (RLS) on every clinical table. Policies scope reads and writes by `clinic_id` and validate the requesting user's membership through `has_role`.
 
 | Mechanism | Purpose |
 |---|---|
 | `clinic_id` column on every clinical table | Provide a deterministic isolation key. |
 | RLS policies on every clinical table | Enforce isolation in the database, not in application code. |
-| Server-side functions for cross-cutting operations | Prevent client code from assembling cross-tenant queries. |
+| Server-side functions for cross-cutting operations | Stop client code from assembling cross-tenant queries. |
 | Realtime subscriptions scoped per clinic | Prevent cross-clinic event leakage. |
 
-The result: even a compromised client cannot access another clinic's data, because the database itself refuses the query.
+Even a fully compromised client cannot read another clinic's data, because the database itself refuses the query.
 
 ---
 
@@ -62,12 +64,12 @@ The platform maintains two append-only stores:
 
 | Store | Purpose |
 |---|---|
-| `audit_logs` | Operational events (sign-in, role changes, data exports, configuration changes). |
+| `audit_logs` | Operational events: sign-in, role changes, data exports, configuration changes. |
 | `ai_decision_ledger` | Every AI-assisted clinical output, the clinician's action on it, and the supporting evidence reference. |
 
 ### 4.2 What each AI ledger entry contains
 
-- The AI output and its type (e.g. diagnosis, prescription, investigation).
+- The AI output and its type (diagnosis, prescription, investigation).
 - Confidence score and model version.
 - The clinician's action (accepted, edited, overridden).
 - The reason for any override.
@@ -126,17 +128,17 @@ These constraints are codified in the Explainability Contract and the Authority 
 The platform is positioned as a clinical productivity assistant, not as a regulated medical device, at its current stage. The following practices are nonetheless adopted to keep regulatory pathways open:
 
 - Server-side audit of all AI decisions and clinician actions.
-- Immutable decision ledger to support reconstruction of past consultations.
+- Immutable decision ledger that allows past consultations to be reconstructed.
 - Tenant isolation suitable for multi-clinic deployment.
 - Explicit model-version recording on every AI output.
 - Bias-monitoring data structures (`bias_metrics`) to support fairness reviews.
-- Pre-implementation governance gate (the Validation Firewall) to prevent unsafe features from being built.
+- A pre-implementation governance gate (the Validation Firewall) to prevent unsafe features from being built in the first place.
 
 ---
 
-## 8. Roles and Responsibilities
+## 8. Operational Ownership
 
-| Role | Governance responsibility |
+| Function | Governance responsibility |
 |---|---|
 | Platform Administrator | Owns the role matrix, tenant configuration and audit access. |
 | Clinic Administrator | Owns clinic-level configuration, member assignments and workflow controls. |
