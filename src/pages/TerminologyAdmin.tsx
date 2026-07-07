@@ -110,7 +110,7 @@ export default function TerminologyAdmin() {
     return () => clearInterval(t);
   }, []);
 
-  const [releaseFolder, setReleaseFolder] = useState("snomed/");
+  const [releaseFolder, setReleaseFolder] = useState("snomed/SnomedCT_INT_20260701");
   const [missingPaths, setMissingPaths] = useState<string[]>([]);
   const [repairCandidates, setRepairCandidates] = useState<Array<{ from: string; to: string }>>([]);
   const [recoveryReport, setRecoveryReport] = useState<RecoveryReport | null>(null);
@@ -183,7 +183,8 @@ export default function TerminologyAdmin() {
   };
 
   const runRecoveryReport = async (releaseIdentifier = "SnomedCT_INT_20260701") => {
-    const folder = releaseFolder.replace(/\/+$/, "").trim() || `snomed/${releaseIdentifier}`;
+    const typedFolder = releaseFolder.replace(/\/+$/, "").trim();
+    const folder = !typedFolder || typedFolder === "snomed" ? `snomed/${releaseIdentifier}` : typedFolder;
     setBusy("recovery-report");
     try {
       const { data: r, error } = await supabase.functions.invoke("terminology-recovery-report", {
