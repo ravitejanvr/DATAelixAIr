@@ -1,7 +1,7 @@
 // Register a terminology release + seed its import job queue.
-// Requires platform_admin auth. Input: { code_system_short_name, manifest }
-// where manifest matches the preprocessing script output (release_identifier,
-// effective_date, source_sha256, chunks: [{index, target_table, storage_path, expected_rows}]).
+// Requires platform_admin auth. Loads manifest.json from the ontology bucket
+// (either via manifest_path or release_folder), then validates that every
+// chunk's storage_path already exists in the bucket before seeding jobs.
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import postgres from "npm:postgres@3.4.4";
@@ -57,13 +57,12 @@ Deno.serve(async (req) => {
 
   const shortName = body.code_system_short_name ?? "snomed-ct";
   let manifest = body.manifest;
+  let releaseFolder = body.release_folder?.replace(/\/+$/, "") ?? null;
 
   // Support loading manifest.json directly from the ontology bucket.
-  if (!manifest && (body.manifest_path || body.release_folder)) {
+  if (!manifest && (body.manifest_path || releaseFolder)) {
     let path = body.manifest_path;
-    if (!path && body.release_folder) {
-      path = `${body.release_folder.replace(/\/+$/, "")}/manifest.json`;
-    }
+    if (!path && releaseFolder) path = `${releaseFolder}/manifest.json`;
     if (!path || !/^[A-Za-z0-9][A-Za-z0-9._\-/]*manifest\.json$/.test(path)) {
       return json({ error: "invalid manifest_path" }, 400);
     }
@@ -88,6 +87,75 @@ Deno.serve(async (req) => {
     if (typeof c.index !== "number" || !c.storage_path) {
       return json({ error: "each chunk needs index and storage_path" }, 400);
     }
+  }
+
+  // ---- Validate every chunk exists in Storage before seeding jobs. ----
+  // Group expected paths by folder, then list each folder once.
+  const expectedByFolder = new Map<string, Set<string>>();
+  for (const c of manifest.chunks) {
+    const slash = c.storage_path.lastIndexOf("/");
+    const folder = slash >= 0 ? c.storage_path.slice(0, slash) : "";
+    const file = slash >= 0 ? c.storage_path.slice(slash + 1) : c.storage_path;
+    if (!expectedByFolder.has(folder)) expectedByFolder.set(folder, new Set());
+    expectedByFolder.get(folder)!.add(file);
+  }
+
+  const present = new Set<string>();
+  for (const folder of expectedByFolder.keys()) {
+    const { data: listed, error: listErr } = await admin.storage
+      .from("ontology")
+      .list(folder, { limit: 1000 });
+    if (listErr) {
+      return json({ error: `failed to list ontology/${folder}: ${listErr.message}` }, 500);
+    }
+    for (const obj of listed ?? []) {
+      if (obj.name && !obj.name.endsWith("/")) present.add(`${folder}/${obj.name}`);
+    }
+  }
+
+  const missing = manifest.chunks
+    .map((c) => c.storage_path)
+    .filter((p) => !present.has(p));
+
+  if (missing.length > 0) {
+    // Look for the same basenames in the parent folder (one level up) so the
+    // client can offer a one-click "Repair paths" that moves them into place.
+    const repairCandidates: Array<{ from: string; to: string }> = [];
+    const parents = new Set<string>();
+    for (const p of missing) {
+      const slash = p.lastIndexOf("/");
+      const folder = slash >= 0 ? p.slice(0, slash) : "";
+      const parent = folder.includes("/") ? folder.slice(0, folder.lastIndexOf("/")) : "";
+      if (parent) parents.add(parent);
+    }
+    const parentIndex = new Map<string, Set<string>>();
+    for (const parent of parents) {
+      const { data: listed } = await admin.storage
+        .from("ontology")
+        .list(parent, { limit: 1000 });
+      const names = new Set<string>();
+      for (const obj of listed ?? []) if (obj.name && !obj.name.endsWith("/")) names.add(obj.name);
+      parentIndex.set(parent, names);
+    }
+    for (const p of missing) {
+      const slash = p.lastIndexOf("/");
+      const folder = slash >= 0 ? p.slice(0, slash) : "";
+      const file = slash >= 0 ? p.slice(slash + 1) : p;
+      const parent = folder.includes("/") ? folder.slice(0, folder.lastIndexOf("/")) : "";
+      const parentNames = parentIndex.get(parent);
+      if (parentNames?.has(file)) {
+        repairCandidates.push({ from: `${parent}/${file}`, to: p });
+      }
+    }
+
+    return json({
+      error: "missing_objects",
+      message: `${missing.length} chunk object(s) referenced by manifest are not in ontology/. No jobs were seeded.`,
+      release_identifier: manifest.release_identifier,
+      release_folder: releaseFolder,
+      missing,
+      repair_candidates: repairCandidates,
+    }, 409);
   }
 
   const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, { max: 1, prepare: false, idle_timeout: 5 });
@@ -140,6 +208,7 @@ Deno.serve(async (req) => {
       ok: true,
       release_id: rel.id,
       chunks_seeded: jobRows.length,
+      validated_paths: manifest.chunks.length,
     });
   } catch (e) {
     console.error("create-release error", e);
