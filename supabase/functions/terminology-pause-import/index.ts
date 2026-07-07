@@ -82,13 +82,16 @@ Deno.serve(async (req) => {
     let cronJobDisabled = false;
     let cronDisableError: string | null = null;
     try {
-      const cronRows = await sql<Array<{ jobname: string }>>`
-        update cron.job
-           set active = false
+      const cronRows = await sql<Array<{ jobid: number; jobname: string }>>`
+        select jobid, jobname
+          from cron.job
          where jobname = 'terminology-load-chunk-30s'
             or command ilike '%terminology-load-chunk%'
-        returning jobname
+         order by jobid
       `;
+      for (const job of cronRows) {
+        await sql`select cron.alter_job(job_id := ${job.jobid}, active := false)`;
+      }
       cronJobDisabled = cronRows.length > 0;
     } catch (e) {
       cronDisableError = e instanceof Error ? e.message : String(e);
