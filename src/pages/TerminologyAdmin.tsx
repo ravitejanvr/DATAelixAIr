@@ -55,7 +55,7 @@ export default function TerminologyAdmin() {
   const refresh = async () => {
     setLoading(true);
     try {
-      const { data: d, error } = await supabase.rpc("get_terminology_dashboard");
+      const { data: d, error } = await (supabase.rpc as unknown as (fn: string) => Promise<{ data: unknown; error: unknown }>)("get_terminology_dashboard");
       if (error) throw error;
       setData(d as Dashboard);
     } catch (e) {
