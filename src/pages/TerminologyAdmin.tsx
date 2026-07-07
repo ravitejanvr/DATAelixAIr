@@ -184,9 +184,15 @@ export default function TerminologyAdmin() {
           <h1 className="text-2xl font-semibold">Terminology Administration</h1>
           <p className="text-sm text-muted-foreground">SNOMED CT releases, import queue, and search index health.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
-          <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={runE2ETest} disabled={busy === "e2e"}>
+            {busy === "e2e" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FlaskConical className="h-4 w-4 mr-2" />}
+            Run E2E test
+          </Button>
+          <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
+            <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Counts */}
@@ -244,18 +250,34 @@ export default function TerminologyAdmin() {
                   <div className="h-2 bg-muted rounded overflow-hidden">
                     <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="text-xs text-muted-foreground font-mono">
                       {Object.entries(r.row_counts ?? {}).map(([k, v]) => `${k}: ${Number(v).toLocaleString()}`).join(" · ") || "no rows loaded"}
                     </div>
-                    {!isActive && doneChunks === totalChunks && totalChunks > 0 && failedChunks === 0 && (
-                      <Button size="sm" onClick={() => promote(r.id)} disabled={busy === `promote:${r.id}`}>
-                        {busy === `promote:${r.id}`
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => verifyRelease(r.id)} disabled={busy === `verify:${r.id}`}>
+                        {busy === `verify:${r.id}`
                           ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                        Promote to active
+                          : <ShieldCheck className="h-4 w-4 mr-2" />}
+                        Verify
                       </Button>
-                    )}
+                      {!isActive && r.status === "archived" && (
+                        <Button size="sm" variant="ghost" onClick={() => rollbackRelease(r.id)} disabled={busy === `rollback:${r.id}`}>
+                          {busy === `rollback:${r.id}`
+                            ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            : <Rewind className="h-4 w-4 mr-2" />}
+                          Rollback to this
+                        </Button>
+                      )}
+                      {!isActive && doneChunks === totalChunks && totalChunks > 0 && failedChunks === 0 && r.status !== "archived" && (
+                        <Button size="sm" onClick={() => promote(r.id)} disabled={busy === `promote:${r.id}`}>
+                          {busy === `promote:${r.id}`
+                            ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                          Promote to active
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
