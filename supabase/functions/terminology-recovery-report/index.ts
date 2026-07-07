@@ -142,6 +142,19 @@ Deno.serve(async (req) => {
        order by created_at desc
     `;
 
+    let cronJobs: Array<{ jobid: number; jobname: string; schedule: string; active: boolean }> = [];
+    try {
+      cronJobs = await sql<Array<{ jobid: number; jobname: string; schedule: string; active: boolean }>>`
+        select jobid, jobname, schedule, active
+          from cron.job
+         where jobname = 'terminology-load-chunk-30s'
+            or command ilike '%terminology-load-chunk%'
+         order by jobid
+      `;
+    } catch {
+      cronJobs = [];
+    }
+
     return json({
       ok: true,
       read_only: true,
@@ -159,6 +172,7 @@ Deno.serve(async (req) => {
         expected_objects: expectedObjects,
       },
       releases: releaseRows,
+      cron_jobs: cronJobs,
       jobs: jobs.map((j) => ({
         ...j,
         exact_storage_download_path_attempted: `ontology/${j.attempted_storage_path ?? j.storage_path}`,
