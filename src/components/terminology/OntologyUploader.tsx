@@ -2,10 +2,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Upload, X, Loader2, CheckCircle2, XCircle, FileArchive } from "lucide-react";
+import { Upload, X, Loader2, CheckCircle2, XCircle, FileArchive, Lock } from "lucide-react";
 
 type FileStatus = "pending" | "uploading" | "done" | "failed";
 
@@ -16,8 +15,7 @@ type Item = {
   error?: string;
 };
 
-// Release folder must be a safe relative path like "snomed/SnomedCT_INT_20250701"
-const FOLDER_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*(\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/;
+const RELEASE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function isAllowedFilename(name: string) {
   if (name === "manifest.json") return true;
@@ -26,24 +24,44 @@ function isAllowedFilename(name: string) {
 }
 
 export default function OntologyUploader() {
-  const [folder, setFolder] = useState("snomed/");
+  // Folder is derived from manifest.json (release_identifier). Locked once known.
+  const [folder, setFolder] = useState<string | null>(null);
+  const [manifestError, setManifestError] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const folderValid = useMemo(() => {
-    const trimmed = folder.replace(/\/+$/, "");
-    return FOLDER_RE.test(trimmed);
-  }, [folder]);
+  const deriveFolderFromManifest = async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { release_identifier?: string };
+      const id = parsed?.release_identifier;
+      if (!id || !RELEASE_ID_RE.test(id)) {
+        setManifestError("manifest.json missing a valid release_identifier");
+        return null;
+      }
+      const derived = `snomed/${id}`;
+      setFolder(derived);
+      setManifestError(null);
+      toast({ title: "Release folder locked", description: `ontology/${derived}/` });
+      return derived;
+    } catch (e) {
+      setManifestError(`manifest.json is not valid JSON: ${e instanceof Error ? e.message : String(e)}`);
+      return null;
+    }
+  };
 
-  const addFiles = useCallback((files: FileList | File[]) => {
+  const addFiles = useCallback(async (files: FileList | File[]) => {
     const incoming: Item[] = [];
     const rejected: string[] = [];
     for (const f of Array.from(files)) {
       if (!isAllowedFilename(f.name)) {
         rejected.push(f.name);
         continue;
+      }
+      if (f.name === "manifest.json") {
+        await deriveFolderFromManifest(f);
       }
       incoming.push({ id: `${f.name}-${f.size}-${f.lastModified}`, file: f, status: "pending" });
     }
@@ -73,18 +91,22 @@ export default function OntologyUploader() {
 
   const clearDone = () => setItems((prev) => prev.filter((x) => x.status !== "done"));
 
+  const hasManifest = useMemo(() => items.some((x) => x.file.name === "manifest.json"), [items]);
+
   const startUpload = async () => {
-    const trimmedFolder = folder.replace(/\/+$/, "");
-    if (!FOLDER_RE.test(trimmedFolder)) {
-      return toast({ title: "Invalid release folder", description: "Use a path like snomed/SnomedCT_INT_20250701", variant: "destructive" });
+    if (!folder) {
+      return toast({
+        title: "Add manifest.json first",
+        description: "The release folder is derived from manifest.release_identifier so paths cannot drift.",
+        variant: "destructive",
+      });
     }
     const queue = items.filter((x) => x.status === "pending" || x.status === "failed");
     if (!queue.length) return;
     setBusy(true);
-    // Sequential to keep UI honest about progress and avoid rate spikes.
     for (const item of queue) {
       setItems((prev) => prev.map((x) => (x.id === item.id ? { ...x, status: "uploading", error: undefined } : x)));
-      const path = `${trimmedFolder}/${item.file.name}`;
+      const path = `${folder}/${item.file.name}`;
       const contentType = item.file.name.endsWith(".json") ? "application/json" : "application/gzip";
       const { error } = await supabase.storage.from("ontology").upload(path, item.file, {
         upsert: true,
@@ -100,7 +122,7 @@ export default function OntologyUploader() {
     const failed = items.filter((x) => x.status === "failed").length;
     toast({
       title: failed ? "Upload finished with errors" : "Upload complete",
-      description: failed ? `${failed} file(s) failed. See list.` : "All files uploaded to the ontology bucket.",
+      description: failed ? `${failed} file(s) failed. See list.` : `All files uploaded to ontology/${folder}/`,
       variant: failed ? "destructive" : "default",
     });
   };
@@ -121,18 +143,13 @@ export default function OntologyUploader() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Release folder (inside <code>ontology/</code>)</label>
-          <Input
-            value={folder}
-            onChange={(e) => setFolder(e.target.value)}
-            placeholder="snomed/SnomedCT_INT_20250701"
-            className="font-mono text-xs"
-          />
-          {!folderValid && (
-            <div className="text-xs text-destructive">
-              Path must look like <code>snomed/&lt;release-id&gt;</code> — letters, digits, dot, dash, underscore, forward slash.
-            </div>
-          )}
+          <label className="text-xs text-muted-foreground flex items-center gap-1">
+            <Lock className="h-3 w-3" /> Release folder (derived from manifest.json)
+          </label>
+          <div className="font-mono text-xs border rounded px-3 py-2 bg-muted/40">
+            {folder ? `ontology/${folder}/` : <span className="text-muted-foreground">Add manifest.json to lock the folder</span>}
+          </div>
+          {manifestError && <div className="text-xs text-destructive">{manifestError}</div>}
         </div>
 
         <div
@@ -194,7 +211,7 @@ export default function OntologyUploader() {
             <Button
               size="sm"
               onClick={startUpload}
-              disabled={busy || !folderValid || items.every((x) => x.status === "done" || x.status === "uploading")}
+              disabled={busy || !folder || !hasManifest || items.every((x) => x.status === "done" || x.status === "uploading")}
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
               Upload {counts.pending + counts.failed > 0 ? `(${counts.pending + counts.failed})` : ""}
@@ -203,7 +220,7 @@ export default function OntologyUploader() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Uploads go directly to the private <code>ontology</code> bucket. After all files land (including <code>manifest.json</code>), open <em>Register new release</em> below and enter the same release folder — the manifest is read from Storage automatically. Existing files at the same path are overwritten.
+          The release folder is locked to <code>snomed/&lt;release_identifier&gt;</code> from <code>manifest.json</code> so the loader always finds each chunk. Uploads go to the private <code>ontology</code> bucket; existing files at the same path are overwritten.
         </p>
       </CardContent>
     </Card>

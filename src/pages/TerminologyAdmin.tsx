@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
-import { RefreshCcw, Play, CheckCircle2, XCircle, Loader2, Search, ShieldCheck, Rewind, FlaskConical } from "lucide-react";
+import { RefreshCcw, Play, CheckCircle2, XCircle, Loader2, Search, ShieldCheck, Rewind, FlaskConical, Wrench } from "lucide-react";
 import OntologyUploader from "@/components/terminology/OntologyUploader";
 
 type Release = {
@@ -73,6 +73,8 @@ export default function TerminologyAdmin() {
   }, []);
 
   const [releaseFolder, setReleaseFolder] = useState("snomed/");
+  const [missingPaths, setMissingPaths] = useState<string[]>([]);
+  const [repairCandidates, setRepairCandidates] = useState<Array<{ from: string; to: string }>>([]);
 
   const createRelease = async () => {
     const folder = releaseFolder.replace(/\/+$/, "").trim();
@@ -80,15 +82,61 @@ export default function TerminologyAdmin() {
       return toast({ title: "Invalid folder", description: "Use a path like snomed/SnomedCT_INT_20260701", variant: "destructive" });
     }
     setBusy("create");
+    setMissingPaths([]);
+    setRepairCandidates([]);
     try {
       const { data: r, error } = await supabase.functions.invoke("terminology-create-release", {
         body: { code_system_short_name: "snomed-ct", release_folder: folder },
       });
+      // On non-2xx, supabase-js exposes the Response on error.context — read the JSON body.
+      let payload = r as
+        | { error?: string; missing?: string[]; repair_candidates?: Array<{ from: string; to: string }>; chunks_seeded?: number }
+        | undefined;
+      if (error && !payload) {
+        const ctx = (error as unknown as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          try { payload = await ctx.json(); } catch { /* ignore */ }
+        }
+      }
+
+      if (payload?.error === "missing_objects") {
+        setMissingPaths(payload.missing ?? []);
+        setRepairCandidates(payload.repair_candidates ?? []);
+        toast({
+          title: "Missing objects — no jobs seeded",
+          description: `${payload.missing?.length ?? 0} chunk(s) not found. ${payload.repair_candidates?.length ?? 0} can be auto-repaired.`,
+          variant: "destructive",
+        });
+        return;
+      }
       if (error) throw error;
-      toast({ title: "Release created", description: `${(r as { chunks_seeded: number }).chunks_seeded} chunks queued from ontology/${folder}/manifest.json` });
+      toast({ title: "Release created", description: `${payload?.chunks_seeded ?? 0} chunks queued from ontology/${folder}/manifest.json` });
       refresh();
     } catch (e) {
       toast({ title: "Create failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+  const repairPaths = async () => {
+    const folder = releaseFolder.replace(/\/+$/, "").trim();
+    if (!folder) return;
+    setBusy("repair");
+    try {
+      const { data: r, error } = await supabase.functions.invoke("terminology-repair-paths", {
+        body: { release_folder: folder },
+      });
+      if (error) throw error;
+      const rep = r as { moved?: string[]; failed?: Array<{ from: string; to: string; error: string }>; jobs_reset_to_pending?: number };
+      toast({
+        title: (rep.failed?.length ?? 0) === 0 ? "Repair complete" : "Repair partially failed",
+        description: `Moved ${rep.moved?.length ?? 0} · failed ${rep.failed?.length ?? 0} · reset ${rep.jobs_reset_to_pending ?? 0} jobs`,
+        variant: (rep.failed?.length ?? 0) === 0 ? "default" : "destructive",
+      });
+      setMissingPaths([]);
+      setRepairCandidates([]);
+      refresh();
+    } catch (e) {
+      toast({ title: "Repair failed", description: String(e), variant: "destructive" });
     } finally { setBusy(null); }
   };
 
@@ -307,10 +355,33 @@ export default function TerminologyAdmin() {
             placeholder="snomed/SnomedCT_INT_20260701"
             className="font-mono text-xs"
           />
-          <Button onClick={createRelease} disabled={busy === "create" || !releaseFolder.trim()}>
-            {busy === "create" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Create release from folder
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button onClick={createRelease} disabled={busy === "create" || !releaseFolder.trim()}>
+              {busy === "create" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Create release from folder
+            </Button>
+            <Button
+              variant="outline"
+              onClick={repairPaths}
+              disabled={busy === "repair" || !releaseFolder.trim()}
+              title="Move any misplaced chunks into the folder the manifest expects and reset failed jobs"
+            >
+              {busy === "repair" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wrench className="h-4 w-4 mr-2" />}
+              Repair paths &amp; resume
+            </Button>
+          </div>
+          {missingPaths.length > 0 && (
+            <div className="border border-destructive/40 rounded p-2 text-xs space-y-1">
+              <div className="text-destructive font-medium">
+                {missingPaths.length} object(s) missing at expected paths.
+                {repairCandidates.length > 0 && ` ${repairCandidates.length} auto-repair candidate(s) found one level up — click Repair paths.`}
+              </div>
+              <ul className="font-mono text-[11px] text-muted-foreground max-h-32 overflow-auto">
+                {missingPaths.slice(0, 8).map((p) => <li key={p}>· {p}</li>)}
+                {missingPaths.length > 8 && <li>… +{missingPaths.length - 8} more</li>}
+              </ul>
+            </div>
+          )}
         </CardContent>
       </Card>
 
