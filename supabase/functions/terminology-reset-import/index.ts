@@ -54,7 +54,9 @@ Deno.serve(async (req) => {
     if (!rel) return json({ error: "release_not_found" }, 404);
 
     // Truncate staging (safe: not exposed to app; promote-release copies out).
-    await sql`truncate terminology.snomed_concepts, terminology.snomed_descriptions, terminology.snomed_relationships`;
+    // CASCADE because snomed_descriptions and snomed_relationships have FKs
+    // back to snomed_concepts. All three are staging tables truncated together.
+    await sql`truncate terminology.snomed_concepts, terminology.snomed_descriptions, terminology.snomed_relationships cascade`;
 
     // Reset all jobs for the release.
     const reset = await sql<Array<{ n: number }>>`
