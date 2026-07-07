@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
-import { RefreshCcw, Play, CheckCircle2, XCircle, Loader2, Search } from "lucide-react";
+import { RefreshCcw, Play, CheckCircle2, XCircle, Loader2, Search, ShieldCheck, Rewind, FlaskConical } from "lucide-react";
 
 type Release = {
   id: string;
@@ -127,6 +127,56 @@ export default function TerminologyAdmin() {
     }
   };
 
+  const verifyRelease = async (releaseId: string) => {
+    setBusy(`verify:${releaseId}`);
+    try {
+      const { data: r, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
+        "terminology_verify_release", { p_release_id: releaseId }
+      );
+      if (error) throw error;
+      const report = r as { ok: boolean; counts?: unknown; issues?: unknown };
+      toast({
+        title: report.ok ? "Verification passed" : "Verification failed",
+        description: JSON.stringify(report.issues ?? report),
+        variant: report.ok ? "default" : "destructive",
+      });
+    } catch (e) {
+      toast({ title: "Verify failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+  const rollbackRelease = async (releaseId: string) => {
+    if (!confirm(`Rollback: make release ${releaseId} the active one?`)) return;
+    setBusy(`rollback:${releaseId}`);
+    try {
+      const { data: r, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
+        "terminology_rollback_release", { p_release_id: releaseId }
+      );
+      if (error) throw error;
+      toast({ title: "Rollback complete", description: JSON.stringify(r).slice(0, 200) });
+      refresh();
+    } catch (e) {
+      toast({ title: "Rollback failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+  const runE2ETest = async () => {
+    setBusy("e2e");
+    try {
+      const { data: r, error } = await supabase.functions.invoke("terminology-e2e-test", {});
+      if (error) throw error;
+      const report = r as { ok?: boolean; summary?: unknown; error?: string };
+      toast({
+        title: report.ok ? "E2E test passed" : "E2E test failed",
+        description: report.error ?? JSON.stringify(report.summary),
+        variant: report.ok ? "default" : "destructive",
+      });
+      console.log("[terminology-e2e-test]", report);
+    } catch (e) {
+      toast({ title: "E2E invoke failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -134,9 +184,15 @@ export default function TerminologyAdmin() {
           <h1 className="text-2xl font-semibold">Terminology Administration</h1>
           <p className="text-sm text-muted-foreground">SNOMED CT releases, import queue, and search index health.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
-          <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={runE2ETest} disabled={busy === "e2e"}>
+            {busy === "e2e" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FlaskConical className="h-4 w-4 mr-2" />}
+            Run E2E test
+          </Button>
+          <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
+            <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Counts */}
@@ -194,18 +250,34 @@ export default function TerminologyAdmin() {
                   <div className="h-2 bg-muted rounded overflow-hidden">
                     <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="text-xs text-muted-foreground font-mono">
                       {Object.entries(r.row_counts ?? {}).map(([k, v]) => `${k}: ${Number(v).toLocaleString()}`).join(" · ") || "no rows loaded"}
                     </div>
-                    {!isActive && doneChunks === totalChunks && totalChunks > 0 && failedChunks === 0 && (
-                      <Button size="sm" onClick={() => promote(r.id)} disabled={busy === `promote:${r.id}`}>
-                        {busy === `promote:${r.id}`
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => verifyRelease(r.id)} disabled={busy === `verify:${r.id}`}>
+                        {busy === `verify:${r.id}`
                           ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                        Promote to active
+                          : <ShieldCheck className="h-4 w-4 mr-2" />}
+                        Verify
                       </Button>
-                    )}
+                      {!isActive && r.status === "archived" && (
+                        <Button size="sm" variant="ghost" onClick={() => rollbackRelease(r.id)} disabled={busy === `rollback:${r.id}`}>
+                          {busy === `rollback:${r.id}`
+                            ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            : <Rewind className="h-4 w-4 mr-2" />}
+                          Rollback to this
+                        </Button>
+                      )}
+                      {!isActive && doneChunks === totalChunks && totalChunks > 0 && failedChunks === 0 && r.status !== "archived" && (
+                        <Button size="sm" onClick={() => promote(r.id)} disabled={busy === `promote:${r.id}`}>
+                          {busy === `promote:${r.id}`
+                            ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                          Promote to active
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

@@ -6594,6 +6594,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _terminology_active_release: {
+        Args: { p_system: string }
+        Returns: {
+          code_system_id: string
+          release_id: string
+        }[]
+      }
       get_terminology_counts: { Args: never; Returns: Json }
       get_terminology_dashboard: { Args: never; Returns: Json }
       has_role: {
@@ -6614,6 +6621,39 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      terminology_ancestors: {
+        Args: { p_code: string; p_max_depth?: number; p_system?: string }
+        Returns: {
+          code: string
+          depth: number
+          display: string
+        }[]
+      }
+      terminology_canonicalize: {
+        Args: { p_min_score?: number; p_q: string; p_system?: string }
+        Returns: Json
+      }
+      terminology_descendants: {
+        Args: {
+          p_code: string
+          p_limit?: number
+          p_max_depth?: number
+          p_system?: string
+        }
+        Returns: {
+          code: string
+          depth: number
+          display: string
+        }[]
+      }
+      terminology_lookup: {
+        Args: { p_code: string; p_system?: string }
+        Returns: Json
+      }
+      terminology_rollback_release: {
+        Args: { p_release_id: string }
+        Returns: Json
+      }
       terminology_search: {
         Args: { limit_n?: number; q: string; system_short_name?: string }
         Returns: {
@@ -6624,6 +6664,27 @@ export type Database = {
           score: number
           source: string
         }[]
+      }
+      terminology_translate: {
+        Args: {
+          p_source_code: string
+          p_source_system: string
+          p_target_system: string
+        }
+        Returns: {
+          equivalence: string
+          source: string
+          target_code: string
+          target_display: string
+        }[]
+      }
+      terminology_validate: {
+        Args: { p_code: string; p_system?: string }
+        Returns: Json
+      }
+      terminology_verify_release: {
+        Args: { p_release_id: string }
+        Returns: Json
       }
       unaccent: { Args: { "": string }; Returns: string }
     }
