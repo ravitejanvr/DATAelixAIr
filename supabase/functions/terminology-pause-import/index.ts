@@ -79,10 +79,27 @@ Deno.serve(async (req) => {
        returning 1 as n
     `;
 
+    let cronJobDisabled = false;
+    let cronDisableError: string | null = null;
+    try {
+      const cronRows = await sql<Array<{ jobname: string }>>`
+        update cron.job
+           set active = false
+         where jobname = 'terminology-load-chunk-30s'
+            or command ilike '%terminology-load-chunk%'
+        returning jobname
+      `;
+      cronJobDisabled = cronRows.length > 0;
+    } catch (e) {
+      cronDisableError = e instanceof Error ? e.message : String(e);
+    }
+
     return json({
       ok: true,
       releases_paused: releaseRows,
       pending_jobs_paused: pausedJobs.length,
+      cron_job_disabled: cronJobDisabled,
+      cron_disable_error: cronDisableError,
       note: "Completed and failed chunks were not modified. The loader will not claim chunks while this release is paused.",
     });
   } catch (e) {
