@@ -88,11 +88,16 @@ export default function TerminologyAdmin() {
       const { data: r, error } = await supabase.functions.invoke("terminology-create-release", {
         body: { code_system_short_name: "snomed-ct", release_folder: folder },
       });
-      // Edge function returns 409 with a JSON body when objects are missing; the
-      // supabase-js client surfaces this as `error` while still parsing the body.
-      const payload = (r ?? (error as unknown as { context?: { body?: unknown } })?.context?.body) as
+      // On non-2xx, supabase-js exposes the Response on error.context — read the JSON body.
+      let payload = r as
         | { error?: string; missing?: string[]; repair_candidates?: Array<{ from: string; to: string }>; chunks_seeded?: number }
         | undefined;
+      if (error && !payload) {
+        const ctx = (error as unknown as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          try { payload = await ctx.json(); } catch { /* ignore */ }
+        }
+      }
 
       if (payload?.error === "missing_objects") {
         setMissingPaths(payload.missing ?? []);
