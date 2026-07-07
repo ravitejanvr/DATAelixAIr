@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import { RefreshCcw, Play, CheckCircle2, XCircle, Loader2, Search, ShieldCheck, Rewind, FlaskConical } from "lucide-react";
+import OntologyUploader from "@/components/terminology/OntologyUploader";
 
 type Release = {
   id: string;
@@ -285,6 +286,9 @@ export default function TerminologyAdmin() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Upload chunks */}
+      <OntologyUploader />
 
       {/* Create release */}
       <Card>
