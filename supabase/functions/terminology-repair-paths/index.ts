@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
           select id from terminology.releases where release_identifier = ${manifest.release_identifier}
         )
         update terminology.import_jobs j
-           set status='pending', error_message=null, attempts=0, updated_at=now()
+           set status='pending', last_error=null, claimed_at=null
          where j.release_id in (select id from r) and j.status='failed'
         returning 1 as n
       `;
