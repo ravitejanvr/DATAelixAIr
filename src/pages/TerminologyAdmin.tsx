@@ -80,6 +80,7 @@ type RecoveryReport = {
     expected_objects: RecoveryObject[];
   };
   releases: Array<{ id: string; status: string; import_paused_at: string | null; release_identifier: string }>;
+  cron_jobs?: Array<{ jobid: number; jobname: string; schedule: string; active: boolean }>;
   jobs: RecoveryJob[];
 };
 
@@ -451,6 +452,22 @@ export default function TerminologyAdmin() {
           <CardContent className="space-y-4 text-sm">
             <div className="text-xs text-muted-foreground">
               Checked {new Date(recoveryReport.checked_at).toLocaleString()} · {recoveryReport.release_identifier} · {recoveryReport.release_folder}
+            </div>
+
+            <div className="rounded border p-3 space-y-2">
+              <div className="font-medium">Automatic loader</div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {(recoveryReport.cron_jobs ?? []).map((job) => (
+                  <div key={job.jobid} className="text-xs">
+                    <div className="font-mono">{job.jobname}</div>
+                    <div className="text-muted-foreground">{job.schedule}</div>
+                    <Badge variant={job.active ? "destructive" : "default"} className="mt-1">
+                      {job.active ? "active" : "disabled"}
+                    </Badge>
+                  </div>
+                ))}
+                {(recoveryReport.cron_jobs ?? []).length === 0 && <div className="text-xs text-muted-foreground">No loader schedule visible in report.</div>}
+              </div>
             </div>
 
             <div className="grid gap-2 md:grid-cols-2">
