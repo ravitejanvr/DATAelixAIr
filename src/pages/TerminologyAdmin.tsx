@@ -350,10 +350,33 @@ export default function TerminologyAdmin() {
             placeholder="snomed/SnomedCT_INT_20260701"
             className="font-mono text-xs"
           />
-          <Button onClick={createRelease} disabled={busy === "create" || !releaseFolder.trim()}>
-            {busy === "create" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Create release from folder
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button onClick={createRelease} disabled={busy === "create" || !releaseFolder.trim()}>
+              {busy === "create" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Create release from folder
+            </Button>
+            <Button
+              variant="outline"
+              onClick={repairPaths}
+              disabled={busy === "repair" || !releaseFolder.trim()}
+              title="Move any misplaced chunks into the folder the manifest expects and reset failed jobs"
+            >
+              {busy === "repair" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wrench className="h-4 w-4 mr-2" />}
+              Repair paths &amp; resume
+            </Button>
+          </div>
+          {missingPaths.length > 0 && (
+            <div className="border border-destructive/40 rounded p-2 text-xs space-y-1">
+              <div className="text-destructive font-medium">
+                {missingPaths.length} object(s) missing at expected paths.
+                {repairCandidates.length > 0 && ` ${repairCandidates.length} auto-repair candidate(s) found one level up — click Repair paths.`}
+              </div>
+              <ul className="font-mono text-[11px] text-muted-foreground max-h-32 overflow-auto">
+                {missingPaths.slice(0, 8).map((p) => <li key={p}>· {p}</li>)}
+                {missingPaths.length > 8 && <li>… +{missingPaths.length - 8} more</li>}
+              </ul>
+            </div>
+          )}
         </CardContent>
       </Card>
 
