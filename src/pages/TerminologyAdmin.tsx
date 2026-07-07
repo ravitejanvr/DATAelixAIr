@@ -48,7 +48,7 @@ type SearchHit = {
 export default function TerminologyAdmin() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(false);
-  const [manifestJson, _setManifestJson] = useState("");
+  
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
