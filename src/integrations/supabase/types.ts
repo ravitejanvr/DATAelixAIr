@@ -6594,8 +6594,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      exec_terminology_sql: { Args: { sql_text: string }; Returns: undefined }
       get_terminology_counts: { Args: never; Returns: Json }
+      get_terminology_dashboard: { Args: never; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -6612,6 +6612,20 @@ export type Database = {
         Args: { p_patient_id: string }
         Returns: boolean
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      terminology_search: {
+        Args: { limit_n?: number; q: string; system_short_name?: string }
+        Returns: {
+          code: string
+          language: string
+          matched_term: string
+          preferred_term: string
+          score: number
+          source: string
+        }[]
+      }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       app_role:

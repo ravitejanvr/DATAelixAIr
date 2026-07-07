@@ -1,368 +1,266 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/hooks/use-toast";
-import SEO from "@/components/SEO";
-import {
-  Upload, Database, Play, Loader2, CheckCircle, XCircle,
-  FileText, Trash2, RefreshCw
-} from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/hooks/use-toast";
+import { RefreshCcw, Play, CheckCircle2, XCircle, Loader2, Search } from "lucide-react";
 
-interface UploadedFile {
-  name: string;
-  path: string;
-  size: number;
+type Release = {
+  id: string;
+  code_system_id: string;
+  release_identifier: string;
+  status: string;
+  effective_date: string | null;
   created_at: string;
-}
+  loaded_at: string | null;
+  activated_at: string | null;
+  row_counts: Record<string, number>;
+};
 
-interface ImportResult {
-  file: string;
-  totalRows: number;
-  insertedRows: number;
-  status: "processing" | "completed" | "error";
-  error?: string;
-}
+type JobRollup = {
+  release_id: string;
+  status: string;
+  chunk_count: number;
+  loaded_rows: number;
+  expected_rows: number;
+};
 
-interface ConceptCounts {
-  concepts: number;
-  descriptions: number;
-  relationships: number;
-  mappings: number;
-}
+type Dashboard = {
+  code_systems: Array<{ id: string; short_name: string; name: string; active_release_id: string | null }>;
+  releases: Release[];
+  jobs: JobRollup[];
+  counts: Record<string, number>;
+};
+
+type SearchHit = {
+  code: string;
+  preferred_term: string;
+  matched_term: string;
+  language: string;
+  source: string;
+  score: number;
+};
 
 export default function TerminologyAdmin() {
-  const { toast } = useToast();
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResults, setImportResults] = useState<ImportResult[]>([]);
-  const [counts, setCounts] = useState<ConceptCounts>({ concepts: 0, descriptions: 0, relationships: 0, mappings: 0 });
-  const [loadingCounts, setLoadingCounts] = useState(true);
+  const [data, setData] = useState<Dashboard | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [manifestJson, setManifestJson] = useState("");
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const loadFiles = useCallback(async () => {
-    const { data, error } = await supabase.storage
-      .from("ontology")
-      .list("snomed", { sortBy: { column: "created_at", order: "desc" } });
-
-    if (!error && data) {
-      setFiles(
-        data
-          .filter((f) => f.name && !f.name.startsWith("."))
-          .map((f) => ({
-            name: f.name,
-            path: `snomed/${f.name}`,
-            size: f.metadata?.size || 0,
-            created_at: f.created_at || "",
-          }))
-      );
-    }
-  }, []);
-
-  const loadCounts = useCallback(async () => {
-    setLoadingCounts(true);
+  const refresh = async () => {
+    setLoading(true);
     try {
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const url = `https://${projectId}.supabase.co/rest/v1/rpc/get_terminology_counts`;
-      const { data: session } = await supabase.auth.getSession();
-      const token = session?.session?.access_token;
-
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        setCounts(data || { concepts: 0, descriptions: 0, relationships: 0, mappings: 0 });
-      }
-    } catch (err) {
-      console.error("Failed to load counts:", err);
+      const { data: d, error } = await (supabase.rpc as unknown as (fn: string) => Promise<{ data: unknown; error: unknown }>)("get_terminology_dashboard");
+      if (error) throw error;
+      setData(d as Dashboard);
+    } catch (e) {
+      toast({ title: "Load failed", description: String(e), variant: "destructive" });
     } finally {
-      setLoadingCounts(false);
+      setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    loadFiles();
-    loadCounts();
-  }, [loadFiles, loadCounts]);
+    refresh();
+    const t = setInterval(refresh, 5000);
+    return () => clearInterval(t);
+  }, []);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files;
-    if (!selectedFiles || selectedFiles.length === 0) return;
-
-    setUploading(true);
+  const createRelease = async () => {
+    let manifest: unknown;
+    try { manifest = JSON.parse(manifestJson); }
+    catch { return toast({ title: "Invalid JSON", variant: "destructive" }); }
+    setBusy("create");
     try {
-      for (const file of Array.from(selectedFiles)) {
-        const filePath = `snomed/${file.name}`;
-        const { error } = await supabase.storage
-          .from("ontology")
-          .upload(filePath, file, { upsert: true });
-
-        if (error) {
-          toast({
-            title: "Upload failed",
-            description: `${file.name}: ${error.message}`,
-            variant: "destructive",
-          });
-        } else {
-          toast({ title: "Uploaded", description: file.name });
-        }
-      }
-      await loadFiles();
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
+      const { data: r, error } = await supabase.functions.invoke("terminology-create-release", {
+        body: { code_system_short_name: "snomed-ct", manifest },
+      });
+      if (error) throw error;
+      toast({ title: "Release created", description: `${(r as { chunks_seeded: number }).chunks_seeded} chunks queued` });
+      setManifestJson("");
+      refresh();
+    } catch (e) {
+      toast({ title: "Create failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
   };
 
-  const handleDelete = async (path: string) => {
-    const { error } = await supabase.storage.from("ontology").remove([path]);
-    if (error) {
-      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "File deleted" });
-      await loadFiles();
-    }
-  };
-
-  const handleImport = async () => {
-    if (files.length === 0) {
-      toast({ title: "No files to import", variant: "destructive" });
-      return;
-    }
-
-    setImporting(true);
-    setImportResults([]);
-
+  const loadOne = async () => {
+    setBusy("load");
     try {
-      const filePaths = files.map((f) => f.path);
-      const { data, error } = await supabase.functions.invoke("import-snomed-rf2", {
-        body: { files: filePaths },
-      });
-
-      if (error) {
-        toast({ title: "Import failed", description: error.message, variant: "destructive" });
-        return;
-      }
-
-      setImportResults(data?.results || []);
-
-      const successCount = (data?.results || []).filter(
-        (r: ImportResult) => r.status === "completed"
-      ).length;
-      const errorCount = (data?.results || []).filter(
-        (r: ImportResult) => r.status === "error"
-      ).length;
-
-      toast({
-        title: "Import complete",
-        description: `${successCount} files imported successfully${errorCount > 0 ? `, ${errorCount} errors` : ""}`,
-        variant: errorCount > 0 ? "destructive" : "default",
-      });
-
-      await loadCounts();
-    } catch (err) {
-      toast({
-        title: "Import error",
-        description: err instanceof Error ? err.message : "Unknown error",
-        variant: "destructive",
-      });
-    } finally {
-      setImporting(false);
-    }
+      const { data: r, error } = await supabase.functions.invoke("terminology-load-chunk", {});
+      if (error) throw error;
+      toast({ title: "Chunk loaded", description: JSON.stringify(r).slice(0, 200) });
+      refresh();
+    } catch (e) {
+      toast({ title: "Load failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
   };
 
-  const formatSize = (bytes: number) => {
-    if (bytes === 0) return "—";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1048576).toFixed(1)} MB`;
+  const promote = async (releaseId: string) => {
+    if (!confirm(`Promote release ${releaseId} to active?`)) return;
+    setBusy(`promote:${releaseId}`);
+    try {
+      const { data: r, error } = await supabase.functions.invoke("terminology-promote-release", {
+        body: { release_id: releaseId },
+      });
+      if (error) throw error;
+      toast({ title: "Promoted", description: JSON.stringify((r as { counts: unknown }).counts) });
+      refresh();
+    } catch (e) {
+      toast({ title: "Promote failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+  const runSearch = async () => {
+    if (query.length < 2) return;
+    try {
+      const { data: r, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)("terminology_search", { q: query, limit_n: 15 });
+      if (error) throw error;
+      setHits((r ?? []) as SearchHit[]);
+    } catch (e) {
+      toast({ title: "Search failed", description: String(e), variant: "destructive" });
+    }
   };
 
   return (
-    <>
-      <SEO title="Terminology Management — DATAelixAIr" description="SNOMED CT ontology management." />
-      <div className="space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-foreground">Terminology Management</h2>
-          <p className="text-sm text-muted-foreground">Upload and ingest SNOMED CT RF2 snapshot files.</p>
+          <h1 className="text-2xl font-semibold">Terminology Administration</h1>
+          <p className="text-sm text-muted-foreground">SNOMED CT releases, import queue, and search index health.</p>
         </div>
-
-        {/* Concept Counts */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-4 pb-3 text-center">
-              <Database className="h-4 w-4 text-primary mx-auto mb-1" />
-              <p className="text-[10px] text-muted-foreground">Concepts</p>
-              <p className="text-2xl font-bold">{loadingCounts ? "…" : counts.concepts.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3 text-center">
-              <FileText className="h-4 w-4 text-primary mx-auto mb-1" />
-              <p className="text-[10px] text-muted-foreground">Descriptions</p>
-              <p className="text-2xl font-bold">{loadingCounts ? "…" : counts.descriptions.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3 text-center">
-              <Database className="h-4 w-4 text-primary mx-auto mb-1" />
-              <p className="text-[10px] text-muted-foreground">Relationships</p>
-              <p className="text-2xl font-bold">{loadingCounts ? "…" : counts.relationships.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-3 text-center">
-              <Database className="h-4 w-4 text-primary mx-auto mb-1" />
-              <p className="text-[10px] text-muted-foreground">Local Mappings</p>
-              <p className="text-2xl font-bold">{loadingCounts ? "…" : counts.mappings.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Upload Section */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Upload className="h-4 w-4" /> Upload SNOMED RF2 Files
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-3">
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  multiple
-                  accept=".txt,.csv,.tsv"
-                  onChange={handleUpload}
-                  className="hidden"
-                  disabled={uploading}
-                />
-                <Button variant="outline" size="sm" asChild disabled={uploading}>
-                  <span>
-                    {uploading ? (
-                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                    ) : (
-                      <Upload className="h-3.5 w-3.5 mr-1" />
-                    )}
-                    Select Files
-                  </span>
-                </Button>
-              </label>
-              <p className="text-xs text-muted-foreground">
-                Upload Concept, Description, and Relationship snapshot files (RF2 tab-separated format).
-              </p>
-            </div>
-
-            {/* File List */}
-            {files.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Uploaded Files</p>
-                {files.map((f) => (
-                  <div
-                    key={f.path}
-                    className="flex items-center justify-between p-2 rounded-lg border text-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs font-medium">{f.name}</span>
-                      <span className="text-[10px] text-muted-foreground">{formatSize(f.size)}</span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDelete(f.path)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {files.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                No SNOMED files uploaded yet. Upload RF2 snapshot files to begin.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Import Section */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Play className="h-4 w-4" /> Import SNOMED Data
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleImport}
-                disabled={importing || files.length === 0}
-                size="sm"
-              >
-                {importing ? (
-                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                ) : (
-                  <Play className="h-3.5 w-3.5 mr-1" />
-                )}
-                {importing ? "Importing…" : "Import SNOMED"}
-              </Button>
-              <Button variant="outline" size="sm" onClick={loadCounts}>
-                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh Counts
-              </Button>
-            </div>
-
-            {importing && (
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Processing files…</p>
-                <Progress value={undefined} className="h-2" />
-              </div>
-            )}
-
-            {/* Import Results */}
-            {importResults.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Import Results</p>
-                {importResults.map((r, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-2 rounded-lg border text-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      {r.status === "completed" ? (
-                        <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
-                      ) : (
-                        <XCircle className="h-3.5 w-3.5 text-destructive" />
-                      )}
-                      <span className="text-xs">{r.file}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {r.status === "completed" ? (
-                        <Badge variant="outline" className="text-[9px]">
-                          {r.insertedRows.toLocaleString()} / {r.totalRows.toLocaleString()} rows
-                        </Badge>
-                      ) : (
-                        <span className="text-[10px] text-destructive">{r.error}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
+          <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
       </div>
-    </>
+
+      {/* Counts */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Index counts</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            {data?.counts && Object.entries(data.counts).map(([k, v]) => (
+              <div key={k} className="rounded border p-3">
+                <div className="text-xs text-muted-foreground">{k}</div>
+                <div className="text-xl font-mono">{Number(v).toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Releases */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center justify-between">
+            <span>Releases</span>
+            <Button size="sm" variant="secondary" onClick={loadOne} disabled={busy === "load"}>
+              {busy === "load" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+              Load next chunk
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {data?.releases.length === 0 && <div className="text-sm text-muted-foreground">No releases yet.</div>}
+            {data?.releases.map((r) => {
+              const jobs = data.jobs.filter((j) => j.release_id === r.id);
+              const totalChunks = jobs.reduce((a, b) => a + b.chunk_count, 0);
+              const doneChunks = jobs.filter((j) => j.status === "done").reduce((a, b) => a + b.chunk_count, 0);
+              const failedChunks = jobs.filter((j) => j.status === "failed").reduce((a, b) => a + b.chunk_count, 0);
+              const pct = totalChunks ? Math.round((doneChunks / totalChunks) * 100) : 0;
+              const isActive = data.code_systems.some((cs) => cs.active_release_id === r.id);
+              return (
+                <div key={r.id} className="border rounded p-3 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <code className="text-sm">{r.release_identifier}</code>
+                      <Badge variant={isActive ? "default" : r.status === "failed" ? "destructive" : "secondary"}>
+                        {isActive ? "active" : r.status}
+                      </Badge>
+                      {failedChunks > 0 && <Badge variant="destructive">{failedChunks} failed</Badge>}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{r.effective_date ?? "—"}</span>
+                      <span>·</span>
+                      <span>{doneChunks}/{totalChunks} chunks · {pct}%</span>
+                    </div>
+                  </div>
+                  <div className="h-2 bg-muted rounded overflow-hidden">
+                    <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {Object.entries(r.row_counts ?? {}).map(([k, v]) => `${k}: ${Number(v).toLocaleString()}`).join(" · ") || "no rows loaded"}
+                    </div>
+                    {!isActive && doneChunks === totalChunks && totalChunks > 0 && failedChunks === 0 && (
+                      <Button size="sm" onClick={() => promote(r.id)} disabled={busy === `promote:${r.id}`}>
+                        {busy === `promote:${r.id}`
+                          ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                        Promote to active
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Create release */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Register new release</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Paste the <code>manifest.json</code> emitted by <code>scripts/snomed-preprocess.mjs</code>.
+            Chunks must already be uploaded to the <code>ontology</code> bucket at the paths listed inside.
+          </p>
+          <Textarea rows={6} value={manifestJson} onChange={(e) => setManifestJson(e.target.value)} placeholder='{ "release_identifier": "SnomedCT_INT_20250701", "chunks": [...] }' className="font-mono text-xs" />
+          <Button onClick={createRelease} disabled={busy === "create" || !manifestJson.trim()}>
+            {busy === "create" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Create release + seed queue
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Search verification */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Search verification</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex gap-2">
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g., pneumonia" onKeyDown={(e) => e.key === "Enter" && runSearch()} />
+            <Button onClick={runSearch} variant="outline">
+              <Search className="h-4 w-4 mr-2" /> Search
+            </Button>
+          </div>
+          {hits.length > 0 && (
+            <div className="border rounded divide-y">
+              {hits.map((h, i) => (
+                <div key={i} className="p-2 flex items-center justify-between text-sm">
+                  <div>
+                    <div>{h.matched_term}</div>
+                    <div className="text-xs text-muted-foreground">{h.preferred_term} · {h.source} · {h.language}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="text-xs text-muted-foreground">{h.code}</code>
+                    <Badge variant="outline">{h.score.toFixed(3)}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {query.length >= 2 && hits.length === 0 && (
+            <div className="text-xs text-muted-foreground flex items-center gap-2"><XCircle className="h-3 w-3" /> No results</div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
