@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
-import { RefreshCcw, Play, CheckCircle2, XCircle, Loader2, Search } from "lucide-react";
+import { RefreshCcw, Play, CheckCircle2, XCircle, Loader2, Search, ShieldCheck, Rewind, FlaskConical } from "lucide-react";
 
 type Release = {
   id: string;
@@ -125,6 +125,56 @@ export default function TerminologyAdmin() {
     } catch (e) {
       toast({ title: "Search failed", description: String(e), variant: "destructive" });
     }
+  };
+
+  const verifyRelease = async (releaseId: string) => {
+    setBusy(`verify:${releaseId}`);
+    try {
+      const { data: r, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
+        "terminology_verify_release", { p_release_id: releaseId }
+      );
+      if (error) throw error;
+      const report = r as { ok: boolean; counts?: unknown; issues?: unknown };
+      toast({
+        title: report.ok ? "Verification passed" : "Verification failed",
+        description: JSON.stringify(report.issues ?? report),
+        variant: report.ok ? "default" : "destructive",
+      });
+    } catch (e) {
+      toast({ title: "Verify failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+  const rollbackRelease = async (releaseId: string) => {
+    if (!confirm(`Rollback: make release ${releaseId} the active one?`)) return;
+    setBusy(`rollback:${releaseId}`);
+    try {
+      const { data: r, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
+        "terminology_rollback_release", { p_release_id: releaseId }
+      );
+      if (error) throw error;
+      toast({ title: "Rollback complete", description: JSON.stringify(r).slice(0, 200) });
+      refresh();
+    } catch (e) {
+      toast({ title: "Rollback failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+  const runE2ETest = async () => {
+    setBusy("e2e");
+    try {
+      const { data: r, error } = await supabase.functions.invoke("terminology-e2e-test", {});
+      if (error) throw error;
+      const report = r as { ok?: boolean; summary?: unknown; error?: string };
+      toast({
+        title: report.ok ? "E2E test passed" : "E2E test failed",
+        description: report.error ?? JSON.stringify(report.summary),
+        variant: report.ok ? "default" : "destructive",
+      });
+      console.log("[terminology-e2e-test]", report);
+    } catch (e) {
+      toast({ title: "E2E invoke failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
   };
 
   return (
