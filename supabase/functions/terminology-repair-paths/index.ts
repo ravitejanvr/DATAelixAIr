@@ -56,8 +56,19 @@ Deno.serve(async (req) => {
     return json({ error: "release_folder or manifest_path is required" }, 400);
   }
 
-  const dl = await admin.storage.from("ontology").download(manifestPath);
-  if (dl.error || !dl.data) return json({ error: `manifest not found at ontology/${manifestPath}` }, 404);
+  let dl = await admin.storage.from("ontology").download(manifestPath);
+  // Fallback: manifest may still be in the parent folder (pre-repair state).
+  if ((dl.error || !dl.data) && releaseFolder && releaseFolder.includes("/")) {
+    const parent = releaseFolder.slice(0, releaseFolder.lastIndexOf("/"));
+    const parentManifest = `${parent}/manifest.json`;
+    const alt = await admin.storage.from("ontology").download(parentManifest);
+    if (!alt.error && alt.data) {
+      dl = alt;
+      // Move the manifest into the expected folder so subsequent runs find it.
+      await admin.storage.from("ontology").move(parentManifest, manifestPath).catch(() => {});
+    }
+  }
+  if (dl.error || !dl.data) return json({ error: `manifest not found at ontology/${manifestPath} (also checked parent folder)` }, 404);
 
   let manifest: Manifest;
   try { manifest = JSON.parse(await dl.data.text()) as Manifest; }
