@@ -73,7 +73,12 @@ Deno.serve(async (req) => {
   if (!releaseId) return json({ error: "release_id required" }, 400);
 
   const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
-    max: 1, prepare: false, idle_timeout: 5,
+    max: 1,
+    prepare: false,
+    idle_timeout: 5,
+    // Raise DB-side timeout — search-index chunks routinely need 60-150s;
+    // default 120s statement_timeout was killing later, denser partitions.
+    connection: { statement_timeout: "600000" },
   });
 
   try {
