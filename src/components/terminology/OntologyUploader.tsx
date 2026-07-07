@@ -203,7 +203,7 @@ export default function OntologyUploader() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Uploads go directly to the private <code>ontology</code> bucket. After all files land, paste the same <code>manifest.json</code> below in <em>Register new release</em> to trigger Load → Verify → Promote. Existing files at the same path are overwritten.
+          Uploads go directly to the private <code>ontology</code> bucket. After all files land (including <code>manifest.json</code>), open <em>Register new release</em> below and enter the same release folder — the manifest is read from Storage automatically. Existing files at the same path are overwritten.
         </p>
       </CardContent>
     </Card>
