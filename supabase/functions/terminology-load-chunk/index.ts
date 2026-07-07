@@ -53,11 +53,18 @@ Deno.serve(async (req) => {
     // Atomic claim
     const claimed = await sql<Job[]>`
       update terminology.import_jobs
-      set status = 'running', claimed_at = now(), attempts = attempts + 1
+      set status = 'running',
+          claimed_at = now(),
+          attempts = attempts + 1,
+          attempted_storage_path = storage_path,
+          last_error_stack = null
       where id = (
-        select id from terminology.import_jobs
-        where status = 'pending'
-        order by created_at
+        select j.id
+        from terminology.import_jobs j
+        join terminology.releases r on r.id = j.release_id
+        where j.status = 'pending'
+          and r.import_paused_at is null
+        order by j.created_at
         limit 1
         for update skip locked
       )
@@ -127,17 +134,22 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? (e.stack ?? e.message) : String(e);
     if (job) {
       try {
         await sql`
           update terminology.import_jobs
-          set status = 'failed', last_error = ${msg.slice(0, 2000)}, completed_at = now()
+          set status = 'failed',
+              last_error = ${msg.slice(0, 2000)},
+              last_error_stack = ${stack.slice(0, 4000)},
+              attempted_storage_path = ${job.storage_path},
+              completed_at = now()
           where id = ${job.id}
         `;
       } catch { /* swallow */ }
     }
-    console.error("load-chunk error", msg);
-    return json({ ok: false, error: msg, job_id: job?.id ?? null }, 500);
+    console.error("load-chunk error", stack);
+    return json({ ok: false, error: msg, stack, job_id: job?.id ?? null, attempted_storage_path: job?.storage_path ?? null }, 500);
   } finally {
     await sql.end({ timeout: 5 }).catch(() => {});
   }
