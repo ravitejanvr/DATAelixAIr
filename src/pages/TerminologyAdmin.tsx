@@ -3,10 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
-import { RefreshCcw, Play, CheckCircle2, XCircle, Loader2, Search, ShieldCheck, Rewind, FlaskConical, Wrench } from "lucide-react";
+import { RefreshCcw, CheckCircle2, XCircle, Loader2, Search, ShieldCheck, Rewind, FlaskConical, PauseCircle, FileSearch } from "lucide-react";
 import OntologyUploader from "@/components/terminology/OntologyUploader";
 
 type Release = {
@@ -45,6 +44,47 @@ type SearchHit = {
   score: number;
 };
 
+type RecoveryObject = {
+  name: string;
+  path: string;
+  updated_at: string | null;
+  metadata: Record<string, unknown> | null;
+};
+
+type RecoveryJob = {
+  chunk_index: number;
+  target_table: string;
+  storage_path: string;
+  attempted_storage_path: string | null;
+  exact_storage_download_path_attempted: string;
+  status: string;
+  error: string | null;
+  edge_function_log: string | null;
+  stack_trace: string | null;
+  claimed_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+
+type RecoveryReport = {
+  checked_at: string;
+  release_identifier: string;
+  release_folder: string;
+  manifests: {
+    parent: { path: string; exists: boolean; error: string | null };
+    expected: { path: string; exists: boolean; error: string | null };
+  };
+  storage: {
+    parent_folder: string;
+    expected_folder: string;
+    parent_objects: RecoveryObject[];
+    expected_objects: RecoveryObject[];
+  };
+  releases: Array<{ id: string; status: string; import_paused_at: string | null; release_identifier: string }>;
+  cron_jobs?: Array<{ jobid: number; jobname: string; schedule: string; active: boolean }>;
+  jobs: RecoveryJob[];
+};
+
 export default function TerminologyAdmin() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,9 +112,21 @@ export default function TerminologyAdmin() {
     return () => clearInterval(t);
   }, []);
 
-  const [releaseFolder, setReleaseFolder] = useState("snomed/");
+  const [releaseFolder, setReleaseFolder] = useState("snomed/SnomedCT_INT_20260701");
   const [missingPaths, setMissingPaths] = useState<string[]>([]);
   const [repairCandidates, setRepairCandidates] = useState<Array<{ from: string; to: string }>>([]);
+  const [recoveryReport, setRecoveryReport] = useState<RecoveryReport | null>(null);
+
+  const readFunctionError = async (error: unknown) => {
+    const ctx = (error as { context?: Response })?.context;
+    if (ctx && typeof ctx.json === "function") {
+      try {
+        const payload = await ctx.json() as { error?: string; message?: string };
+        return payload.message ?? payload.error ?? String(error);
+      } catch { /* ignore */ }
+    }
+    return String(error);
+  };
 
   const createRelease = async () => {
     const folder = releaseFolder.replace(/\/+$/, "").trim();
@@ -117,38 +169,34 @@ export default function TerminologyAdmin() {
     } finally { setBusy(null); }
   };
 
-  const repairPaths = async () => {
-    const folder = releaseFolder.replace(/\/+$/, "").trim();
-    if (!folder) return;
-    setBusy("repair");
+  const pauseImport = async (releaseIdentifier = "SnomedCT_INT_20260701") => {
+    setBusy("pause");
     try {
-      const { data: r, error } = await supabase.functions.invoke("terminology-repair-paths", {
-        body: { release_folder: folder },
+      const { data: r, error } = await supabase.functions.invoke("terminology-pause-import", {
+        body: { release_identifier: releaseIdentifier },
       });
-      if (error) throw error;
-      const rep = r as { moved?: string[]; failed?: Array<{ from: string; to: string; error: string }>; jobs_reset_to_pending?: number };
-      toast({
-        title: (rep.failed?.length ?? 0) === 0 ? "Repair complete" : "Repair partially failed",
-        description: `Moved ${rep.moved?.length ?? 0} · failed ${rep.failed?.length ?? 0} · reset ${rep.jobs_reset_to_pending ?? 0} jobs`,
-        variant: (rep.failed?.length ?? 0) === 0 ? "default" : "destructive",
-      });
-      setMissingPaths([]);
-      setRepairCandidates([]);
+      if (error) throw new Error(await readFunctionError(error));
+      const result = r as { pending_jobs_paused?: number; note?: string };
+      toast({ title: "Import paused", description: `${result.pending_jobs_paused ?? 0} waiting chunk(s) paused. ${result.note ?? ""}`.slice(0, 240) });
       refresh();
     } catch (e) {
-      toast({ title: "Repair failed", description: String(e), variant: "destructive" });
+      toast({ title: "Pause failed", description: String(e), variant: "destructive" });
     } finally { setBusy(null); }
   };
 
-  const loadOne = async () => {
-    setBusy("load");
+  const runRecoveryReport = async (releaseIdentifier = "SnomedCT_INT_20260701") => {
+    const typedFolder = releaseFolder.replace(/\/+$/, "").trim();
+    const folder = !typedFolder || typedFolder === "snomed" ? `snomed/${releaseIdentifier}` : typedFolder;
+    setBusy("recovery-report");
     try {
-      const { data: r, error } = await supabase.functions.invoke("terminology-load-chunk", {});
-      if (error) throw error;
-      toast({ title: "Chunk loaded", description: JSON.stringify(r).slice(0, 200) });
-      refresh();
+      const { data: r, error } = await supabase.functions.invoke("terminology-recovery-report", {
+        body: { release_identifier: releaseIdentifier, release_folder: folder },
+      });
+      if (error) throw new Error(await readFunctionError(error));
+      setRecoveryReport(r as RecoveryReport);
+      toast({ title: "Verification report ready", description: "No chunks were retried or repaired." });
     } catch (e) {
-      toast({ title: "Load failed", description: String(e), variant: "destructive" });
+      toast({ title: "Report failed", description: String(e), variant: "destructive" });
     } finally { setBusy(null); }
   };
 
@@ -266,10 +314,16 @@ export default function TerminologyAdmin() {
         <CardHeader>
           <CardTitle className="text-base flex items-center justify-between">
             <span>Releases</span>
-            <Button size="sm" variant="secondary" onClick={loadOne} disabled={busy === "load"}>
-              {busy === "load" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-              Load next chunk
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="destructive" onClick={() => pauseImport()} disabled={busy === "pause"}>
+                {busy === "pause" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PauseCircle className="h-4 w-4 mr-2" />}
+                Pause Import
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => runRecoveryReport()} disabled={busy === "recovery-report"}>
+                {busy === "recovery-report" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileSearch className="h-4 w-4 mr-2" />}
+                Verification report
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -291,6 +345,9 @@ export default function TerminologyAdmin() {
                         {isActive ? "active" : r.status}
                       </Badge>
                       {failedChunks > 0 && <Badge variant="destructive">{failedChunks} failed</Badge>}
+                      {r.release_identifier === "SnomedCT_INT_20260701" && recoveryReport?.releases.some((rel) => rel.id === r.id && rel.import_paused_at) && (
+                        <Badge variant="outline">paused</Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{r.effective_date ?? "—"}</span>
@@ -362,12 +419,12 @@ export default function TerminologyAdmin() {
             </Button>
             <Button
               variant="outline"
-              onClick={repairPaths}
-              disabled={busy === "repair" || !releaseFolder.trim()}
-              title="Move any misplaced chunks into the folder the manifest expects and reset failed jobs"
+              onClick={() => runRecoveryReport()}
+              disabled={busy === "recovery-report" || !releaseFolder.trim()}
+              title="Read-only report: storage manifests, objects, failed chunks, and queue state"
             >
-              {busy === "repair" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wrench className="h-4 w-4 mr-2" />}
-              Repair paths &amp; resume
+              {busy === "recovery-report" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileSearch className="h-4 w-4 mr-2" />}
+              Verify Storage &amp; queue
             </Button>
           </div>
           {missingPaths.length > 0 && (
@@ -384,6 +441,89 @@ export default function TerminologyAdmin() {
           )}
         </CardContent>
       </Card>
+
+      {recoveryReport && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>Operator recovery report</span>
+              <Badge variant="outline">read-only</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div className="text-xs text-muted-foreground">
+              Checked {new Date(recoveryReport.checked_at).toLocaleString()} · {recoveryReport.release_identifier} · {recoveryReport.release_folder}
+            </div>
+
+            <div className="rounded border p-3 space-y-2">
+              <div className="font-medium">Automatic loader</div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {(recoveryReport.cron_jobs ?? []).map((job) => (
+                  <div key={job.jobid} className="text-xs">
+                    <div className="font-mono">{job.jobname}</div>
+                    <div className="text-muted-foreground">{job.schedule}</div>
+                    <Badge variant={job.active ? "destructive" : "default"} className="mt-1">
+                      {job.active ? "active" : "disabled"}
+                    </Badge>
+                  </div>
+                ))}
+                {(recoveryReport.cron_jobs ?? []).length === 0 && <div className="text-xs text-muted-foreground">No loader schedule visible in report.</div>}
+              </div>
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              {[recoveryReport.manifests.parent, recoveryReport.manifests.expected].map((m) => (
+                <div key={m.path} className="rounded border p-3">
+                  <div className="font-mono text-xs break-all">{m.path}</div>
+                  <Badge variant={m.exists ? "default" : "destructive"} className="mt-2">{m.exists ? "exists" : "missing"}</Badge>
+                  {m.error && <div className="mt-2 text-xs text-muted-foreground break-all">{m.error}</div>}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {[
+                { title: recoveryReport.storage.parent_folder, objects: recoveryReport.storage.parent_objects },
+                { title: recoveryReport.storage.expected_folder, objects: recoveryReport.storage.expected_objects },
+              ].map((folder) => (
+                <div key={folder.title} className="rounded border p-3 space-y-2">
+                  <div className="font-mono text-xs break-all">{folder.title}</div>
+                  <div className="text-xs text-muted-foreground">{folder.objects.length} object(s)</div>
+                  <div className="max-h-72 overflow-auto space-y-1">
+                    {folder.objects.length === 0 && <div className="text-xs text-muted-foreground">No objects listed.</div>}
+                    {folder.objects.map((obj) => (
+                      <div key={obj.path} className="font-mono text-[11px] border-b py-1 break-all">
+                        {obj.path}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded border p-3 space-y-2">
+              <div className="font-medium">Import jobs</div>
+              <div className="max-h-[520px] overflow-auto space-y-2">
+                {recoveryReport.jobs.map((job) => (
+                  <div key={`${job.chunk_index}-${job.target_table}`} className="rounded border p-2 space-y-1 text-xs">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="font-mono">#{job.chunk_index} · {job.target_table}</div>
+                      <Badge variant={job.status === "failed" ? "destructive" : job.status === "done" ? "default" : "secondary"}>{job.status}</Badge>
+                    </div>
+                    <div><span className="text-muted-foreground">storage_path:</span> <code className="break-all">{job.storage_path}</code></div>
+                    <div><span className="text-muted-foreground">download attempted:</span> <code className="break-all">{job.exact_storage_download_path_attempted}</code></div>
+                    <div><span className="text-muted-foreground">timestamp:</span> {job.completed_at ?? job.claimed_at ?? job.created_at}</div>
+                    <div><span className="text-muted-foreground">exception:</span> <span className="break-all">{job.error ?? "—"}</span></div>
+                    {job.status === "failed" && (
+                      <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-muted p-2 text-[11px]">{job.edge_function_log ?? job.stack_trace ?? "No stack trace or edge log available."}</pre>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search verification */}
       <Card>
