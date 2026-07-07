@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
-import { RefreshCcw, CheckCircle2, XCircle, Loader2, Search, ShieldCheck, Rewind, FlaskConical, PauseCircle, FileSearch } from "lucide-react";
+import { RefreshCcw, CheckCircle2, XCircle, Loader2, Search, ShieldCheck, Rewind, FlaskConical, PauseCircle, FileSearch, RotateCcw } from "lucide-react";
 import OntologyUploader from "@/components/terminology/OntologyUploader";
 
 type Release = {
