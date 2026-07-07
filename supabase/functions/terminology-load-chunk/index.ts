@@ -1,19 +1,15 @@
-// Terminology chunk loader.
-// Phase-based, idempotent, resumable. Invoked by pg_cron; safe to invoke manually.
+// Terminology chunk loader — INSTRUMENTED build.
 //
-// Phase ordering (enforced in the claim query):
-//   1. snomed_concepts   — must all be `done` before any descriptions start
-//   2. snomed_descriptions — must all be `done` before any relationships start
-//   3. snomed_relationships
+// This build is intentionally verbose. It is here to answer three questions:
+//   1. What exactly happens for every chunk (start/end/rows/commit/error/stack/elapsed)?
+//   2. Are the phase preconditions satisfied before a description/relationship
+//      chunk is allowed to run? (i.e. do concept counts match the manifest?)
+//   3. What SQL / parameter structure does postgres.js emit for the concept
+//      batch that triggers "could not determine data type of parameter $1" /
+//      "cannot cast type boolean to boolean[]"?
 //
-// Any concept/description/relationship chunk that is still pending/running/failed
-// blocks the next phase from starting for that release. This prevents the FK
-// violations we saw when descriptions or relationships loaded before their
-// referenced concepts.
-//
-// Insert strategy: `unnest(<typed arrays>)`. This gives every column an explicit
-// Postgres type so all-null batches don't hit `could not determine data type of
-// parameter $1` (the bug that killed snomed_concepts chunk 2).
+// Nothing here changes the phase-gating logic or the insert strategy. It only
+// adds logging + a hard precondition check before descriptions/relationships.
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import postgres from "npm:postgres@3.4.4";
@@ -49,6 +45,15 @@ interface Job {
   expected_rows: number;
 }
 
+// Structured logger — one JSON object per event so logs are grep-able.
+function log(event: string, data: Record<string, unknown> = {}) {
+  try {
+    console.log(JSON.stringify({ event, ts: new Date().toISOString(), ...data }));
+  } catch {
+    console.log(event, data);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -65,12 +70,13 @@ Deno.serve(async (req) => {
   });
 
   let job: Job | null = null;
+  const startedAt = new Date();
   const t0 = performance.now();
+  let committed = false;
+  let insertedRows = 0;
 
   try {
-    // Phase-gated atomic claim.
-    // A pending job is only eligible if, for the same release, no job in an
-    // earlier phase is still non-`done`. Phases are encoded via a CASE.
+    // ---------- Claim ----------
     const claimed = await sql<Job[]>`
       with phase as (
         select
@@ -108,6 +114,7 @@ Deno.serve(async (req) => {
       returning id, release_id::text, chunk_index, storage_path, target_table, expected_rows
     `;
     if (claimed.length === 0) {
+      log("no_eligible_job");
       return json({ ok: true, message: "no eligible pending jobs (phase-gated or queue empty)" });
     }
     job = claimed[0];
@@ -116,7 +123,77 @@ Deno.serve(async (req) => {
       throw new Error(`disallowed target_table: ${job.target_table}`);
     }
 
-    // Download + decompress
+    // ---------- Phase transition detection ----------
+    // Is this the FIRST job of its phase for this release to run?
+    const [phaseStats] = await sql<Array<{
+      total: number; done: number; running: number; pending: number; failed: number;
+    }>>`
+      select
+        count(*)::int                                          as total,
+        count(*) filter (where status = 'done')::int           as done,
+        count(*) filter (where status = 'running')::int        as running,
+        count(*) filter (where status = 'pending')::int        as pending,
+        count(*) filter (where status = 'failed')::int         as failed
+      from terminology.import_jobs
+      where release_id = ${job.release_id}
+        and target_table = ${job.target_table}
+    `;
+    const isPhaseStart = phaseStats.done === 0 && phaseStats.running === 1; // this job is the running one
+    if (isPhaseStart) {
+      log("phase_start", {
+        release_id: job.release_id,
+        phase: job.target_table.replace("snomed_", ""),
+        message: `START ${cap(job.target_table.replace("snomed_", ""))}`,
+        chunks_total: phaseStats.total,
+      });
+    }
+
+    // ---------- Precondition: descriptions/relationships require concepts loaded ----------
+    if (job.target_table === "snomed_descriptions" || job.target_table === "snomed_relationships") {
+      const [{ count: liveConcepts }] = await sql<Array<{ count: string }>>`
+        select count(*)::text as count from terminology.snomed_concepts
+      `;
+      const [{ expected }] = await sql<Array<{ expected: string }>>`
+        select coalesce(sum(expected_rows), 0)::text as expected
+        from terminology.import_jobs
+        where release_id = ${job.release_id} and target_table = 'snomed_concepts'
+      `;
+      const live = BigInt(liveConcepts);
+      const exp = BigInt(expected);
+      log("phase_precondition_check", {
+        release_id: job.release_id,
+        target_table: job.target_table,
+        chunk_index: job.chunk_index,
+        live_concepts: liveConcepts,
+        expected_concepts_from_manifest: expected,
+        ok: live === exp,
+      });
+      if (live !== exp) {
+        // Refuse to start this phase — release the claim back to pending.
+        await sql`
+          update terminology.import_jobs
+          set status = 'pending', claimed_at = null,
+              last_error = ${'phase precondition failed: snomed_concepts count ' + liveConcepts + ' != expected ' + expected}
+          where id = ${job.id}
+        `;
+        log("phase_precondition_refused", {
+          release_id: job.release_id,
+          target_table: job.target_table,
+          live_concepts: liveConcepts,
+          expected_concepts_from_manifest: expected,
+        });
+        return json({
+          ok: false,
+          refused: true,
+          reason: "phase_precondition_failed",
+          target_table: job.target_table,
+          live_concepts: liveConcepts,
+          expected_concepts_from_manifest: expected,
+        }, 409);
+      }
+    }
+
+    // ---------- Download + parse ----------
     const { data: file, error: dlErr } = await supabase.storage
       .from("ontology")
       .download(job.storage_path);
@@ -133,17 +210,32 @@ Deno.serve(async (req) => {
       rows.push(JSON.parse(trimmed));
     }
 
-    // Bulk insert via typed unnest — every column has an explicit Postgres type.
-    let inserted = 0;
+    log("chunk_start", {
+      release_id: job.release_id,
+      chunk_index: job.chunk_index,
+      target_table: job.target_table,
+      rows_in_chunk: rows.length,
+      storage_path: job.storage_path,
+      start_time: startedAt.toISOString(),
+    });
+
+    // ---------- Insert ----------
     for (let i = 0; i < rows.length; i += BATCH) {
       const slice = rows.slice(i, i + BATCH);
-      await insertBatch(sql, job.target_table, slice);
-      inserted += slice.length;
+      try {
+        await insertBatch(sql, job.target_table, slice);
+      } catch (batchErr) {
+        // Dump exactly what we tried to send so we can diagnose the postgres.js
+        // parameter-type problem without guessing.
+        dumpBatchDiagnostics(job.target_table, slice, i, batchErr);
+        throw batchErr;
+      }
+      insertedRows += slice.length;
     }
 
     await sql`
       update terminology.import_jobs
-      set status = 'done', loaded_rows = ${inserted}, completed_at = now(), last_error = null
+      set status = 'done', loaded_rows = ${insertedRows}, completed_at = now(), last_error = null
       where id = ${job.id}
     `;
 
@@ -152,23 +244,70 @@ Deno.serve(async (req) => {
       set row_counts = coalesce(row_counts, '{}'::jsonb) ||
         jsonb_build_object(
           ${job.target_table},
-          coalesce((row_counts->>${job.target_table})::bigint, 0) + ${inserted}
+          coalesce((row_counts->>${job.target_table})::bigint, 0) + ${insertedRows}
         )
       where r.id = ${job.release_id}
     `;
+    committed = true;
+
+    const endedAt = new Date();
+    const elapsed = Math.round(performance.now() - t0);
+    log("chunk_end", {
+      release_id: job.release_id,
+      chunk_index: job.chunk_index,
+      target_table: job.target_table,
+      rows_in_chunk: rows.length,
+      rows_inserted: insertedRows,
+      start_time: startedAt.toISOString(),
+      end_time: endedAt.toISOString(),
+      transaction_committed: committed,
+      error: null,
+      stack: null,
+      elapsed_ms: elapsed,
+    });
+
+    // ---------- Phase-complete detection ----------
+    const [postStats] = await sql<Array<{ total: number; done: number }>>`
+      select count(*)::int as total, count(*) filter (where status = 'done')::int as done
+      from terminology.import_jobs
+      where release_id = ${job.release_id} and target_table = ${job.target_table}
+    `;
+    if (postStats.done === postStats.total) {
+      const phase = job.target_table.replace("snomed_", "");
+      log("phase_complete", {
+        release_id: job.release_id,
+        phase,
+        message: `${cap(phase)} complete`,
+        chunks_total: postStats.total,
+      });
+    }
 
     return json({
       ok: true,
       job_id: job.id,
       chunk_index: job.chunk_index,
       target_table: job.target_table,
-      rows_loaded: inserted,
-      elapsed_ms: Math.round(performance.now() - t0),
+      rows_loaded: insertedRows,
+      elapsed_ms: elapsed,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? (e.stack ?? e.message) : String(e);
+    const endedAt = new Date();
+    const elapsed = Math.round(performance.now() - t0);
     if (job) {
+      log("chunk_error", {
+        release_id: job.release_id,
+        chunk_index: job.chunk_index,
+        target_table: job.target_table,
+        rows_inserted: insertedRows,
+        start_time: startedAt.toISOString(),
+        end_time: endedAt.toISOString(),
+        transaction_committed: committed,
+        error: msg,
+        stack,
+        elapsed_ms: elapsed,
+      });
       try {
         await sql`
           update terminology.import_jobs
@@ -180,6 +319,8 @@ Deno.serve(async (req) => {
           where id = ${job.id}
         `;
       } catch { /* swallow */ }
+    } else {
+      log("claim_error", { error: msg, stack });
     }
     console.error("load-chunk error", stack);
     return json({ ok: false, error: msg, stack, job_id: job?.id ?? null, attempted_storage_path: job?.storage_path ?? null }, 500);
@@ -189,9 +330,8 @@ Deno.serve(async (req) => {
 });
 
 // ------------------------------------------------------------------
-// Typed-array insert. Fixes "could not determine data type of parameter $1"
-// by giving every array parameter an explicit Postgres cast (::bigint[], etc.)
-// so all-null batches are no longer ambiguous.
+// Insert. Unchanged strategy — kept typed-unnest so the diagnostic dump
+// below reflects the SAME SQL the failing chunk uses.
 // ------------------------------------------------------------------
 
 async function insertBatch(
@@ -269,8 +409,97 @@ async function insertBatch(
   throw new Error(`unhandled table: ${table}`);
 }
 
-// SNOMED IDs are 64-bit; pass as strings so JS Number precision loss never
-// happens and postgres.js binds them to bigint[] cleanly.
+// ------------------------------------------------------------------
+// Diagnostic dump for a failing insert batch. Prints:
+//   - the exact SQL template we submitted
+//   - each parameter's JS type, isArray, length, first 3 values
+//   - a sample of the raw row we tried to insert
+// This is what we need to figure out why postgres.js emits
+// "could not determine data type of parameter $1" or the boolean[] cast error.
+// ------------------------------------------------------------------
+function dumpBatchDiagnostics(
+  table: TargetTable,
+  rows: Array<Record<string, unknown>>,
+  offset: number,
+  err: unknown,
+) {
+  const errMsg = err instanceof Error ? err.message : String(err);
+  const params = buildParamsForDiagnostics(table, rows);
+  const sqlTemplate = SQL_TEMPLATES[table];
+
+  log("batch_diagnostic", {
+    table,
+    batch_offset: offset,
+    rows_in_batch: rows.length,
+    error: errMsg,
+    generated_sql: sqlTemplate,
+    parameters: params.map((p, idx) => ({
+      index: idx + 1,
+      declared_cast: p.cast,
+      js_type: Array.isArray(p.value) ? "array" : typeof p.value,
+      is_array: Array.isArray(p.value),
+      length: Array.isArray(p.value) ? p.value.length : null,
+      all_null: Array.isArray(p.value) ? p.value.every((v) => v === null || v === undefined) : null,
+      sample_values: Array.isArray(p.value) ? p.value.slice(0, 3) : p.value,
+      sample_types: Array.isArray(p.value)
+        ? p.value.slice(0, 3).map((v) => (v === null ? "null" : typeof v))
+        : typeof p.value,
+    })),
+    sample_input_row: rows[0] ?? null,
+  });
+}
+
+const SQL_TEMPLATES: Record<TargetTable, string> = {
+  snomed_concepts: `insert into terminology.snomed_concepts
+  (concept_id, effective_time, active, module_id, definition_status_id)
+select * from unnest($1::bigint[], $2::date[], $3::bool[], $4::text[], $5::text[])
+on conflict do nothing`,
+  snomed_descriptions: `insert into terminology.snomed_descriptions
+  (description_id, concept_id, language_code, type_id, term, active)
+select * from unnest($1::bigint[], $2::bigint[], $3::text[], $4::text[], $5::text[], $6::bool[])
+on conflict do nothing`,
+  snomed_relationships: `insert into terminology.snomed_relationships
+  (relationship_id, source_concept, destination_concept, relationship_type, active)
+select * from unnest($1::bigint[], $2::bigint[], $3::text[], $4::text[], $5::bool[])
+on conflict do nothing`,
+};
+
+function buildParamsForDiagnostics(
+  table: TargetTable,
+  rows: Array<Record<string, unknown>>,
+): Array<{ cast: string; value: unknown }> {
+  if (table === "snomed_concepts") {
+    return [
+      { cast: "bigint[]", value: rows.map((r) => safe(() => toBigIntStr(r.concept_id))) },
+      { cast: "date[]",   value: rows.map((r) => (r.effective_time as string | null) ?? null) },
+      { cast: "bool[]",   value: rows.map((r) => Boolean(r.active)) },
+      { cast: "text[]",   value: rows.map((r) => (r.module_id as string | null) ?? null) },
+      { cast: "text[]",   value: rows.map((r) => (r.definition_status_id as string | null) ?? null) },
+    ];
+  }
+  if (table === "snomed_descriptions") {
+    return [
+      { cast: "bigint[]", value: rows.map((r) => safe(() => toBigIntStr(r.description_id))) },
+      { cast: "bigint[]", value: rows.map((r) => toBigIntStrOrNull(r.concept_id)) },
+      { cast: "text[]",   value: rows.map((r) => (r.language_code as string | null) ?? null) },
+      { cast: "text[]",   value: rows.map((r) => (r.type_id as string | null) ?? null) },
+      { cast: "text[]",   value: rows.map((r) => (r.term as string | null) ?? null) },
+      { cast: "bool[]",   value: rows.map((r) => Boolean(r.active)) },
+    ];
+  }
+  return [
+    { cast: "bigint[]", value: rows.map((r) => safe(() => toBigIntStr(r.relationship_id))) },
+    { cast: "bigint[]", value: rows.map((r) => toBigIntStrOrNull(r.source_concept)) },
+    { cast: "bigint[]", value: rows.map((r) => toBigIntStrOrNull(r.destination_concept)) },
+    { cast: "text[]",   value: rows.map((r) => (r.relationship_type as string | null) ?? null) },
+    { cast: "bool[]",   value: rows.map((r) => Boolean(r.active)) },
+  ];
+}
+
+function safe<T>(fn: () => T): T | string {
+  try { return fn(); } catch (e) { return `<ERR: ${e instanceof Error ? e.message : String(e)}>`; }
+}
+
 function toBigIntStr(v: unknown): string {
   if (v === null || v === undefined) throw new Error("required bigint is null");
   return String(v);
@@ -279,6 +508,8 @@ function toBigIntStrOrNull(v: unknown): string | null {
   if (v === null || v === undefined || v === "") return null;
   return String(v);
 }
+
+function cap(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
