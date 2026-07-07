@@ -72,18 +72,20 @@ export default function TerminologyAdmin() {
     return () => clearInterval(t);
   }, []);
 
+  const [releaseFolder, setReleaseFolder] = useState("snomed/");
+
   const createRelease = async () => {
-    let manifest: unknown;
-    try { manifest = JSON.parse(manifestJson); }
-    catch { return toast({ title: "Invalid JSON", variant: "destructive" }); }
+    const folder = releaseFolder.replace(/\/+$/, "").trim();
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*(\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/.test(folder)) {
+      return toast({ title: "Invalid folder", description: "Use a path like snomed/SnomedCT_INT_20260701", variant: "destructive" });
+    }
     setBusy("create");
     try {
       const { data: r, error } = await supabase.functions.invoke("terminology-create-release", {
-        body: { code_system_short_name: "snomed-ct", manifest },
+        body: { code_system_short_name: "snomed-ct", release_folder: folder },
       });
       if (error) throw error;
-      toast({ title: "Release created", description: `${(r as { chunks_seeded: number }).chunks_seeded} chunks queued` });
-      setManifestJson("");
+      toast({ title: "Release created", description: `${(r as { chunks_seeded: number }).chunks_seeded} chunks queued from ontology/${folder}/manifest.json` });
       refresh();
     } catch (e) {
       toast({ title: "Create failed", description: String(e), variant: "destructive" });
