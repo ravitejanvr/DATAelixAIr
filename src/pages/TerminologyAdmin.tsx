@@ -287,6 +287,9 @@ export default function TerminologyAdmin() {
         </CardContent>
       </Card>
 
+      {/* Upload chunks */}
+      <OntologyUploader />
+
       {/* Create release */}
       <Card>
         <CardHeader><CardTitle className="text-base">Register new release</CardTitle></CardHeader>
