@@ -64,6 +64,7 @@ import DiagnosticSimulator from "./pages/DiagnosticSimulator";
 import CockpitPlayground from "./pages/CockpitPlayground";
 import V2Evaluation from "./pages/V2Evaluation";
 import V3BenchmarkDashboard from "./pages/V3BenchmarkDashboard";
+import TerminologyAdmin from "./pages/TerminologyAdmin";
 
 const queryClient = new QueryClient();
 
@@ -205,6 +206,8 @@ const App = () => (
               <Route path="/admin/v2-evaluation" element={<ProtectedRoute allowedRoles={["platform_admin"]}><V2Evaluation /></ProtectedRoute>} />
               <Route path="/admin/v3-benchmark" element={<ProtectedRoute allowedRoles={["platform_admin"]}><V3BenchmarkDashboard /></ProtectedRoute>} />
               <Route path="/admin/clinical-interaction" element={<ProtectedRoute allowedRoles={["platform_admin", "doctor"]}><ClinicalInteraction /></ProtectedRoute>} />
+              <Route path="/platform-admin/terminology" element={<ProtectedRoute allowedRoles={["platform_admin"]}><PlatformAdminLayout><TerminologyAdmin /></PlatformAdminLayout></ProtectedRoute>} />
+
 
               {/* Layer 1: Marketing site */}
               <Route path="/" element={<Layout><Index /></Layout>} />
