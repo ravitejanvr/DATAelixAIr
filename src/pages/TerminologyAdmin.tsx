@@ -344,6 +344,10 @@ export default function TerminologyAdmin() {
                 {busy === "pause" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PauseCircle className="h-4 w-4 mr-2" />}
                 Pause Import
               </Button>
+              <Button size="sm" variant="destructive" onClick={() => resetImport()} disabled={busy === "reset"}>
+                {busy === "reset" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+                Reset &amp; restart
+              </Button>
               <Button size="sm" variant="outline" onClick={() => runRecoveryReport()} disabled={busy === "recovery-report"}>
                 {busy === "recovery-report" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileSearch className="h-4 w-4 mr-2" />}
                 Verification report
