@@ -40,10 +40,12 @@ Deno.serve(async (req) => {
     .from("user_roles").select("role").eq("user_id", user.id).eq("role", "platform_admin").maybeSingle();
   if (!role) return json({ error: "forbidden" }, 403);
 
-  let body: { release_id?: string };
+  let body: { release_id?: string; phase?: string };
   try { body = await req.json(); } catch { return json({ error: "invalid json" }, 400); }
   const releaseId = body.release_id;
   if (!releaseId) return json({ error: "release_id required" }, 400);
+  const phase = body.phase ?? "all";
+  const runPhase = (p: string) => phase === "all" || phase === p;
 
   const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, { max: 1, prepare: false, idle_timeout: 5 });
   const timings: Record<string, number> = {};
@@ -72,113 +74,128 @@ Deno.serve(async (req) => {
 
     const csId = rel.code_system_id;
 
-    await sql`update terminology.releases set status = 'loading' where id = ${releaseId}`;
+    if (rel.status !== "loading" && rel.status !== "active") {
+      await sql`update terminology.releases set status = 'loading' where id = ${releaseId}`;
+    }
 
-    // 1. Concepts (SNOMED code -> generic concepts row per release)
-    await time("concepts", async () => {
-      await sql`
-        insert into terminology.concepts (code_system_id, release_id, code, display, active)
-        select ${csId}::uuid, ${releaseId}::uuid, sc.concept_id::text,
-               coalesce(fsn.term, sc.concept_id::text), sc.active
-        from terminology.snomed_concepts sc
-        left join lateral (
-          select term from terminology.snomed_descriptions sd
-          where sd.concept_id = sc.concept_id
-            and sd.type_id = ${FSN_TYPE} and sd.active
-          limit 1
-        ) fsn on true
-        where sc.active
-        on conflict (code_system_id, release_id, code) do nothing
-      `;
-    });
+    // 1. Concepts
+    if (runPhase("concepts")) {
+      await time("concepts", async () => {
+        await sql`
+          insert into terminology.concepts (code_system_id, release_id, code, display, active)
+          select ${csId}::uuid, ${releaseId}::uuid, sc.concept_id::text,
+                 coalesce(fsn.term, sc.concept_id::text), sc.active
+          from terminology.snomed_concepts sc
+          left join lateral (
+            select term from terminology.snomed_descriptions sd
+            where sd.concept_id = sc.concept_id
+              and sd.type_id = ${FSN_TYPE} and sd.active
+            limit 1
+          ) fsn on true
+          where sc.active
+          on conflict (code_system_id, release_id, code) do nothing
+        `;
+      });
+    }
 
-    // 2. Designations
-    await time("designations", async () => {
-      await sql`
-        insert into terminology.designations (concept_id, language, term, use_type, active)
-        select c.id, sd.language_code, sd.term,
-               case sd.type_id
-                 when ${FSN_TYPE} then 'fsn'
-                 when ${SYNONYM_TYPE} then 'synonym'
-                 else 'synonym'
-               end,
-               sd.active
-        from terminology.snomed_descriptions sd
-        join terminology.concepts c
-          on c.code = sd.concept_id::text
-         and c.release_id = ${releaseId}::uuid
-        where sd.active
-      `;
-    });
+    // 2. Designations (chunked by type to fit within edge function timeout)
+    if (runPhase("designations")) {
+      await time("designations_fsn", async () => {
+        await sql`
+          insert into terminology.designations (concept_id, language, term, use_type, active)
+          select c.id, sd.language_code, sd.term, 'fsn', sd.active
+          from terminology.snomed_descriptions sd
+          join terminology.concepts c
+            on c.code = sd.concept_id::text
+           and c.release_id = ${releaseId}::uuid
+          where sd.active and sd.type_id = ${FSN_TYPE}
+        `;
+      });
+      await time("designations_synonym", async () => {
+        await sql`
+          insert into terminology.designations (concept_id, language, term, use_type, active)
+          select c.id, sd.language_code, sd.term, 'synonym', sd.active
+          from terminology.snomed_descriptions sd
+          join terminology.concepts c
+            on c.code = sd.concept_id::text
+           and c.release_id = ${releaseId}::uuid
+          where sd.active and sd.type_id <> ${FSN_TYPE}
+        `;
+      });
+    }
 
-    // 3. Relationships (is-a only for MVP; other types can be added later)
-    await time("relationships", async () => {
-      await sql`
-        insert into terminology.relationships
-          (code_system_id, release_id, source_concept_id, target_concept_id, relationship_type, active)
-        select ${csId}::uuid, ${releaseId}::uuid, src.id, dst.id, 'is-a', sr.active
-        from terminology.snomed_relationships sr
-        join terminology.concepts src
-          on src.code = sr.source_concept::text and src.release_id = ${releaseId}::uuid
-        join terminology.concepts dst
-          on dst.code = sr.destination_concept::text and dst.release_id = ${releaseId}::uuid
-        where sr.active and sr.relationship_type = ${IS_A_TYPE}
-      `;
-    });
+    // 3. Relationships (is-a only for MVP)
+    if (runPhase("relationships")) {
+      await time("relationships", async () => {
+        await sql`
+          insert into terminology.relationships
+            (code_system_id, release_id, source_concept_id, target_concept_id, relationship_type, active)
+          select ${csId}::uuid, ${releaseId}::uuid, src.id, dst.id, 'is-a', sr.active
+          from terminology.snomed_relationships sr
+          join terminology.concepts src
+            on src.code = sr.source_concept::text and src.release_id = ${releaseId}::uuid
+          join terminology.concepts dst
+            on dst.code = sr.destination_concept::text and dst.release_id = ${releaseId}::uuid
+          where sr.active and sr.relationship_type = ${IS_A_TYPE}
+        `;
+      });
+    }
 
     // 4. Rebuild concept_search for this code system
-    await time("search_rebuild", async () => {
-      await sql`delete from terminology.concept_search where code_system_id = ${csId}::uuid`;
-      await sql`
-        insert into terminology.concept_search
-          (concept_id, code_system_id, code, preferred_term, term, term_norm, language, source, weight, active)
-        select c.id, c.code_system_id, c.code, c.display, d.term,
-               lower(unaccent(d.term)), d.language,
-               case d.use_type when 'fsn' then 'fsn' when 'preferred' then 'preferred' else 'synonym' end,
-               case d.use_type when 'preferred' then 1.0 when 'fsn' then 0.9 else 0.7 end,
-               d.active
-        from terminology.concepts c
-        join terminology.designations d on d.concept_id = c.id
-        where c.release_id = ${releaseId}::uuid and d.active
-      `;
-      await sql`
-        insert into terminology.concept_search
-          (concept_id, code_system_id, code, preferred_term, term, term_norm, language, source, weight, active)
-        select c.id, c.code_system_id, c.code, c.display, ls.term,
-               lower(unaccent(ls.term)), ls.language, 'local', ls.confidence, ls.active
-        from terminology.local_synonyms ls
-        join terminology.concepts c
-          on c.code_system_id = ls.code_system_id
-         and c.code = ls.code
-         and c.release_id = ${releaseId}::uuid
-        where ls.active
-      `;
-    });
+    if (runPhase("search")) {
+      await time("search_rebuild", async () => {
+        await sql`delete from terminology.concept_search where code_system_id = ${csId}::uuid`;
+        await sql`
+          insert into terminology.concept_search
+            (concept_id, code_system_id, code, preferred_term, term, term_norm, language, source, weight, active)
+          select c.id, c.code_system_id, c.code, c.display, d.term,
+                 lower(unaccent(d.term)), d.language,
+                 case d.use_type when 'fsn' then 'fsn' when 'preferred' then 'preferred' else 'synonym' end,
+                 case d.use_type when 'preferred' then 1.0 when 'fsn' then 0.9 else 0.7 end,
+                 d.active
+          from terminology.concepts c
+          join terminology.designations d on d.concept_id = c.id
+          where c.release_id = ${releaseId}::uuid and d.active
+        `;
+        await sql`
+          insert into terminology.concept_search
+            (concept_id, code_system_id, code, preferred_term, term, term_norm, language, source, weight, active)
+          select c.id, c.code_system_id, c.code, c.display, ls.term,
+                 lower(unaccent(ls.term)), ls.language, 'local', ls.confidence, ls.active
+          from terminology.local_synonyms ls
+          join terminology.concepts c
+            on c.code_system_id = ls.code_system_id
+           and c.code = ls.code
+           and c.release_id = ${releaseId}::uuid
+          where ls.active
+        `;
+      });
+    }
 
-    await time("analyze", async () => {
-      await sql`analyze terminology.concept_search`;
-      await sql`analyze terminology.concepts`;
-      await sql`analyze terminology.designations`;
-    });
-
-    // 5. Activate release + archive previous
-    await time("activate", async () => {
-      await sql`
-        update terminology.releases set status = 'archived'
-        where code_system_id = ${csId}::uuid and status = 'active' and id <> ${releaseId}::uuid
-      `;
-      await sql`
-        update terminology.releases
-        set status = 'active', activated_at = now(),
-            loaded_at = coalesce(loaded_at, now())
-        where id = ${releaseId}::uuid
-      `;
-      await sql`
-        update terminology.code_systems
-        set active_release_id = ${releaseId}::uuid, updated_at = now()
-        where id = ${csId}::uuid
-      `;
-    });
+    if (runPhase("activate")) {
+      await time("analyze", async () => {
+        await sql`analyze terminology.concept_search`;
+        await sql`analyze terminology.concepts`;
+        await sql`analyze terminology.designations`;
+      });
+      await time("activate", async () => {
+        await sql`
+          update terminology.releases set status = 'archived'
+          where code_system_id = ${csId}::uuid and status = 'active' and id <> ${releaseId}::uuid
+        `;
+        await sql`
+          update terminology.releases
+          set status = 'active', activated_at = now(),
+              loaded_at = coalesce(loaded_at, now())
+          where id = ${releaseId}::uuid
+        `;
+        await sql`
+          update terminology.code_systems
+          set active_release_id = ${releaseId}::uuid, updated_at = now()
+          where id = ${csId}::uuid
+        `;
+      });
+    }
 
     // Verification counts
     const [counts] = await sql<Array<{ concepts: number; designations: number; relationships: number; search_rows: number }>>`
