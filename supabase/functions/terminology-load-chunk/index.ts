@@ -239,12 +239,15 @@ Deno.serve(async (req) => {
       where id = ${job.id}
     `;
 
+    // Explicit ::text / ::bigint casts on the bound parameters so postgres.js
+    // doesn't hit "could not determine data type of parameter $1" on the
+    // ambiguous `->>` operator (it has both (jsonb,text) and (jsonb,int) forms).
     await sql`
       update terminology.releases r
       set row_counts = coalesce(row_counts, '{}'::jsonb) ||
         jsonb_build_object(
-          ${job.target_table},
-          coalesce((row_counts->>${job.target_table})::bigint, 0) + ${insertedRows}
+          ${job.target_table}::text,
+          coalesce((row_counts->>(${job.target_table}::text))::bigint, 0) + ${insertedRows}::bigint
         )
       where r.id = ${job.release_id}
     `;
