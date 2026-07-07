@@ -119,7 +119,7 @@ export default function TerminologyAdmin() {
   const runSearch = async () => {
     if (query.length < 2) return;
     try {
-      const { data: r, error } = await supabase.rpc("terminology_search", { q: query, limit_n: 15 });
+      const { data: r, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)("terminology_search", { q: query, limit_n: 15 });
       if (error) throw error;
       setHits((r ?? []) as SearchHit[]);
     } catch (e) {
