@@ -239,12 +239,15 @@ Deno.serve(async (req) => {
       where id = ${job.id}
     `;
 
+    // Explicit ::text / ::bigint casts on the bound parameters so postgres.js
+    // doesn't hit "could not determine data type of parameter $1" on the
+    // ambiguous `->>` operator (it has both (jsonb,text) and (jsonb,int) forms).
     await sql`
       update terminology.releases r
       set row_counts = coalesce(row_counts, '{}'::jsonb) ||
         jsonb_build_object(
-          ${job.target_table},
-          coalesce((row_counts->>${job.target_table})::bigint, 0) + ${insertedRows}
+          ${job.target_table}::text,
+          coalesce((row_counts->>(${job.target_table}::text))::bigint, 0) + ${insertedRows}::bigint
         )
       where r.id = ${job.release_id}
     `;
@@ -334,6 +337,15 @@ Deno.serve(async (req) => {
 // below reflects the SAME SQL the failing chunk uses.
 // ------------------------------------------------------------------
 
+// Postgres element type OIDs — used with sql.array() so every parameter is
+// bound as an explicit PG array instead of relying on postgres.js's implicit
+// "infer type from first JS value" behavior (which collapsed [true,true,...]
+// into a scalar bool and blew up `$3::bool[]`).
+const OID_BOOL = 16;
+const OID_INT8 = 20;   // bigint
+const OID_TEXT = 25;
+const OID_DATE = 1082;
+
 async function insertBatch(
   sql: ReturnType<typeof postgres>,
   table: TargetTable,
@@ -351,11 +363,11 @@ async function insertBatch(
       insert into terminology.snomed_concepts
         (concept_id, effective_time, active, module_id, definition_status_id)
       select * from unnest(
-        ${concept_id}::bigint[],
-        ${effective_time}::date[],
-        ${active}::bool[],
-        ${module_id}::text[],
-        ${definition_status_id}::text[]
+        ${sql.array(concept_id, OID_INT8)}::bigint[],
+        ${sql.array(effective_time, OID_DATE)}::date[],
+        ${sql.array(active, OID_BOOL)}::bool[],
+        ${sql.array(module_id, OID_TEXT)}::text[],
+        ${sql.array(definition_status_id, OID_TEXT)}::text[]
       )
       on conflict do nothing
     `;
@@ -373,12 +385,12 @@ async function insertBatch(
       insert into terminology.snomed_descriptions
         (description_id, concept_id, language_code, type_id, term, active)
       select * from unnest(
-        ${description_id}::bigint[],
-        ${concept_id}::bigint[],
-        ${language_code}::text[],
-        ${type_id}::text[],
-        ${term}::text[],
-        ${active}::bool[]
+        ${sql.array(description_id, OID_INT8)}::bigint[],
+        ${sql.array(concept_id, OID_INT8)}::bigint[],
+        ${sql.array(language_code, OID_TEXT)}::text[],
+        ${sql.array(type_id, OID_TEXT)}::text[],
+        ${sql.array(term, OID_TEXT)}::text[],
+        ${sql.array(active, OID_BOOL)}::bool[]
       )
       on conflict do nothing
     `;
@@ -395,11 +407,11 @@ async function insertBatch(
       insert into terminology.snomed_relationships
         (relationship_id, source_concept, destination_concept, relationship_type, active)
       select * from unnest(
-        ${relationship_id}::bigint[],
-        ${source_concept}::bigint[],
-        ${destination_concept}::bigint[],
-        ${relationship_type}::text[],
-        ${active}::bool[]
+        ${sql.array(relationship_id, OID_INT8)}::bigint[],
+        ${sql.array(source_concept, OID_INT8)}::bigint[],
+        ${sql.array(destination_concept, OID_INT8)}::bigint[],
+        ${sql.array(relationship_type, OID_TEXT)}::text[],
+        ${sql.array(active, OID_BOOL)}::bool[]
       )
       on conflict do nothing
     `;
