@@ -52,11 +52,32 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!role) return json({ error: "forbidden" }, 403);
 
-  let body: { code_system_short_name?: string; manifest?: Manifest };
+  let body: { code_system_short_name?: string; manifest?: Manifest; manifest_path?: string; release_folder?: string };
   try { body = await req.json(); } catch { return json({ error: "invalid json" }, 400); }
 
   const shortName = body.code_system_short_name ?? "snomed-ct";
-  const manifest = body.manifest;
+  let manifest = body.manifest;
+
+  // Support loading manifest.json directly from the ontology bucket.
+  if (!manifest && (body.manifest_path || body.release_folder)) {
+    let path = body.manifest_path;
+    if (!path && body.release_folder) {
+      path = `${body.release_folder.replace(/\/+$/, "")}/manifest.json`;
+    }
+    if (!path || !/^[A-Za-z0-9][A-Za-z0-9._\-/]*manifest\.json$/.test(path)) {
+      return json({ error: "invalid manifest_path" }, 400);
+    }
+    const dl = await admin.storage.from("ontology").download(path);
+    if (dl.error || !dl.data) {
+      return json({ error: `manifest not found at ontology/${path}: ${dl.error?.message ?? "no data"}` }, 404);
+    }
+    try {
+      manifest = JSON.parse(await dl.data.text()) as Manifest;
+    } catch (e) {
+      return json({ error: `manifest.json is not valid JSON: ${e instanceof Error ? e.message : String(e)}` }, 400);
+    }
+  }
+
   if (!manifest || !manifest.release_identifier || !Array.isArray(manifest.chunks)) {
     return json({ error: "manifest.release_identifier and chunks[] are required" }, 400);
   }
