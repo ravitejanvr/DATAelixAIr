@@ -59,6 +59,7 @@ type RecoveryJob = {
   exact_storage_download_path_attempted: string;
   status: string;
   error: string | null;
+  edge_function_log: string | null;
   stack_trace: string | null;
   claimed_at: string | null;
   completed_at: string | null;
@@ -514,7 +515,7 @@ export default function TerminologyAdmin() {
                     <div><span className="text-muted-foreground">timestamp:</span> {job.completed_at ?? job.claimed_at ?? job.created_at}</div>
                     <div><span className="text-muted-foreground">exception:</span> <span className="break-all">{job.error ?? "—"}</span></div>
                     {job.status === "failed" && (
-                      <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-muted p-2 text-[11px]">{job.stack_trace ?? "No stack trace available."}</pre>
+                      <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-muted p-2 text-[11px]">{job.edge_function_log ?? job.stack_trace ?? "No stack trace or edge log available."}</pre>
                     )}
                   </div>
                 ))}

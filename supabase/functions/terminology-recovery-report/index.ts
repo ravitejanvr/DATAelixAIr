@@ -176,6 +176,7 @@ Deno.serve(async (req) => {
       jobs: jobs.map((j) => ({
         ...j,
         exact_storage_download_path_attempted: `ontology/${j.attempted_storage_path ?? j.storage_path}`,
+        edge_function_log: j.error ? `${j.completed_at ?? j.claimed_at ?? j.created_at} ERROR load-chunk error ${j.error}` : null,
         stack_trace: j.stack_trace ?? "No stack trace was captured for this earlier failure; future loader failures store it here.",
       })),
     });
