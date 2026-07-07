@@ -73,6 +73,8 @@ export default function TerminologyAdmin() {
   }, []);
 
   const [releaseFolder, setReleaseFolder] = useState("snomed/");
+  const [missingPaths, setMissingPaths] = useState<string[]>([]);
+  const [repairCandidates, setRepairCandidates] = useState<Array<{ from: string; to: string }>>([]);
 
   const createRelease = async () => {
     const folder = releaseFolder.replace(/\/+$/, "").trim();
@@ -80,15 +82,56 @@ export default function TerminologyAdmin() {
       return toast({ title: "Invalid folder", description: "Use a path like snomed/SnomedCT_INT_20260701", variant: "destructive" });
     }
     setBusy("create");
+    setMissingPaths([]);
+    setRepairCandidates([]);
     try {
       const { data: r, error } = await supabase.functions.invoke("terminology-create-release", {
         body: { code_system_short_name: "snomed-ct", release_folder: folder },
       });
+      // Edge function returns 409 with a JSON body when objects are missing; the
+      // supabase-js client surfaces this as `error` while still parsing the body.
+      const payload = (r ?? (error as unknown as { context?: { body?: unknown } })?.context?.body) as
+        | { error?: string; missing?: string[]; repair_candidates?: Array<{ from: string; to: string }>; chunks_seeded?: number }
+        | undefined;
+
+      if (payload?.error === "missing_objects") {
+        setMissingPaths(payload.missing ?? []);
+        setRepairCandidates(payload.repair_candidates ?? []);
+        toast({
+          title: "Missing objects — no jobs seeded",
+          description: `${payload.missing?.length ?? 0} chunk(s) not found. ${payload.repair_candidates?.length ?? 0} can be auto-repaired.`,
+          variant: "destructive",
+        });
+        return;
+      }
       if (error) throw error;
-      toast({ title: "Release created", description: `${(r as { chunks_seeded: number }).chunks_seeded} chunks queued from ontology/${folder}/manifest.json` });
+      toast({ title: "Release created", description: `${payload?.chunks_seeded ?? 0} chunks queued from ontology/${folder}/manifest.json` });
       refresh();
     } catch (e) {
       toast({ title: "Create failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
+  const repairPaths = async () => {
+    const folder = releaseFolder.replace(/\/+$/, "").trim();
+    if (!folder) return;
+    setBusy("repair");
+    try {
+      const { data: r, error } = await supabase.functions.invoke("terminology-repair-paths", {
+        body: { release_folder: folder },
+      });
+      if (error) throw error;
+      const rep = r as { moved?: string[]; failed?: Array<{ from: string; to: string; error: string }>; jobs_reset_to_pending?: number };
+      toast({
+        title: (rep.failed?.length ?? 0) === 0 ? "Repair complete" : "Repair partially failed",
+        description: `Moved ${rep.moved?.length ?? 0} · failed ${rep.failed?.length ?? 0} · reset ${rep.jobs_reset_to_pending ?? 0} jobs`,
+        variant: (rep.failed?.length ?? 0) === 0 ? "default" : "destructive",
+      });
+      setMissingPaths([]);
+      setRepairCandidates([]);
+      refresh();
+    } catch (e) {
+      toast({ title: "Repair failed", description: String(e), variant: "destructive" });
     } finally { setBusy(null); }
   };
 
