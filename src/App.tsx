@@ -64,6 +64,7 @@ import DiagnosticSimulator from "./pages/DiagnosticSimulator";
 import CockpitPlayground from "./pages/CockpitPlayground";
 import V2Evaluation from "./pages/V2Evaluation";
 import V3BenchmarkDashboard from "./pages/V3BenchmarkDashboard";
+import TerminologyAdmin from "./pages/TerminologyAdmin";
 
 const queryClient = new QueryClient();
 
