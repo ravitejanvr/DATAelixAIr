@@ -1,14 +1,19 @@
 // Terminology chunk loader.
-// Idempotent, resumable. Invoked by pg_cron; safe to invoke manually.
-// Claims one pending chunk with SELECT ... FOR UPDATE SKIP LOCKED,
-// streams the gzipped NDJSON from Storage, and bulk-inserts into the
-// SNOMED staging tables in batches of 5,000 via a direct pg connection.
+// Phase-based, idempotent, resumable. Invoked by pg_cron; safe to invoke manually.
 //
-// Platform notes:
-//  - Direct pg on port 5432 via SUPABASE_DB_URL (POC-validated).
-//  - COPY FROM STDIN is unavailable in this runtime (POC-proven);
-//    batched INSERT ... VALUES achieves ~35k rows/s at batch=5000.
-//  - Safe per-invocation ceiling: ~200k rows; chunks are pre-sized to 150k.
+// Phase ordering (enforced in the claim query):
+//   1. snomed_concepts   — must all be `done` before any descriptions start
+//   2. snomed_descriptions — must all be `done` before any relationships start
+//   3. snomed_relationships
+//
+// Any concept/description/relationship chunk that is still pending/running/failed
+// blocks the next phase from starting for that release. This prevents the FK
+// violations we saw when descriptions or relationships loaded before their
+// referenced concepts.
+//
+// Insert strategy: `unnest(<typed arrays>)`. This gives every column an explicit
+// Postgres type so all-null batches don't hit `could not determine data type of
+// parameter $1` (the bug that killed snomed_concepts chunk 2).
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import postgres from "npm:postgres@3.4.4";
@@ -20,14 +25,27 @@ const cors = {
 };
 
 const BATCH = 5000;
-const ALLOWED_TABLES = new Set(["snomed_concepts", "snomed_descriptions", "snomed_relationships"]);
+
+type TargetTable = "snomed_concepts" | "snomed_descriptions" | "snomed_relationships";
+
+const PHASE_ORDER: Record<TargetTable, number> = {
+  snomed_concepts: 1,
+  snomed_descriptions: 2,
+  snomed_relationships: 3,
+};
+
+const ALLOWED_TABLES = new Set<TargetTable>([
+  "snomed_concepts",
+  "snomed_descriptions",
+  "snomed_relationships",
+]);
 
 interface Job {
   id: string;
   release_id: string;
   chunk_index: number;
   storage_path: string;
-  target_table: string;
+  target_table: TargetTable;
   expected_rows: number;
 }
 
@@ -50,8 +68,21 @@ Deno.serve(async (req) => {
   const t0 = performance.now();
 
   try {
-    // Atomic claim
+    // Phase-gated atomic claim.
+    // A pending job is only eligible if, for the same release, no job in an
+    // earlier phase is still non-`done`. Phases are encoded via a CASE.
     const claimed = await sql<Job[]>`
+      with phase as (
+        select
+          j.*,
+          case j.target_table
+            when 'snomed_concepts'      then 1
+            when 'snomed_descriptions'  then 2
+            when 'snomed_relationships' then 3
+            else 99
+          end as phase_order
+        from terminology.import_jobs j
+      )
       update terminology.import_jobs
       set status = 'running',
           claimed_at = now(),
@@ -59,19 +90,25 @@ Deno.serve(async (req) => {
           attempted_storage_path = storage_path,
           last_error_stack = null
       where id = (
-        select j.id
-        from terminology.import_jobs j
-        join terminology.releases r on r.id = j.release_id
-        where j.status = 'pending'
+        select p.id
+        from phase p
+        join terminology.releases r on r.id = p.release_id
+        where p.status = 'pending'
           and r.import_paused_at is null
-        order by j.created_at
+          and not exists (
+            select 1 from phase prior
+            where prior.release_id = p.release_id
+              and prior.phase_order < p.phase_order
+              and prior.status <> 'done'
+          )
+        order by p.phase_order, p.created_at
         limit 1
         for update skip locked
       )
       returning id, release_id::text, chunk_index, storage_path, target_table, expected_rows
     `;
     if (claimed.length === 0) {
-      return json({ ok: true, message: "no pending jobs" });
+      return json({ ok: true, message: "no eligible pending jobs (phase-gated or queue empty)" });
     }
     job = claimed[0];
 
@@ -89,7 +126,6 @@ Deno.serve(async (req) => {
     const text = await new Response(decompressed).text();
     const lines = text.split("\n");
 
-    // Parse
     const rows: Record<string, unknown>[] = [];
     for (const line of lines) {
       const trimmed = line.trim();
@@ -97,13 +133,11 @@ Deno.serve(async (req) => {
       rows.push(JSON.parse(trimmed));
     }
 
-    // Bulk insert
+    // Bulk insert via typed unnest — every column has an explicit Postgres type.
     let inserted = 0;
-    // postgres.js requires the table identifier passed via sql(name)
-    const tableIdent = sql(`terminology.${job.target_table}`);
     for (let i = 0; i < rows.length; i += BATCH) {
       const slice = rows.slice(i, i + BATCH);
-      await sql`insert into ${tableIdent} ${sql(slice)} on conflict do nothing`;
+      await insertBatch(sql, job.target_table, slice);
       inserted += slice.length;
     }
 
@@ -113,7 +147,6 @@ Deno.serve(async (req) => {
       where id = ${job.id}
     `;
 
-    // Roll up onto release row
     await sql`
       update terminology.releases r
       set row_counts = coalesce(row_counts, '{}'::jsonb) ||
@@ -154,6 +187,98 @@ Deno.serve(async (req) => {
     await sql.end({ timeout: 5 }).catch(() => {});
   }
 });
+
+// ------------------------------------------------------------------
+// Typed-array insert. Fixes "could not determine data type of parameter $1"
+// by giving every array parameter an explicit Postgres cast (::bigint[], etc.)
+// so all-null batches are no longer ambiguous.
+// ------------------------------------------------------------------
+
+async function insertBatch(
+  sql: ReturnType<typeof postgres>,
+  table: TargetTable,
+  rows: Array<Record<string, unknown>>,
+) {
+  if (rows.length === 0) return;
+
+  if (table === "snomed_concepts") {
+    const concept_id = rows.map((r) => toBigIntStr(r.concept_id));
+    const effective_time = rows.map((r) => (r.effective_time as string | null) ?? null);
+    const active = rows.map((r) => Boolean(r.active));
+    const module_id = rows.map((r) => (r.module_id as string | null) ?? null);
+    const definition_status_id = rows.map((r) => (r.definition_status_id as string | null) ?? null);
+    await sql`
+      insert into terminology.snomed_concepts
+        (concept_id, effective_time, active, module_id, definition_status_id)
+      select * from unnest(
+        ${concept_id}::bigint[],
+        ${effective_time}::date[],
+        ${active}::bool[],
+        ${module_id}::text[],
+        ${definition_status_id}::text[]
+      )
+      on conflict do nothing
+    `;
+    return;
+  }
+
+  if (table === "snomed_descriptions") {
+    const description_id = rows.map((r) => toBigIntStr(r.description_id));
+    const concept_id = rows.map((r) => toBigIntStrOrNull(r.concept_id));
+    const language_code = rows.map((r) => (r.language_code as string | null) ?? null);
+    const type_id = rows.map((r) => (r.type_id as string | null) ?? null);
+    const term = rows.map((r) => (r.term as string | null) ?? null);
+    const active = rows.map((r) => Boolean(r.active));
+    await sql`
+      insert into terminology.snomed_descriptions
+        (description_id, concept_id, language_code, type_id, term, active)
+      select * from unnest(
+        ${description_id}::bigint[],
+        ${concept_id}::bigint[],
+        ${language_code}::text[],
+        ${type_id}::text[],
+        ${term}::text[],
+        ${active}::bool[]
+      )
+      on conflict do nothing
+    `;
+    return;
+  }
+
+  if (table === "snomed_relationships") {
+    const relationship_id = rows.map((r) => toBigIntStr(r.relationship_id));
+    const source_concept = rows.map((r) => toBigIntStrOrNull(r.source_concept));
+    const destination_concept = rows.map((r) => toBigIntStrOrNull(r.destination_concept));
+    const relationship_type = rows.map((r) => (r.relationship_type as string | null) ?? null);
+    const active = rows.map((r) => Boolean(r.active));
+    await sql`
+      insert into terminology.snomed_relationships
+        (relationship_id, source_concept, destination_concept, relationship_type, active)
+      select * from unnest(
+        ${relationship_id}::bigint[],
+        ${source_concept}::bigint[],
+        ${destination_concept}::bigint[],
+        ${relationship_type}::text[],
+        ${active}::bool[]
+      )
+      on conflict do nothing
+    `;
+    return;
+  }
+
+  throw new Error(`unhandled table: ${table}`);
+}
+
+// SNOMED IDs are 64-bit; pass as strings so JS Number precision loss never
+// happens and postgres.js binds them to bigint[] cleanly.
+function toBigIntStr(v: unknown): string {
+  if (v === null || v === undefined) throw new Error("required bigint is null");
+  return String(v);
+}
+function toBigIntStrOrNull(v: unknown): string | null {
+  if (v === null || v === undefined || v === "") return null;
+  return String(v);
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
