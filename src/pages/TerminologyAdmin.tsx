@@ -184,6 +184,31 @@ export default function TerminologyAdmin() {
     } finally { setBusy(null); }
   };
 
+  const resetImport = async (releaseIdentifier = "SnomedCT_INT_20260701") => {
+    if (!confirm(
+      `Reset import for ${releaseIdentifier}?\n\n` +
+      `This will TRUNCATE snomed staging tables and reset every chunk job to pending.\n` +
+      `Uploaded files in Storage are NOT touched.\n\n` +
+      `The loader will then re-import in phase order:\n` +
+      `  1. concepts  →  2. descriptions  →  3. relationships`
+    )) return;
+    setBusy("reset");
+    try {
+      const { data: r, error } = await supabase.functions.invoke("terminology-reset-import", {
+        body: { release_identifier: releaseIdentifier, resume_cron: true },
+      });
+      if (error) throw new Error(await readFunctionError(error));
+      const result = r as { jobs_reset?: number; cron_activated?: boolean; note?: string };
+      toast({
+        title: "Import reset",
+        description: `${result.jobs_reset ?? 0} job(s) back to pending. Cron ${result.cron_activated ? "activated" : "unchanged"}.`,
+      });
+      refresh();
+    } catch (e) {
+      toast({ title: "Reset failed", description: String(e), variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+
   const runRecoveryReport = async (releaseIdentifier = "SnomedCT_INT_20260701") => {
     const typedFolder = releaseFolder.replace(/\/+$/, "").trim();
     const folder = !typedFolder || typedFolder === "snomed" ? `snomed/${releaseIdentifier}` : typedFolder;
