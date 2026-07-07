@@ -48,7 +48,7 @@ type SearchHit = {
 export default function TerminologyAdmin() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(false);
-  const [manifestJson, setManifestJson] = useState("");
+  
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -72,18 +72,20 @@ export default function TerminologyAdmin() {
     return () => clearInterval(t);
   }, []);
 
+  const [releaseFolder, setReleaseFolder] = useState("snomed/");
+
   const createRelease = async () => {
-    let manifest: unknown;
-    try { manifest = JSON.parse(manifestJson); }
-    catch { return toast({ title: "Invalid JSON", variant: "destructive" }); }
+    const folder = releaseFolder.replace(/\/+$/, "").trim();
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*(\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/.test(folder)) {
+      return toast({ title: "Invalid folder", description: "Use a path like snomed/SnomedCT_INT_20260701", variant: "destructive" });
+    }
     setBusy("create");
     try {
       const { data: r, error } = await supabase.functions.invoke("terminology-create-release", {
-        body: { code_system_short_name: "snomed-ct", manifest },
+        body: { code_system_short_name: "snomed-ct", release_folder: folder },
       });
       if (error) throw error;
-      toast({ title: "Release created", description: `${(r as { chunks_seeded: number }).chunks_seeded} chunks queued` });
-      setManifestJson("");
+      toast({ title: "Release created", description: `${(r as { chunks_seeded: number }).chunks_seeded} chunks queued from ontology/${folder}/manifest.json` });
       refresh();
     } catch (e) {
       toast({ title: "Create failed", description: String(e), variant: "destructive" });
@@ -295,13 +297,19 @@ export default function TerminologyAdmin() {
         <CardHeader><CardTitle className="text-base">Register new release</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Paste the <code>manifest.json</code> emitted by <code>scripts/snomed-preprocess.mjs</code>.
-            Chunks must already be uploaded to the <code>ontology</code> bucket at the paths listed inside.
+            Enter the release folder inside the <code>ontology</code> bucket where you uploaded
+            <code> manifest.json</code> and the <code>*.ndjson.gz</code> chunks. The manifest is
+            read from Storage — no copy/paste required.
           </p>
-          <Textarea rows={6} value={manifestJson} onChange={(e) => setManifestJson(e.target.value)} placeholder='{ "release_identifier": "SnomedCT_INT_20250701", "chunks": [...] }' className="font-mono text-xs" />
-          <Button onClick={createRelease} disabled={busy === "create" || !manifestJson.trim()}>
+          <Input
+            value={releaseFolder}
+            onChange={(e) => setReleaseFolder(e.target.value)}
+            placeholder="snomed/SnomedCT_INT_20260701"
+            className="font-mono text-xs"
+          />
+          <Button onClick={createRelease} disabled={busy === "create" || !releaseFolder.trim()}>
             {busy === "create" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Create release + seed queue
+            Create release from folder
           </Button>
         </CardContent>
       </Card>
