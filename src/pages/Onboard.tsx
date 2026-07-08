@@ -363,7 +363,7 @@ export default function Onboard() {
 
           {/* Footer */}
           <div className="text-center mt-6 space-y-3">
-            <p className="text-[10px] text-muted-foreground/60">
+            <p className="text-[10px] text-muted-foreground/80">
               Secure verification • Demo workspace • Full AI workflow
             </p>
             <button
