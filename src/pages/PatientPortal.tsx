@@ -129,7 +129,7 @@ export default function PatientPortal() {
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
               <User className="h-16 w-16 text-muted-foreground/30 mb-4" />
               <h3 className="text-lg font-semibold text-muted-foreground">No Records Found</h3>
-              <p className="text-sm text-muted-foreground/70 max-w-md mt-2">
+              <p className="text-sm text-muted-foreground/80 max-w-md mt-2">
                 Your doctor hasn't linked your account yet. Please ask your healthcare provider to connect your patient record.
               </p>
               <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-primary/5 border border-primary/10">
