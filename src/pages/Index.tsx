@@ -9,7 +9,7 @@ import {
   Users, CheckCircle2, XCircle, Sparkles, Activity, Receipt, Send,
   Monitor, BookOpen
 } from "lucide-react";
-import SEO, { BRAND_DESCRIPTION, ORG_JSONLD, PRODUCT_JSONLD } from "@/components/SEO";
+import SEO, { ORG_JSONLD, PRODUCT_JSONLD } from "@/components/SEO";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -93,8 +93,8 @@ const Index = () => {
   return (
   <div>
     <SEO
-      title="DATAelixAIr™ — AI Clinical Workspace for Faster, Safer Consultations"
-      description={`${BRAND_DESCRIPTION} Record or write consultations — DATAelixAIr™ generates clinical notes, prescriptions, lab orders, and patient reports automatically.`}
+      title="DATAelixAIr™ — AI Clinical Workspace for Consultations"
+      description="AI clinical reasoning workspace for healthcare professionals. Automate notes, prescriptions, and patient reports with structured support."
       jsonLd={[ORG_JSONLD, PRODUCT_JSONLD]}
     />
 
