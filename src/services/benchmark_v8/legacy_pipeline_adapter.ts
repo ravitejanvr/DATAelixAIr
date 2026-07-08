@@ -1,10 +1,15 @@
 /**
- * @deprecated DO NOT USE — replaced by clinical_pipeline/orchestrator.ts (O1)
- * This file is the legacy O2 delegation adapter, preserved only for benchmark_v5.
- * All new code should use `runUnifiedClinicalPipeline` from `@/services/clinical_pipeline/orchestrator`.
- * Scheduled for removal once benchmark_v5 is migrated.
+ * @deprecated Legacy O2 shape adapter — retained ONLY to translate O1's
+ * `PipelineResult` into the older `ClinicalPipelineResult` shape that
+ * benchmark_v8 and the PipelineSimulation debug page still consume.
  *
- * Clinical Pipeline Orchestrator — O2 Delegation Adapter (LEGACY)
+ * Execution IS unified: every call delegates to `runUnifiedClinicalPipeline`
+ * from `@/services/clinical_pipeline/orchestrator` (O1). This file exists
+ * only as a shape translator and must not be imported outside benchmark_v8
+ * or debug simulation pages.
+ *
+ * See: architecture/ARCHITECTURE_FREEZE_v1.md §1
+ *      .lovable/execution-backlog-v1.md A1 / A2
  */
 
 import type { MergedContextObject } from "@/services/context_service";
