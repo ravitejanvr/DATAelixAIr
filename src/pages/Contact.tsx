@@ -2,7 +2,28 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
-import SEO from "@/components/SEO";
+import SEO, { ORG_JSONLD } from "@/components/SEO";
+
+const contactJsonLd = {
+  ...ORG_JSONLD,
+  contactPoint: [
+    {
+      "@type": "ContactPoint",
+      telephone: "+44-7471-522177",
+      contactType: "UK Office",
+      email: "raviteja.nvr@elixair.uk",
+      availableLanguage: "English",
+    },
+    {
+      "@type": "ContactPoint",
+      telephone: "+91-9985-937007",
+      contactType: "India Office",
+      email: "raviteja.nvr@elixair.uk",
+      availableLanguage: ["English", "Hindi", "Telugu", "Tamil"],
+    },
+  ],
+};
+
 
 const Contact = () => {
   const { toast } = useToast();
@@ -17,6 +38,8 @@ const Contact = () => {
   return (
     <div>
       <SEO title="Contact Us — DATAelixAIr™ by elixAIr" description="Get in touch with elixAIr about DATAelixAIr™. Whether you're a clinic, hospital, investor, or advisor — let's explore how we can transform healthcare together." />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(contactJsonLd) }} />
+
       <section className="bg-dark pt-32 pb-24">
         <div className="container mx-auto px-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl">
