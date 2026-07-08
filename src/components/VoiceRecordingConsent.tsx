@@ -43,7 +43,7 @@ export default function VoiceRecordingConsent({ open, onConsent, onDecline }: Vo
                   <span>AI assists with transcription and note structuring. Your doctor reviews and approves all outputs.</span>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground/70">
+              <p className="text-xs text-muted-foreground/80">
                 You can stop recording at any time. Raw audio is not stored — only the text transcript is kept in your clinical record.
               </p>
             </div>
