@@ -25,7 +25,7 @@ export default function ArticleCard({ article, index }: Props) {
           <Icon className="h-3 w-3" />
           {label}
         </span>
-        <span className="text-[0.6rem] text-muted-foreground/50 flex items-center gap-1">
+        <span className="text-[0.6rem] text-muted-foreground/80 flex items-center gap-1">
           <Clock className="h-3 w-3" />
           {article.reading_time_min} min
         </span>
@@ -43,11 +43,11 @@ export default function ArticleCard({ article, index }: Props) {
 
       {/* Footer: date left, source right */}
       <div className="flex items-center justify-between mt-5 pt-4 border-t border-border">
-        <span className="text-xs text-muted-foreground/50">
+        <span className="text-xs text-muted-foreground/80">
           {new Date(article.publish_date).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}
         </span>
         {article.source_name && (
-          <span className="text-xs text-muted-foreground/70 font-medium">
+          <span className="text-xs text-muted-foreground font-medium">
             {article.source_name}
           </span>
         )}
