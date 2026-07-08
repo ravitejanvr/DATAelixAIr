@@ -51,10 +51,10 @@ const Footer = () => {
         </div>
 
         <div className="border-t border-border/10 pt-5 text-center space-y-2">
-          <p className="text-[0.65rem] text-dark-muted/60 leading-relaxed">
+          <p className="text-[0.65rem] text-dark-muted/90 leading-relaxed">
             Not for emergency use. For registered healthcare professionals only.
           </p>
-          <p className="text-xs text-dark-muted/40">
+          <p className="text-xs text-dark-muted/80">
             © {new Date().getFullYear()} DATAelixAIr™. All rights reserved. | <a href="mailto:raviteja.nvr@elixair.uk" className="hover:text-primary transition-colors">raviteja.nvr@elixair.uk</a>
           </p>
         </div>
