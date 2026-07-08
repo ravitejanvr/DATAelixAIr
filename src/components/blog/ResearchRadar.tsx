@@ -90,7 +90,7 @@ export default function ResearchRadar() {
                   {a.summary}
                 </p>
 
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground/70">
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" /> {a.reading_time_min} min
                   </span>

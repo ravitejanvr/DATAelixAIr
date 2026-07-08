@@ -30,7 +30,7 @@ export default function TrendingResearch({ items }: Props) {
                 <span className="text-[0.65rem] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/10 border border-primary/20 text-primary">
                   {item.journal}
                 </span>
-                <span className="text-[0.65rem] text-muted-foreground/60 ml-auto">{item.year}</span>
+                <span className="text-[0.65rem] text-muted-foreground/80 ml-auto">{item.year}</span>
               </div>
               <h3 className="font-display text-base font-bold text-foreground mb-2 leading-snug line-clamp-2">
                 {item.title}
