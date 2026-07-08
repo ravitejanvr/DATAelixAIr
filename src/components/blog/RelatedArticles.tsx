@@ -26,7 +26,7 @@ export default function RelatedArticles({ articles }: Props) {
                     <Icon className="h-2.5 w-2.5" />
                     {a.category.split(" & ")[0]}
                   </span>
-                  <span className="text-[0.6rem] text-muted-foreground/50 flex items-center gap-0.5">
+                  <span className="text-[0.6rem] text-muted-foreground/80 flex items-center gap-0.5">
                     <Clock className="h-2.5 w-2.5" /> {a.reading_time_min} min
                   </span>
                 </div>
