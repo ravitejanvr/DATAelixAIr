@@ -220,7 +220,7 @@ export default function Auth() {
             )}
           </div>
 
-          <p className="text-[10px] text-center text-muted-foreground/50 mt-3">
+          <p className="text-[10px] text-center text-muted-foreground/80 mt-3">
             Built with healthcare-aligned security principles · Minimal necessary data · Clinic-controlled
           </p>
         </motion.div>
