@@ -9,7 +9,7 @@ import {
   Users, CheckCircle2, XCircle, Sparkles, Activity, Receipt, Send,
   Monitor, BookOpen
 } from "lucide-react";
-import SEO, { BRAND_DESCRIPTION, ORG_JSONLD, PRODUCT_JSONLD } from "@/components/SEO";
+import SEO, { ORG_JSONLD, PRODUCT_JSONLD } from "@/components/SEO";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
