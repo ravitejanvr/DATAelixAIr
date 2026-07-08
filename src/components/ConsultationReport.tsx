@@ -182,7 +182,7 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                 <p className="font-semibold text-[11px] text-gray-800">{data.doctorName || "Doctor"}</p>
                 {data.doctorDesignation && <p>{data.doctorDesignation}</p>}
                 {data.doctorLicense && <p className="text-gray-500">Reg: {data.doctorLicense}</p>}
-                <div className="mt-1.5 text-[10px] text-gray-400 border-t border-gray-200 pt-1">
+                <div className="mt-1.5 text-[10px] text-gray-600 border-t border-gray-200 pt-1">
                   <p>Date: <span className="font-medium text-gray-700">{dateStr}</span> · Time: <span className="font-medium text-gray-700">{timeStr}</span></p>
                   {data.consultationId && <p>Report ID: <span className="font-mono">{data.consultationId}</span></p>}
                 </div>
@@ -226,14 +226,14 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                   { label: "Sugar", value: data.vitals.blood_sugar, unit: "mg/dL" },
                 ].filter(v => v.value != null).map((v) => (
                   <div key={v.label} className="border border-gray-200 rounded p-2 text-center bg-white">
-                    <p className="text-[8px] text-gray-400 font-semibold uppercase">{v.label}</p>
+                    <p className="text-[8px] text-gray-600 font-semibold uppercase">{v.label}</p>
                     <p className="text-[13px] font-bold text-gray-800 mt-0.5">{v.value}</p>
-                    <p className="text-[7px] text-gray-400">{v.unit}</p>
+                    <p className="text-[7px] text-gray-600">{v.unit}</p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-[11px] text-gray-400 italic border border-dashed border-gray-200 rounded p-3 text-center">No vitals recorded for this visit.</p>
+              <p className="text-[11px] text-gray-600 italic border border-dashed border-gray-200 rounded p-3 text-center">No vitals recorded for this visit.</p>
             )}
           </div>
 
@@ -273,7 +273,7 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                 <tbody>
                   {data.prescriptions.map((rx, i) => (
                     <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                      <td className="border border-gray-200 px-2 py-1.5 text-gray-400 font-mono">{i + 1}</td>
+                      <td className="border border-gray-200 px-2 py-1.5 text-gray-600 font-mono">{i + 1}</td>
                       <td className="border border-gray-200 px-2 py-1.5 font-semibold text-gray-800">{rx.drug_name}</td>
                       <td className="border border-gray-200 px-2 py-1.5">{rx.dosage || "–"}</td>
                       <td className="border border-gray-200 px-2 py-1.5">{rx.frequency || "–"}</td>
@@ -285,7 +285,7 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                 </tbody>
               </table>
             ) : (
-              <p className="text-[11px] text-gray-400 italic border border-dashed border-gray-200 rounded p-3 text-center">No medications prescribed.</p>
+              <p className="text-[11px] text-gray-600 italic border border-dashed border-gray-200 rounded p-3 text-center">No medications prescribed.</p>
             )}
           </div>
 
@@ -305,7 +305,7 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                 <tbody>
                   {data.labOrders.map((lo, i) => (
                     <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                      <td className="border border-gray-200 px-2 py-1 text-gray-400 font-mono">{i + 1}</td>
+                      <td className="border border-gray-200 px-2 py-1 text-gray-600 font-mono">{i + 1}</td>
                       <td className="border border-gray-200 px-2 py-1 font-medium">{lo.test_name}</td>
                       <td className="border border-gray-200 px-2 py-1">
                         {lo.priority === "urgent" ? (
@@ -320,7 +320,7 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                 </tbody>
               </table>
             ) : (
-              <p className="text-[11px] text-gray-400 italic border border-dashed border-gray-200 rounded p-3 text-center">No investigations ordered.</p>
+              <p className="text-[11px] text-gray-600 italic border border-dashed border-gray-200 rounded p-3 text-center">No investigations ordered.</p>
             )}
           </div>
 
@@ -338,7 +338,7 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
                   ))}
                 </ul>
               ) : (
-                <p className="text-[11px] text-gray-400 italic text-center">Follow doctor's verbal advice. Contact clinic if symptoms persist.</p>
+                <p className="text-[11px] text-gray-600 italic text-center">Follow doctor's verbal advice. Contact clinic if symptoms persist.</p>
               )}
             </div>
           </div>
@@ -363,7 +363,7 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
             {/* QR Verification (11) */}
             <div className="flex items-center gap-3">
               <QRCodeSVG value={reportUrl} size={56} level="M" className="print:block" />
-              <div className="text-[8px] text-gray-400 leading-relaxed">
+              <div className="text-[8px] text-gray-600 leading-relaxed">
                 <p className="font-semibold text-gray-500">Scan to verify</p>
                 <p>Secure report viewer</p>
                 <p>DATAelixAIr™ verified</p>
@@ -384,7 +384,7 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
               <p className="text-[10px] font-semibold text-gray-700">{data.doctorName || "Doctor"}</p>
               {data.doctorDesignation && <p className="text-[9px] text-gray-500">{data.doctorDesignation}</p>}
               {data.doctorLicense && <p className="text-[9px] text-gray-500">Reg No: {data.doctorLicense}</p>}
-              <p className="text-[8px] text-gray-400 mt-1">
+              <p className="text-[8px] text-gray-600 mt-1">
                 Digitally signed · {dateStr} {timeStr}
               </p>
             </div>
@@ -395,14 +395,14 @@ const ConsultationReport = forwardRef<HTMLDivElement, ConsultationReportProps>(
             <div className="flex items-center gap-2">
               <img src={brainLogo} alt="" className="h-5 w-5 opacity-40" />
               <div>
-                <p className="text-[9px] text-gray-400">
+                <p className="text-[9px] text-gray-600">
                   Generated by <span className="font-bold text-[#0077b6]">DATAelixAIr</span><sup className="text-[0.6em]">™</sup> · AI Clinical Productivity Assistant
                   {languageLabel && languageLabel !== "English" && <span className="ml-1">· {languageLabel}</span>}
                 </p>
-                <p className="text-[7px] text-gray-300">AI-generated clinical document · Clinician-reviewed before issue · Not a substitute for medical advice</p>
+                <p className="text-[7px] text-gray-600">AI-generated clinical document · Clinician-reviewed before issue · Not a substitute for medical advice</p>
               </div>
             </div>
-            <p className="text-[7px] text-gray-300 italic text-right max-w-[120px]">{h.demoWatermark}</p>
+            <p className="text-[7px] text-gray-600 italic text-right max-w-[120px]">{h.demoWatermark}</p>
           </div>
         </div>
       </div>
