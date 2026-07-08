@@ -1,0 +1,23 @@
+# DATAelixAIr™
+
+> AI-powered clinical reasoning workspace for healthcare professionals. DATAelixAIr assists clinicians with structured, probabilistic decision support during consultations, turning audio and clinical inputs into reviewable outputs while keeping the clinician in control.
+
+## Pages
+
+- [Home](/): AI clinical workspace for faster, safer consultations.
+- [About](/about): Our story and clinical philosophy.
+- [Solutions](/solutions): AI workflow solutions for clinics and practitioners.
+- [Services](/services): Clinical services and support offerings.
+- [Research & Insights](/blog): Clinical research, evidence, and AI perspectives.
+- [Pricing](/pricing): Pilot programs, partnerships, and investment opportunities.
+- [Contact](/contact): Get in touch with the DATAelixAIr team.
+- [Privacy Policy](/privacy): How we handle data and privacy.
+- [Terms of Use](/terms): Legal terms for using the platform.
+
+## Key information
+
+- **Product**: AI clinical productivity assistant for private clinics, solo practitioners, and small healthcare facilities.
+- **Primary focus**: Audio consultation recording → structured clinical output, with reviewable suggestions for prescriptions and documentation.
+- **Philosophy**: Clinician-in-the-loop; AI assistance is not final medical authority.
+- **Market**: Initial deployment targets private clinics in India; future expansion to multi-clinic and hospital settings.
+- **Safety**: Not for emergency or life-threatening situations.
