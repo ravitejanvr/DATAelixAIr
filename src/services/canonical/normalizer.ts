@@ -3,7 +3,7 @@
  *
  * This is the ONE AND ONLY place where synonym resolution happens.
  * Consolidates: terminology_normalizer, language_processor code-mixed map,
- * concept_mapper built-in synonyms, and canonical/mappings.ts.
+ * concept_mapper built-in synonyms (single canonical source per Freeze v1.0 A4).
  *
  * Rules:
  * - No other file may define synonym mappings
