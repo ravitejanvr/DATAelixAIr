@@ -3,7 +3,7 @@
  */
 
 import type { MergedContextObject } from "@/services/context_service";
-import type { ClinicalPipelineResult } from "@/services/clinical_pipeline_orchestrator";
+import type { ClinicalPipelineResult } from "./legacy_pipeline_adapter";
 import type { PipelineResult } from "@/services/clinical_pipeline/orchestrator";
 import type { CognitiveControllerOutput } from "@/services/cognitive/clinical_cognitive_controller";
 

@@ -18,7 +18,7 @@ import type {
   SpecialtyBreakdownV8, CognitiveSummary,
   Specialty, ReasoningCategory, BatchProgressV8,
 } from "./types";
-import { runClinicalPipeline, type ClinicalPipelineResult } from "@/services/clinical_pipeline_orchestrator";
+import { runClinicalPipeline, type ClinicalPipelineResult } from "./legacy_pipeline_adapter";
 import { runCognitiveController, type CognitiveControllerOutput } from "@/services/cognitive/clinical_cognitive_controller";
 import { normalizeWithTrace } from "@/services/context_engine/terminology_normalizer";
 import { supabase } from "@/integrations/supabase/client";

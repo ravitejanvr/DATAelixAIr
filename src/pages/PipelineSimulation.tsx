@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Play, Stethoscope, FlaskConical, Pill, Shield, Brain, FileText } from "lucide-react";
 import { mergeContextSources, type ContextSource, type MergedContextObject } from "@/services/context_service";
-import { runClinicalPipeline, type ClinicalPipelineResult } from "@/services/clinical_pipeline_orchestrator";
+import { runClinicalPipeline, type ClinicalPipelineResult } from "@/services/benchmark_v8/legacy_pipeline_adapter";
 import SEO from "@/components/SEO";
 
 export default function PipelineSimulation() {

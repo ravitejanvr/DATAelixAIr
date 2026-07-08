@@ -1,9 +1,17 @@
 /**
+ * @deprecated Import from `@/services/safety/facade` instead.
+ *
+ * Architecture Freeze v1.0 Contract #6 (Safety Consolidation) makes
+ * `src/services/safety/facade.ts` the single import surface for all
+ * safety capabilities, including guardrails.
+ *
+ * This file is retained as a functional shim for existing callers.
+ * The implementation is unchanged; only the recommended import path
+ * has moved.
+ *
  * Clinical Guardrail Engine — Client Service
- * 
  * Runs comprehensive safety checks before consultation finalization.
  * Blocks unsafe suggestions unless doctor explicitly overrides.
- * Only active when new pipeline feature flag is enabled.
  */
 
 import { supabase } from "@/integrations/supabase/client";
