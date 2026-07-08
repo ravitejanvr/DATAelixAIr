@@ -2,7 +2,28 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
-import SEO from "@/components/SEO";
+import SEO, { ORG_JSONLD } from "@/components/SEO";
+
+const contactJsonLd = {
+  ...ORG_JSONLD,
+  contactPoint: [
+    {
+      "@type": "ContactPoint",
+      telephone: "+44-7471-522177",
+      contactType: "UK Office",
+      email: "raviteja.nvr@elixair.uk",
+      availableLanguage: "English",
+    },
+    {
+      "@type": "ContactPoint",
+      telephone: "+91-9985-937007",
+      contactType: "India Office",
+      email: "raviteja.nvr@elixair.uk",
+      availableLanguage: ["English", "Hindi", "Telugu", "Tamil"],
+    },
+  ],
+};
+
 
 const Contact = () => {
   const { toast } = useToast();
