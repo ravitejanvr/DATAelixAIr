@@ -1,11 +1,17 @@
 /**
+ * @deprecated Import from `@/services/safety/facade` instead.
+ *
+ * Architecture Freeze v1.0 Contract #6 (Safety Consolidation) makes
+ * `src/services/safety/facade.ts` the single import surface for all
+ * safety capabilities, including oversight events and reports.
+ *
+ * This file is retained as a functional shim for existing callers.
+ * The implementation is unchanged; only the recommended import path
+ * has moved.
+ *
  * Clinical Oversight Engine
- * 
  * Aggregates safety signals, audit events, and quality metrics
  * across the pipeline for governance and accountability.
- * 
- * Provides a single view of all safety-relevant decisions made
- * during a consultation, including overrides and flags.
  */
 
 export interface OversightEvent {
