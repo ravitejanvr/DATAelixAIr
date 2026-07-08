@@ -202,10 +202,15 @@ function ArticleDetailInner() {
     keywords: s.keywords.join(", "),
   };
 
+  // Social preview limits: title ≤ 60 chars, description ≤ 160 chars
+  const truncatedTitle = s.meta_title.length > 60 ? `${s.meta_title.slice(0, 57)}...` : s.meta_title;
+  const truncatedDescription = s.meta_description.length > 160 ? `${s.meta_description.slice(0, 157)}...` : s.meta_description;
+
   return (
     <div>
-      <SEO title={s.meta_title} description={s.meta_description} />
+      <SEO title={truncatedTitle} description={truncatedDescription} ogType="article" />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
 
       {/* Header */}
       <section className="pt-28 pb-8 bg-background">
