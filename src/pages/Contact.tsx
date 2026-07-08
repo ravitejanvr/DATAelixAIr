@@ -38,6 +38,8 @@ const Contact = () => {
   return (
     <div>
       <SEO title="Contact Us — DATAelixAIr™ by elixAIr" description="Get in touch with elixAIr about DATAelixAIr™. Whether you're a clinic, hospital, investor, or advisor — let's explore how we can transform healthcare together." />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(contactJsonLd) }} />
+
       <section className="bg-dark pt-32 pb-24">
         <div className="container mx-auto px-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl">
