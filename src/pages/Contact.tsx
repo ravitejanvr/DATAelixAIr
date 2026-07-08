@@ -91,22 +91,22 @@ const Contact = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-2">
                       <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">First Name</label>
-                      <input required placeholder="John" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
+                      <input required placeholder="John" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/60 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
                     </div>
                     <div className="flex flex-col gap-2">
                       <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">Last Name</label>
-                      <input required placeholder="Smith" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
+                      <input required placeholder="Smith" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/60 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
                     </div>
                   </div>
 
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">Work Email</label>
-                    <input required type="email" placeholder="john@hospital.org" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
+                    <input required type="email" placeholder="john@hospital.org" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/60 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
                   </div>
 
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">Organisation</label>
-                    <input required placeholder="Hospital / Clinic / Company Name" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
+                    <input required placeholder="Hospital / Clinic / Company Name" className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/60 outline-none focus:border-primary focus:bg-primary/5 transition-all" />
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -125,7 +125,7 @@ const Contact = () => {
 
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-medium uppercase tracking-[0.06em] text-dark-muted">How can we collaborate?</label>
-                    <textarea required rows={4} placeholder="Tell us about your interest in partnering or investing..." className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/25 outline-none focus:border-primary focus:bg-primary/5 transition-all resize-y min-h-[120px]" />
+                    <textarea required rows={4} placeholder="Tell us about your interest in partnering or investing..." className="bg-dark-foreground/[0.04] border border-dark-foreground/10 rounded-xl px-4 py-3.5 text-sm text-dark-foreground placeholder:text-dark-foreground/60 outline-none focus:border-primary focus:bg-primary/5 transition-all resize-y min-h-[120px]" />
                   </div>
 
                   <Button variant="default" size="lg" type="submit" className="self-start mt-2">
