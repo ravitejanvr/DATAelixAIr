@@ -120,7 +120,7 @@ const Index = () => {
             Structured documentation, decision support, and patient-ready outputs in one clinical workspace.
           </motion.p>
 
-          <motion.p variants={fadeUp} custom={2.5} className="mt-4 text-[clamp(0.85rem,1.1vw,0.95rem)] font-light leading-relaxed text-muted-foreground/80 max-w-2xl mx-auto">
+          <motion.p variants={fadeUp} custom={2.5} className="mt-4 text-[clamp(0.85rem,1.1vw,0.95rem)] font-light leading-relaxed text-muted-foreground max-w-2xl mx-auto">
             Adapts to your clinical workflow — not the other way around.
             <br />
             Configured to your practice, specialty, and documentation patterns.
