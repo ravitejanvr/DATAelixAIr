@@ -17,6 +17,14 @@ export interface ClusterDiagnosis {
   base_relevance: number;
   must_not_miss: boolean;
   category: string;
+  /**
+   * A7.1 additive fields (optional, dormant).
+   * Populated from `public.kg_concept_bindings` when
+   * `enable_kg_terminology_binding` is on. UNUSED by reasoning today —
+   * kept to avoid a second type migration in A7.2.
+   */
+  canonical_id?: string;
+  snomed_id?: string;
 }
 
 export interface ClusterDefinition {

@@ -24,6 +24,8 @@ export interface FeatureFlags {
   enable_clinical_priority_resolution: boolean;
   enable_probabilistic_engine_v2: boolean;
   enable_probabilistic_engine_v3: boolean;
+  /** A7 — terminology-backed KG identity resolution. Dormant until A7.3. */
+  enable_kg_terminology_binding: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -45,6 +47,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_clinical_priority_resolution: true,
   enable_probabilistic_engine_v2: true,
   enable_probabilistic_engine_v3: true,
+  enable_kg_terminology_binding: false,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
@@ -131,4 +134,8 @@ export function isProbabilisticEngineV2Enabled(): boolean {
 
 export function isProbabilisticEngineV3Enabled(): boolean {
   return currentFlags.enable_probabilistic_engine_v3;
+}
+
+export function isKgTerminologyBindingEnabled(): boolean {
+  return currentFlags.enable_kg_terminology_binding;
 }
