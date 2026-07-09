@@ -3612,6 +3612,42 @@ export type Database = {
           },
         ]
       }
+      kg_concept_bindings: {
+        Row: {
+          canonical_id: string | null
+          created_at: string
+          diagnosis_name: string
+          id: string
+          resolved_at: string
+          score: number | null
+          snomed_id: string | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          canonical_id?: string | null
+          created_at?: string
+          diagnosis_name: string
+          id?: string
+          resolved_at?: string
+          score?: number | null
+          snomed_id?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          canonical_id?: string | null
+          created_at?: string
+          diagnosis_name?: string
+          id?: string
+          resolved_at?: string
+          score?: number | null
+          snomed_id?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       knowledge_cache: {
         Row: {
           cache_key: string
