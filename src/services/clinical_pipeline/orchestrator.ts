@@ -1979,6 +1979,7 @@ export async function runUnifiedClinicalPipeline(
     `Cache: reasoning=${cache.reasoning_hit}, preindexed=${cache.preindexed_hit}, evidence=${cache.evidence_hit}. ` +
     `Organ system: ${dominantSystem || "none"}`,
   );
+  try { ((globalThis as any).__pipelineLat ||= []).push({ ...lat }); } catch { /* noop */ }
 
   // ── Memoize for future cache hits ──
   if (symptoms.length > 0 && (ddxResult || hypotheses)) {
