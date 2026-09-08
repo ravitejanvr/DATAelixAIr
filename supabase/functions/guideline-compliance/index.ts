@@ -467,7 +467,7 @@ ${guidelineContext || "No matching guidelines found. Evaluate based on general c
     // ══════════════════════════════════════════════════════
     // STAGE 4: Enrich results with guideline citations
     // ══════════════════════════════════════════════════════
-    const results = evaluations.map((ev: any) => {
+    const aiResults = evaluations.map((ev: any) => {
       const matchingGuidelines: any[] = [];
       if (ev.matching_guideline_source) {
         const matched = allGuidelines.filter(g =>
