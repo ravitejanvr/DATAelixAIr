@@ -917,7 +917,7 @@ Deno.serve(async (req) => {
       let likelihoodSum = 0;
       for (const [symId, score] of entry.symptom_scores) {
         const spec = entry.symptom_specs.get(symId) ?? 0.4;
-        const specWeight = 0.4 + 1.2 * Math.max(0, Math.min(1, spec));
+        const specWeight = SPEC_FLOOR + SPEC_SLOPE * Math.max(0, Math.min(1, spec));
         likelihoodSum += Math.max(0.01, Math.min(0.99, score)) * specWeight;
       }
 
