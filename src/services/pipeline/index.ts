@@ -90,24 +90,19 @@ export async function runClinicalPipelineV4(
   });
 
   // ══════════════════════════════════════════════
-  // STAGE 4: DDX ENGINE (via edge function — existing)
+  // STAGE 4 + 5: DDX + V3 REASONING
   // ══════════════════════════════════════════════
-  // In production, this calls the DDX edge function.
-  // Here we define the interface; actual call is wired in the orchestrator.
-  const ddxCandidates: DDXCandidate[] = []; // Populated by DDX engine call
-
-  // ══════════════════════════════════════════════
-  // STAGE 5: V3 REASONING ENGINE (UNTOUCHED)
-  // ══════════════════════════════════════════════
-  // V3 engine call happens via existing edge function.
-  // Output feeds into Authority Layer.
-  const v3Diagnoses: Array<{
-    diagnosis_id: string;
-    diagnosis_name: string;
-    probability: number;
-    rank: number;
-    source?: string;
-  }> = []; // Populated by V3 engine call
+  // Architecture Freeze v1.0 — Rule 2: reasoning executes ONLY through
+  // runUnifiedClinicalPipeline (O1). This path maps in/out; it never reasons.
+  let o1Result: Awaited<ReturnType<typeof runUnifiedClinicalPipeline>> | null = null;
+  try {
+    o1Result = await runUnifiedClinicalPipeline(v4InputToO1Input(input));
+  } catch (e) {
+    console.error("[V4Pipeline] Unified orchestrator failed:", e);
+  }
+  const bridged = o1ResultToV4Reasoning(o1Result);
+  const ddxCandidates: DDXCandidate[] = bridged.ddxCandidates;
+  const v3Diagnoses = bridged.v3Diagnoses;
 
   // ══════════════════════════════════════════════
   // STAGE 6: COGNITIVE LAYER
