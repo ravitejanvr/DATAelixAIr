@@ -740,7 +740,7 @@ Deno.serve(async (req) => {
       // swamps symptom evidence and floats common conditions to the top of
       // every list. Compressing preserves the prevalence ordering while
       // keeping the evidence term decisive.
-      const PRIOR_COMPRESSION = 0.5;
+      const PRIOR_COMPRESSION = 0.35;
       prior = Math.pow(prior, PRIOR_COMPRESSION);
 
 
