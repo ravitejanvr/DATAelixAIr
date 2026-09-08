@@ -196,6 +196,99 @@ function normalizeSymptoms(symptoms: string[]): string[] {
   return result;
 }
 
+// ── Deterministic symptom resolution (vocabulary-based, no network fan-out) ──
+
+/** Leading descriptors that qualify severity/tempo but not the clinical finding itself. */
+const MODIFIER_PREFIX =
+  /^(mild to moderate|mild|severe|moderate|marked|slight|progressive|persistent|chronic|acute|intermittent|occasional|frequent|sudden|new|worsening|increasing|recurrent|generalized|diffuse|widespread|bilateral|unilateral|right|left|low grade|high|prolonged|episodic|transient|subtle|relative)\s+/;
+
+/** Vocabulary entries expressing absence must never be matched by containment. */
+const NEGATION_MARKER = /(^|\s)(no|absent|absence|without|painless|non-)/;
+
+function stripModifiers(term: string): string {
+  let out = term.trim();
+  for (let i = 0; i < 3; i++) {
+    const next = out.replace(MODIFIER_PREFIX, "").trim();
+    if (next === out || next.length < 3) break;
+    out = next;
+  }
+  return out;
+}
+
+function containsPhrase(haystack: string, needle: string): boolean {
+  const idx = haystack.indexOf(needle);
+  if (idx === -1) return false;
+  const before = idx === 0 ? " " : haystack[idx - 1];
+  const afterIdx = idx + needle.length;
+  const after = afterIdx >= haystack.length ? " " : haystack[afterIdx];
+  return !/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after);
+}
+
+interface VocabEntry { id: string; symptom_name: string }
+
+/**
+ * Resolve free-text findings against the symptom vocabulary.
+ * Deterministic: exact → modifier-stripped exact → longest contained known finding
+ * → narrowest containing vocabulary entry. Same input always yields the same IDs.
+ */
+function resolveSymptoms(
+  terms: string[],
+  vocab: VocabEntry[],
+): { matched: VocabEntry[]; unmatched: string[] } {
+  const byName = new Map<string, VocabEntry>();
+  for (const v of vocab) {
+    const key = v.symptom_name.toLowerCase().trim();
+    if (!byName.has(key)) byName.set(key, v);
+  }
+  // Deterministic ordering: longest vocabulary phrase first, then alphabetical.
+  const ordered = [...vocab].sort((a, b) =>
+    b.symptom_name.length - a.symptom_name.length ||
+    a.symptom_name.localeCompare(b.symptom_name)
+  );
+
+  const matched: VocabEntry[] = [];
+  const seen = new Set<string>();
+  const unmatched: string[] = [];
+
+  const push = (v: VocabEntry) => {
+    if (seen.has(v.id)) return;
+    seen.add(v.id);
+    matched.push(v);
+  };
+
+  for (const rawTerm of terms) {
+    const term = rawTerm.toLowerCase().trim();
+    if (!term) continue;
+
+    const exact = byName.get(term);
+    if (exact) { push(exact); continue; }
+
+    const stripped = stripModifiers(term);
+    const strippedExact = stripped !== term ? byName.get(stripped) : undefined;
+    if (strippedExact) { push(strippedExact); continue; }
+
+    // Longest known finding contained inside the phrase ("mild cough" → "cough")
+    const contained = ordered.find(v => {
+      const name = v.symptom_name.toLowerCase();
+      return name.length >= 5 && !NEGATION_MARKER.test(name) && containsPhrase(stripped, name);
+    });
+    if (contained) { push(contained); continue; }
+
+    // Narrowest vocabulary entry that contains the phrase ("chest heaviness" → …)
+    const containing = ordered
+      .filter(v => stripped.length >= 4 && containsPhrase(v.symptom_name.toLowerCase(), stripped))
+      .slice(-3)
+      .reverse();
+    if (containing.length > 0) { containing.forEach(push); continue; }
+
+    unmatched.push(term);
+  }
+
+  return { matched, unmatched };
+}
+
+
+
 /**
  * DDX Engine v5 — Bayesian Differential Diagnosis
  *
@@ -281,39 +374,33 @@ Deno.serve(async (req) => {
     const historyLower = (medical_history || []).map((h: any) => String(h || "").toLowerCase()).filter(Boolean);
 
     // ═══════════════════════════════════════════════════
-    // STAGE 1: SYMPTOM RESOLUTION (exact + fuzzy)
+    // STAGE 1: SYMPTOM RESOLUTION (vocabulary-based, single fetch)
     // ═══════════════════════════════════════════════════
     const stageStart1 = Date.now();
 
-    const { data: exactMatches } = await supabase
-      .from("symptoms")
-      .select("id, symptom_name")
-      .in("symptom_name", normalizedSymptoms);
-
-    const matchedIds = new Set((exactMatches || []).map((s: any) => s.id));
-    const matchedNames = new Set((exactMatches || []).map((s: any) => s.symptom_name));
-    const unmatched = normalizedSymptoms.filter((s: string) => !matchedNames.has(s));
-
-    // Also try raw (pre-normalization) names for fuzzy
-    const rawUnmatched = rawSymptoms.filter((s: string) => !matchedNames.has(s) && !normalizedSymptoms.includes(s));
-    const allUnmatched = [...new Set([...unmatched, ...rawUnmatched])];
-
-    // Fuzzy for unmatched
-    let fuzzyMatches: any[] = [];
-    if (allUnmatched.length > 0) {
-      const fuzzyPromises = allUnmatched.map(s =>
-        supabase.from("symptoms").select("id, symptom_name").ilike("symptom_name", `%${s}%`).limit(3)
-      );
-      const fuzzyResults = await Promise.all(fuzzyPromises);
-      for (const res of fuzzyResults) {
-        for (const s of res.data || []) {
-          if (!matchedIds.has(s.id)) { matchedIds.add(s.id); fuzzyMatches.push(s); }
-        }
-      }
+    // Paged fetch — PostgREST caps a single response at 1000 rows
+    const vocab: VocabEntry[] = [];
+    for (let page = 0; page < 10; page++) {
+      const from = page * 1000;
+      const { data: pageRows } = await supabase
+        .from("symptoms")
+        .select("id, symptom_name")
+        .order("symptom_name", { ascending: true })
+        .range(from, from + 999);
+      const rows = (pageRows || []) as VocabEntry[];
+      vocab.push(...rows);
+      if (rows.length < 1000) break;
     }
 
-    const allMatchedSymptoms = [...(exactMatches || []), ...fuzzyMatches];
+    const resolution = resolveSymptoms(
+      [...new Set([...normalizedSymptoms, ...rawSymptoms])],
+      vocab,
+    );
+
+    const allMatchedSymptoms = resolution.matched;
+    const matchedIds = new Set(allMatchedSymptoms.map(s => s.id));
     const symptomIds = Array.from(matchedIds);
+
     const stage1Ms = Date.now() - stageStart1;
 
     // Graph miss
@@ -1769,7 +1856,7 @@ Deno.serve(async (req) => {
       dangerous_diagnoses: dangerousDiagnosisDetails,
       safety_alerts: safetyAlerts,
       matched_symptoms: allMatchedSymptoms.map((s: any) => s.symptom_name),
-      unmatched_symptoms: normalizedSymptoms.filter(s => !allMatchedSymptoms.some((ms: any) => ms.symptom_name === s || ms.symptom_name.includes(s))),
+      unmatched_symptoms: resolution.unmatched,
       normalization_applied: rawSymptoms.filter((r: string, i: number) => r !== normalizedSymptoms[i]),
       candidates_before_filter: diagMap.size,
       dangerous_diagnoses_injected: dangerousInjected,
