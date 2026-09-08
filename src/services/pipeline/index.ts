@@ -27,6 +27,8 @@ import { analyzeCompleteness } from "../completeness";
 import { computeConfidence } from "../confidence";
 import { analyzeSafety } from "../safety";
 import { resolveAuthority, freezeToSSAL } from "../authority";
+import { runUnifiedClinicalPipeline } from "../clinical_pipeline/orchestrator";
+import { v4InputToO1Input, o1ResultToV4Reasoning } from "./orchestrator_bridge";
 
 /**
  * Run the complete V4 clinical pipeline.
