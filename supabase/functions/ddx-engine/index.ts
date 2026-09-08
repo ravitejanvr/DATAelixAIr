@@ -355,6 +355,7 @@ Deno.serve(async (req) => {
       physiological_context = null,
       phase9 = false,
       phase10_augment = false,
+      diagnostics = false,
     } = body;
 
     const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
@@ -1942,6 +1943,20 @@ Deno.serve(async (req) => {
       safety_candidates_available: safetyCandidates.length,
       source: phase10_augment ? "ddx_engine_v5_phase10" : phase9 ? "ddx_engine_v5_phase9" : "ddx_engine_v5_terminology_fix",
       graph_miss: false,
+      ...(diagnostics
+        ? {
+            candidate_pool_size: bayesianScores.length,
+            candidate_pool: [...bayesianScores]
+              .sort((a, b) => b.probability - a.probability)
+              .map((d, i) => ({
+                rank: i + 1,
+                diagnosis_id: d.diagnosis_id,
+                diagnosis_name: d.diagnosis_name,
+                probability: d.probability,
+              })),
+            scored_pool_before_selection: diagMap.size,
+          }
+        : {}),
     });
   } catch (err: any) {
     console.error("ddx-engine error:", err);
