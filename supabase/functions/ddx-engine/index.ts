@@ -371,7 +371,12 @@ Deno.serve(async (req) => {
       phase9 = false,
       phase10_augment = false,
       diagnostics = false,
+      /** Tuning overrides — measurement only. Defaults are the production values. */
+      spec_floor = null,
+      spec_slope = null,
     } = body;
+    const SPEC_FLOOR = typeof spec_floor === "number" ? spec_floor : 0.4;
+    const SPEC_SLOPE = typeof spec_slope === "number" ? spec_slope : 1.2;
 
     const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
 
