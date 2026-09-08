@@ -24,7 +24,7 @@ export interface FeatureFlags {
   enable_clinical_priority_resolution: boolean;
   enable_probabilistic_engine_v2: boolean;
   enable_probabilistic_engine_v3: boolean;
-  /** A7 — terminology-backed KG identity resolution. Dormant until A7.3. */
+  /** A7.4 — terminology-backed KG identity resolution (SNOMED concept keys). */
   enable_kg_terminology_binding: boolean;
 }
 
@@ -47,7 +47,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   enable_clinical_priority_resolution: true,
   enable_probabilistic_engine_v2: true,
   enable_probabilistic_engine_v3: true,
-  enable_kg_terminology_binding: false,
+  enable_kg_terminology_binding: true,
 };
 
 let currentFlags: FeatureFlags = { ...DEFAULT_FLAGS };
