@@ -355,6 +355,7 @@ Deno.serve(async (req) => {
       physiological_context = null,
       phase9 = false,
       phase10_augment = false,
+      diagnostics = false,
     } = body;
 
     const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
