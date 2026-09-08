@@ -26,3 +26,16 @@ Release: `SnomedCT_INT_20260701` (Terminology Platform v1.0, frozen)
 reads canonical IDs yet; bindings and the verifier are diagnostic-only. Flipping
 the flag is now unblocked from a data-integrity standpoint and can be scheduled
 as its own change with benchmark re-run.
+
+## A7.4 — Activation (complete)
+
+- All 88 cluster registry entries now carry a static `snomed_id` baked into
+  `src/services/kg/kg_clusters.ts` (87 distinct concepts, zero collisions).
+- `expandKG()` deduplicates on `sct:<snomed_id>` when
+  `enable_kg_terminology_binding` is on, falling back to the legacy normalised
+  name for any unbound entry.
+- Flag `enable_kg_terminology_binding` flipped to **true**.
+- Identity resolution is deterministic and offline: no runtime terminology RPC
+  is issued during reasoning, so latency is unchanged.
+- Contract tests (10) green; A7.3 parity previously reported 100% coverage and
+  zero divergence.
