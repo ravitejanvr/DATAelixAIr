@@ -374,9 +374,11 @@ Deno.serve(async (req) => {
       /** Tuning overrides — measurement only. Defaults are the production values. */
       spec_floor = null,
       spec_slope = null,
+      spec_pow = null,
     } = body;
-    const SPEC_FLOOR = typeof spec_floor === "number" ? spec_floor : 0.4;
-    const SPEC_SLOPE = typeof spec_slope === "number" ? spec_slope : 1.2;
+    const SPEC_FLOOR = typeof spec_floor === "number" ? spec_floor : 0.0;
+    const SPEC_SLOPE = typeof spec_slope === "number" ? spec_slope : 1.0;
+    const SPEC_POW = typeof spec_pow === "number" ? spec_pow : 1.0;
 
     const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
 
@@ -917,7 +919,7 @@ Deno.serve(async (req) => {
       let likelihoodSum = 0;
       for (const [symId, score] of entry.symptom_scores) {
         const spec = entry.symptom_specs.get(symId) ?? 0.4;
-        const specWeight = SPEC_FLOOR + SPEC_SLOPE * Math.max(0, Math.min(1, spec));
+        const specWeight = SPEC_FLOOR + SPEC_SLOPE * Math.pow(Math.max(0, Math.min(1, spec)), SPEC_POW);
         likelihoodSum += Math.max(0.01, Math.min(0.99, score)) * specWeight;
       }
 
