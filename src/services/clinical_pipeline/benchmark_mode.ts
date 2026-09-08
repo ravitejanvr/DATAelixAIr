@@ -683,6 +683,7 @@ export async function runBenchmarkPipeline(
   // ═══════ FINALIZE ═══════
   const totalLatency = Math.round(performance.now() - pipelineStart);
   lat.total = totalLatency;
+  try { ((globalThis as any).__pipelineLat ||= []).push({ ...lat, ...waveLat }); } catch { /* noop */ }
 
   // Conflict resolution (local, ~0ms)
   let conflictResult: ConflictResolution | null = null;
