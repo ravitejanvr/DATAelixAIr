@@ -431,13 +431,27 @@ Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════
     const stageStart2 = Date.now();
 
-    const [likelihoodRes, dangerousRes, suppressionRes] = await Promise.all([
-      supabase
+    // Paged fetch — PostgREST caps a single response at 1000 rows, which
+    // silently truncated the candidate graph for multi-symptom presentations.
+    const likelihoodRows: any[] = [];
+    for (let page = 0; page < 20; page++) {
+      const from = page * 1000;
+      const { data: pageRows } = await supabase
         .from("symptom_likelihoods")
         .select("symptom_id, diagnosis_id, likelihood_value, diagnoses!inner(id, diagnosis_name, category, icd10_code, is_active)")
         .in("symptom_id", symptomIds)
         .eq("diagnoses.is_active", true)
-        .order("likelihood_value", { ascending: false }),
+        .order("likelihood_value", { ascending: false })
+        .order("diagnosis_id", { ascending: true })
+        .order("symptom_id", { ascending: true })
+        .range(from, from + 999);
+      const rows = pageRows || [];
+      likelihoodRows.push(...rows);
+      if (rows.length < 1000) break;
+    }
+    const likelihoodRes = { data: likelihoodRows };
+
+    const [dangerousRes, suppressionRes, priorsRes] = await Promise.all([
       supabase
         .from("dangerous_diagnoses")
         .select("*, diagnoses(id, diagnosis_name, icd10_code, category)")
@@ -446,7 +460,17 @@ Deno.serve(async (req) => {
       supabase
         .from("diagnosis_suppression_rules")
         .select("dominant_diagnosis_id, suppressed_diagnosis_id, suppression_factor, requires_absence_of"),
+      supabase
+        .from("disease_priors")
+        .select("diagnosis_id, base_prevalence, age_modifier, sex_modifier, region_modifier"),
     ]);
+
+    // Per-diagnosis calibrated priors (previously unused — ranking relied on
+    // one shared prior per category, so common and rare conditions in the
+    // same category were indistinguishable).
+    const priorMap = new Map<string, any>();
+    for (const p of priorsRes.data || []) priorMap.set(p.diagnosis_id, p);
+
 
     // Build symptom→diagnosis association matrix
     interface DiagEntry {
@@ -675,13 +699,52 @@ Deno.serve(async (req) => {
       const diagName = (d.diagnosis_name || "").toLowerCase();
       const category = (d.category || "").toLowerCase();
 
-      // P(D) — prior
-      let prior = CATEGORY_PRIORS[category] || DEFAULT_PRIOR;
+      // P(D) — prior.
+      // Prefer the calibrated per-diagnosis prevalence; fall back to the
+      // category prior scaled onto the same prevalence band.
+      const calibrated = priorMap.get(diagId);
+      let prior: number;
 
-      // Age-adjusted priors
-      if (isPediatric && category === "pediatric") prior *= 2.0;
-      if (isElderly && (diagName.includes("infarction") || diagName.includes("stroke") || diagName.includes("pneumonia"))) prior *= 1.8;
-      if (isPediatric && (diagName.includes("infarction") || diagName.includes("stroke"))) prior *= 0.1;
+      if (calibrated && typeof calibrated.base_prevalence === "number" && calibrated.base_prevalence > 0) {
+        prior = calibrated.base_prevalence;
+
+        const ageMods = (calibrated.age_modifier || {}) as Record<string, number>;
+        const ageBands = isPediatric
+          ? ["pediatric", "child"]
+          : isElderly
+            ? ["elderly", "geriatric"]
+            : ["adult", "middle_aged", "young_adult"];
+        for (const band of ageBands) {
+          if (typeof ageMods[band] === "number") { prior *= ageMods[band]; break; }
+        }
+
+        const sexMods = (calibrated.sex_modifier || {}) as Record<string, number>;
+        if (sex && typeof sexMods[String(sex).toLowerCase()] === "number") {
+          prior *= sexMods[String(sex).toLowerCase()];
+        }
+
+        const regionMods = (calibrated.region_modifier || {}) as Record<string, number>;
+        for (const region of ["india", "south_asia", "global"]) {
+          if (typeof regionMods[region] === "number") { prior *= regionMods[region]; break; }
+        }
+      } else {
+        prior = (CATEGORY_PRIORS[category] || DEFAULT_PRIOR) * 0.2;
+
+        // Age-adjusted priors (fallback path only)
+        if (isPediatric && category === "pediatric") prior *= 2.0;
+        if (isElderly && (diagName.includes("infarction") || diagName.includes("stroke") || diagName.includes("pneumonia"))) prior *= 1.8;
+        if (isPediatric && (diagName.includes("infarction") || diagName.includes("stroke"))) prior *= 0.1;
+      }
+
+      // Prior compression. Raw prevalence spans ~750x (0.0002–0.15), which
+      // swamps symptom evidence and floats common conditions to the top of
+      // every list. Compressing preserves the prevalence ordering while
+      // keeping the evidence term decisive.
+      const PRIOR_COMPRESSION = 0.35;
+      prior = Math.pow(prior, PRIOR_COMPRESSION);
+
+
+
 
       // Sex-adjusted
       if (sex === "male" && diagName.includes("ectopic pregnancy")) prior = 0;
