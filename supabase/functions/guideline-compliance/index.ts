@@ -36,6 +36,8 @@ interface ComplianceRequest {
   patient_age?: number;
   patient_sex?: string;
   chief_complaint?: string;
+  /** When true, never call the AI model — stored guideline rules only. */
+  deterministic_only?: boolean;
 }
 
 serve(async (req) => {
@@ -52,7 +54,7 @@ serve(async (req) => {
     const sb = createClient(supabaseUrl, serviceKey);
 
     const body: ComplianceRequest = await req.json();
-    const { diagnoses = [], medications = [], tests = [], care_plan = "", patient_age, patient_sex, chief_complaint } = body;
+    const { diagnoses = [], medications = [], tests = [], care_plan = "", patient_age, patient_sex, chief_complaint, deterministic_only = false } = body;
 
     if (diagnoses.length === 0 && medications.length === 0 && tests.length === 0) {
       return new Response(JSON.stringify({
@@ -284,20 +286,101 @@ serve(async (req) => {
     uniqueSteps.sort((a: any, b: any) => a.tier - b.tier);
 
     // ══════════════════════════════════════════════════════
-    // STAGE 3: AI Compliance Evaluation
+    // STAGE 3: DETERMINISTIC compliance evaluation (stored rules first)
+    // The AI model is only consulted for items that no stored guideline covers.
     // ══════════════════════════════════════════════════════
     const itemsToEvaluate = [
       ...diagnoses.map(d => ({ item: d, type: "diagnosis" })),
-      ...medications.map(m => ({ item: `${m.drug_name} ${m.dose} ${m.frequency}`, type: "medication" })),
+      ...medications.map(m => ({ item: `${m.drug_name} ${m.dose} ${m.frequency}`.trim(), type: "medication", drug: m.drug_name })),
       ...tests.map(t => ({ item: t, type: "test" })),
       ...(care_plan ? [{ item: care_plan, type: "care_plan" }] : []),
-    ];
+    ] as Array<{ item: string; type: string; drug?: string }>;
+
+    const norm = (s: string) => (s || "").toLowerCase().trim();
+    const overlaps = (a: string, b: string) => {
+      const x = norm(a), y = norm(b);
+      if (!x || !y) return false;
+      return x.includes(y) || y.includes(x);
+    };
+
+    const deterministicResults: any[] = [];
+    const unresolved: Array<{ item: string; type: string }> = [];
+
+    for (const entry of itemsToEvaluate) {
+      let matched: any[] = [];
+      let status: string | null = null;
+      let explanation = "";
+
+      if (entry.type === "diagnosis") {
+        matched = allGuidelines.filter(g => overlaps(g.condition || "", entry.item));
+        if (matched.length > 0) {
+          status = "guideline_aligned";
+          const top = matched[0];
+          explanation = `${top.source_organization} (${top.year}) guidance exists for ${top.condition}: ${top.recommendation_text}`;
+        }
+      } else if (entry.type === "medication") {
+        const drug = norm(entry.drug || entry.item);
+        const conditionGuidelines = allGuidelines.filter(g =>
+          diagnoses.some(d => overlaps(g.condition || "", d)));
+        const pool = conditionGuidelines.length > 0 ? conditionGuidelines : allGuidelines;
+        matched = pool.filter(g => (g.applicable_drugs || []).some((gd: string) => gd && overlaps(gd, drug)));
+        if (matched.length > 0) {
+          status = "guideline_aligned";
+          const top = matched[0];
+          explanation = `Listed as a recommended agent for ${top.condition} by ${top.source_organization} (${top.year}).`;
+        } else if (conditionGuidelines.some(g => (g.applicable_drugs || []).length > 0)) {
+          status = "review_suggested";
+          matched = conditionGuidelines.filter(g => (g.applicable_drugs || []).length > 0);
+          const top = matched[0];
+          explanation = `Not listed in ${top.source_organization} (${top.year}) guidance for ${top.condition}. Recommended: ${(top.applicable_drugs || []).join(", ")}.`;
+        }
+      } else if (entry.type === "test") {
+        matched = allGuidelines.filter(g => (g.applicable_tests || []).some((gt: string) => gt && overlaps(gt, entry.item)));
+        if (matched.length > 0) {
+          status = "guideline_aligned";
+          const top = matched[0];
+          explanation = `Recommended investigation for ${top.condition} per ${top.source_organization} (${top.year}).`;
+        }
+      }
+
+      if (status) {
+        deterministicResults.push({
+          item: entry.item,
+          item_type: entry.type,
+          compliance_status: status,
+          explanation,
+          matching_guidelines: matched.slice(0, 2).map(g => ({
+            guideline_id: g.id,
+            title: g.title,
+            source: g.source_organization,
+            source_organization: g.source_organization,
+            year: g.year,
+            evidence_grade: g.evidence_grade,
+            recommendation_text: g.recommendation_text,
+            guideline_url: g.guideline_url || "",
+            tier: g.tier,
+            tier_label: g.tier_label,
+          })),
+          resolved_by: "stored_guidelines",
+        });
+      } else {
+        unresolved.push({ item: entry.item, type: entry.type });
+      }
+    }
 
     const guidelineContext = allGuidelines.slice(0, 12).map(g =>
       `[${g.source_organization}] (Tier ${g.tier}: ${g.tier_label}) ${g.title}\nCondition: ${g.condition}\nGrade: ${g.evidence_grade}\nRecommendation: ${g.recommendation_text}\nDrugs: ${(g.applicable_drugs || []).join(", ")}\nTests: ${(g.applicable_tests || []).join(", ")}`
     ).join("\n\n---\n\n");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // ══════════════════════════════════════════════════════
+    // STAGE 3b: AI fallback — ONLY for items no stored rule covers
+    // ══════════════════════════════════════════════════════
+    let evaluations: any[] = [];
+    let aiUsed = false;
+
+    if (unresolved.length > 0 && !deterministic_only) {
+      aiUsed = true;
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -322,7 +405,7 @@ Patient: Age ${patient_age || "unknown"}, Sex ${patient_sex || "unknown"}, Chief
             content: `Evaluate these clinical items against the guidelines below.
 
 Items:
-${itemsToEvaluate.map((item, i) => `${i + 1}. [${item.type}] ${item.item}`).join("\n")}
+${unresolved.map((item, i) => `${i + 1}. [${item.type}] ${item.item}`).join("\n")}
 
 Guidelines:
 ${guidelineContext || "No matching guidelines found. Evaluate based on general clinical evidence."}`,
@@ -359,25 +442,34 @@ ${guidelineContext || "No matching guidelines found. Evaluate based on general c
         }],
         tool_choice: { type: "function", function: { name: "evaluate_compliance" } },
       }),
-    });
+      });
 
-    if (!response.ok) {
-      if (response.status === 429) throw new Error("Rate limit exceeded");
-      if (response.status === 402) throw new Error("AI credits required");
-      throw new Error(`AI gateway error: ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 429) throw new Error("Rate limit exceeded");
+        if (response.status === 402) throw new Error("AI credits required");
+        throw new Error(`AI gateway error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      if (!toolCall?.function?.arguments) throw new Error("No structured output from AI");
+
+      evaluations = JSON.parse(toolCall.function.arguments).evaluations || [];
+    } else if (unresolved.length > 0) {
+      // Deterministic-only mode: unresolved items are flagged for review, no AI call.
+      evaluations = unresolved.map(u => ({
+        item: u.item,
+        item_type: u.type,
+        compliance_status: "review_suggested",
+        explanation: "No stored guideline covers this item.",
+      }));
     }
 
-    const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) throw new Error("No structured output from AI");
-
-    const parsed = JSON.parse(toolCall.function.arguments);
-    const evaluations = parsed.evaluations || [];
 
     // ══════════════════════════════════════════════════════
     // STAGE 4: Enrich results with guideline citations
     // ══════════════════════════════════════════════════════
-    const results = evaluations.map((ev: any) => {
+    const aiResults = evaluations.map((ev: any) => {
       const matchingGuidelines: any[] = [];
       if (ev.matching_guideline_source) {
         const matched = allGuidelines.filter(g =>
@@ -406,8 +498,12 @@ ${guidelineContext || "No matching guidelines found. Evaluate based on general c
         compliance_status: ev.compliance_status,
         explanation: ev.explanation,
         matching_guidelines: matchingGuidelines,
+        resolved_by: "ai_fallback",
       };
     });
+
+    const results = [...deterministicResults, ...aiResults];
+
 
     // ══════════════════════════════════════════════════════
     // STAGE 5: Compute compliance score
@@ -459,6 +555,11 @@ ${guidelineContext || "No matching guidelines found. Evaluate based on general c
       guidelines_sources: allSources,
       authority_tiers_used: [...new Set(allGuidelines.map(g => `Tier ${g.tier}: ${g.tier_label}`))],
       duration_ms: durationMs,
+      resolution: {
+        mode: aiUsed ? "stored_rules_with_ai_fallback" : "stored_rules_only",
+        deterministic_items: deterministicResults.length,
+        ai_items: aiResults.length,
+      },
       disclaimer: "Guideline compliance is advisory. All clinical decisions require physician judgment.",
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
