@@ -496,8 +496,12 @@ ${guidelineContext || "No matching guidelines found. Evaluate based on general c
         compliance_status: ev.compliance_status,
         explanation: ev.explanation,
         matching_guidelines: matchingGuidelines,
+        resolved_by: "ai_fallback",
       };
     });
+
+    const results = [...deterministicResults, ...aiResults];
+
 
     // ══════════════════════════════════════════════════════
     // STAGE 5: Compute compliance score
