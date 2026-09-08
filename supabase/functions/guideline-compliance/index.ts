@@ -54,7 +54,7 @@ serve(async (req) => {
     const sb = createClient(supabaseUrl, serviceKey);
 
     const body: ComplianceRequest = await req.json();
-    const { diagnoses = [], medications = [], tests = [], care_plan = "", patient_age, patient_sex, chief_complaint } = body;
+    const { diagnoses = [], medications = [], tests = [], care_plan = "", patient_age, patient_sex, chief_complaint, deterministic_only = false } = body;
 
     if (diagnoses.length === 0 && medications.length === 0 && tests.length === 0) {
       return new Response(JSON.stringify({
