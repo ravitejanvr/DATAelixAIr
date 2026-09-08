@@ -1342,7 +1342,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    bayesianScores.sort((a, b) => b.probability - a.probability);
+    bayesianScores.sort(rankCompare);
     const stage2Ms = Date.now() - stageStart2;
 
     // ═══════════════════════════════════════════════════
@@ -1624,7 +1624,7 @@ Deno.serve(async (req) => {
           d.probability = Math.min(100, Math.round(d.probability * 1.2));
         }
       }
-      bayesianScores.sort((a, b) => b.probability - a.probability);
+      bayesianScores.sort(rankCompare);
     }
 
     // ── Phase 7: Common Condition Ranking Protection (S6) — SKIP in Phase 9 ──
@@ -1668,7 +1668,7 @@ Deno.serve(async (req) => {
       // Phase 9/10: Pure probability-based selection, no must-not-miss slots
       // Safety-augmented candidates with probability=0 naturally sort to bottom
       finalDifferential = bayesianScores
-        .sort((a, b) => b.probability - a.probability)
+        .sort(rankCompare)
         .slice(0, 10);
     } else {
       // Legacy: top 6 by probability + up to 3 must-not-miss (slot reservation)
@@ -1681,7 +1681,7 @@ Deno.serve(async (req) => {
       const mustNotMiss = bayesianScores.filter(d => d.must_not_miss && d.probability > 0).slice(0, 3);
       finalDifferential = [...topByProb, ...mustNotMiss]
         .filter((d, i, arr) => arr.findIndex(x => x.diagnosis_id === d.diagnosis_id) === i)
-        .sort((a, b) => b.probability - a.probability)
+        .sort(rankCompare)
         .slice(0, 10);
     }
 
