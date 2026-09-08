@@ -375,10 +375,12 @@ Deno.serve(async (req) => {
       spec_floor = null,
       spec_slope = null,
       spec_pow = null,
+      hallmark_w = null,
     } = body;
     const SPEC_FLOOR = typeof spec_floor === "number" ? spec_floor : 0.0;
     const SPEC_SLOPE = typeof spec_slope === "number" ? spec_slope : 1.0;
     const SPEC_POW = typeof spec_pow === "number" ? spec_pow : 1.0;
+    const HALLMARK_W = typeof hallmark_w === "number" ? hallmark_w : 0.0;
 
     const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
 
