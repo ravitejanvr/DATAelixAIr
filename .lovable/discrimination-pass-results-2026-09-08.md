@@ -60,3 +60,37 @@ conditions are missing or under-calibrated.
 2. Full-pipeline benchmark re-run to convert engine gains into end-to-end
    top-1/top-3 numbers.
 3. Orchestrator latency profiling — engine is now ~0.63 s of the ~5.9 s total.
+
+## Follow-up: hallmark-boost experiment (measured, rejected)
+
+Added an optional ontology-derived hallmark term — the single most specific
+matched edge multiplies the likelihood sum: `likelihood × (1 + w · maxSpec)`.
+Measured on all 120 cases:
+
+| hallmark_w | top-1 | top-3 | top-10 |
+|---|---|---|---|
+| **0 (shipped)** | **70** | **95** | 107 |
+| 0.5 | 69 | 95 | 107 |
+| 1.0 | 72 | 93 | 107 |
+| 2.0 | 73 | 92 | 108 |
+
+Every setting trades top-3 for top-1 at ~zero net gain, so the parameter ships
+disabled (`hallmark_w` default 0) and production scoring is unchanged.
+
+## Residual failure pattern (new observation)
+
+Of the 50 non-top-1 cases, a large share are gold at rank 2–3 losing to the
+*chronic substrate* of the acute presentation, not to an unrelated condition:
+
+| Case | Gold | Outranked by |
+|---|---|---|
+| noisy-036 | Diabetic ketoacidosis | type 1 diabetes mellitus |
+| noisy-037 | Adrenal crisis | Addison disease |
+| noisy-045 | Prostatitis | urinary tract infection |
+| noisy-013 | Celiac disease | irritable bowel syndrome |
+| noisy-050 | Compartment syndrome | rhabdomyolysis |
+
+These are symptom-overlap artifacts: the chronic condition inherits every edge
+of the acute one plus more, so coverage favours it. Fixing this needs an
+acuity/presentation distinction in the ontology (edge-level or category-level),
+not another scoring parameter.
