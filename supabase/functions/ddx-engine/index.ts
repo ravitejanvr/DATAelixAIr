@@ -371,7 +371,14 @@ Deno.serve(async (req) => {
       phase9 = false,
       phase10_augment = false,
       diagnostics = false,
+      /** Tuning overrides — measurement only. Defaults are the production values. */
+      spec_floor = null,
+      spec_slope = null,
+      spec_pow = null,
     } = body;
+    const SPEC_FLOOR = typeof spec_floor === "number" ? spec_floor : 0.0;
+    const SPEC_SLOPE = typeof spec_slope === "number" ? spec_slope : 1.0;
+    const SPEC_POW = typeof spec_pow === "number" ? spec_pow : 1.0;
 
     const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
 
@@ -454,7 +461,7 @@ Deno.serve(async (req) => {
       const from = page * 1000;
       const { data: pageRows } = await supabase
         .from("symptom_likelihoods")
-        .select("symptom_id, diagnosis_id, likelihood_value, diagnoses!inner(id, diagnosis_name, category, icd10_code, is_active)")
+        .select("symptom_id, diagnosis_id, likelihood_value, symptom_specificity, diagnoses!inner(id, diagnosis_name, category, icd10_code, is_active)")
         .in("symptom_id", symptomIds)
         .eq("diagnoses.is_active", true)
         .order("likelihood_value", { ascending: false })
@@ -492,6 +499,8 @@ Deno.serve(async (req) => {
     interface DiagEntry {
       diagnosis: any;
       symptom_scores: Map<string, number>;
+      /** Ontology-derived discrimination weight per symptom edge (0..1). */
+      symptom_specs: Map<string, number>;
       symptom_names: string[];
     }
 
@@ -502,17 +511,24 @@ Deno.serve(async (req) => {
       if (!d) continue;
       const existing = diagMap.get(d.id);
       const symName = allMatchedSymptoms.find((s: any) => s.id === link.symptom_id)?.symptom_name || "";
+      const spec = typeof (link as any).symptom_specificity === "number"
+        ? (link as any).symptom_specificity
+        : Number((link as any).symptom_specificity ?? 0.4);
       if (existing) {
         if (!existing.symptom_scores.has(link.symptom_id)) {
           existing.symptom_scores.set(link.symptom_id, link.likelihood_value);
+          existing.symptom_specs.set(link.symptom_id, Number.isFinite(spec) ? spec : 0.4);
           if (symName) existing.symptom_names.push(symName);
         }
       } else {
         const scores = new Map<string, number>();
         scores.set(link.symptom_id, link.likelihood_value);
+        const specs = new Map<string, number>();
+        specs.set(link.symptom_id, Number.isFinite(spec) ? spec : 0.4);
         diagMap.set(d.id, {
           diagnosis: d,
           symptom_scores: scores,
+          symptom_specs: specs,
           symptom_names: symName ? [symName] : [],
         });
       }
@@ -896,10 +912,15 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Σ P(Sᵢ|D) — ADDITIVE likelihood (rewards more matches)
+      // Σ P(Sᵢ|D) × w(specificity) — ADDITIVE likelihood (rewards more matches),
+      // weighted by the ontology-derived discrimination value of each edge so
+      // that generic findings (fever, fatigue) contribute less than hallmark
+      // findings. Weight range: 0.4 (fully generic) … 1.6 (fully specific).
       let likelihoodSum = 0;
-      for (const [, score] of entry.symptom_scores) {
-        likelihoodSum += Math.max(0.01, Math.min(0.99, score));
+      for (const [symId, score] of entry.symptom_scores) {
+        const spec = entry.symptom_specs.get(symId) ?? 0.4;
+        const specWeight = SPEC_FLOOR + SPEC_SLOPE * Math.pow(Math.max(0, Math.min(1, spec)), SPEC_POW);
+        likelihoodSum += Math.max(0.01, Math.min(0.99, score)) * specWeight;
       }
 
       // Coverage = fraction of patient symptoms explained by this diagnosis
