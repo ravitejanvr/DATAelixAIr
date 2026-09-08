@@ -905,10 +905,15 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Σ P(Sᵢ|D) — ADDITIVE likelihood (rewards more matches)
+      // Σ P(Sᵢ|D) × w(specificity) — ADDITIVE likelihood (rewards more matches),
+      // weighted by the ontology-derived discrimination value of each edge so
+      // that generic findings (fever, fatigue) contribute less than hallmark
+      // findings. Weight range: 0.4 (fully generic) … 1.6 (fully specific).
       let likelihoodSum = 0;
-      for (const [, score] of entry.symptom_scores) {
-        likelihoodSum += Math.max(0.01, Math.min(0.99, score));
+      for (const [symId, score] of entry.symptom_scores) {
+        const spec = entry.symptom_specs.get(symId) ?? 0.4;
+        const specWeight = 0.4 + 1.2 * Math.max(0, Math.min(1, spec));
+        likelihoodSum += Math.max(0.01, Math.min(0.99, score)) * specWeight;
       }
 
       // Coverage = fraction of patient symptoms explained by this diagnosis
