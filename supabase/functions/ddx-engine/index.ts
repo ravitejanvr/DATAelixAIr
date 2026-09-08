@@ -375,10 +375,12 @@ Deno.serve(async (req) => {
       spec_floor = null,
       spec_slope = null,
       spec_pow = null,
+      hallmark_w = null,
     } = body;
     const SPEC_FLOOR = typeof spec_floor === "number" ? spec_floor : 0.0;
     const SPEC_SLOPE = typeof spec_slope === "number" ? spec_slope : 1.0;
     const SPEC_POW = typeof spec_pow === "number" ? spec_pow : 1.0;
+    const HALLMARK_W = typeof hallmark_w === "number" ? hallmark_w : 0.0;
 
     const physioFilter = physiological_context?.candidate_diagnosis_ids || [];
 
@@ -917,11 +919,17 @@ Deno.serve(async (req) => {
       // that generic findings (fever, fatigue) contribute less than hallmark
       // findings. Weight range: 0.4 (fully generic) … 1.6 (fully specific).
       let likelihoodSum = 0;
+      let maxSpecMatched = 0;
       for (const [symId, score] of entry.symptom_scores) {
         const spec = entry.symptom_specs.get(symId) ?? 0.4;
         const specWeight = SPEC_FLOOR + SPEC_SLOPE * Math.pow(Math.max(0, Math.min(1, spec)), SPEC_POW);
         likelihoodSum += Math.max(0.01, Math.min(0.99, score)) * specWeight;
+        if (spec > maxSpecMatched) maxSpecMatched = Math.max(0, Math.min(1, spec));
       }
+      // Hallmark term: presence of the single most discriminative finding for a
+      // diagnosis lifts it above competitors explained only by generic findings.
+      // Ontology-derived (max edge specificity), single parameter, default off.
+      if (HALLMARK_W > 0) likelihoodSum *= (1 + HALLMARK_W * maxSpecMatched);
 
       // Coverage = fraction of patient symptoms explained by this diagnosis
       const coverage = entry.symptom_scores.size / totalSymptomCount;
