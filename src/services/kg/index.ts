@@ -8,3 +8,8 @@ export { createEmptyActivation, activateNode, mergeActivations, type KGActivatio
 export { getClusterDiagnoses, getAllClusterIds, getClusterStats, type ClusterDiagnosis } from "./kg_clusters";
 export { expandKG, type KGExpansionResult } from "./kg_expander";
 export { hydrateClusterBindings, type HydratedCluster, type HydrationReport } from "./kg_hydrator";
+export {
+  verifyKgTerminologyParity,
+  type ShadowVerificationReport,
+  type ParityDivergence,
+} from "./kg_shadow_verifier";
