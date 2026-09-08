@@ -555,6 +555,11 @@ ${guidelineContext || "No matching guidelines found. Evaluate based on general c
       guidelines_sources: allSources,
       authority_tiers_used: [...new Set(allGuidelines.map(g => `Tier ${g.tier}: ${g.tier_label}`))],
       duration_ms: durationMs,
+      resolution: {
+        mode: aiUsed ? "stored_rules_with_ai_fallback" : "stored_rules_only",
+        deterministic_items: deterministicResults.length,
+        ai_items: aiResults.length,
+      },
       disclaimer: "Guideline compliance is advisory. All clinical decisions require physician judgment.",
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
