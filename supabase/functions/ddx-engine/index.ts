@@ -231,6 +231,21 @@ interface VocabEntry { id: string; symptom_name: string }
  * Deterministic: exact → modifier-stripped exact → longest contained known finding
  * → narrowest containing vocabulary entry. Same input always yields the same IDs.
  */
+/**
+ * Deterministic candidate ranking comparator.
+ * Rounded integer probabilities create large tie groups; break ties by the
+ * continuous posterior, then must-not-miss, then diagnosis_id so ordering is
+ * reproducible instead of dependent on retrieval order.
+ */
+function rankCompare(a: any, b: any): number {
+  return (
+    (b.probability ?? 0) - (a.probability ?? 0) ||
+    (b.posterior ?? 0) - (a.posterior ?? 0) ||
+    (b.must_not_miss ? 1 : 0) - (a.must_not_miss ? 1 : 0) ||
+    String(a.diagnosis_id).localeCompare(String(b.diagnosis_id))
+  );
+}
+
 function resolveSymptoms(
   terms: string[],
   vocab: VocabEntry[],
