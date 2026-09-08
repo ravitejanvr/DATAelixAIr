@@ -15,6 +15,7 @@
 import type { KGActivation } from "./kg_activation";
 import { getClusterDiagnoses, type ClusterDiagnosis } from "./kg_clusters";
 import type { CandidateHint } from "@/services/context_candidate_expander";
+import { isKgTerminologyBindingEnabled } from "@/services/feature_flags";
 
 const MAX_KG_CANDIDATES = 12;
 const RELEVANCE_THRESHOLD = 0.25; // Minimum effective score to include
@@ -43,6 +44,7 @@ export function expandKG(activation: KGActivation): KGExpansionResult {
   const clustersResolved: string[] = [];
   const expansionDetail: Record<string, number> = {};
   let rawCount = 0;
+  const useTerminologyIdentity = isKgTerminologyBindingEnabled();
 
   for (const nodeId of activation.nodes) {
     const clusterDiagnoses = getClusterDiagnoses(nodeId);
@@ -62,7 +64,12 @@ export function expandKG(activation: KGActivation): KGExpansionResult {
       if (!passesThr) continue;
 
       rawCount++;
-      const key = dx.diagnosis_name.toLowerCase().trim();
+      // A7.4 — identity key: canonical SNOMED concept when binding is enabled
+      // and the entry is bound; otherwise the legacy normalised name.
+      const key =
+        useTerminologyIdentity && dx.snomed_id
+          ? `sct:${dx.snomed_id}`
+          : dx.diagnosis_name.toLowerCase().trim();
       const existing = candidateMap.get(key);
 
       if (!existing || effectiveScore > existing.confidence) {

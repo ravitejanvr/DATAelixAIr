@@ -1,21 +1,21 @@
 /**
- * A7.1 Contract Test — KG Terminology Binding (dormant slice)
+ * A7.4 Contract Test — KG Terminology Binding (active)
  *
  * Guarantees:
- *   1. Feature flag exists and defaults to false (no runtime effect).
- *   2. ClusterDiagnosis accepts the optional canonical_id / snomed_id fields.
- *   3. Cluster registry entries carry NO bindings at rest — A7.1 is additive
- *      only; bindings populate via offline backfill in A7.2.
+ *   1. Feature flag is ON — KG identity resolves through SNOMED concepts.
+ *   2. ClusterDiagnosis carries the snomed_id field.
+ *   3. Every cluster registry entry is bound to a numeric SNOMED concept id,
+ *      and no two distinct diagnoses collapse onto one concept.
  */
 
 import { describe, it, expect } from "vitest";
 import { getFeatureFlags, isKgTerminologyBindingEnabled } from "@/services/feature_flags";
 import { getClusterDiagnoses, getAllClusterIds, type ClusterDiagnosis } from "@/services/kg";
 
-describe("A7.1 — KG Terminology Binding (dormant slice)", () => {
-  it("feature flag exists and defaults to false", () => {
-    expect(getFeatureFlags().enable_kg_terminology_binding).toBe(false);
-    expect(isKgTerminologyBindingEnabled()).toBe(false);
+describe("A7.4 — KG Terminology Binding (active)", () => {
+  it("feature flag is enabled", () => {
+    expect(getFeatureFlags().enable_kg_terminology_binding).toBe(true);
+    expect(isKgTerminologyBindingEnabled()).toBe(true);
   });
 
   it("ClusterDiagnosis accepts optional canonical_id / snomed_id", () => {
@@ -31,16 +31,21 @@ describe("A7.1 — KG Terminology Binding (dormant slice)", () => {
     expect(sample.snomed_id).toBe("91302008");
   });
 
-  it("cluster registry unchanged and unbound at rest", () => {
+  it("every cluster entry is bound to a SNOMED concept, with no collisions", () => {
     const ids = getAllClusterIds();
     expect(ids.length).toBeGreaterThan(0);
+    const conceptToName = new Map<string, string>();
     for (const id of ids) {
       for (const d of getClusterDiagnoses(id)) {
-        expect(d.canonical_id).toBeUndefined();
-        expect(d.snomed_id).toBeUndefined();
         expect(typeof d.diagnosis_name).toBe("string");
         expect(d.base_relevance).toBeGreaterThanOrEqual(0);
         expect(d.base_relevance).toBeLessThanOrEqual(1);
+        expect(d.snomed_id, `unbound: ${d.diagnosis_name}`).toMatch(/^\d+$/);
+        const key = d.snomed_id as string;
+        const seen = conceptToName.get(key);
+        const name = d.diagnosis_name.trim().toLowerCase();
+        if (seen) expect(seen, `collision on ${key}`).toBe(name);
+        else conceptToName.set(key, name);
       }
     }
   });
