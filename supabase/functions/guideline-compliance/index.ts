@@ -36,6 +36,8 @@ interface ComplianceRequest {
   patient_age?: number;
   patient_sex?: string;
   chief_complaint?: string;
+  /** When true, never call the AI model — stored guideline rules only. */
+  deterministic_only?: boolean;
 }
 
 serve(async (req) => {
