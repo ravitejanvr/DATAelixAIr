@@ -454,7 +454,7 @@ Deno.serve(async (req) => {
       const from = page * 1000;
       const { data: pageRows } = await supabase
         .from("symptom_likelihoods")
-        .select("symptom_id, diagnosis_id, likelihood_value, diagnoses!inner(id, diagnosis_name, category, icd10_code, is_active)")
+        .select("symptom_id, diagnosis_id, likelihood_value, symptom_specificity, diagnoses!inner(id, diagnosis_name, category, icd10_code, is_active)")
         .in("symptom_id", symptomIds)
         .eq("diagnoses.is_active", true)
         .order("likelihood_value", { ascending: false })
@@ -492,6 +492,8 @@ Deno.serve(async (req) => {
     interface DiagEntry {
       diagnosis: any;
       symptom_scores: Map<string, number>;
+      /** Ontology-derived discrimination weight per symptom edge (0..1). */
+      symptom_specs: Map<string, number>;
       symptom_names: string[];
     }
 
@@ -502,17 +504,24 @@ Deno.serve(async (req) => {
       if (!d) continue;
       const existing = diagMap.get(d.id);
       const symName = allMatchedSymptoms.find((s: any) => s.id === link.symptom_id)?.symptom_name || "";
+      const spec = typeof (link as any).symptom_specificity === "number"
+        ? (link as any).symptom_specificity
+        : Number((link as any).symptom_specificity ?? 0.4);
       if (existing) {
         if (!existing.symptom_scores.has(link.symptom_id)) {
           existing.symptom_scores.set(link.symptom_id, link.likelihood_value);
+          existing.symptom_specs.set(link.symptom_id, Number.isFinite(spec) ? spec : 0.4);
           if (symName) existing.symptom_names.push(symName);
         }
       } else {
         const scores = new Map<string, number>();
         scores.set(link.symptom_id, link.likelihood_value);
+        const specs = new Map<string, number>();
+        specs.set(link.symptom_id, Number.isFinite(spec) ? spec : 0.4);
         diagMap.set(d.id, {
           diagnosis: d,
           symptom_scores: scores,
+          symptom_specs: specs,
           symptom_names: symName ? [symName] : [],
         });
       }
