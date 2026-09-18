@@ -364,7 +364,7 @@ export async function runV10Suite(
 ): Promise<SuiteRunResult> {
   const cases = ALL_NEW_CASES;
   const results: CaseResult[] = [];
-  const executionMode = options?.executionMode ?? "benchmark";
+  const executionMode = options?.executionMode ?? "production";
   const parallelCases = options?.parallelCases ?? (executionMode === "benchmark" ? 5 : 1);
   const batchDelay = options?.batchDelayMs ?? (executionMode === "benchmark" ? 1000 : 3000);
   const caseDelay = options?.caseDelayMs ?? (executionMode === "benchmark" ? 0 : 500);
