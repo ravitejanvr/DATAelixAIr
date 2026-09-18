@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isUuid } from "../_shared/uuid.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -190,7 +191,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    const diagnosisIds = candidate_diagnoses.map((d: any) => d.diagnosis_id).filter(Boolean);
+    // Candidates can carry synthetic, non-UUID placeholder IDs (e.g. DDX
+    // fallback/hint-derived candidates that never resolved to a real
+    // diagnoses.id) — symptom_likelihoods.diagnosis_id is a UUID column, so
+    // passing those through .in() fails the whole query. They can never
+    // have real likelihood rows anyway, so just exclude them from the lookup.
+    const rawDiagnosisIds = candidate_diagnoses.map((d: any) => d.diagnosis_id);
+    const diagnosisIds = rawDiagnosisIds.filter(isUuid);
+    const droppedCount = rawDiagnosisIds.length - diagnosisIds.length;
+    if (droppedCount > 0) {
+      console.warn(
+        `[HypothesisTesting] Dropped ${droppedCount} candidate(s) with non-UUID diagnosis_id — they can't have real symptom_likelihoods rows, so they'll test as indeterminate. The real fix is upstream: whatever produced these candidates should resolve them to a real diagnoses.id instead of a placeholder.`,
+      );
+    }
     // Normalize patient symptoms before matching
     const symptomLower = normalizeSymptomList(patient_symptoms);
 
@@ -198,10 +211,12 @@ Deno.serve(async (req) => {
     // STEP 1: Fetch symptom_likelihoods for all candidate diagnoses
     // FIX: Use correct column name `likelihood_value` (was `likelihood`)
     // ══════════════════════════════════════════════
-    const { data: likelihoods, error: likErr } = await supabase
-      .from("symptom_likelihoods")
-      .select("diagnosis_id, symptom_id, likelihood_value, symptoms(symptom_name)")
-      .in("diagnosis_id", diagnosisIds);
+    const { data: likelihoods, error: likErr } = diagnosisIds.length > 0
+      ? await supabase
+          .from("symptom_likelihoods")
+          .select("diagnosis_id, symptom_id, likelihood_value, symptoms(symptom_name)")
+          .in("diagnosis_id", diagnosisIds)
+      : { data: [], error: null };
 
     if (likErr) {
       console.error("[HypothesisTesting] Failed to fetch likelihoods:", likErr);

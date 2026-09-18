@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isUuid } from "../_shared/uuid.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,9 +78,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    const diagnosisIds = candidate_diagnoses
-      .map((d: any) => d.diagnosis_id)
-      .filter(Boolean);
+    // Candidates can carry synthetic, non-UUID placeholder IDs (e.g. DDX
+    // fallback/hint-derived candidates that never resolved to a real
+    // diagnoses.id) — diagnosis_lab_map.diagnosis_id is a UUID column, so
+    // passing those through .in() fails the whole query. They can never
+    // have real lab-map rows anyway, so just exclude them from the lookup.
+    const rawDiagnosisIds = candidate_diagnoses.map((d: any) => d.diagnosis_id);
+    const diagnosisIds = rawDiagnosisIds.filter(isUuid);
+    const droppedCount = rawDiagnosisIds.length - diagnosisIds.length;
+    if (droppedCount > 0) {
+      console.warn(
+        `[EvidencePlanning] Dropped ${droppedCount} candidate(s) with non-UUID diagnosis_id — they can't have real diagnosis_lab_map rows. The real fix is upstream: whatever produced these candidates should resolve them to a real diagnoses.id instead of a placeholder.`,
+      );
+    }
 
     const existingTestNames = new Set(
       (existing_tests || []).map((t: string) => t.toLowerCase().trim()),
@@ -88,10 +99,12 @@ Deno.serve(async (req) => {
     // ══════════════════════════════════════════════
     // STEP 1: Fetch all lab tests mapped to candidate diagnoses
     // ══════════════════════════════════════════════
-    const { data: labMappings, error: labErr } = await supabase
-      .from("diagnosis_lab_map")
-      .select("diagnosis_id, lab_test_id, priority, lab_tests(id, test_name, category)")
-      .in("diagnosis_id", diagnosisIds);
+    const { data: labMappings, error: labErr } = diagnosisIds.length > 0
+      ? await supabase
+          .from("diagnosis_lab_map")
+          .select("diagnosis_id, lab_test_id, priority, lab_tests(id, test_name, category)")
+          .in("diagnosis_id", diagnosisIds)
+      : { data: [], error: null };
 
     if (labErr) {
       console.error("[EvidencePlanning] Failed to fetch lab mappings:", labErr);
