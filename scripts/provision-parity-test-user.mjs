@@ -18,14 +18,17 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+// VITE_SUPABASE_URL is a Vite build-time var (import.meta.env), not something
+// a plain `node` process gets from .env — this is the same project ref
+// hardcoded in parity-check.yml's reachability probe.
+const SUPABASE_URL = "https://mhqdqilzkqvbgtygtlab.supabase.co";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const TEST_PASSWORD = process.env.PARITY_TEST_PASSWORD;
 const TEST_EMAIL = "ci-parity-test@dataelixair.internal";
 
-if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !TEST_PASSWORD) {
+if (!SERVICE_ROLE_KEY || !TEST_PASSWORD) {
   console.error(
-    "Missing required env: VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PARITY_TEST_PASSWORD",
+    "Missing required env: SUPABASE_SERVICE_ROLE_KEY, PARITY_TEST_PASSWORD",
   );
   process.exit(1);
 }
