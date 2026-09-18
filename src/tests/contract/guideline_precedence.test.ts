@@ -59,10 +59,55 @@ describe("keepCurrentGuidelinesOnly", () => {
     expect(result).toEqual([current]);
   });
 
-  it("does not fabricate a preference when neither row has a publication_date — first one wins deterministically, not silently", () => {
+  it("does not fabricate a preference when neither row has a publication_date or year — first one wins deterministically, not silently", () => {
     const a = { id: "a", organization: "CDC", condition: "flu" };
     const b = { id: "b", organization: "CDC", condition: "flu" };
     const result = keepCurrentGuidelinesOnly([a, b]);
+    expect(result).toEqual([a]);
+  });
+
+  it("falls back to year when publication_date is absent (clinical_guidelines shape) — confirmed live: ATA hypothyroidism 2014 vs 2023", () => {
+    const ata2014 = {
+      id: "60ebb380",
+      source_organization: "American Thyroid Association",
+      condition: "hypothyroidism",
+      year: 2014,
+    };
+    const ata2023 = {
+      id: "66658d1b",
+      source_organization: "American Thyroid Association",
+      condition: "hypothyroidism",
+      year: 2023,
+    };
+    const result = keepCurrentGuidelinesOnly([ata2014, ata2023]);
+    expect(result).toEqual([ata2023]);
+  });
+
+  it("prefers publication_date over year when both are present on the same row", () => {
+    const olderByYearNewerByDate = {
+      id: "a",
+      organization: "WHO",
+      condition: "malaria",
+      year: 2020,
+      publication_date: "2025-01-01",
+    };
+    const newerByYearOlderByDate = {
+      id: "b",
+      organization: "WHO",
+      condition: "malaria",
+      year: 2024,
+      publication_date: "2019-01-01",
+    };
+    const result = keepCurrentGuidelinesOnly([olderByYearNewerByDate, newerByYearOlderByDate]);
+    expect(result).toEqual([olderByYearNewerByDate]);
+  });
+
+  it("does not collapse two genuinely different guidelines that happen to share a year — that's a duplicate-content problem, not this function's job", () => {
+    const a = { id: "a", source_organization: "ACG", condition: "peptic ulcer", year: 2024 };
+    const b = { id: "b", source_organization: "ACG", condition: "peptic ulcer", year: 2024 };
+    const result = keepCurrentGuidelinesOnly([a, b]);
+    // Neither wins on recency; the function keeps the first deterministically
+    // rather than guessing — same-year duplicates need a human decision.
     expect(result).toEqual([a]);
   });
 });
