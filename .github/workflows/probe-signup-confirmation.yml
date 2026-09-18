@@ -1,0 +1,28 @@
+name: Probe Signup Confirmation Requirement
+
+# One-off diagnostic, workflow_dispatch only. Determines whether the CI
+# parity test account can be provisioned with just the anon key (no
+# service_role key — Lovable Cloud does not expose one, confirmed
+# 2026-09-18) by checking whether a plain signUp() issues a session
+# immediately or requires email confirmation first. Uses a throwaway probe
+# email each run; no lasting state beyond one extra unconfirmed auth.users
+# row per run.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Probe signup confirmation requirement
+        run: node scripts/probe-signup-confirmation.mjs
