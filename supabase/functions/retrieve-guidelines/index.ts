@@ -194,11 +194,17 @@ Deno.serve(async (req) => {
     // Also check legacy clinical_guidelines if still thin
     if (relationalGuidelines.length + registryGuidelines.length < 2) {
       const searchTerms = diagnosisNames.length > 0 ? diagnosisNames : [patient_context.chief_complaint].filter(Boolean);
-      const { data: legacyGuidelines } = await supabase
+      const { data: rawLegacyGuidelines } = await supabase
         .from("clinical_guidelines")
         .select("*")
         .eq("is_active", true)
         .limit(50);
+
+      // Same supersession problem as guideline_registry above, confirmed
+      // live in this table: ATA 2014 vs 2023 (hypothyroidism), IDSA 2018
+      // vs 2023 (UTI), WHO 2023 vs 2024 (malaria) all coexist as separate
+      // active rows here.
+      const legacyGuidelines = rawLegacyGuidelines ? keepCurrentGuidelinesOnly(rawLegacyGuidelines) : rawLegacyGuidelines;
 
       if (legacyGuidelines) {
         const matched = matchGuidelines(legacyGuidelines, searchTerms, clinicSpecialty);
