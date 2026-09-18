@@ -201,6 +201,7 @@ serve(async (req) => {
               title: g.title,
               source_organization: g.source_organization,
               year: g.year,
+              superseded_by: g.superseded_by,
               evidence_grade: g.evidence_grade,
               recommendation_text: g.recommendation_text,
               condition: g.condition,
