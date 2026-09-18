@@ -1,0 +1,73 @@
+name: O1/O2 Parity Check
+
+# Runs the opt-in O1 (production orchestrator) vs O2 (benchmark_mode) parity
+# contract test against LIVE Supabase edge functions. This is the check that
+# would have caught the benchmark-mode diagnosis-name bug directly, and the
+# one flagged as "opt-in and never actually run" during the review that found
+# it — this workflow exists so that stops being true.
+#
+# CONFIRMED (2026-09-18, runs #1-2 on this workflow): GitHub-hosted runners
+# DO reach mhqdqilzkqvbgtygtlab.supabase.co — a raw probe got a real HTTP
+# response in <1s, not a connection failure. So this runs automatically on
+# PRs touching the files it covers. It is NOT marked as a required/blocking
+# check yet, though: the actual test run hit real `401 Unauthorized` from
+# every protected edge function O1 calls (ddx-engine, calculate-diagnostic-
+# probabilities, generate-physiological-context, meta-orchestrator, ...).
+# This job authenticates with only the anon key from .env — no logged-in
+# user session — and benchmark_parity.test.ts's own header says both
+# pipelines "require an authenticated session". Until that's wired in (a
+# test-user session or equivalent, likely via a repo secret), this check
+# will fail on every PR regardless of code correctness, so making it
+# required would block merges for the wrong reason. Promote it to required
+# once a real green run is seen.
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    paths:
+      - "src/services/clinical_pipeline/orchestrator.ts"
+      - "src/services/clinical_pipeline/benchmark_mode.ts"
+      - "src/services/benchmark_v10/runner.ts"
+
+jobs:
+  reachability-probe:
+    runs-on: ubuntu-latest
+    outputs:
+      reachable: ${{ steps.probe.outputs.reachable }}
+    steps:
+      - name: Probe Supabase edge function egress
+        id: probe
+        run: |
+          set +e
+          STATUS=$(curl -s -o /tmp/probe_body.txt -w "%{http_code}" \
+            --max-time 15 \
+            "https://mhqdqilzkqvbgtygtlab.supabase.co/functions/v1/ddx-engine" \
+            -H "Content-Type: application/json" -d '{}')
+          CURL_EXIT=$?
+          echo "curl exit code: $CURL_EXIT, http status: $STATUS"
+          cat /tmp/probe_body.txt
+          # A connection-level failure (DNS/timeout/refused) means this runner
+          # has no egress at all. Any HTTP response — even 401/403/500 — means
+          # the network path exists and only auth/payload need sorting out.
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "reachable=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  parity:
+    needs: reachability-probe
+    if: needs.reachability-probe.outputs.reachable == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: O1/O2 parity (live edge functions)
+        run: RUN_PARITY_CHECK=1 npx vitest run src/tests/contract/benchmark_parity.test.ts
