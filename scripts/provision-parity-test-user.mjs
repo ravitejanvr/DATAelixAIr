@@ -20,14 +20,16 @@
  * to run again for it (safe to re-run regardless: signUp() on an existing,
  * already-registered email is a no-op with a clear log line, not an error).
  *
- * Role/approval: a plain signup defaults to role="patient",
- * account_status="pending" (see supabase/functions/ensure-profile-role,
- * which intentionally blocks client-side role escalation). This script
- * does not attempt to change either — there is no available service-role
- * path to set user_roles.role while on Lovable Cloud. If the live parity
- * test turns out to need "approved" specifically, that's a one-time manual
- * step via the app's own admin UI (approve-user, run by an existing
- * platform_admin), not something this script can or should do.
+ * Role: a plain signup gets NO row in user_roles at all — meta-orchestrator
+ * (and presumably the other clinical edge functions) reject that with a 403
+ * "Insufficient role" (confirmed empirically 2026-09-18, first live
+ * parity-check.yml run: authenticated fine, 403'd on the actual pipeline
+ * call). The one self-serve path to a real role is the same one every real
+ * user goes through — supabase/functions/onboard-user, called with the
+ * account's own session — which assigns role="doctor" server-side unless
+ * the request's `email` field matches a hardcoded platform-admin allowlist.
+ * This script always passes TEST_EMAIL for that field, so it can only ever
+ * provision a plain "doctor" role, never platform_admin.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -48,8 +50,54 @@ if (!TEST_PASSWORD) {
 
 const supabase = createClient(SUPABASE_URL, ANON_KEY);
 
+async function ensureRole(session) {
+  const authed = createClient(SUPABASE_URL, ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${session.access_token}` } },
+  });
+
+  const { data: existingRoles, error: roleQueryError } = await authed
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", session.user.id);
+
+  if (roleQueryError) {
+    throw new Error(`Could not check existing role: ${roleQueryError.message}`);
+  }
+
+  if (existingRoles?.length) {
+    console.log(`Account already has role(s): ${existingRoles.map((r) => r.role).join(", ")} — nothing to do.`);
+    return;
+  }
+
+  console.log("No user_roles row yet — calling onboard-user to provision one (role=doctor).");
+  const { data, error } = await authed.functions.invoke("onboard-user", {
+    body: { email: TEST_EMAIL, phone: "" },
+  });
+
+  if (error) {
+    throw new Error(`onboard-user failed: ${error.message}`);
+  }
+  if (data?.error) {
+    throw new Error(`onboard-user failed: ${data.error}`);
+  }
+
+  console.log(`onboard-user succeeded: role=${data?.role}, is_platform_admin=${data?.is_platform_admin}`);
+}
+
 async function main() {
-  console.log(`signUp: ${TEST_EMAIL}`);
+  console.log(`signIn: ${TEST_EMAIL}`);
+  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    email: TEST_EMAIL,
+    password: TEST_PASSWORD,
+  });
+
+  if (!signInError && signInData?.session) {
+    console.log("Account already confirmed and sign-in works.");
+    await ensureRole(signInData.session);
+    return;
+  }
+
+  console.log(`signIn failed (${signInError?.message ?? "no session"}) — trying signUp instead.`);
   const { data, error } = await supabase.auth.signUp({
     email: TEST_EMAIL,
     password: TEST_PASSWORD,
@@ -61,17 +109,19 @@ async function main() {
   }
 
   if (data.user?.identities?.length === 0) {
-    console.log("Account already exists and is already confirmed — nothing to do.");
-    return;
+    throw new Error(
+      "Account exists and is already confirmed, but signInWithPassword still failed above — check TEST_PASSWORD matches PARITY_TEST_PASSWORD secret.",
+    );
   }
 
   if (data.session) {
     console.log(`Account created and session issued immediately (id: ${data.user?.id}). No confirmation needed.`);
+    await ensureRole(data.session);
     return;
   }
 
   console.log(`Account created (id: ${data.user?.id}). Confirmation email sent to ${TEST_EMAIL}.`);
-  console.log("ACTION NEEDED: open that inbox and click the confirmation link once — after that this account is usable indefinitely.");
+  console.log("ACTION NEEDED: open that inbox and click the confirmation link once, then re-run this workflow to provision the role.");
 }
 
 main().catch((e) => {
