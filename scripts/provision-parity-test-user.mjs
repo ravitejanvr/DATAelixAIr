@@ -55,6 +55,8 @@ async function ensureRole(session) {
     global: { headers: { Authorization: `Bearer ${session.access_token}` } },
   });
 
+  const CLINICAL_ROLES = ["doctor", "nurse", "allied_health", "clinic_admin", "platform_admin"];
+
   const { data: existingRoles, error: roleQueryError } = await authed
     .from("user_roles")
     .select("role")
@@ -64,12 +66,18 @@ async function ensureRole(session) {
     throw new Error(`Could not check existing role: ${roleQueryError.message}`);
   }
 
-  if (existingRoles?.length) {
-    console.log(`Account already has role(s): ${existingRoles.map((r) => r.role).join(", ")} — nothing to do.`);
+  const roles = existingRoles?.map((r) => r.role) ?? [];
+  // Every signup gets a 'patient' row from the on_auth_user_created trigger
+  // regardless of onboarding status — that alone doesn't mean this account
+  // can call the clinical edge functions parity-check.yml needs. Only stop
+  // here if it already holds one of the roles those functions actually
+  // check for (see supabase/functions/meta-orchestrator/index.ts:492).
+  if (roles.some((r) => CLINICAL_ROLES.includes(r))) {
+    console.log(`Account already has a clinical role: ${roles.join(", ")} — nothing to do.`);
     return;
   }
 
-  console.log("No user_roles row yet — calling onboard-user to provision one (role=doctor).");
+  console.log(`Current role(s): ${roles.join(", ") || "(none)"} — calling onboard-user to add role=doctor.`);
   const { data, error } = await authed.functions.invoke("onboard-user", {
     body: { email: TEST_EMAIL, phone: "" },
   });
