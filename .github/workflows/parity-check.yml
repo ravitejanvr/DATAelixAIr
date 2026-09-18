@@ -22,17 +22,21 @@ name: O1/O2 Parity Check
 # UUID-guard and service-role-credential fixes from #15/#16) but this
 # workflow's path filter didn't include supabase/functions/**, so it never
 # triggered, and the PR sat permanently blocked waiting on a required check
-# that would never run. Widened the filter below to close that gap.
+# that would never run. Widening the filter to include supabase/functions/**
+# only moved the same problem: PR #18 (a one-line ROADMAP.md edit) hit it
+# again. GitHub's required-status-check gate needs a check-run reported
+# through the PR's own pull_request-triggered check-suite specifically — a
+# workflow_dispatch run against the same commit does NOT satisfy it, even
+# though it shows up as a matching check-run (confirmed: merge attempt
+# still 405'd with "Required status check 'parity' is expected" after a
+# manually dispatched run succeeded on that exact SHA). Any path filter,
+# however wide, leaves this gap for whatever it excludes. Dropped path
+# filtering entirely below — parity now runs on every PR, not just ones
+# touching specific files, so the required check always fires correctly.
 
 on:
   workflow_dispatch: {}
-  pull_request:
-    paths:
-      - "src/services/clinical_pipeline/orchestrator.ts"
-      - "src/services/clinical_pipeline/benchmark_mode.ts"
-      - "src/services/benchmark_v10/runner.ts"
-      - "src/tests/contract/benchmark_parity.test.ts"
-      - "supabase/functions/**"
+  pull_request: {}
 
 jobs:
   reachability-probe:
