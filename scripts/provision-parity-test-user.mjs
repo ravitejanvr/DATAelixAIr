@@ -83,7 +83,17 @@ async function ensureRole(session) {
   });
 
   if (error) {
-    throw new Error(`onboard-user failed: ${error.message}`);
+    // supabase-js's FunctionsHttpError.message is a generic "non-2xx status
+    // code" — the actual reason is in the response body, only reachable via
+    // error.context (a Response). Read it so failures are diagnosable from
+    // CI logs instead of needing a second round-trip to find out why.
+    let bodyText = "";
+    try {
+      bodyText = await error.context?.text();
+    } catch {
+      // best effort
+    }
+    throw new Error(`onboard-user failed: ${error.message} — body: ${bodyText || "(unreadable)"}`);
   }
   if (data?.error) {
     throw new Error(`onboard-user failed: ${data.error}`);
