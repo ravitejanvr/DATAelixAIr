@@ -24,13 +24,20 @@ import { supabase } from "@/integrations/supabase/client";
 // ── Run single v10 case through orchestrator ──
 
 export type V10PipelineMode = "phase8" | "phase9" | "phase10";
-/** When true, use benchmark-optimized pipeline (skips non-diagnostic modules) */
+/**
+ * "production" → runUnifiedClinicalPipeline (O1), the exact path the doctor
+ *   workspace uses. This is the only mode whose numbers describe the product.
+ * "benchmark"  → runBenchmarkPipeline (O2), a faster, structurally independent
+ *   pipeline that scores with V1 only. Retained for latency experiments ONLY and
+ *   guarded by src/tests/contract/benchmark_parity.test.ts. Never publish its
+ *   accuracy numbers.
+ */
 export type V10ExecutionMode = "production" | "benchmark";
 
 async function runSingleV10Case(
   c: BenchmarkCaseV10,
   mode: V10PipelineMode,
-  executionMode: V10ExecutionMode = "benchmark",
+  executionMode: V10ExecutionMode = "production",
 ): Promise<CaseResult> {
   const t0 = performance.now();
   const failures: string[] = [];
