@@ -43,6 +43,7 @@ import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_d
 import { isPhase5ContextCandidatesEnabled } from "@/services/feature_flags";
 import { mergeActivations, expandKG } from "@/services/kg";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
+import { enrichBayesianWithNames } from "@/services/clinical_pipeline/ssal_name_resolution";
 import type { PipelineInput, PipelineResult } from "./orchestrator";
 
 // ── Timeout constants (tighter for benchmark) ──
@@ -544,6 +545,13 @@ export async function runBenchmarkPipeline(
     })(),
   ]);
 
+  // Resolve diagnosis_name/canonical_name/rank onto the raw Bayesian result —
+  // calculateDiagnosticProbabilities (and both ddx-fallback branches above)
+  // only ever produce diagnosis_id. Without this, every consumer reading
+  // `.diagnosis_name` silently falls back to a raw UUID (see
+  // ssal_name_resolution.test.ts and src/tests/contract/benchmark_parity.test.ts).
+  const enrichedBayesian = enrichBayesianWithNames(bayesianResult, { ddxResult });
+
   // Apply hypothesis testing adjustments to DDX
   if (hypothesisTestResult && hypothesisTestResult.tested_hypotheses.length > 0 && ddxResult) {
     const adjustedMap = new Map(
@@ -687,9 +695,9 @@ export async function runBenchmarkPipeline(
 
   // Conflict resolution (local, ~0ms)
   let conflictResult: ConflictResolution | null = null;
-  if (metaReasoningResult && ddxResult && bayesianResult) {
+  if (metaReasoningResult && ddxResult && enrichedBayesian) {
     const ddxTop = ddxResult.differential_diagnoses[0];
-    const bayesTop = bayesianResult.diagnoses[0];
+    const bayesTop = enrichedBayesian.diagnoses[0];
     if (ddxTop && bayesTop) {
       conflictResult = resolveReasoningConflict(
         ddxTop.diagnosis_name, ddxTop.probability,
@@ -710,7 +718,7 @@ export async function runBenchmarkPipeline(
     enabled: true,
     enriched_context: enrichedContext,
     physiological_context: physiologicalContext,
-    bayesian: bayesianResult,
+    bayesian: enrichedBayesian,
     ddx: ddxResult,
     uncertainty: uncertaintyResult,
     hypotheses: null,

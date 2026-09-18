@@ -50,6 +50,7 @@ import { runHybridReasoning, type HybridReasoningResult } from "@/services/reaso
 import { runMultiAgentPipeline, type OrchestratorResponse } from "@/services/multi_agent";
 import { generatePhysiologicalContext, type PhysiologicalContextResult } from "@/services/physiology_engine";
 import { calculateDiagnosticProbabilities, type BayesianResult } from "@/services/bayesian_engine";
+import { enrichBayesianWithNames } from "@/services/clinical_pipeline/ssal_name_resolution";
 import { supabase } from "@/integrations/supabase/client";
 import { LineageTracker, type LineageReport } from "@/services/clinical_pipeline/lineage_tracker";
 import { PCIECore } from "@/services/pcie/core";
@@ -1471,75 +1472,13 @@ export async function runUnifiedClinicalPipeline(
   // so ALL downstream consumers get self-describing objects.
   // ═══════════════════════════════════════════════════════
   if (fusedBayesian && fusedBayesian.diagnoses.length > 0) {
-    // Build UUID → name map from DDX results (primary source)
-    const ssalNameMap = new Map<string, string>();
-    if (ddxResult?.differential_diagnoses) {
-      for (const d of ddxResult.differential_diagnoses) {
-        if (d.diagnosis_id && d.diagnosis_name) {
-          ssalNameMap.set(d.diagnosis_id, d.diagnosis_name);
-        }
+    fusedBayesian = enrichBayesianWithNames(fusedBayesian, { ddxResult, hypotheses, cprApplied });
+    if (fusedBayesian) {
+      console.log("[SSAL_VALID]", fusedBayesian.diagnoses.map((d: any) => ({ id: d.diagnosis_id, name: d.diagnosis_name, rank: d.rank, prob: Math.round(d.posterior_probability * 100) + "%" })));
+      if (cprApplied) {
+        console.log("[SSAL] CPR ordering preserved — no re-sort applied");
       }
-    }
-    // Also pull from reasoning traces
-    if ((ddxResult as any)?.reasoning_traces) {
-      for (const t of (ddxResult as any).reasoning_traces) {
-        if (t.diagnosis_id && t.diagnosis && !ssalNameMap.has(t.diagnosis_id)) {
-          ssalNameMap.set(t.diagnosis_id, t.diagnosis);
-        }
-      }
-    }
-    // Also pull from hypothesis names
-    if (hypotheses?.hypotheses) {
-      for (const h of hypotheses.hypotheses) {
-        const hId = (h as any).diagnosis_id;
-        if (hId && (h as any).diagnosis && !ssalNameMap.has(hId)) {
-          ssalNameMap.set(hId, (h as any).diagnosis);
-        }
-      }
-    }
-
-    // If CPR was applied, preserve its ordering (clinical priority).
-    // Otherwise sort by posterior descending (default numeric ordering).
-    const orderedDiagnoses = cprApplied
-      ? [...fusedBayesian.diagnoses]
-      : [...fusedBayesian.diagnoses].sort((a, b) => b.posterior_probability - a.posterior_probability);
-
-    const enrichedDiagnoses = orderedDiagnoses
-      .map((d, idx) => {
-        const resolvedName = ssalNameMap.get(d.diagnosis_id)
-          || (d as any).diagnosis_name
-          || d.supporting_evidence?.find((e: string) => !/^[0-9a-f]{8}-/.test(e))
-          || d.diagnosis_id;
-        const canonical = resolvedName.toLowerCase().replace(/[^a-z0-9\s\-]/g, "").trim();
-        return {
-          ...d,
-          diagnosis_name: resolvedName,
-          canonical_name: canonical,
-          rank: idx + 1,
-          source: ((fusedBayesian!.source || "").includes("fused") ? "fused" : "bayesian") as "bayesian" | "fused" | "override",
-        };
-      });
-
-    // SSAL invariant checks
-    for (const d of enrichedDiagnoses) {
-      if (!d.diagnosis_name) console.error("[SSAL_ERROR] Missing diagnosis_name for", d.diagnosis_id);
-      if (!d.canonical_name) console.error("[SSAL_ERROR] Missing canonical_name for", d.diagnosis_id);
-    }
-    console.log("[SSAL_VALID]", enrichedDiagnoses.map(d => ({ id: d.diagnosis_id, name: d.diagnosis_name, rank: d.rank, prob: Math.round(d.posterior_probability * 100) + "%" })));
-    if (cprApplied) {
-      console.log("[SSAL] CPR ordering preserved — no re-sort applied");
-    }
-    console.log("FINAL_ORDER_BEFORE_FREEZE", enrichedDiagnoses.map(d => `#${d.rank} ${d.diagnosis_name} (${Math.round(d.posterior_probability * 100)}%)`));
-
-    fusedBayesian = { ...fusedBayesian, diagnoses: enrichedDiagnoses as any };
-
-    // Freeze to prevent downstream mutation
-    try {
-      Object.freeze(fusedBayesian);
-      Object.freeze(fusedBayesian.diagnoses);
-    } catch (e) {
-      // Non-critical — log but don't fail pipeline
-      console.warn("[SSAL] Object.freeze failed:", e);
+      console.log("FINAL_ORDER_BEFORE_FREEZE", fusedBayesian.diagnoses.map((d: any) => `#${d.rank} ${d.diagnosis_name} (${Math.round(d.posterior_probability * 100)}%)`));
     }
   }
 
