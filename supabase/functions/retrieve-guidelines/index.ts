@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { keepCurrentGuidelinesOnly } from "../_shared/guideline_precedence.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -141,13 +142,19 @@ Deno.serve(async (req) => {
         searchTerms.push(...patient_context.medications.slice(0, 3));
       }
 
-      const { data: guidelines } = await supabase
+      const { data: rawGuidelines } = await supabase
         .from("guideline_registry")
         .select("*")
         .eq("is_active", true)
         .or(`country.eq.${clinicCountry},country.eq.global`)
         .order("tier", { ascending: true })
         .limit(50);
+
+      // Drop superseded versions before scoring — without this, an old and
+      // a new guideline for the same (organization, condition) could both
+      // reach the scoring step and either one could win depending on
+      // keyword/relevance ties, not necessarily the current one.
+      const guidelines = rawGuidelines ? keepCurrentGuidelinesOnly(rawGuidelines) : rawGuidelines;
 
       if (guidelines && guidelines.length > 0) {
         const scored = guidelines.map((g: any) => {
