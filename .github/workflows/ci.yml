@@ -1,0 +1,75 @@
+name: CI
+
+# test: mechanical version of "someone has to remember to check" — typecheck
+# + the full unit/contract suite on every PR and every push to main. This is
+# the piece that would have caught the diagnosis-name and parallelCases bugs
+# automatically instead of needing a manual code-review pass. Nothing in this
+# suite is opt-in: engine_import_allowlist.test.ts, runner_parallel_cases.test.ts
+# and ssal_name_resolution.test.ts all run here every time, on purpose — an
+# opt-in check that's never actually run is exactly how the O1/O2 divergence
+# this repo hit sat unnoticed for five months.
+#
+# deploy: only runs after `test` is green, in the SAME workflow run (needs:
+# test) rather than a separately-triggered follow-up — so "tested" and "live"
+# are one event, not two things that can drift apart if the second trigger
+# doesn't fire. Requires SUPABASE_ACCESS_TOKEN as a repo (or environment)
+# secret; without it this job fails cleanly rather than silently no-op'ing.
+#
+# The opt-in O1/O2 live parity check is intentionally NOT part of this
+# workflow — see parity-check.yml for why it's separate and manually
+# triggered for now.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit + contract tests
+        run: npm run test
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref mhqdqilzkqvbgtygtlab
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Push database migrations
+        run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Deploy edge functions
+        run: supabase functions deploy
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
