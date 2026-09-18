@@ -196,9 +196,14 @@ Deno.serve(async (req) => {
     // diagnoses.id) — symptom_likelihoods.diagnosis_id is a UUID column, so
     // passing those through .in() fails the whole query. They can never
     // have real likelihood rows anyway, so just exclude them from the lookup.
-    const diagnosisIds = candidate_diagnoses
-      .map((d: any) => d.diagnosis_id)
-      .filter(isUuid);
+    const rawDiagnosisIds = candidate_diagnoses.map((d: any) => d.diagnosis_id);
+    const diagnosisIds = rawDiagnosisIds.filter(isUuid);
+    const droppedCount = rawDiagnosisIds.length - diagnosisIds.length;
+    if (droppedCount > 0) {
+      console.warn(
+        `[HypothesisTesting] Dropped ${droppedCount} candidate(s) with non-UUID diagnosis_id — they can't have real symptom_likelihoods rows, so they'll test as indeterminate. The real fix is upstream: whatever produced these candidates should resolve them to a real diagnoses.id instead of a placeholder.`,
+      );
+    }
     // Normalize patient symptoms before matching
     const symptomLower = normalizeSymptomList(patient_symptoms);
 
