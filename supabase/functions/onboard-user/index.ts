@@ -81,7 +81,19 @@ Deno.serve(async (req) => {
       clinicId = clinic.id;
 
       // 2. Upsert user role
-      const { data: existingRole } = await admin.from("user_roles").select("id").eq("user_id", user.id).limit(1);
+      // Checked against THIS role specifically, not "does the user have any
+      // role row at all" — the on_auth_user_created trigger already inserts
+      // a 'patient' row for every signup before this function ever runs, so
+      // an any-row check here always finds one and never inserts appRole.
+      // user_roles has UNIQUE(user_id, role), so a user can legitimately
+      // hold both 'patient' and appRole at once; this only guards against
+      // inserting appRole twice on repeat onboarding calls.
+      const { data: existingRole } = await admin
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("role", appRole)
+        .limit(1);
       if (!existingRole?.length) {
         const { error: roleErr } = await admin.from("user_roles").insert({ user_id: user.id, role: appRole });
         if (roleErr) throw new Error(`Role creation failed: ${roleErr.message}`);
