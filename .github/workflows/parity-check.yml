@@ -1,0 +1,60 @@
+name: O1/O2 Parity Check
+
+# Runs the opt-in O1 (production orchestrator) vs O2 (benchmark_mode) parity
+# contract test against LIVE Supabase edge functions. This is the check that
+# would have caught the benchmark-mode diagnosis-name bug directly, and the
+# one flagged as "opt-in and never actually run" during the review that found
+# it — this workflow exists so that stops being true.
+#
+# Trigger: workflow_dispatch only, until it's confirmed that this runner can
+# actually reach the Supabase project (see the reachability-probe job). Do
+# NOT add a pull_request trigger here without first confirming that in a real
+# run — a shared CI runner may have no more egress to the project than the
+# agent sandbox that originally hit `host_not_allowed` on every edge-function
+# call.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  reachability-probe:
+    runs-on: ubuntu-latest
+    outputs:
+      reachable: ${{ steps.probe.outputs.reachable }}
+    steps:
+      - name: Probe Supabase edge function egress
+        id: probe
+        run: |
+          set +e
+          STATUS=$(curl -s -o /tmp/probe_body.txt -w "%{http_code}" \
+            --max-time 15 \
+            "https://mhqdqilzkqvbgtygtlab.supabase.co/functions/v1/ddx-engine" \
+            -H "Content-Type: application/json" -d '{}')
+          CURL_EXIT=$?
+          echo "curl exit code: $CURL_EXIT, http status: $STATUS"
+          cat /tmp/probe_body.txt
+          # A connection-level failure (DNS/timeout/refused) means this runner
+          # has no egress at all. Any HTTP response — even 401/403/500 — means
+          # the network path exists and only auth/payload need sorting out.
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "reachable=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  parity:
+    needs: reachability-probe
+    if: needs.reachability-probe.outputs.reachable == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: O1/O2 parity (live edge functions)
+        run: RUN_PARITY_CHECK=1 npx vitest run src/tests/contract/benchmark_parity.test.ts
