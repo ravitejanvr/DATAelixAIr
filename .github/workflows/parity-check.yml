@@ -12,12 +12,17 @@ name: O1/O2 Parity Check
 # PRs touching the files it covers.
 #
 # UPDATE (2026-09-18): the missing authenticated session is now wired in —
-# this job signs in as a dedicated CI test user (doctor role, approved
-# status; see scripts/provision-parity-test-user.mjs) before running the
-# test, via the PARITY_TEST_PASSWORD secret. Still NOT marked as a
-# required/blocking check: promote it to required only after watching a
-# real green run, per the same discipline as everything else tonight —
-# don't claim a check passed without having actually run it.
+# this job signs in as a dedicated CI test user (doctor role; see
+# scripts/provision-parity-test-user.mjs) before running the test, via the
+# PARITY_TEST_PASSWORD secret. A real green run was watched (see #1) and
+# this is now a required check on main.
+#
+# UPDATE (2026-09-18, same day): promoting this to required immediately
+# surfaced a gap — PR #17 touched several supabase/functions/ files (the
+# UUID-guard and service-role-credential fixes from #15/#16) but this
+# workflow's path filter didn't include supabase/functions/**, so it never
+# triggered, and the PR sat permanently blocked waiting on a required check
+# that would never run. Widened the filter below to close that gap.
 
 on:
   workflow_dispatch: {}
@@ -27,6 +32,7 @@ on:
       - "src/services/clinical_pipeline/benchmark_mode.ts"
       - "src/services/benchmark_v10/runner.ts"
       - "src/tests/contract/benchmark_parity.test.ts"
+      - "supabase/functions/**"
 
 jobs:
   reachability-probe:
