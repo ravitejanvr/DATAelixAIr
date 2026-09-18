@@ -6,21 +6,28 @@ name: O1/O2 Parity Check
 # one flagged as "opt-in and never actually run" during the review that found
 # it — this workflow exists so that stops being true.
 #
-# Trigger: workflow_dispatch only, until it's confirmed that this runner can
-# actually reach the Supabase project (see the reachability-probe job). Do
-# NOT add a pull_request trigger here without first confirming that in a real
-# run — a shared CI runner may have no more egress to the project than the
-# agent sandbox that originally hit `host_not_allowed` on every edge-function
-# call.
+# CONFIRMED (2026-09-18, runs #1-2 on this workflow): GitHub-hosted runners
+# DO reach mhqdqilzkqvbgtygtlab.supabase.co — a raw probe got a real HTTP
+# response in <1s, not a connection failure. So this runs automatically on
+# PRs touching the files it covers. It is NOT marked as a required/blocking
+# check yet, though: the actual test run hit real `401 Unauthorized` from
+# every protected edge function O1 calls (ddx-engine, calculate-diagnostic-
+# probabilities, generate-physiological-context, meta-orchestrator, ...).
+# This job authenticates with only the anon key from .env — no logged-in
+# user session — and benchmark_parity.test.ts's own header says both
+# pipelines "require an authenticated session". Until that's wired in (a
+# test-user session or equivalent, likely via a repo secret), this check
+# will fail on every PR regardless of code correctness, so making it
+# required would block merges for the wrong reason. Promote it to required
+# once a real green run is seen.
 
 on:
   workflow_dispatch: {}
-  # TEMPORARY — testing only. workflow_dispatch can't be invoked via API/UI
-  # until this file lands on the default branch, so this push trigger lets
-  # the reachability probe actually run from the feature branch. Removed
-  # once the probe result is known; do not merge this trigger to main.
-  push:
-    branches: [claude/loving-fermat-fcqr56]
+  pull_request:
+    paths:
+      - "src/services/clinical_pipeline/orchestrator.ts"
+      - "src/services/clinical_pipeline/benchmark_mode.ts"
+      - "src/services/benchmark_v10/runner.ts"
 
 jobs:
   reachability-probe:
