@@ -34,6 +34,34 @@ export type V10PipelineMode = "phase8" | "phase9" | "phase10";
  */
 export type V10ExecutionMode = "production" | "benchmark";
 
+/**
+ * "production" drives the live orchestrator (multiple sequential edge-function/
+ * LLM calls per case) — running several of those concurrently risks provider
+ * rate limits/timeouts. "benchmark" is the lightweight O2 pipeline, tuned for
+ * higher concurrency. Callers pass a raw `parallelCases` request; this clamps
+ * it so a benchmark-tuned value can never leak into a production run — see
+ * runner_parallel_cases.test.ts, written after BenchmarkV10Panel.tsx did
+ * exactly that (production mode + parallelCases: 5) at every call site.
+ */
+export const PRODUCTION_MAX_PARALLEL_CASES = 1;
+export const BENCHMARK_DEFAULT_PARALLEL_CASES = 5;
+
+export function resolveParallelCases(
+  executionMode: V10ExecutionMode,
+  requested?: number,
+): number {
+  if (executionMode === "benchmark") {
+    return requested ?? BENCHMARK_DEFAULT_PARALLEL_CASES;
+  }
+  if (requested !== undefined && requested > PRODUCTION_MAX_PARALLEL_CASES) {
+    console.warn(
+      `[BenchmarkV10] parallelCases=${requested} requested for production execution mode; ` +
+      `clamped to ${PRODUCTION_MAX_PARALLEL_CASES} to avoid overloading the live orchestrator.`
+    );
+  }
+  return Math.min(requested ?? PRODUCTION_MAX_PARALLEL_CASES, PRODUCTION_MAX_PARALLEL_CASES);
+}
+
 async function runSingleV10Case(
   c: BenchmarkCaseV10,
   mode: V10PipelineMode,
@@ -365,7 +393,7 @@ export async function runV10Suite(
   const cases = ALL_NEW_CASES;
   const results: CaseResult[] = [];
   const executionMode = options?.executionMode ?? "production";
-  const parallelCases = options?.parallelCases ?? (executionMode === "benchmark" ? 5 : 1);
+  const parallelCases = resolveParallelCases(executionMode, options?.parallelCases);
   const batchDelay = options?.batchDelayMs ?? (executionMode === "benchmark" ? 1000 : 3000);
   const caseDelay = options?.caseDelayMs ?? (executionMode === "benchmark" ? 0 : 500);
 
