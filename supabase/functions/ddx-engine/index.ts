@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isServiceRoleToken } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -334,15 +335,8 @@ Deno.serve(async (req) => {
 
     // Auth — accept both user tokens and service role key (for inter-function calls)
     const token = authHeader.replace("Bearer ", "").trim();
-    let isServiceRole = false;
-    try {
-      const payloadB64 = token.split(".")[1];
-      if (payloadB64) {
-        const payload = JSON.parse(atob(payloadB64));
-        isServiceRole = payload.role === "service_role";
-      }
-    } catch (_) { /* not a valid JWT */ }
-    
+    const isServiceRole = isServiceRoleToken(token, serviceKey);
+
     if (!isServiceRole) {
       const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
       const { data: { user }, error: authErr } = await anonClient.auth.getUser(token);
