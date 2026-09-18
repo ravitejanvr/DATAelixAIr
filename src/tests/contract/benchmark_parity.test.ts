@@ -38,7 +38,11 @@ import { v10CaseToPipelineInput } from "@/services/benchmark_shared/case_to_cont
 import { supabase } from "@/integrations/supabase/client";
 
 const ENABLED = process.env.RUN_PARITY_CHECK === "1";
-const PARITY_TEST_EMAIL = "ci-parity-test@dataelixair.internal";
+// Must be a real, receivable inbox — this project requires email
+// confirmation before a session is issued (confirmed empirically via
+// scripts/probe-signup-confirmation.mjs), so a synthetic address can never
+// be confirmed. See scripts/provision-parity-test-user.mjs.
+const PARITY_TEST_EMAIL = "raviteja.ciparitytest@gmail.com";
 
 /** Fixed, deterministic slice — one case per layer. */
 const PARITY_CASE_IDS = ["noisy-001", "ambig-001", "adv-001"];

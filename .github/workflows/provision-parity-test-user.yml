@@ -1,14 +1,17 @@
 name: Provision Parity Test User
 
-# One-off / re-runnable manual job: creates (or re-confirms) the dedicated
-# CI test account that parity-check.yml signs in as, so its edge-function
-# calls carry a real user JWT instead of just the anon key. Uses the Admin
-# API with the service role key — never exposed outside this job, never
-# used by parity-check.yml itself (which only ever gets the resulting
-# email/password, not this key).
+# One-off / re-runnable manual job: signs up (or confirms already exists)
+# the dedicated CI test account that parity-check.yml signs in as, so its
+# edge-function calls carry a real user JWT instead of just the anon key.
 #
-# workflow_dispatch only. This creates/modifies a real auth user and
-# assigns it an elevated role (doctor) — not something to run on every push.
+# Uses a plain public signUp() with the anon key — Lovable Cloud does not
+# expose SUPABASE_SERVICE_ROLE_KEY at all, and this project requires email
+# confirmation, so a human has to click the confirmation link sent to the
+# real inbox behind PARITY_TEST_EMAIL. See scripts/provision-parity-test-user.mjs
+# for the full story.
+#
+# workflow_dispatch only — this creates/modifies a real auth user, not
+# something to run on every push.
 
 on:
   workflow_dispatch: {}
@@ -29,5 +32,4 @@ jobs:
       - name: Provision CI parity test user
         run: node scripts/provision-parity-test-user.mjs
         env:
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PARITY_TEST_PASSWORD: ${{ secrets.PARITY_TEST_PASSWORD }}
