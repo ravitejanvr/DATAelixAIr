@@ -9,17 +9,15 @@ name: O1/O2 Parity Check
 # CONFIRMED (2026-09-18, runs #1-2 on this workflow): GitHub-hosted runners
 # DO reach mhqdqilzkqvbgtygtlab.supabase.co — a raw probe got a real HTTP
 # response in <1s, not a connection failure. So this runs automatically on
-# PRs touching the files it covers. It is NOT marked as a required/blocking
-# check yet, though: the actual test run hit real `401 Unauthorized` from
-# every protected edge function O1 calls (ddx-engine, calculate-diagnostic-
-# probabilities, generate-physiological-context, meta-orchestrator, ...).
-# This job authenticates with only the anon key from .env — no logged-in
-# user session — and benchmark_parity.test.ts's own header says both
-# pipelines "require an authenticated session". Until that's wired in (a
-# test-user session or equivalent, likely via a repo secret), this check
-# will fail on every PR regardless of code correctness, so making it
-# required would block merges for the wrong reason. Promote it to required
-# once a real green run is seen.
+# PRs touching the files it covers.
+#
+# UPDATE (2026-09-18): the missing authenticated session is now wired in —
+# this job signs in as a dedicated CI test user (doctor role, approved
+# status; see scripts/provision-parity-test-user.mjs) before running the
+# test, via the PARITY_TEST_PASSWORD secret. Still NOT marked as a
+# required/blocking check: promote it to required only after watching a
+# real green run, per the same discipline as everything else tonight —
+# don't claim a check passed without having actually run it.
 
 on:
   workflow_dispatch: {}
@@ -28,6 +26,7 @@ on:
       - "src/services/clinical_pipeline/orchestrator.ts"
       - "src/services/clinical_pipeline/benchmark_mode.ts"
       - "src/services/benchmark_v10/runner.ts"
+      - "src/tests/contract/benchmark_parity.test.ts"
 
 jobs:
   reachability-probe:
@@ -71,3 +70,5 @@ jobs:
 
       - name: O1/O2 parity (live edge functions)
         run: RUN_PARITY_CHECK=1 npx vitest run src/tests/contract/benchmark_parity.test.ts
+        env:
+          PARITY_TEST_PASSWORD: ${{ secrets.PARITY_TEST_PASSWORD }}

@@ -21,17 +21,24 @@
  * Both pipelines call live edge functions and require an authenticated session,
  * so this test does NOT run in the default unit-test pass. It is opt-in:
  *
- *   RUN_PARITY_CHECK=1 bunx vitest run src/tests/contract/benchmark_parity.test.ts
+ *   RUN_PARITY_CHECK=1 PARITY_TEST_PASSWORD=... bunx vitest run src/tests/contract/benchmark_parity.test.ts
  *
- * When the variable is absent the suite reports a skip with a reason, rather than
- * silently passing — a silent pass is precisely how the original claim decayed.
+ * PARITY_TEST_PASSWORD signs in as the dedicated CI test account (doctor role,
+ * approved status — see scripts/provision-parity-test-user.mjs) so edge-function
+ * calls carry a real user JWT instead of just the anon key, which every protected
+ * function rejects with 401.
+ *
+ * When RUN_PARITY_CHECK is absent the suite reports a skip with a reason, rather
+ * than silently passing — a silent pass is precisely how the original claim decayed.
  */
 
 import { describe, it, expect } from "vitest";
 import { ALL_NEW_CASES } from "@/services/benchmark_v10";
 import { v10CaseToPipelineInput } from "@/services/benchmark_shared/case_to_context";
+import { supabase } from "@/integrations/supabase/client";
 
 const ENABLED = process.env.RUN_PARITY_CHECK === "1";
+const PARITY_TEST_EMAIL = "ci-parity-test@dataelixair.internal";
 
 /** Fixed, deterministic slice — one case per layer. */
 const PARITY_CASE_IDS = ["noisy-001", "ambig-001", "adv-001"];
@@ -51,6 +58,15 @@ describe("Contract: O1 / O2 fusedBayesian parity", () => {
   it.runIf(ENABLED)(
     "O2 produces the same fusedBayesian top-5 as O1 for every parity case",
     async () => {
+      const password = process.env.PARITY_TEST_PASSWORD;
+      expect(password, "PARITY_TEST_PASSWORD must be set to sign in as the CI parity test account").toBeTruthy();
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: PARITY_TEST_EMAIL,
+        password: password!,
+      });
+      expect(signInError, `Sign-in as ${PARITY_TEST_EMAIL} failed: ${signInError?.message}`).toBeNull();
+
       const { runUnifiedClinicalPipeline } = await import("@/services/clinical_pipeline/orchestrator");
       const { runBenchmarkPipeline } = await import("@/services/clinical_pipeline/benchmark_mode");
 
