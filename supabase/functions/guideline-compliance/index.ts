@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { keepCurrentGuidelinesOnly } from "../_shared/guideline_precedence.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -102,7 +103,10 @@ serve(async (req) => {
               id: rule.id,
               title: `${authorityName} — ${diagName} Management`,
               source_organization: authorityName,
-              year: 2024,
+              // guideline_rules has no publication date at all — there is
+              // nothing real to report here, so leave it unset rather than
+              // fabricating a year (was hardcoded to 2024).
+              year: null,
               evidence_grade: rule.evidence_level,
               recommendation_text: rule.recommendation,
               condition: diagName,
@@ -149,8 +153,14 @@ serve(async (req) => {
             registryGuidelines.push({
               id: g.id,
               title: g.title,
+              organization: g.organization,
               source_organization: g.organization,
-              year: g.publication_date ? new Date(g.publication_date).getFullYear() : 2024,
+              // Report the real year when we have one; leave it unset
+              // otherwise rather than fabricating a year (was hardcoded
+              // to 2024 whenever publication_date was null).
+              year: g.publication_date ? new Date(g.publication_date).getFullYear() : null,
+              publication_date: g.publication_date,
+              superseded_by: g.superseded_by,
               evidence_grade: "A",
               recommendation_text: map?.recommendation_summary || g.recommendation_text,
               condition: g.condition,
@@ -205,6 +215,11 @@ serve(async (req) => {
         }
       }
     }
+
+    // Drop superseded guideline_registry/clinical_guidelines versions before
+    // combining — guideline_rules (relationalGuidelines) has no versioning
+    // concept, so it's untouched by this.
+    registryGuidelines = keepCurrentGuidelinesOnly(registryGuidelines);
 
     // Combine and deduplicate
     const seenIds = new Set<string>();
@@ -302,6 +317,9 @@ serve(async (req) => {
       if (!x || !y) return false;
       return x.includes(y) || y.includes(x);
     };
+    // "ORG (YEAR)" when we have a real year, just "ORG" otherwise — never
+    // fabricate a year to fill the parenthetical.
+    const sourceYear = (g: any) => (g.year ? `${g.source_organization} (${g.year})` : g.source_organization);
 
     const deterministicResults: any[] = [];
     const unresolved: Array<{ item: string; type: string }> = [];
@@ -316,7 +334,7 @@ serve(async (req) => {
         if (matched.length > 0) {
           status = "guideline_aligned";
           const top = matched[0];
-          explanation = `${top.source_organization} (${top.year}) guidance exists for ${top.condition}: ${top.recommendation_text}`;
+          explanation = `${sourceYear(top)} guidance exists for ${top.condition}: ${top.recommendation_text}`;
         }
       } else if (entry.type === "medication") {
         const drug = norm(entry.drug || entry.item);
@@ -327,19 +345,19 @@ serve(async (req) => {
         if (matched.length > 0) {
           status = "guideline_aligned";
           const top = matched[0];
-          explanation = `Listed as a recommended agent for ${top.condition} by ${top.source_organization} (${top.year}).`;
+          explanation = `Listed as a recommended agent for ${top.condition} by ${sourceYear(top)}.`;
         } else if (conditionGuidelines.some(g => (g.applicable_drugs || []).length > 0)) {
           status = "review_suggested";
           matched = conditionGuidelines.filter(g => (g.applicable_drugs || []).length > 0);
           const top = matched[0];
-          explanation = `Not listed in ${top.source_organization} (${top.year}) guidance for ${top.condition}. Recommended: ${(top.applicable_drugs || []).join(", ")}.`;
+          explanation = `Not listed in ${sourceYear(top)} guidance for ${top.condition}. Recommended: ${(top.applicable_drugs || []).join(", ")}.`;
         }
       } else if (entry.type === "test") {
         matched = allGuidelines.filter(g => (g.applicable_tests || []).some((gt: string) => gt && overlaps(gt, entry.item)));
         if (matched.length > 0) {
           status = "guideline_aligned";
           const top = matched[0];
-          explanation = `Recommended investigation for ${top.condition} per ${top.source_organization} (${top.year}).`;
+          explanation = `Recommended investigation for ${top.condition} per ${sourceYear(top)}.`;
         }
       }
 
