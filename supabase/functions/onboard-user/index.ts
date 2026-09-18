@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
       const { data: demoPatient, error: patientErr } = await admin.from("patients").insert({
         name: "Demo Patient",
         age: 35,
-        gender: "Male",
+        gender: "male",
         phone: "+91 98765 00000",
         doctor_id: user.id,
         clinic_id: clinicId,
