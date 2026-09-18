@@ -24,13 +24,20 @@ import { supabase } from "@/integrations/supabase/client";
 // ── Run single v10 case through orchestrator ──
 
 export type V10PipelineMode = "phase8" | "phase9" | "phase10";
-/** When true, use benchmark-optimized pipeline (skips non-diagnostic modules) */
+/**
+ * "production" → runUnifiedClinicalPipeline (O1), the exact path the doctor
+ *   workspace uses. This is the only mode whose numbers describe the product.
+ * "benchmark"  → runBenchmarkPipeline (O2), a faster, structurally independent
+ *   pipeline that scores with V1 only. Retained for latency experiments ONLY and
+ *   guarded by src/tests/contract/benchmark_parity.test.ts. Never publish its
+ *   accuracy numbers.
+ */
 export type V10ExecutionMode = "production" | "benchmark";
 
 async function runSingleV10Case(
   c: BenchmarkCaseV10,
   mode: V10PipelineMode,
-  executionMode: V10ExecutionMode = "benchmark",
+  executionMode: V10ExecutionMode = "production",
 ): Promise<CaseResult> {
   const t0 = performance.now();
   const failures: string[] = [];
@@ -52,19 +59,35 @@ async function runSingleV10Case(
 
   const latency_ms = Math.round(performance.now() - t0);
 
-  // Extract DDX results from pipeline output
+  // DDX result is still read for the SAFETY channels only (safety_alerts /
+  // dangerous_diagnoses). It is NOT the ranking source — see below.
   const ddxResult = pipelineResult?.ddx ?? null;
 
-  // Extract top 5 predictions
-  const predicted_top5: Array<{ diagnosis: string; probability: number }> = [];
-  if (ddxResult?.differential_diagnoses) {
-    for (const d of ddxResult.differential_diagnoses.slice(0, 5)) {
-      predicted_top5.push({
-        diagnosis: (d.diagnosis_name || "").trim(),
-        probability: d.probability || 0,
-      });
-    }
+  // ── SSAL RANKING SOURCE ────────────────────────────────────────────────
+  // Metrics MUST be read from the frozen `fusedBayesian` object, i.e. the exact
+  // ranked list the doctor-facing workspace renders:
+  //   orchestrator.ts:2298   → PipelineResult.bayesian = fusedBayesian
+  //   Clinical.tsx:735       → setPipelineBayesian(data.bayesian)
+  //   Clinical.tsx:1989-1993 → pipelineBayesian.diagnoses.slice(0,5) rendered
+  // Reading from ddx.differential_diagnoses here is what caused the
+  // benchmark/production mismatch documented 2026-09-18.
+  const ssalDiagnoses = (pipelineResult?.bayesian?.diagnoses ?? []) as Array<any>;
+  if (pipelineResult && ssalDiagnoses.length === 0) {
+    failures.push("SSAL empty: pipelineResult.bayesian produced no ranked diagnoses");
   }
+
+  const allCandidates = ssalDiagnoses.map((d) => ({
+    diagnosis_name: (d.diagnosis_name || d.diagnosis_id || "").trim(),
+    must_not_miss: !!d.must_not_miss,
+    probability: typeof d.posterior_probability === "number" ? d.posterior_probability : 0,
+  }));
+
+  // Extract top 5 predictions from the SSAL list
+  const predicted_top5: Array<{ diagnosis: string; probability: number }> =
+    allCandidates.slice(0, 5).map((d) => ({
+      diagnosis: d.diagnosis_name,
+      probability: d.probability,
+    }));
 
   // Gold standard matching
   const goldRankIdx = predicted_top5.findIndex(p =>
@@ -75,10 +98,9 @@ async function runSingleV10Case(
   const top3_match = goldRankIdx >= 0 && goldRankIdx < 3;
   const top5_match = goldRankIdx >= 0 && goldRankIdx < 5;
 
-  // Candidate recall: gold in full candidate set
-  const allCandidates = ddxResult?.differential_diagnoses || [];
+  // Candidate recall: gold anywhere in the SSAL candidate list
   const candidate_recall = allCandidates.some(d =>
-    diagMatch((d.diagnosis_name || "").trim(), c.ground_truth.primary)
+    diagMatch(d.diagnosis_name, c.ground_truth.primary)
   );
 
   // Safety alerts extraction
@@ -342,7 +364,7 @@ export async function runV10Suite(
 ): Promise<SuiteRunResult> {
   const cases = ALL_NEW_CASES;
   const results: CaseResult[] = [];
-  const executionMode = options?.executionMode ?? "benchmark";
+  const executionMode = options?.executionMode ?? "production";
   const parallelCases = options?.parallelCases ?? (executionMode === "benchmark" ? 5 : 1);
   const batchDelay = options?.batchDelayMs ?? (executionMode === "benchmark" ? 1000 : 3000);
   const caseDelay = options?.caseDelayMs ?? (executionMode === "benchmark" ? 0 : 500);
