@@ -83,9 +83,14 @@ Deno.serve(async (req) => {
     // diagnoses.id) — diagnosis_lab_map.diagnosis_id is a UUID column, so
     // passing those through .in() fails the whole query. They can never
     // have real lab-map rows anyway, so just exclude them from the lookup.
-    const diagnosisIds = candidate_diagnoses
-      .map((d: any) => d.diagnosis_id)
-      .filter(isUuid);
+    const rawDiagnosisIds = candidate_diagnoses.map((d: any) => d.diagnosis_id);
+    const diagnosisIds = rawDiagnosisIds.filter(isUuid);
+    const droppedCount = rawDiagnosisIds.length - diagnosisIds.length;
+    if (droppedCount > 0) {
+      console.warn(
+        `[EvidencePlanning] Dropped ${droppedCount} candidate(s) with non-UUID diagnosis_id — they can't have real diagnosis_lab_map rows. The real fix is upstream: whatever produced these candidates should resolve them to a real diagnoses.id instead of a placeholder.`,
+      );
+    }
 
     const existingTestNames = new Set(
       (existing_tests || []).map((t: string) => t.toLowerCase().trim()),
