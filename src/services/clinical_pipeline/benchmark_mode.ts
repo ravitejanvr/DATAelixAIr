@@ -58,20 +58,23 @@ const BM_TIMEOUT = {
   UNCERTAINTY: 5000,
 } as const;
 
-async function withTimeout<T>(
+export async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
   label: string,
 ): Promise<T | null> {
-  return Promise.race([
-    promise,
-    new Promise<null>((resolve) =>
-      setTimeout(() => {
-        console.warn(`[BenchPipeline] ⏱️ ${label} timed out after ${timeoutMs}ms`);
-        resolve(null);
-      }, timeoutMs),
-    ),
-  ]);
+  let timer: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(`[BenchPipeline] ⏱️ ${label} timed out after ${timeoutMs}ms`);
+      resolve(null);
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timer!);
+  }
 }
 
 function extractSymptoms(ctx: ClinicalContext): string[] {

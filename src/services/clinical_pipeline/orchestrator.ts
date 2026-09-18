@@ -342,20 +342,23 @@ function applyOrganSystemWeighting(ddx: DDXResult, dominantSystem: string): DDXR
 
 // ── Helpers ──
 
-async function withTimeout<T>(
+export async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
   label: string,
 ): Promise<T | null> {
-  return Promise.race([
-    promise,
-    new Promise<null>((resolve) =>
-      setTimeout(() => {
-        console.warn(`[Pipeline] ⏱️ ${label} timed out after ${timeoutMs}ms`);
-        resolve(null);
-      }, timeoutMs),
-    ),
-  ]);
+  let timer: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(`[Pipeline] ⏱️ ${label} timed out after ${timeoutMs}ms`);
+      resolve(null);
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timer!);
+  }
 }
 
 /** Retry-once wrapper: attempts the factory, and on null/timeout retries once with extended budget */
