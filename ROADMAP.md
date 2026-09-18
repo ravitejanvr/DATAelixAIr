@@ -43,13 +43,13 @@ as it happens.
 
 **P0 — blocking, nothing else is trustworthy until these land**
 
-| # | Item | Epic |
-|---|---|---|
-| 1 | Migrate Supabase from Lovable Cloud to your own account (schema from git migrations, data + auth + storage migrated with row-count/ID verification) | Infra |
-| 2 | Add `SUPABASE_ACCESS_TOKEN` secret; confirm `deploy` job in CI actually deploys | Infra |
-| 3 | Create dedicated CI test account, wire parity-check auth, get `parity-check.yml` green | Infra |
-| 4 | Reconnect Lovable's Supabase connector to the new project (prevent a second silent split-brain) | Infra |
-| 5 | Fix guideline supersession bug (add precedence field, stop serving superseded guidance, stop fabricating `year` for null `publication_date`) | Deterministic Safety |
+| # | Item | Epic | Status |
+|---|---|---|---|
+| 1 | Migrate Supabase from Lovable Cloud to your own account (schema from git migrations, data + auth + storage migrated with row-count/ID verification) | Infra | **Deferred 2026-09-18** — started (new project not yet created; blocked on this agent sandbox's network policy, which cannot reach `api.supabase.com` or make raw-Postgres connections at all — not a credentials problem, an environment one). Explicitly deprioritized rather than abandoned: revisit when there's time for a session with real local/CI network access to drive it, per the local-Claude-Code-on-Mac path already scoped. |
+| 2 | Add `SUPABASE_ACCESS_TOKEN` secret; confirm `deploy` job in CI actually deploys | Infra | **On hold** — this token is for a self-owned project; moot until item 1 happens. |
+| 3 | Create dedicated CI test account, wire parity-check auth, get `parity-check.yml` green | Infra | **Still viable without item 1** — this needs a test user *within the existing Lovable-managed project* (its Supabase Auth), not a new project. Worth revisiting as a standalone next step. |
+| 4 | Reconnect Lovable's Supabase connector to the new project (prevent a second silent split-brain) | Infra | **On hold** — meaningless until item 1 happens. |
+| 5 | Fix guideline supersession bug (add precedence field, stop serving superseded guidance, stop fabricating `year` for null `publication_date`) | Deterministic Safety | **Still viable without item 1** — a schema + application-logic fix; doesn't require owning the infrastructure, only editing tracked migrations and code, same as every other fix this repo has taken tonight. |
 
 **P1 — do next, determines what everything after is built on**
 
