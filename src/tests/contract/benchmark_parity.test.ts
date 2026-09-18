@@ -34,7 +34,7 @@ import { v10CaseToPipelineInput } from "@/services/benchmark_shared/case_to_cont
 const ENABLED = process.env.RUN_PARITY_CHECK === "1";
 
 /** Fixed, deterministic slice — one case per layer. */
-const PARITY_CASE_IDS = ["noisy-01", "ambiguous-01", "adversarial-01"];
+const PARITY_CASE_IDS = ["noisy-001", "ambig-001", "adv-001"];
 
 function topFive(result: any): string[] {
   return ((result?.bayesian?.diagnoses ?? []) as any[])
