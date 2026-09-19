@@ -23,10 +23,23 @@ interesting.
 - **Never claim a check passed without having actually run it in an environment that can reach
   what it needs to reach.** If a network restriction, missing auth, or sandbox limitation means
   something couldn't really be verified, say that plainly rather than reporting a clean result.
-- **Flag when something looks novel/publication-relevant.** Two dated incidents already exist
-  where a component silently masked its own failure (the March 2026 O1/O2 benchmark split; the CI
-  auth-fallback masking found 2026-09-18) — these are evidence for an active research direction.
-  If a new instance of this pattern turns up, say so explicitly rather than just fixing it quietly.
+- **Flag when something looks novel/publication-relevant.** Four dated incidents now exist where a
+  component silently masked its own failure (the March 2026 O1/O2 benchmark split; the CI
+  auth-fallback masking found 2026-09-18; the benchmark_v9/benchmark_v10 dead `mode` parameter
+  found 2026-09-19 — both runners' phase8/9/10 comparison accepted a mode argument, labeled results
+  with it, and never forwarded it into the actual pipeline call after a 2026-03-25 refactor,
+  producing plausible-looking "Phase 9 vs Phase 10" verdicts that compared identical configs for
+  ~6 months; the bare `tsc --noEmit` no-op found the same day, immediately below) — these are
+  evidence for an active research direction. If a new instance of this pattern turns up, say so
+  explicitly rather than just fixing it quietly.
+- **A config-driven comparison must assert actual divergence, not just distinct labels.** The
+  benchmark_v9/v10 incident above passed every existing test (single-entrypoint, import-allowlist)
+  because those check naming/import hygiene, not behavior — a refactor that keeps a parameter's
+  name and its use as a display label, while quietly dropping what it was supposed to change, is
+  invisible to that kind of test. Any comparison tool built to differentiate two configurations
+  (engine versions, pipeline modes, feature-flag states) needs a test that captures the actual
+  request payload/engine identifier under each configuration and fails if they're identical —
+  not a test on what the code labels the run.
 - **Lovable's GitHub sync pushes directly to `main` with no PR.** Once branch protection is on,
   treat Lovable as read-only going forward — don't rely on it to make further code changes.
 
@@ -34,7 +47,12 @@ interesting.
 - `npm ci` (not `npm install` — the lockfile must stay exact)
 - `npm run dev` for local UI preview
 - `npx vitest run` for the full test suite
-- `npx tsc --noEmit` for typecheck
+- `npx tsc -b --noEmit` for typecheck — **not** bare `npx tsc --noEmit`. The root `tsconfig.json`
+  has `"files": []` with project references (to `tsconfig.app.json`/`tsconfig.node.json`); run
+  without `-b` or a `-p` pointing at one of those, `tsc --noEmit` silently checks zero files and
+  exits 0 no matter what's broken. Found 2026-09-19 while it silently passed a real `src/` error
+  (unrelated to that session's change) and an import of a just-deleted export — a fourth instance
+  of the masking pattern below, this one baked into the project's own documented typecheck command.
 - `RUN_PARITY_CHECK=1 npx vitest run src/tests/contract/benchmark_parity.test.ts` for the live O1/O2
   parity check — requires an authenticated Supabase session, not just the anon key; will fail
   cleanly with 401s otherwise, which is not a code problem.
