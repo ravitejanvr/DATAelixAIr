@@ -61,6 +61,27 @@ as it happens.
 | 9 | Consolidate the three fragmented safety-detection mechanisms into one auditable path | Deterministic Safety |
 | 10 | Explicitly define and test must-not-miss escalation as its own deterministic surface, decoupled from full differential accuracy | Deterministic Safety |
 
+**Context for items 6–8 — what "V4" actually is (verified against Lovable/live source 2026-09-19):**
+V4 is not hypothetical and not fully shelved. An April 2026 audit (`.lovable/v3-v4-deep-audit.md`)
+found ~45-60% of the orchestrator's code was dead weight and proposed a full pipeline rewrite
+(`architecture/V4_ARCHITECTURE.md`). Part of it shipped the same month and is live in production
+today: `/clinical-interaction` calls `runClinicalPipelineV4` (`src/services/pipeline/index.ts`),
+which owns the conversational/canonical/session-context front half, then hands off to O1
+(`runUnifiedClinicalPipeline`) via a thin, non-reasoning bridge (`orchestrator_bridge.ts`) for
+actual scoring. `cognitive/v4_cognitive.ts` (`analyzeCognitive`) is also still called but its
+output doesn't influence ranking — live but inert, not removed. V4's own scoring engine (state
+generation + ranking) was never built. In July 2026, further V4 architecture work was formally
+frozen (`architecture/ARCHITECTURE_FREEZE_v1.md`, `.lovable/execution-backlog-v1.md` —
+"Architecture Freeze v1.0 ... No new architecture") in favor of consolidating the existing
+V1/V2/V3 system; that freeze is still in effect, still enforced by the single-entrypoint and
+engine-import-allowlist contract tests (strengthened, not relaxed, on 2026-09-18), and only one
+post-freeze backlog item (A7, KG↔terminology binding) has been picked up since. No decision to
+resume the V4 rewrite exists anywhere in git or chat history. Bottom line: the V1-vs-V3 comparison
+below is a clean, self-contained decision — V4's structural contracts (canonical layer, single
+entrypoint, SSAL) already landed; only the scoring-engine slot is still open, and it's V1 or V3
+filling it, not V4. If V3 loses, the correct follow-on is scoping differential ranking down
+(item 7's third option) — not reviving the V4 rewrite.
+
 **P2 — the actual product**
 
 | # | Item | Epic |
