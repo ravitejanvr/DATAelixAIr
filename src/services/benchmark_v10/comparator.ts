@@ -1,14 +1,22 @@
 /**
- * Benchmark v10 — Phase Comparator
+ * Benchmark v10 — Run Comparator
  *
- * Compares Phase 8 vs Phase 9 vs Phase 10 results from v10 suite runs.
+ * Compares two suite runs (e.g. forced V1 vs forced V3 — see engine_registry.ts).
  * Produces structured comparison summary with per-layer deltas,
  * regressions, improvements, and a verdict.
+ *
+ * NOTE: this file previously exported compareV10ThreeWay() for a
+ * "Phase 8 vs Phase 9 vs Phase 10" comparison. That concept was removed
+ * 2026-09-19 — the phase8/9/10 mode parameter it compared stopped reaching
+ * the pipeline after the 2026-03-25 orchestrator-alignment refactor
+ * (c1012944), so every such comparison was silently comparing identical
+ * configs. See CLAUDE.md's "config-driven comparison must assert actual
+ * divergence" rule before adding anything like it back.
  */
 
 import type {
   SuiteRunResult, BenchmarkLayer, CaseResult,
-  SuiteComparison,
+  SuiteComparison, BenchmarkCaseV10,
 } from "./types";
 
 function norm(s: string): string {
@@ -228,15 +236,66 @@ export function compareV10Runs(
   };
 }
 
-/** Compare 3 runs: Phase 8 baseline, Phase 9 decoupled, Phase 10 candidate completeness */
-export function compareV10ThreeWay(
-  phase8Run: SuiteRunResult,
-  phase9Run: SuiteRunResult,
-  phase10Run: SuiteRunResult,
-): { p8_vs_p9: SuiteComparison; p9_vs_p10: SuiteComparison; p8_vs_p10: SuiteComparison } {
-  return {
-    p8_vs_p9: compareV10Runs(phase8Run, phase9Run),
-    p9_vs_p10: compareV10Runs(phase9Run, phase10Run),
-    p8_vs_p10: compareV10Runs(phase8Run, phase10Run),
-  };
+// ── Organ-System Breakdown ──
+// Per CLAUDE.md's post-mortem rule: this groups by organ_system rather than
+// by a mode/phase label, since ground truth here is the case data itself
+// (BenchmarkCaseV10.organ_system), not a parameter that has to be trusted
+// to have actually changed anything.
+
+export interface OrganSystemMetric {
+  organ_system: string;
+  n: number;
+  top1_accuracy: number;
+  top3_accuracy: number;
+  candidate_recall: number;
+  safety_sensitivity: number;
+}
+
+export function computeOrganSystemMetrics(
+  results: CaseResult[],
+  cases: BenchmarkCaseV10[],
+): OrganSystemMetric[] {
+  const organById = new Map(cases.map(c => [c.case_id, c.organ_system]));
+  const byOrgan = new Map<string, CaseResult[]>();
+  for (const r of results) {
+    const organ = organById.get(r.case_id) ?? "unknown";
+    if (!byOrgan.has(organ)) byOrgan.set(organ, []);
+    byOrgan.get(organ)!.push(r);
+  }
+
+  const out: OrganSystemMetric[] = [];
+  for (const [organ_system, rs] of byOrgan) {
+    const n = rs.length;
+    const top1 = rs.filter(r => r.top1_match).length;
+    const top3 = rs.filter(r => r.top3_match).length;
+    const recall = rs.filter(r => r.candidate_recall).length;
+    const safetyCases = rs.filter(r => r.safety_expected);
+    const safetyOk = safetyCases.filter(r => r.safety_correct).length;
+
+    out.push({
+      organ_system,
+      n,
+      top1_accuracy: Math.round((top1 / n) * 100),
+      top3_accuracy: Math.round((top3 / n) * 100),
+      candidate_recall: Math.round((recall / n) * 100),
+      safety_sensitivity: safetyCases.length > 0 ? Math.round((safetyOk / safetyCases.length) * 100) : 100,
+    });
+  }
+
+  return out.sort((a, b) => a.organ_system.localeCompare(b.organ_system));
+}
+
+/** Pair up two engines' per-organ-system metrics for a side-by-side table. */
+export function diffOrganSystemMetrics(
+  a: OrganSystemMetric[],
+  b: OrganSystemMetric[],
+): Array<{ organ_system: string; n: number; a: OrganSystemMetric; b: OrganSystemMetric; top1_delta: number }> {
+  const bBySystem = new Map(b.map(m => [m.organ_system, m]));
+  return a
+    .map(am => {
+      const bm = bBySystem.get(am.organ_system);
+      if (!bm) return null;
+      return { organ_system: am.organ_system, n: am.n, a: am, b: bm, top1_delta: bm.top1_accuracy - am.top1_accuracy };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
 }

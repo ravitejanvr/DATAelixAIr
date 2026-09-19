@@ -238,6 +238,7 @@ async function runSingleV10Case(
     case_id: c.case_id,
     layer: c.layer,
     name: c.name,
+    engine_version: pipelineResult?.engine_audit?.engine_version ?? null,
     predicted_top5,
     gold_rank,
     top1_match,
@@ -360,7 +361,10 @@ async function persistRun(runResult: SuiteRunResult): Promise<void> {
       clinical_acceptability: r.clinical_acceptability,
       latency_ms: r.latency_ms,
       failure_reasons: r.failure_reasons,
-      score_breakdown: {} as any,
+      // engine_version is the ACTUALLY-executed engine (PipelineResult.engine_audit),
+      // stashed here rather than trusted from the run's requested config — see the
+      // benchmark_v9/v10 dead-mode-parameter incident, CLAUDE.md 2026-09-19.
+      score_breakdown: { engine_version: r.engine_version } as any,
     }));
 
     const { error } = await supabase.from("benchmark_suite_results").insert(batch as any);
@@ -431,6 +435,7 @@ export async function runV10Suite(
             case_id: c.case_id,
             layer: c.layer,
             name: c.name,
+            engine_version: null,
             predicted_top5: [],
             gold_rank: null,
             top1_match: false,
