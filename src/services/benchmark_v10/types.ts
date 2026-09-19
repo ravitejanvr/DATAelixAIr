@@ -58,6 +58,14 @@ export interface CaseResult {
   case_id: string;
   layer: BenchmarkLayer;
   name: string;
+  /**
+   * The engine that actually produced this ranking, per
+   * PipelineResult.engine_audit.engine_version — NOT the mode/config this
+   * case was requested under. Read this, never assume a run's requested
+   * engine was honored; see the benchmark_v9/v10 dead-mode-parameter
+   * incident (CLAUDE.md, 2026-09-19) for why.
+   */
+  engine_version: string | null;
   predicted_top5: Array<{ diagnosis: string; probability: number }>;
   gold_rank: number | null;
   top1_match: boolean;

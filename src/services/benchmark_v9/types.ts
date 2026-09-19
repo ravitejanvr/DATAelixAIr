@@ -10,10 +10,9 @@
  *   6. Safety evaluation
  *   7. Final ranked diagnoses
  *
- * Phase 9 additions:
- *   - SafetyAlertEntry for decoupled safety_alerts[] channel
- *   - Alert-aware safety metrics
- *   - Dual-mode comparison types
+ * Includes SafetyAlertEntry for the decoupled safety_alerts[] channel and
+ * alert-aware safety metrics. The former dual-mode (Phase 8/9) comparison
+ * types were removed 2026-09-19 — see runner.ts's header comment.
  */
 
 export interface NormalizationTrace {
@@ -103,8 +102,13 @@ export interface BenchmarkResult {
   timestamp: string;
   passed: boolean;
 
-  /** Which mode was used for this run */
-  pipeline_mode: "phase8" | "phase9";
+  /**
+   * The engine that actually produced this ranking, per
+   * PipelineResult.engine_audit.engine_version. See engine_force.ts and
+   * CLAUDE.md's 2026-09-19 entry for why this is read from the executed
+   * result rather than any requested config.
+   */
+  engine_version: string | null;
 
   // Full pipeline trace
   normalization: NormalizationTrace;
@@ -147,8 +151,8 @@ export interface BenchmarkSuiteResult {
   passed: number;
   failed: number;
 
-  /** Which mode produced this result */
-  pipeline_mode: "phase8" | "phase9";
+  /** The engine(s) that actually executed across this suite's results — "mixed" if they differ. */
+  engine_version: string | null;
 
   // Accuracy metrics (percentage 0-100)
   top1_accuracy: number;
@@ -181,40 +185,3 @@ export interface BenchmarkSuiteResult {
   }>;
 }
 
-/** Per-scenario comparison between Phase 8 and Phase 9 */
-export interface ScenarioDiff {
-  scenario_id: string;
-  scenario_name: string;
-  phase8_top1: string | null;
-  phase9_top1: string | null;
-  top1_changed: boolean;
-  phase8_gold_rank: number | null;
-  phase9_gold_rank: number | null;
-  ranking_improved: boolean;
-  ranking_degraded: boolean;
-  phase8_safety_correct: boolean;
-  phase9_safety_correct: boolean;
-  safety_changed: boolean;
-  acceptable: boolean;
-  reason: string;
-}
-
-/** Full comparison report */
-export interface PhaseComparisonReport {
-  timestamp: string;
-  phase8_metrics: Omit<BenchmarkSuiteResult, "results" | "failure_summary">;
-  phase9_metrics: Omit<BenchmarkSuiteResult, "results" | "failure_summary">;
-  deltas: {
-    top1_delta: number;
-    top3_delta: number;
-    top5_delta: number;
-    recall_delta: number;
-    safety_sensitivity_delta: number;
-    safety_specificity_delta: number;
-  };
-  scenario_diffs: ScenarioDiff[];
-  regressions: ScenarioDiff[];
-  improvements: ScenarioDiff[];
-  verdict: "READY" | "NOT_READY";
-  verdict_reasons: string[];
-}

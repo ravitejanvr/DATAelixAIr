@@ -1,9 +1,13 @@
 /**
  * Benchmark v10 Dashboard Panel
  *
- * Multi-layer benchmark execution and comparison UI.
- * Supports Phase 8 / Phase 9 dual-mode runs on 120 v10 cases
- * with per-layer metrics, comparison summaries, and drill-down.
+ * Multi-layer benchmark execution UI, plus the real V1-vs-V3 diagnostic
+ * engine comparison (ROADMAP.md P1 item 6) — forces each engine
+ * deterministically via engine_registry/rollout_controller and verifies
+ * against PipelineResult.engine_audit rather than trusting a requested
+ * label. See CLAUDE.md's 2026-09-19 entry for why that distinction matters:
+ * this panel used to offer a Phase 8/9/10 comparison whose mode parameter
+ * never reached the pipeline.
  */
 
 import { useState, useCallback } from "react";
@@ -11,20 +15,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Play, Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Brain,
+  Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Brain,
   Activity, Shield, ChevronDown, ChevronUp, Zap, Target,
-  GitCompare, Lock, BarChart3, Layers, FileText,
+  GitCompare, BarChart3, Layers, FileText,
 } from "lucide-react";
-import { runV10Suite, compareV10Runs, compareV10ThreeWay, ALL_NEW_CASES, generateAuditReport } from "@/services/benchmark_v10";
+import {
+  runV10Suite, compareV10Runs, computeOrganSystemMetrics, diffOrganSystemMetrics,
+  ALL_NEW_CASES, generateAuditReport, type OrganSystemMetric,
+} from "@/services/benchmark_v10";
 import type {
   SuiteRunResult, SuiteComparison, CaseResult, LayerMetrics, BenchmarkLayer,
 } from "@/services/benchmark_v10/types";
-import type { V10PipelineMode, V10RunProgress } from "@/services/benchmark_v10/runner";
+import type { V10RunProgress } from "@/services/benchmark_v10/runner";
+import { forceEngine } from "@/services/benchmark_v10/engine_force";
+import type { EngineVersion } from "@/services/engine_registry";
 
 // ── Helpers ──
 
@@ -129,7 +137,7 @@ function LayerMetricsCard({ metrics }: { metrics: LayerMetrics }) {
 
 // ── Comparison Table ──
 
-function V10ComparisonPanel({ comparison }: { comparison: SuiteComparison }) {
+function V10ComparisonPanel({ comparison, labelA = "Run A", labelB = "Run B" }: { comparison: SuiteComparison; labelA?: string; labelB?: string }) {
   const [showRegressions, setShowRegressions] = useState(true);
 
   const verdictColors: Record<string, string> = {
@@ -173,8 +181,8 @@ function V10ComparisonPanel({ comparison }: { comparison: SuiteComparison }) {
         <TableHeader>
           <TableRow>
             <TableHead className="text-xs">Metric</TableHead>
-            <TableHead className="text-xs text-right">Phase 8</TableHead>
-            <TableHead className="text-xs text-right">Phase 9</TableHead>
+            <TableHead className="text-xs text-right">{labelA}</TableHead>
+            <TableHead className="text-xs text-right">{labelB}</TableHead>
             <TableHead className="text-xs text-right">Delta</TableHead>
           </TableRow>
         </TableHeader>
@@ -276,6 +284,61 @@ function V10ComparisonPanel({ comparison }: { comparison: SuiteComparison }) {
       )}
     </div>
   );
+}
+
+// ── Organ-System Breakdown (V1 vs V3) ──
+
+function OrganSystemBreakdownTable({ v1, v3 }: { v1: OrganSystemMetric[]; v3: OrganSystemMetric[] }) {
+  const rows = diffOrganSystemMetrics(v1, v3);
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="text-xs">Organ System</TableHead>
+          <TableHead className="text-xs text-right">n</TableHead>
+          <TableHead className="text-xs text-right">V1 Top-1</TableHead>
+          <TableHead className="text-xs text-right">V3 Top-1</TableHead>
+          <TableHead className="text-xs text-right">Δ</TableHead>
+          <TableHead className="text-xs text-right">V1 Recall</TableHead>
+          <TableHead className="text-xs text-right">V3 Recall</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map(r => (
+          <TableRow key={r.organ_system}>
+            <TableCell className="text-xs font-medium">{r.organ_system}</TableCell>
+            <TableCell className="text-xs text-right font-mono">{r.n}</TableCell>
+            <TableCell className="text-xs text-right font-mono">{r.a.top1_accuracy}%</TableCell>
+            <TableCell className="text-xs text-right font-mono">{r.b.top1_accuracy}%</TableCell>
+            <TableCell className={`text-xs text-right font-mono font-bold ${r.top1_delta > 0 ? "text-emerald-600" : r.top1_delta < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+              {r.top1_delta > 0 ? `+${r.top1_delta}` : r.top1_delta}pp
+            </TableCell>
+            <TableCell className="text-xs text-right font-mono">{r.a.candidate_recall}%</TableCell>
+            <TableCell className="text-xs text-right font-mono">{r.b.candidate_recall}%</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+// ── Engine Integrity Check ──
+// Never trust that forceEngine(x) means the run actually executed x — verify
+// against PipelineResult.engine_audit.engine_version on every case. See the
+// benchmark_v9/v10 dead-mode-parameter incident, CLAUDE.md 2026-09-19.
+
+function checkEngineIntegrity(run: SuiteRunResult, expected: EngineVersion): string | null {
+  const total = run.results.length;
+  const mismatched = run.results.filter(r => r.engine_version && r.engine_version !== expected);
+  const unknown = run.results.filter(r => !r.engine_version);
+  if (mismatched.length > 0) {
+    return `${mismatched.length}/${total} cases did NOT actually execute on ${expected.toUpperCase()} ` +
+      `(engine_audit reported a different engine) — do not trust this comparison.`;
+  }
+  if (unknown.length > 0) {
+    return `${unknown.length}/${total} cases have no recorded engine_audit — cannot confirm ${expected.toUpperCase()} actually ran.`;
+  }
+  return null;
 }
 
 // ── Per-Case Results Table ──
@@ -381,85 +444,85 @@ function CaseResultsTable({ results, expandedCase, onToggle }: {
 
 // ── Main Panel ──
 
+interface EngineComparisonState {
+  v1: SuiteRunResult;
+  v3: SuiteRunResult;
+  comparison: SuiteComparison;
+  v1Organs: OrganSystemMetric[];
+  v3Organs: OrganSystemMetric[];
+  v1IntegrityWarning: string | null;
+  v3IntegrityWarning: string | null;
+}
+
 export default function BenchmarkV10Panel() {
   const [suiteResult, setSuiteResult] = useState<SuiteRunResult | null>(null);
-  const [phase8Baseline, setPhase8Baseline] = useState<SuiteRunResult | null>(null);
-  const [phase9Baseline, setPhase9Baseline] = useState<SuiteRunResult | null>(null);
-  const [comparison, setComparison] = useState<SuiteComparison | null>(null);
-  const [threeWay, setThreeWay] = useState<{ p8_vs_p9: SuiteComparison; p9_vs_p10: SuiteComparison; p8_vs_p10: SuiteComparison } | null>(null);
+  const [engineComparison, setEngineComparison] = useState<EngineComparisonState | null>(null);
   const [running, setRunning] = useState(false);
   const [runMode, setRunMode] = useState<string>("");
   const [progress, setProgress] = useState<V10RunProgress | null>(null);
   const [expandedCase, setExpandedCase] = useState<string | null>(null);
   const [activeLayer, setActiveLayer] = useState<string>("all");
-  const [comparisonTab, setComparisonTab] = useState<string>("p9_vs_p10");
 
   const handleProgress = useCallback((p: V10RunProgress) => setProgress(p), []);
 
-  const runSingle = useCallback(async (mode: V10PipelineMode) => {
+  /** Single-engine run — forces the given engine for every case, no comparison. */
+  const runSingleEngine = useCallback(async (version: EngineVersion) => {
     setRunning(true);
     setSuiteResult(null);
-    setComparison(null);
-    setThreeWay(null);
-    setRunMode(mode);
+    setEngineComparison(null);
+    setRunMode(version);
+    const handle = forceEngine(version);
     try {
-      const result = await runV10Suite(mode, handleProgress, { executionMode: "production" });
+      const result = await runV10Suite("phase10", handleProgress, { executionMode: "production" });
       setSuiteResult(result);
-      if (mode === "phase8") setPhase8Baseline(result);
-      if (mode === "phase9") setPhase9Baseline(result);
     } finally {
+      handle.restore();
       setRunning(false);
       setProgress(null);
     }
   }, [handleProgress]);
 
-  const runComparison = useCallback(async () => {
+  /**
+   * The real V1-vs-V3 comparison (ROADMAP.md P1 item 6). Forces each engine
+   * deterministically via engine_registry/rollout_controller (see
+   * engine_force.ts), then verifies against PipelineResult.engine_audit on
+   * every case rather than trusting the forcing worked — see the
+   * benchmark_v9/v10 dead-mode-parameter incident, CLAUDE.md 2026-09-19.
+   */
+  const runEngineComparison = useCallback(async () => {
     setRunning(true);
     setSuiteResult(null);
-    setComparison(null);
-    setThreeWay(null);
-    setRunMode("compare");
+    setEngineComparison(null);
+    setRunMode("v1");
     try {
-      setRunMode("phase8");
-      const p8 = await runV10Suite("phase8", handleProgress, { executionMode: "production" });
-      setPhase8Baseline(p8);
+      const v1Handle = forceEngine("v1");
+      let v1: SuiteRunResult;
+      try {
+        v1 = await runV10Suite("phase10", handleProgress, { executionMode: "production" });
+      } finally {
+        v1Handle.restore();
+      }
 
-      setRunMode("phase9");
-      const p9 = await runV10Suite("phase9", handleProgress, { executionMode: "production" });
-      setPhase9Baseline(p9);
-      setSuiteResult(p9);
+      setRunMode("v3");
+      const v3Handle = forceEngine("v3");
+      let v3: SuiteRunResult;
+      try {
+        v3 = await runV10Suite("phase10", handleProgress, { executionMode: "production" });
+      } finally {
+        v3Handle.restore();
+      }
 
-      const comp = compareV10Runs(p8, p9);
-      setComparison(comp);
-      setRunMode("compare");
-    } finally {
-      setRunning(false);
-      setProgress(null);
-    }
-  }, [handleProgress]);
+      const comparison = compareV10Runs(v1, v3);
+      const v1Organs = computeOrganSystemMetrics(v1.results, ALL_NEW_CASES);
+      const v3Organs = computeOrganSystemMetrics(v3.results, ALL_NEW_CASES);
 
-  const runThreeWayComparison = useCallback(async () => {
-    setRunning(true);
-    setSuiteResult(null);
-    setComparison(null);
-    setThreeWay(null);
-    setRunMode("3-way");
-    try {
-      setRunMode("phase8");
-      const p8 = await runV10Suite("phase8", handleProgress, { executionMode: "production" });
-      setPhase8Baseline(p8);
-
-      setRunMode("phase9");
-      const p9 = await runV10Suite("phase9", handleProgress, { executionMode: "production" });
-      setPhase9Baseline(p9);
-
-      setRunMode("phase10");
-      const p10 = await runV10Suite("phase10", handleProgress, { executionMode: "production" });
-      setSuiteResult(p10);
-
-      const tw = compareV10ThreeWay(p8, p9, p10);
-      setThreeWay(tw);
-      setRunMode("3-way");
+      setEngineComparison({
+        v1, v3, comparison, v1Organs, v3Organs,
+        v1IntegrityWarning: checkEngineIntegrity(v1, "v1"),
+        v3IntegrityWarning: checkEngineIntegrity(v3, "v3"),
+      });
+      setSuiteResult(v3);
+      setRunMode("v1v3");
     } finally {
       setRunning(false);
       setProgress(null);
@@ -483,29 +546,18 @@ export default function BenchmarkV10Panel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {phase8Baseline && (
-            <Badge variant="outline" className="text-[9px] flex items-center gap-1">
-              <Lock className="h-2.5 w-2.5" /> P8 Baseline
-            </Badge>
-          )}
-          <Button size="sm" variant="outline" onClick={() => runSingle("phase8")} disabled={running}>
-            <Shield className="h-3.5 w-3.5 mr-1" /> Phase 8
+          <Button size="sm" variant="outline" onClick={() => runSingleEngine("v1")} disabled={running}>
+            <Shield className="h-3.5 w-3.5 mr-1" /> Run V1
           </Button>
-          <Button size="sm" variant="outline" onClick={() => runSingle("phase9")} disabled={running}>
-            <Brain className="h-3.5 w-3.5 mr-1" /> Phase 9
+          <Button size="sm" variant="outline" onClick={() => runSingleEngine("v3")} disabled={running}>
+            <Zap className="h-3.5 w-3.5 mr-1" /> Run V3
           </Button>
-          <Button size="sm" variant="outline" onClick={() => runSingle("phase10")} disabled={running}>
-            <Zap className="h-3.5 w-3.5 mr-1" /> Phase 10
-          </Button>
-          <Button size="sm" variant="outline" onClick={runComparison} disabled={running}>
-            <GitCompare className="h-3.5 w-3.5 mr-1" /> P8 vs P9
-          </Button>
-          <Button size="sm" onClick={runThreeWayComparison} disabled={running}>
+          <Button size="sm" onClick={runEngineComparison} disabled={running}>
             {running
               ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                   {progress ? `[${runMode.toUpperCase()}] ${progress.index + 1}/${progress.total}` : "Starting..."}
                 </>
-              : <><GitCompare className="h-3.5 w-3.5 mr-1" /> 3-Way Compare</>
+              : <><GitCompare className="h-3.5 w-3.5 mr-1" /> V1 vs V3</>
             }
           </Button>
         </div>
@@ -535,51 +587,49 @@ export default function BenchmarkV10Panel() {
         </Card>
       )}
 
-      {/* Comparison Report */}
-      {comparison && !threeWay && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-1.5">
-              <BarChart3 className="h-4 w-4 text-primary" /> Phase 8 vs Phase 9 Comparison (v10)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <V10ComparisonPanel comparison={comparison} />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 3-Way Comparison Report */}
-      {threeWay && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-1.5">
-              <BarChart3 className="h-4 w-4 text-primary" /> 3-Way Comparison: P8 → P9 → P10 (v10)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={comparisonTab} onValueChange={setComparisonTab}>
-              <TabsList className="mb-3">
-                <TabsTrigger value="p9_vs_p10" className="text-xs">P9 vs P10 (Primary)</TabsTrigger>
-                <TabsTrigger value="p8_vs_p9" className="text-xs">P8 vs P9</TabsTrigger>
-                <TabsTrigger value="p8_vs_p10" className="text-xs">P8 vs P10</TabsTrigger>
-              </TabsList>
-              <TabsContent value="p9_vs_p10">
-                <V10ComparisonPanel comparison={threeWay.p9_vs_p10} />
-              </TabsContent>
-              <TabsContent value="p8_vs_p9">
-                <V10ComparisonPanel comparison={threeWay.p8_vs_p9} />
-              </TabsContent>
-              <TabsContent value="p8_vs_p10">
-                <V10ComparisonPanel comparison={threeWay.p8_vs_p10} />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+      {/* V1 vs V3 Engine Comparison */}
+      {engineComparison && (
+        <>
+          {(engineComparison.v1IntegrityWarning || engineComparison.v3IntegrityWarning) && (
+            <Card className="border-destructive/50">
+              <CardContent className="py-3 space-y-1">
+                <p className="text-xs font-semibold text-destructive flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Engine integrity check failed
+                </p>
+                {engineComparison.v1IntegrityWarning && (
+                  <p className="text-[10px] text-muted-foreground">V1 run: {engineComparison.v1IntegrityWarning}</p>
+                )}
+                {engineComparison.v3IntegrityWarning && (
+                  <p className="text-[10px] text-muted-foreground">V3 run: {engineComparison.v3IntegrityWarning}</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-1.5">
+                <BarChart3 className="h-4 w-4 text-primary" /> V1 vs V3 Comparison — {ALL_NEW_CASES.length} cases, real O1 path
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <V10ComparisonPanel comparison={engineComparison.comparison} labelA="V1" labelB="V3" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-1.5">
+                <Layers className="h-4 w-4 text-primary" /> V1 vs V3 — Organ System Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <OrganSystemBreakdownTable v1={engineComparison.v1Organs} v3={engineComparison.v3Organs} />
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {/* Audit Summary (pre-run) */}
-      {!suiteResult && !running && !comparison && (
+      {!suiteResult && !running && !engineComparison && (
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-2">
@@ -609,11 +659,8 @@ export default function BenchmarkV10Panel() {
                 ))}
               </div>
               <div className="mt-3 text-center flex gap-2 justify-center">
-                <Button size="sm" variant="outline" onClick={runComparison}>
-                  <GitCompare className="h-3.5 w-3.5 mr-1" /> P8 vs P9
-                </Button>
-                <Button size="sm" onClick={runThreeWayComparison}>
-                  <GitCompare className="h-3.5 w-3.5 mr-1" /> Full 3-Way Comparison (P8 · P9 · P10)
+                <Button size="sm" onClick={runEngineComparison}>
+                  <GitCompare className="h-3.5 w-3.5 mr-1" /> Run V1 vs V3 Comparison
                 </Button>
               </div>
             </CardContent>
@@ -625,7 +672,9 @@ export default function BenchmarkV10Panel() {
       {suiteResult && !running && (
         <>
           <div className="flex items-center gap-2 mb-2">
-            <Badge variant="outline" className="text-[9px]">{suiteResult.pipeline_phase.toUpperCase()}</Badge>
+            <Badge variant="outline" className="text-[9px]">
+              ENGINE: {(suiteResult.results.find(r => r.engine_version)?.engine_version ?? "unknown").toUpperCase()}
+            </Badge>
             <span className="text-[10px] text-muted-foreground">{suiteResult.timestamp}</span>
             <span className="text-[10px] text-muted-foreground">· {suiteResult.run_id}</span>
           </div>
