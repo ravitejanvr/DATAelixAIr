@@ -1,16 +1,19 @@
 /**
- * Benchmark v9 — Dual-Mode Runner (Orchestrator-Aligned)
+ * Benchmark v9 — Controlled-Suite Runner (Orchestrator-Aligned)
  *
  * Runs 30 controlled scenarios through the PRODUCTION orchestrator pipeline,
  * ensuring benchmarks exercise the same code path as real consultations:
  *
  *   Case → ClinicalContext → runUnifiedClinicalPipeline → PipelineResult → Metrics
  *
- * Supports two modes:
- *   - phase8 (legacy): DDX with phase9=false, safety via ranking
- *   - phase9 (decoupled): DDX with phase9=true, safety via alerts channel
- *
  * Full pipeline execution: Context → Physiology → DDX → Bayesian → Cognitive → Safety
+ *
+ * NOTE: this previously took a `mode: "phase8"|"phase9"` parameter and offered
+ * a "Compare Phase 8 vs Phase 9" report. That parameter never reached the
+ * pipeline call after a 2026-03-25 refactor (same incident as benchmark_v10 —
+ * see CLAUDE.md, 2026-09-19), so every such comparison compared identical
+ * configurations. Removed rather than re-wired; use BenchmarkV10Panel's
+ * V1-vs-V3 comparison (engine_force.ts) for a real engine comparison instead.
  */
 
 import { BENCHMARK_SUITE, type BenchmarkCase } from "./scenario";
@@ -27,11 +30,8 @@ import { diagMatch, norm } from "@/services/benchmark_shared/diagnosis_matching"
 
 // ── Run single scenario through orchestrator ──
 
-export type PipelineMode = "phase8" | "phase9";
-
 export async function runSingleScenario(
   sc: BenchmarkCase,
-  mode: PipelineMode = "phase9",
 ): Promise<BenchmarkResult> {
   const stages: StageLatency[] = [];
   const failures: string[] = [];
@@ -387,7 +387,7 @@ export async function runSingleScenario(
     scenario_name: sc.name,
     timestamp: new Date().toISOString(),
     passed,
-    pipeline_mode: mode,
+    engine_version: pipelineResult?.engine_audit?.engine_version ?? null,
     normalization,
     physiology,
     candidate_generation,
@@ -414,7 +414,7 @@ export async function runSingleScenario(
 
 // ── Compute alert-aware suite metrics ──
 
-function computeSuiteMetrics(results: BenchmarkResult[], mode: PipelineMode): BenchmarkSuiteResult {
+function computeSuiteMetrics(results: BenchmarkResult[]): BenchmarkSuiteResult {
   const total = results.length;
   const passed = results.filter(r => r.passed).length;
   const top1Count = results.filter(r => r.metrics.top1_accuracy).length;
@@ -443,12 +443,15 @@ function computeSuiteMetrics(results: BenchmarkResult[], mode: PipelineMode): Be
   const eitherChannel = results.filter(r => r.safety.ranking_channel_detected || r.safety.alert_channel_detected).length;
   const overlap = eitherChannel > 0 ? Math.round((bothChannels / eitherChannel) * 100) : 0;
 
+  const engineVersions = new Set(results.map(r => r.engine_version).filter(Boolean));
+  const engine_version = engineVersions.size === 1 ? [...engineVersions][0] as string : engineVersions.size === 0 ? null : "mixed";
+
   return {
     timestamp: new Date().toISOString(),
     total_scenarios: total,
     passed,
     failed: total - passed,
-    pipeline_mode: mode,
+    engine_version,
     top1_accuracy: Math.round((top1Count / total) * 100),
     top3_accuracy: Math.round((top3Count / total) * 100),
     top5_accuracy: Math.round((top5Count / total) * 100),
@@ -473,7 +476,6 @@ function computeSuiteMetrics(results: BenchmarkResult[], mode: PipelineMode): Be
 
 export async function runBenchmarkSuite(
   onProgress?: (scenarioName: string, index: number, total: number) => void,
-  mode: PipelineMode = "phase9",
 ): Promise<BenchmarkSuiteResult> {
   const results: BenchmarkResult[] = [];
   const suite = BENCHMARK_SUITE;
@@ -481,15 +483,15 @@ export async function runBenchmarkSuite(
   for (let i = 0; i < suite.length; i++) {
     onProgress?.(suite[i].name, i, suite.length);
     try {
-      const result = await runSingleScenario(suite[i], mode);
+      const result = await runSingleScenario(suite[i]);
       results.push(result);
     } catch (e) {
       console.error(`[Benchmark] Scenario ${suite[i].id} crashed:`, e);
-      results.push(buildErrorResult(suite[i], e, mode));
+      results.push(buildErrorResult(suite[i], e));
     }
   }
 
-  return computeSuiteMetrics(results, mode);
+  return computeSuiteMetrics(results);
 }
 
 // ── Backwards-compatible single-scenario runner ──
@@ -497,11 +499,11 @@ export async function runControlledBenchmark(): Promise<BenchmarkResult> {
   return runSingleScenario(BENCHMARK_SUITE[0]);
 }
 
-function buildErrorResult(sc: BenchmarkCase, error: unknown, mode: PipelineMode): BenchmarkResult {
+function buildErrorResult(sc: BenchmarkCase, error: unknown): BenchmarkResult {
   const empty = { states_activated: [], affected_organ_systems: [], candidate_diagnosis_ids: [], expected_state_match_rate: 0, expected_system_match: false };
   return {
     scenario_id: sc.id, scenario_name: sc.name, timestamp: new Date().toISOString(), passed: false,
-    pipeline_mode: mode,
+    engine_version: null,
     normalization: { raw_tokens: sc.context.symptoms, normalized_tokens: [], mappings: [], expected_match_rate: 0 },
     physiology: empty,
     candidate_generation: { candidates: [], candidate_count: 0, gold_in_candidates: false, gold_candidate_rank: null, gold_candidate_probability: null },

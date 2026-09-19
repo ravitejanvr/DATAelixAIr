@@ -8,13 +8,12 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Play, Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Brain,
+  Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Brain,
   Activity, Shield, ChevronDown, ChevronUp, Zap, Target, ArrowRight,
-  GitCompare, Lock, BarChart3, Layers, TrendingUp,
+  BarChart3, Layers, TrendingUp,
 } from "lucide-react";
-import { runBenchmarkSuite, BENCHMARK_SUITE, comparePhases } from "@/services/benchmark_v9";
-import type { BenchmarkResult, BenchmarkSuiteResult, PhaseComparisonReport } from "@/services/benchmark_v9/types";
-import type { PipelineMode } from "@/services/benchmark_v9/runner";
+import { runBenchmarkSuite, BENCHMARK_SUITE } from "@/services/benchmark_v9";
+import type { BenchmarkResult, BenchmarkSuiteResult } from "@/services/benchmark_v9/types";
 import BenchmarkV10Panel from "@/components/BenchmarkV10Panel";
 import ValidationPanel from "@/components/ValidationPanel";
 import V3ValidationPanel from "@/components/V3ValidationPanel";
@@ -218,176 +217,23 @@ function ScenarioTrace({ result }: { result: BenchmarkResult }) {
   );
 }
 
-// ── Comparison Table ──
-
-function ComparisonPanel({ report }: { report: PhaseComparisonReport }) {
-  const d = report.deltas;
-  const deltaColor = (v: number) => v > 0 ? "text-emerald-600" : v < 0 ? "text-destructive" : "text-muted-foreground";
-  const deltaSign = (v: number) => v > 0 ? `+${v}` : `${v}`;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Badge variant={report.verdict === "READY" ? "default" : "destructive"} className="text-xs">
-          {report.verdict}
-        </Badge>
-        {report.verdict_reasons.map((r, i) => (
-          <span key={i} className="text-[10px] text-muted-foreground">• {r}</span>
-        ))}
-      </div>
-
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="text-xs">Metric</TableHead>
-            <TableHead className="text-xs text-right">Phase 8</TableHead>
-            <TableHead className="text-xs text-right">Phase 9</TableHead>
-            <TableHead className="text-xs text-right">Delta</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {[
-            ["Top-1 Accuracy", report.phase8_metrics.top1_accuracy, report.phase9_metrics.top1_accuracy, d.top1_delta],
-            ["Top-3 Accuracy", report.phase8_metrics.top3_accuracy, report.phase9_metrics.top3_accuracy, d.top3_delta],
-            ["Top-5 Accuracy", report.phase8_metrics.top5_accuracy, report.phase9_metrics.top5_accuracy, d.top5_delta],
-            ["Candidate Recall", report.phase8_metrics.candidate_recall, report.phase9_metrics.candidate_recall, d.recall_delta],
-            ["Safety Sensitivity", report.phase8_metrics.safety_sensitivity, report.phase9_metrics.safety_sensitivity, d.safety_sensitivity_delta],
-            ["Safety Specificity", report.phase8_metrics.safety_specificity, report.phase9_metrics.safety_specificity, d.safety_specificity_delta],
-          ].map(([label, p8, p9, delta]) => (
-            <TableRow key={label as string}>
-              <TableCell className="text-xs font-medium">{label as string}</TableCell>
-              <TableCell className="text-xs text-right font-mono">{p8}%</TableCell>
-              <TableCell className="text-xs text-right font-mono">{p9}%</TableCell>
-              <TableCell className={`text-xs text-right font-mono font-bold ${deltaColor(delta as number)}`}>
-                {deltaSign(delta as number)}pp
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-
-      {/* Phase 9 Alert Metrics */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xs flex items-center gap-1.5">
-            <Shield className="h-3.5 w-3.5 text-primary" /> Phase 9 Alert Channel Metrics
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-4 gap-3 text-center">
-            <div>
-              <p className="text-lg font-bold text-foreground">{report.phase9_metrics.alert_precision}%</p>
-              <p className="text-[10px] text-muted-foreground">Alert Precision</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-foreground">{report.phase9_metrics.alert_recall}%</p>
-              <p className="text-[10px] text-muted-foreground">Alert Recall</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-foreground">{report.phase9_metrics.alert_to_ranking_overlap}%</p>
-              <p className="text-[10px] text-muted-foreground">Alert↔Ranking Overlap</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-foreground">{report.phase9_metrics.safety_detection_rate}%</p>
-              <p className="text-[10px] text-muted-foreground">Combined Detection</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Per-scenario diffs */}
-      {report.regressions.length > 0 && (
-        <Card className="border-destructive/30">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-destructive flex items-center gap-1.5">
-              <XCircle className="h-3.5 w-3.5" /> Regressions ({report.regressions.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {report.regressions.map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-xs py-1 border-b last:border-b-0">
-                <span className="font-medium">{r.scenario_name}</span>
-                <span className="text-destructive">{r.reason}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {report.improvements.length > 0 && (
-        <Card className="border-emerald-300/30">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-emerald-600 flex items-center gap-1.5">
-              <CheckCircle className="h-3.5 w-3.5" /> Improvements ({report.improvements.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {report.improvements.map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-xs py-1 border-b last:border-b-0">
-                <span className="font-medium">{r.scenario_name}</span>
-                <span className="text-emerald-600">{r.reason}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
-
 // ── Main Dashboard ──
 
 export default function GPBenchmarkDashboard() {
   const [suiteResult, setSuiteResult] = useState<BenchmarkSuiteResult | null>(null);
-  const [baseline, setBaseline] = useState<BenchmarkSuiteResult | null>(null);
-  const [comparison, setComparison] = useState<PhaseComparisonReport | null>(null);
   const [running, setRunning] = useState(false);
-  const [runMode, setRunMode] = useState<"phase9" | "phase8" | "compare">("phase9");
   const [progress, setProgress] = useState<string>("");
   const [expandedScenario, setExpandedScenario] = useState<string | null>(null);
 
-  const runBenchmark = useCallback(async (mode: PipelineMode) => {
+  const runBenchmark = useCallback(async () => {
     setRunning(true);
     setSuiteResult(null);
-    setComparison(null);
     setExpandedScenario(null);
-    setRunMode(mode);
     try {
       const result = await runBenchmarkSuite((name, idx, total) => {
-        setProgress(`[${mode.toUpperCase()}] ${idx + 1}/${total}: ${name}`);
-      }, mode);
+        setProgress(`${idx + 1}/${total}: ${name}`);
+      });
       setSuiteResult(result);
-      if (mode === "phase8") setBaseline(result);
-    } finally {
-      setRunning(false);
-      setProgress("");
-    }
-  }, []);
-
-  const runComparison = useCallback(async () => {
-    setRunning(true);
-    setSuiteResult(null);
-    setComparison(null);
-    setExpandedScenario(null);
-    setRunMode("compare");
-    try {
-      // Phase 8 baseline
-      setProgress("[PHASE 8 BASELINE] Starting...");
-      const p8 = await runBenchmarkSuite((name, idx, total) => {
-        setProgress(`[PHASE 8] ${idx + 1}/${total}: ${name}`);
-      }, "phase8");
-      setBaseline(p8);
-
-      // Phase 9 experimental
-      setProgress("[PHASE 9] Starting...");
-      const p9 = await runBenchmarkSuite((name, idx, total) => {
-        setProgress(`[PHASE 9] ${idx + 1}/${total}: ${name}`);
-      }, "phase9");
-      setSuiteResult(p9);
-
-      // Compare
-      const report = comparePhases(p8, p9);
-      setComparison(report);
     } finally {
       setRunning(false);
       setProgress("");
@@ -432,46 +278,23 @@ export default function GPBenchmarkDashboard() {
               <div>
                 <h2 className="text-lg font-bold text-foreground">Benchmark v9 — Control Suite</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  30 controlled scenarios · Dual-mode Phase 8/9 evaluation
+                  30 controlled scenarios, real O1 path, full per-stage trace. For an engine
+                  comparison (V1 vs V3), use the v10 tab — this suite runs whatever engine is
+                  currently active, single-run only.
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {baseline && (
-                  <Badge variant="outline" className="text-[9px] flex items-center gap-1">
-                    <Lock className="h-2.5 w-2.5" /> Baseline locked
-                  </Badge>
-                )}
-                <Button size="sm" variant="outline" onClick={() => runBenchmark("phase8")} disabled={running}>
-                  <Shield className="h-3.5 w-3.5 mr-1" /> Phase 8
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => runBenchmark("phase9")} disabled={running}>
-                  <Brain className="h-3.5 w-3.5 mr-1" /> Phase 9
-                </Button>
-                <Button size="sm" onClick={runComparison} disabled={running}>
+                <Button size="sm" onClick={runBenchmark} disabled={running}>
                   {running
                     ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />{progress || "Running..."}</>
-                    : <><GitCompare className="h-3.5 w-3.5 mr-1" /> Compare P8 vs P9</>
+                    : <><Target className="h-3.5 w-3.5 mr-1" /> Run 30 Scenarios</>
                   }
                 </Button>
               </div>
             </div>
 
-            {/* Comparison Report */}
-            {comparison && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-1.5">
-                    <BarChart3 className="h-4 w-4 text-primary" /> Phase 8 vs Phase 9 Comparison
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ComparisonPanel report={comparison} />
-                </CardContent>
-              </Card>
-            )}
-
             {/* Scenario List (pre-run) */}
-            {!sr && !running && !comparison && (
+            {!sr && !running && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-1.5">
@@ -500,7 +323,7 @@ export default function GPBenchmarkDashboard() {
                     </TableBody>
                   </Table>
                   <div className="mt-4 text-center">
-                    <Button size="sm" onClick={runComparison}><GitCompare className="h-3.5 w-3.5 mr-1" /> Run Full Comparison</Button>
+                    <Button size="sm" onClick={runBenchmark}><Target className="h-3.5 w-3.5 mr-1" /> Run Suite</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -512,9 +335,7 @@ export default function GPBenchmarkDashboard() {
                 <CardContent className="py-10 text-center">
                   <Loader2 className="h-8 w-8 text-primary mx-auto mb-3 animate-spin" />
                   <p className="text-sm font-medium">{progress || "Initializing..."}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {runMode === "compare" ? "Running Phase 8 → Phase 9 → Comparison" : `Running 30 scenarios (${runMode})`}
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Running 30 scenarios</p>
                 </CardContent>
               </Card>
             )}
@@ -523,7 +344,7 @@ export default function GPBenchmarkDashboard() {
             {sr && (
               <>
                 <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="text-[9px]">{sr.pipeline_mode.toUpperCase()}</Badge>
+                  <Badge variant="outline" className="text-[9px]">ENGINE: {(sr.engine_version ?? "unknown").toUpperCase()}</Badge>
                   <span className="text-xs text-muted-foreground">{sr.timestamp}</span>
                 </div>
 

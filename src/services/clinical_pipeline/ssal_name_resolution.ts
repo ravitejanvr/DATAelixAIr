@@ -17,9 +17,18 @@
 import type { BayesianResult } from "@/services/bayesian_engine";
 import type { DDXResult } from "@/services/ddx_engine/client";
 
-/** Loose shape covering both HypothesisResult variants in this codebase. */
+/**
+ * Loose shape covering both HypothesisResult variants in this codebase:
+ * hypothesis_engine/client.ts's DiagnosticHypothesis (`diagnosis: string`)
+ * and hypothesis_engine/index.ts's (`condition: string`). NEITHER variant
+ * actually carries a `diagnosis_id` today, so the lookup below is
+ * currently a no-op for both — kept type-honest rather than dropped,
+ * since the two hypothesis_engine modules are a separate, real
+ * duplication this file doesn't own fixing (see orchestrator.ts's
+ * hypothesis_engine import note, 2026-09-19).
+ */
 export interface SsalHypothesisSource {
-  hypotheses?: Array<{ diagnosis_id?: string; diagnosis?: string }>;
+  hypotheses?: Array<{ diagnosis_id?: string; diagnosis?: string; condition?: string }>;
 }
 
 /** Build a diagnosis_id → diagnosis_name map from every available source. */
@@ -47,8 +56,9 @@ export function buildSsalNameMap(
 
   if (hypotheses?.hypotheses) {
     for (const h of hypotheses.hypotheses) {
-      if (h.diagnosis_id && h.diagnosis && !ssalNameMap.has(h.diagnosis_id)) {
-        ssalNameMap.set(h.diagnosis_id, h.diagnosis);
+      const name = h.diagnosis || h.condition;
+      if (h.diagnosis_id && name && !ssalNameMap.has(h.diagnosis_id)) {
+        ssalNameMap.set(h.diagnosis_id, name);
       }
     }
   }
