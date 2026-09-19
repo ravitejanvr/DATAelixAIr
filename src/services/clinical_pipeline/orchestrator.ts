@@ -28,7 +28,17 @@ import {
 import type { ClinicalContext } from "@/lib/clinical-context";
 import { getPatientContext } from "@/services/context_engine/client";
 import { fromPCIEContext, toClinicalContext, type UnifiedClinicalContext } from "@/types/clinical-context";
-import { generateDiagnosticHypotheses } from "@/services/hypothesis_engine/client";
+// NOTE: two unrelated hypothesis_engine modules exist — hypothesis_engine/client.ts
+// (LLM-based, single generate-hypotheses call) and hypothesis_engine/index.ts
+// (KG-based, structurally different DiagnosticHypothesis/HypothesisResult
+// shapes). This file used to import generateDiagnosticHypotheses (client.ts)
+// but never called it — Wave 3d below is hardcoded to skip and return null —
+// while typing the result against index.ts's shape, which IS what downstream
+// consumers (pcieCore.updateReasoning below, pipeline_trace.ts) expect. The
+// dead value import created a silently wrong type/value pairing that only
+// surfaced once the bare `tsc --noEmit` no-op was fixed 2026-09-19 (see
+// CLAUDE.md). Removed the dead import rather than "fixing" its type to match
+// a value nothing ever produces.
 import type { HypothesisResult } from "@/services/hypothesis_engine";
 import { evaluateGuidelineAlignment, checkGuidelineCompliance, type GuidelineAlignmentResult, type GuidelineComplianceResult } from "@/services/guideline_engine";
 import { generateSOAP, type SOAPGeneratorResult } from "@/services/soap_generator";
