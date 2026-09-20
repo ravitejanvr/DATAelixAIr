@@ -63,7 +63,7 @@ as it happens.
 | 23 | Make the conscience/override loop real: wire `ai-decision-ledger` (already built, zero callers) + `SafetyOverrideDialog` (already built, never rendered) into the live path, so every AI decision a doctor acts on is ledgered and every override requires acknowledgment + a logged reason, on top of the `safety_block`/`safety_override` gate `finalize-consultation` already enforces. Pull item 20 (Governance, P4) forward into this — it's the same work, don't build it twice. | Deterministic Safety / Governance | **In progress 2026-09-20** — see architecture-inventory + direction record below. |
 | 24 | Unify the O1 (`Clinical.tsx` cockpit) and V4 (`ClinicalInteraction.tsx` conversational) paths into one canonical pipeline producing a single SSAL, closing the authority rank-divergence gap found in the layers/services inventory | Reasoning Engine | Not started — sequenced after item 23 so the conscience loop covers the whole product, not half of it. |
 | 25 | Real-world data: read-only FHIR ingestion (meds, labs, problem list, prior encounters) feeding `context_engine`/`kg`, so reasoning isn't limited to one visit's transcript | Pre-Visit Brief / Reasoning Engine | Not started — new item, see direction record below. |
-| 26 | Delete confirmed-dead code from the architecture inventory (5 zero-importer service dirs, 5 zero-importer `src/layers/*` modules + the dead `layers/index.ts` aggregator, `validate-clinical-system` — a second, fully dead 1578-line diagnostic pipeline). Check whether `generate-prescription`/`save-prescription`/`order-lab-tests`/`generate-lab-orders` have unique external-integration value (pharmacy/lab hooks) the live direct-DB-write replacements lack before deleting those four. | Hygiene | Not started — low-risk cleanup, can run in parallel with 23–25. |
+| 26 | Delete confirmed-dead code from the architecture inventory (5 zero-importer service dirs, 5 zero-importer `src/layers/*` modules + the dead `layers/index.ts` aggregator, `validate-clinical-system` — a second, fully dead 1578-line diagnostic pipeline, `save-prescription`, `order-lab-tests`, `patient-explanation`). Note: `generate-prescription` and `generate-lab-orders` were originally miscategorized as dead in the first census pass below and are **not** to be deleted — see the correction note in the decision record. | Hygiene | Not started — low-risk cleanup, can run in parallel with 23–25. |
 
 ### Item 6/7 decision record — V1 vs V3, 2026-09-20
 
@@ -152,22 +152,35 @@ showed `pipeline` and `safety` with zero importers despite known real usage).
   `question_engine`/`session_context`/`scribe_adapter`/`conversation_engine`/`canonical`). Five
   directories have zero importers anywhere: `clinical_reasoning`, `episodic_memory`,
   `knowledge_extraction`, `knowledge_graph`, `learning_system`.
-- **Edge functions:** 45 of 124 are never referenced from `src/` or other functions. Of those: 1 is
-  a false positive of the census method (`_shared`), ~31 are legitimate one-off/scheduled scripts
-  correctly never called from client code (`expand-kg-batch*`, `expand-likelihoods-*`,
-  `seed-knowledge-graph`, `seed-physiology-graph`, `rxnorm-ingest-*`, `terminology-load-chunk` and
-  siblings, `kg-bindings-backfill`, `weekly-research-ingestion`, `batch-calibration` — confirmed via
-  its own header as a scheduled function, `auth-email-hook` — confirmed as a Lovable auth webhook
-  invoked by Supabase Auth config, not client code), ~9 have unclear purpose and no scheduling
-  markers (`elevenlabs-tts`, `google-tts`, `air-quality`, `load-reasoning-context`,
-  `normalize-drug-name`, `normalize-medication`, `normalize-transcript`, `index-article`,
-  `clinical-knowledge`), and 5 are genuinely dead, clinically-named code: `generate-prescription`/
-  `save-prescription` (superseded by `Prescriptions.tsx` writing directly to the `prescriptions`
-  table), `order-lab-tests`/`generate-lab-orders` (superseded by `Clinical.tsx` embedding
-  `lab_orders` directly into the `finalize-consultation` payload), and `patient-explanation` (no
-  replacement found). Largest single item: **`validate-clinical-system`, 1578 lines, completely
-  uncalled** — a second full diagnostic pipeline (its own world-model construction, syndrome-cluster
-  detection, SOAP generation, Bayesian/DDx scoring) built and never wired to anything.
+- **Edge functions:** first-pass census found 45 of 124 never referenced from `src/` or other
+  functions — but that pass only matched quoted-string invocations
+  (`supabase.functions.invoke("name")`) and **missed every function called via a raw
+  `fetch(`${supabaseUrl}/functions/v1/name`)` template literal**, which several edge-function-to-
+  edge-function calls use. Caught and corrected before anything got deleted: `generate-prescription`
+  and `generate-lab-orders` are **not** dead — `finalize-consultation` calls both as an AI-generation
+  fallback (lines 89, 159) when the doctor hasn't explicitly specified drugs/labs, and
+  `generate-prescription` in turn calls `normalize-drug-name` the same way. `clinical-knowledge`,
+  `elevenlabs-tts`, and `google-tts` are also live, called the same way (from
+  `compare-ai-pipelines` and `ClinicalInteraction.tsx` respectively). Re-running the census with a
+  pattern covering both invocation styles brings the real zero-caller count to **39**: 1 false
+  positive of the method (`_shared`, shared code not invoked by function name), 29 legitimate
+  one-off/scheduled scripts correctly never called from client code (`expand-kg-batch*`,
+  `expand-likelihoods-*`, `seed-knowledge-graph`, `seed-physiology-graph`, `rxnorm-ingest-*`,
+  `terminology-load-chunk` and siblings, `kg-bindings-backfill`, `weekly-research-ingestion`,
+  `batch-calibration` — confirmed via its own header as a scheduled function, `auth-email-hook` —
+  confirmed as a Lovable auth webhook invoked by Supabase Auth config, not client code), 5 with
+  unclear purpose and no scheduling markers (`air-quality`, `load-reasoning-context`,
+  `normalize-medication`, `normalize-transcript`, `index-article`), and 4 genuinely dead,
+  clinically-named functions: `save-prescription` and `order-lab-tests` (superseded by
+  `Prescriptions.tsx` writing directly to the `prescriptions` table and by `Clinical.tsx` embedding
+  `lab_orders` directly into the `finalize-consultation` payload — the *generate-* AI-fallback
+  versions are live, the *save/order* direct-entry versions are not), and `patient-explanation` (no
+  replacement found, but explicitly named as a planned integration point in
+  `src/layers/ai-agents/api.ts` and `multilingual/api.ts`'s doc comments — described, never built).
+  Largest single item, unaffected by the correction: **`validate-clinical-system`, 1578 lines,
+  completely uncalled under both census passes** — a second full diagnostic pipeline (its own
+  world-model construction, syndrome-cluster detection, SOAP generation, Bayesian/DDx scoring) built
+  and never wired to anything.
 - **`src/layers/`:** a documented "10-Layer Clinical AI Architecture" (`ARCHITECTURE.md`, 306 lines).
   `src/layers/index.ts`, the aggregator that's supposed to be its front door, **has zero importers
   anywhere** — every real caller imports individual submodules directly
