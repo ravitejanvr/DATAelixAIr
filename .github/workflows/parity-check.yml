@@ -6,6 +6,15 @@ name: O1/O2 Parity Check
 # one flagged as "opt-in and never actually run" during the review that found
 # it — this workflow exists so that stops being true.
 #
+# UPDATE (2026-09-20): also runs the V4-bridge live parity test
+# (v4_bridge_live_parity.test.ts). Same live-edge-function requirement, same
+# CI test user, so it reuses this job rather than duplicating the
+# reachability probe + sign-in infrastructure in a second workflow. It checks
+# a different thing than the name implies (cockpit vs conversational bridge
+# fidelity, not O1 vs O2 engine parity, ROADMAP item 24) — kept in this
+# workflow deliberately, not renamed, given how fragile getting this required
+# check wired up correctly already proved below.
+#
 # CONFIRMED (2026-09-18, runs #1-2 on this workflow): GitHub-hosted runners
 # DO reach mhqdqilzkqvbgtygtlab.supabase.co — a raw probe got a real HTTP
 # response in <1s, not a connection failure. So this runs automatically on
@@ -80,5 +89,10 @@ jobs:
 
       - name: O1/O2 parity (live edge functions)
         run: RUN_PARITY_CHECK=1 npx vitest run src/tests/contract/benchmark_parity.test.ts
+        env:
+          PARITY_TEST_PASSWORD: ${{ secrets.PARITY_TEST_PASSWORD }}
+
+      - name: V4 bridge live parity (live edge functions)
+        run: RUN_PARITY_CHECK=1 npx vitest run src/tests/contract/v4_bridge_live_parity.test.ts
         env:
           PARITY_TEST_PASSWORD: ${{ secrets.PARITY_TEST_PASSWORD }}
