@@ -53,13 +53,61 @@ as it happens.
 
 **P1 — do next, determines what everything after is built on**
 
-| # | Item | Epic |
-|---|---|---|
-| 6 | Run the controlled V1-vs-V3 comparison on the real O1 path, same 120 cases, retrieval-vs-ranking split by organ system | Reasoning Engine |
-| 7 | Decide: keep V3, revert to V1, or scope differential ranking down entirely — record the decision and why | Reasoning Engine |
-| 8 | Kill the V2 shadow engine (pure waste regardless of the V1/V3 outcome) | Reasoning Engine |
-| 9 | Consolidate the three fragmented safety-detection mechanisms into one auditable path | Deterministic Safety |
-| 10 | Explicitly define and test must-not-miss escalation as its own deterministic surface, decoupled from full differential accuracy | Deterministic Safety |
+| # | Item | Epic | Status |
+|---|---|---|---|
+| 6 | Run the controlled V1-vs-V3 comparison on the real O1 path, same 120 cases, retrieval-vs-ranking split by organ system | Reasoning Engine | **Done 2026-09-20** — see decision record below. |
+| 7 | Decide: keep V3, revert to V1, or scope differential ranking down entirely — record the decision and why | Reasoning Engine | **Done 2026-09-20 — kept V3.** See decision record below. |
+| 8 | Kill the V2 shadow engine (pure waste regardless of the V1/V3 outcome) | Reasoning Engine | **Unblocked, not yet done** — item 7 landing removes the last reason to wait; do this next. |
+| 9 | Consolidate the three fragmented safety-detection mechanisms into one auditable path | Deterministic Safety | Next priority — the item 7 run is itself evidence for this (see below). |
+| 10 | Explicitly define and test must-not-miss escalation as its own deterministic surface, decoupled from full differential accuracy | Deterministic Safety | Next priority, alongside item 9. |
+
+### Item 6/7 decision record — V1 vs V3, 2026-09-20
+
+**Method.** 120 cases (50 noisy, 40 ambiguous, 30 adversarial/must-not-miss), real O1 production
+path (`runUnifiedClinicalPipeline`, not a benchmark-only pipeline), via the benchmark v10 dashboard's
+new V1-vs-V3 tool (`engine_force.ts` + `BenchmarkV10Panel.tsx`, added 2026-09-19 specifically for
+this). Each engine forced deterministically (not left to the default rollout bucket, which sends
+~90% of traffic to V1) and verified case-by-case against `PipelineResult.engine_audit.engine_version`
+— not trusted from a requested label, per the benchmark_v9/v10 dead-mode-parameter incident earlier
+the same day. Both runs' full 120-case exports were pulled via the new export mechanism
+(`export.ts`) and re-derived independently from raw data, not read off the dashboard: integrity
+confirmed 120/120 cases each run, zero cross-contamination (V1 run pure `v1`, V3 run pure `v3`).
+Run IDs: V1 = `v10_phase10_1789845935226`, V3 = `v10_phase10_1789883670632`.
+
+**Aggregate (V1 → V3):** Top-1 26%→38% (**+12pp**), Top-3 55%→63% (+8pp), Top-5 69%→74% (+5pp),
+candidate recall 80%→82% (+2pp), safety sensitivity 87%→91% (+4pp), safety specificity 37%→37%
+(0pp, unchanged by either engine), avg latency 32.1s→32.6s (+436ms).
+
+**Organ system (all 13 systems, recomputed from full data):** V3 improved or held in 12 of 13 —
+respiratory +31pp, gastrointestinal +22pp, renal +17pp, infectious +16pp, musculoskeletal +11pp,
+cardiovascular/neurological +5pp, psychiatric +50pp (n=2). One regression: endocrine -12pp (n=8,
+small sample, candidate recall actually improved 88%→100% — a ranking miss, not a recall miss).
+
+**Case level:** 16 regressions (all rank-degradation by 1-2 positions, or top-1 lost to a still-#2
+answer — only 2 of the 3 initially suspected were genuine near-misses: GI bleed→anemia, Dengue→
+influenza; the third, Graves'→hyperthyroidism, is a defensible relabeling within the same
+diagnosis) vs 44 improvements (many 0%→100% within-case top-1 gains, plus 3 cases where safety
+detection was restored). **Zero case-level safety-correct regressions anywhere in the 120 cases** —
+V3 never turns a correctly-flagged danger into a missed one.
+
+**The one real caveat:** the adversarial (must-not-miss) layer's top-5 accuracy regressed -7pp
+(67%→60%) despite a +3pp top-1 gain there, safety specificity stayed flat at 37% in *both* engines,
+and adversarial-layer latency was +3.2s slower under V3. V3's aggregate win does not clearly reach
+the safety-critical layer the way it reaches the general-accuracy layers.
+
+**Decision: keep V3 as the active engine.** The win is broad (12/13 organ systems), holds up under
+full-data verification (not just the dashboard's aggregate), and V1 offers no offsetting advantage
+anywhere — it is worse or equal on every metric that was measured. This does **not** reopen
+expanding V3's hand-coded state coverage (still off-limits, see "What's deliberately not in this
+backlog" below) — it only affirms the already-built engine as production default, which is a
+different decision from building more of it.
+
+**Why this isn't the end of the reasoning-engine question:** this run is itself the evidence for
+items 9 and 10. Overall ranking accuracy and must-not-miss detection moved independently of each
+other — V3 won broadly on the former and was flat-to-worse on the latter's harder edges (top-5,
+specificity, latency). A single blended accuracy number will keep hiding that split. Decouple the
+safety-critical surface (item 10) rather than chasing further ranking-layer tuning to fix a
+problem ranking tuning didn't cause.
 
 **Context for items 6–8 — what "V4" actually is (verified against Lovable/live source 2026-09-19):**
 V4 is not hypothetical and not fully shelved. An April 2026 audit (`.lovable/v3-v4-deep-audit.md`)
