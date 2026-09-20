@@ -27,7 +27,7 @@ export function forceEngine(version: EngineVersion): EngineForceHandle {
   const prevEngineConfig = getEngineConfig();
   const prevRolloutConfig = getRolloutConfig();
 
-  setEngineConfig({ active_engine: version, shadow_engine: null });
+  setEngineConfig({ active_engine: version });
   updateRolloutConfig({
     rollout_percentage: version === "v1" ? 0 : 100,
     enabled: true,
