@@ -58,8 +58,12 @@ as it happens.
 | 6 | Run the controlled V1-vs-V3 comparison on the real O1 path, same 120 cases, retrieval-vs-ranking split by organ system | Reasoning Engine | **Done 2026-09-20** — see decision record below. |
 | 7 | Decide: keep V3, revert to V1, or scope differential ranking down entirely — record the decision and why | Reasoning Engine | **Done 2026-09-20 — kept V3.** See decision record below. |
 | 8 | Kill the V2 shadow engine (pure waste regardless of the V1/V3 outcome) | Reasoning Engine | **Done 2026-09-20** — removed `engine_registry.ts`'s automatic fire-and-forget shadow run (`shadow_engine` config, the shadow branch in `runInference()`, `logShadowComparison()`) and the dead `SystemModeIndicator.tsx` display of it. Also removed genuinely-unused legacy V2-audit code found alongside it (`shouldUseV2`, `logV2Audit`, `getAuditBuffer` in `rollout_controller.ts` — defined, exported, never called anywhere). V2 itself (`ENGINE_REGISTRY.v2`, the "Latent-State" adapter and its edge function) is left in place and still explicitly selectable — only the automatic parallel invocation on every request is gone. |
-| 9 | Consolidate the three fragmented safety-detection mechanisms into one auditable path | Deterministic Safety | Next priority — the item 7 run is itself evidence for this (see below). |
-| 10 | Explicitly define and test must-not-miss escalation as its own deterministic surface, decoupled from full differential accuracy | Deterministic Safety | Next priority, alongside item 9. |
+| 9 | Consolidate the three fragmented safety-detection mechanisms into one auditable path | Deterministic Safety | Superseded by item 23 below — the ledger/override loop *is* the auditable path; build it once, wire consolidation into it rather than doing this separately. |
+| 10 | Explicitly define and test must-not-miss escalation as its own deterministic surface, decoupled from full differential accuracy | Deterministic Safety | Still open, still next after item 23 — the item 7 run is the evidence: overall ranking accuracy and must-not-miss detection moved independently, so this needs its own surface and its own tests. |
+| 23 | Make the conscience/override loop real: wire `ai-decision-ledger` (already built, zero callers) + `SafetyOverrideDialog` (already built, never rendered) into the live path, so every AI decision a doctor acts on is ledgered and every override requires acknowledgment + a logged reason, on top of the `safety_block`/`safety_override` gate `finalize-consultation` already enforces. Pull item 20 (Governance, P4) forward into this — it's the same work, don't build it twice. | Deterministic Safety / Governance | **In progress 2026-09-20** — see architecture-inventory + direction record below. |
+| 24 | Unify the O1 (`Clinical.tsx` cockpit) and V4 (`ClinicalInteraction.tsx` conversational) paths into one canonical pipeline producing a single SSAL, closing the authority rank-divergence gap found in the layers/services inventory | Reasoning Engine | Not started — sequenced after item 23 so the conscience loop covers the whole product, not half of it. |
+| 25 | Real-world data: read-only FHIR ingestion (meds, labs, problem list, prior encounters) feeding `context_engine`/`kg`, so reasoning isn't limited to one visit's transcript | Pre-Visit Brief / Reasoning Engine | Not started — new item, see direction record below. |
+| 26 | Delete confirmed-dead code from the architecture inventory (5 zero-importer service dirs, 5 zero-importer `src/layers/*` modules + the dead `layers/index.ts` aggregator, `validate-clinical-system` — a second, fully dead 1578-line diagnostic pipeline). Check whether `generate-prescription`/`save-prescription`/`order-lab-tests`/`generate-lab-orders` have unique external-integration value (pharmacy/lab hooks) the live direct-DB-write replacements lack before deleting those four. | Hygiene | Not started — low-risk cleanup, can run in parallel with 23–25. |
 
 ### Item 6/7 decision record — V1 vs V3, 2026-09-20
 
@@ -130,6 +134,78 @@ entrypoint, SSAL) already landed; only the scoring-engine slot is still open, an
 filling it, not V4. If V3 loses, the correct follow-on is scoping differential ranking down
 (item 7's third option) — not reviving the V4 rewrite.
 
+### Items 9/20/23-26 — architecture inventory and direction record, 2026-09-20
+
+**Why this exists.** After item 8 landed, the question turned from "fix the next bug" to "step back
+and reconsider the whole architecture" — prompted by how much had been built (layers, engines,
+agents, workflows, wrappers, guardrails) relative to how much of it is actually load-bearing. A full
+census was run across four trees: pages (57 routes), `src/services/*` (50 directories), Supabase
+edge functions (124), and `src/layers/*` (14 modules), using import-graph grep matching (path-segment
+patterns, not naive substring match — the first attempt undercounted and was discarded after it
+showed `pipeline` and `safety` with zero importers despite known real usage).
+
+**Findings.**
+- **Services:** the real O1/V4 pipeline core is well-connected (`bayesian_engine`, `ddx_engine`,
+  `hypothesis_engine`, `guideline_engine`, `context_engine`, `kg`, `evidence_planning`,
+  `meta_reasoning`, `uncertainty_engine`, `physiology_engine`, `oversight_engine`, `multi_agent`,
+  `pcie`, `reasoning_engine`, plus V4's `safety`/`confidence`/`completeness`/`cognitive`/`authority`/
+  `question_engine`/`session_context`/`scribe_adapter`/`conversation_engine`/`canonical`). Five
+  directories have zero importers anywhere: `clinical_reasoning`, `episodic_memory`,
+  `knowledge_extraction`, `knowledge_graph`, `learning_system`.
+- **Edge functions:** 45 of 124 are never referenced from `src/` or other functions. Of those: 1 is
+  a false positive of the census method (`_shared`), ~31 are legitimate one-off/scheduled scripts
+  correctly never called from client code (`expand-kg-batch*`, `expand-likelihoods-*`,
+  `seed-knowledge-graph`, `seed-physiology-graph`, `rxnorm-ingest-*`, `terminology-load-chunk` and
+  siblings, `kg-bindings-backfill`, `weekly-research-ingestion`, `batch-calibration` — confirmed via
+  its own header as a scheduled function, `auth-email-hook` — confirmed as a Lovable auth webhook
+  invoked by Supabase Auth config, not client code), ~9 have unclear purpose and no scheduling
+  markers (`elevenlabs-tts`, `google-tts`, `air-quality`, `load-reasoning-context`,
+  `normalize-drug-name`, `normalize-medication`, `normalize-transcript`, `index-article`,
+  `clinical-knowledge`), and 5 are genuinely dead, clinically-named code: `generate-prescription`/
+  `save-prescription` (superseded by `Prescriptions.tsx` writing directly to the `prescriptions`
+  table), `order-lab-tests`/`generate-lab-orders` (superseded by `Clinical.tsx` embedding
+  `lab_orders` directly into the `finalize-consultation` payload), and `patient-explanation` (no
+  replacement found). Largest single item: **`validate-clinical-system`, 1578 lines, completely
+  uncalled** — a second full diagnostic pipeline (its own world-model construction, syndrome-cluster
+  detection, SOAP generation, Bayesian/DDx scoring) built and never wired to anything.
+- **`src/layers/`:** a documented "10-Layer Clinical AI Architecture" (`ARCHITECTURE.md`, 306 lines).
+  `src/layers/index.ts`, the aggregator that's supposed to be its front door, **has zero importers
+  anywhere** — every real caller imports individual submodules directly
+  (`@/layers/safety/api`, `@/layers/workflow/api`, etc.), never the aggregator. Of the 13 submodules,
+  5 are entirely dead, reachable only through that same dead aggregator: `communication/api.ts`
+  (238 lines), `ethics/api.ts` (268 lines), `infrastructure/api.ts` (228 lines),
+  `integration/api.ts` (336 lines), `intelligence/api.ts` (202 lines) — 1,272 lines implementing 5
+  of the architecture's 10 named layers, none of it running.
+- **The recurring pattern:** across this session and the V4/safety-consolidation work before it, the
+  same shape keeps appearing — code built to spec, sometimes at real length, that never gets called
+  from anything that runs (four dead safety modules found earlier: `guardrail_engine`,
+  `oversight_engine`/`ai-decision-ledger`, `SafetyOverrideDialog`, `global-safety-engine`'s
+  `runSafetyEngine` wrapper; now the layers aggregator, 5 layer submodules, and
+  `validate-clinical-system`). This is a different shape from the four masking incidents in
+  CLAUDE.md (which hide a *running* system's failure) — it's scope that was designed and written but
+  never connected, consistent with breadth-first scaffolding (sketching the next architectural layer
+  before the current one is load-bearing).
+
+**Direction decided.** The stated product goal is an AI doctor with genuine reasoning depth *and* a
+real conscience — auditable decisions, logged overrides, explainable recommendations — not just
+differential-diagnosis accuracy. Cross-checked against the current clinical-AI landscape (Glass
+Health's integrated encounter-workflow model, Microsoft Copilot Health/MAI-DxO's orchestrator
+approach, OpenEvidence's reactive Q&A model) and FDA's 2026 Clinical Decision Support guidance (the
+non-device exemption turns on whether a clinician can *independently evaluate the basis* for a
+recommendation — explainability is a design constraint, not a later add-on). Also found: zero FHIR/
+HL7 ingestion anywhere in the codebase — the only mention is an honestly-framed "FHIR-ready" line on
+the public `/vision` page, not a live capability — meaning every diagnosis today reasons over one
+visit's transcript with no access to the patient's actual longitudinal record, a real and growing
+gap against where the field is moving.
+
+Decided ordering (items 23–26 above): **conscience loop first** (item 23 — cheapest high-leverage
+piece, everything it needs already exists as dead code, and it plausibly supports the FDA
+explainability requirement) → **pipeline unification** (item 24 — so the conscience loop and every
+future improvement covers the whole product, not just the cockpit half) → **real-world data** (item
+25, parallelizable with 24) → **dead-code cleanup** (item 26, parallelizable with all of the above) →
+**learning loop** (item 27, P4 — deferred until item 23 is producing real decision/outcome data to
+learn from).
+
 **P2 — the actual product**
 
 | # | Item | Epic |
@@ -153,9 +229,10 @@ filling it, not V4. If V3 loses, the correct follow-on is scoping differential r
 |---|---|---|
 | 18 | Clinical safety case | Governance |
 | 19 | DPDP Act data-protection impact assessment | Governance |
-| 20 | Clinician override logging | Governance |
+| 20 | Clinician override logging | Governance — **pulled forward to P1 item 23, 2026-09-20.** Not duplicated; when 23 lands, this is done too. |
 | 21 | Incident process | Governance |
 | 22 | Identify and agree 2–3 pilot clinics | Governance |
+| 27 | Learning loop: wire `learning_system`/`episodic_memory` (both currently dead, zero importers) to learn from the AI-decision-ledger's accept/reject/override history once item 23 is producing real data | Learning | Deferred — sequenced last, needs item 23's data to exist before there's anything to learn from. |
 
 **Parallel lane — not sprint-blocking, ongoing**
 
@@ -181,6 +258,14 @@ deterministic safety layer trustworthy.
 - Items 6–10.
 - **Sprint review question:** is the decision on V1/V3 written down with evidence, and does the
   must-not-miss layer have its own test coverage independent of overall diagnostic accuracy?
+
+### Sprint 1.5 — Architecture Reconsideration
+**Goal:** stop scaffolding new layers and make the conscience loop the system actually already has
+on paper into something that actually runs, across the whole product, before building anything new.
+- Items 23–26 (conscience loop, pipeline unification, real-world data ingestion, dead-code cleanup).
+- **Sprint review question:** does every AI decision a doctor acts on in the live app get ledgered,
+  does every override require acknowledgment and a logged reason, and is there a regression test
+  that fails if a decision reaches the database without going through that gate?
 
 ### Sprint 2–3 — Pre-Visit Brief MVP
 **Goal:** the actual product exists, in the narrow form already spec'd, using the LLM+retrieval
