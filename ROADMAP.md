@@ -268,6 +268,20 @@ separate question of whether V4's safety layer is redundant with the `clinical-s
 item 23, not reopened here). Not a rebuild, no new architecture, no files beyond the bridge and its
 test touched — consistent with the Architecture Freeze v1.0 still in effect.
 
+**Live verification, 2026-09-20.** Added `v4_bridge_live_parity.test.ts` (opt-in, same CI test user
+and live-edge-function requirement as `benchmark_parity.test.ts`) and wired it into
+`parity-check.yml` as a second step. Ran twice via `workflow_dispatch`: the first attempt was
+cancelled prematurely — misread normal per-case pacing (`hybrid_reasoning` retries once after an
+8s timeout, so each live case takes ~25-30s) as a hang after repeatedly checking the run-level
+`updated_at` timestamp, which doesn't update during job execution; the job-level step log showed it
+had actually been progressing correctly the whole time. Re-ran and let it finish: **both new
+assertions passed against real, live pipeline output** — `o1ResultToV4Reasoning(realO1Result)
+.v3Diagnoses matches realO1Result.bayesian.diagnoses order` (81.8s, 3 live cases) and
+`runClinicalPipelineV4 runs end-to-end on real cases and produces a non-empty SSAL` (88.4s, 3 live
+cases) — plus the pre-existing O1/O2 parity check, unaffected by this change, also passed. This is
+real evidence the fix holds in production conditions, not just against the synthetic fixture in
+`orchestrator_bridge.test.ts`.
+
 **P2 — the actual product**
 
 | # | Item | Epic |
