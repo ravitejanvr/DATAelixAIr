@@ -321,6 +321,12 @@ function computeLayerMetrics(results: CaseResult[], layer: BenchmarkLayer): Laye
 // ── Persist results to database ──
 
 async function persistRun(runResult: SuiteRunResult): Promise<void> {
+  // Engine actually executed across this run's cases — not a requested label.
+  // See engine_force.ts / CLAUDE.md 2026-09-19. Stashed in metrics_summary
+  // since benchmark_suite_runs has no dedicated column.
+  const engineVersions = new Set(runResult.results.map(r => r.engine_version).filter(Boolean));
+  const engine_version = engineVersions.size === 1 ? [...engineVersions][0] : engineVersions.size === 0 ? null : "mixed";
+
   const { error: runError } = await supabase.from("benchmark_suite_runs").insert({
     run_id: runResult.run_id,
     benchmark_version: runResult.benchmark_version,
@@ -329,7 +335,7 @@ async function persistRun(runResult: SuiteRunResult): Promise<void> {
     total_cases: runResult.total_cases,
     passed: runResult.passed,
     failed: runResult.failed,
-    metrics_summary: runResult.aggregate_metrics as any,
+    metrics_summary: { ...runResult.aggregate_metrics, engine_version } as any,
     layer_metrics: runResult.layer_metrics as any,
     regression_count: 0,
     improvement_count: 0,
