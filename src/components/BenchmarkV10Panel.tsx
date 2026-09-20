@@ -21,11 +21,12 @@ import {
 import {
   Loader2, CheckCircle, XCircle, AlertTriangle, Clock, Brain,
   Activity, Shield, ChevronDown, ChevronUp, Zap, Target,
-  GitCompare, BarChart3, Layers, FileText,
+  GitCompare, BarChart3, Layers, FileText, Download, History,
 } from "lucide-react";
 import {
   runV10Suite, compareV10Runs, computeOrganSystemMetrics, diffOrganSystemMetrics,
   ALL_NEW_CASES, generateAuditReport, type OrganSystemMetric,
+  listRecentRuns, downloadRun, downloadAsJson, type RunSummary,
 } from "@/services/benchmark_v10";
 import type {
   SuiteRunResult, SuiteComparison, CaseResult, LayerMetrics, BenchmarkLayer,
@@ -462,8 +463,30 @@ export default function BenchmarkV10Panel() {
   const [progress, setProgress] = useState<V10RunProgress | null>(null);
   const [expandedCase, setExpandedCase] = useState<string | null>(null);
   const [activeLayer, setActiveLayer] = useState<string>("all");
+  const [recentRuns, setRecentRuns] = useState<RunSummary[] | null>(null);
+  const [loadingRuns, setLoadingRuns] = useState(false);
+  const [downloadingRunId, setDownloadingRunId] = useState<string | null>(null);
 
   const handleProgress = useCallback((p: V10RunProgress) => setProgress(p), []);
+
+  const loadRecentRuns = useCallback(async () => {
+    setLoadingRuns(true);
+    try {
+      setRecentRuns(await listRecentRuns(15));
+    } finally {
+      setLoadingRuns(false);
+    }
+  }, []);
+
+  const handleDownloadRun = useCallback(async (runId: string) => {
+    setDownloadingRunId(runId);
+    try {
+      const ok = await downloadRun(runId);
+      if (!ok) console.error(`[BenchmarkV10Panel] Failed to download run ${runId}`);
+    } finally {
+      setDownloadingRunId(null);
+    }
+  }, []);
 
   /** Single-engine run — forces the given engine for every case, no comparison. */
   const runSingleEngine = useCallback(async (version: EngineVersion) => {
@@ -563,6 +586,65 @@ export default function BenchmarkV10Panel() {
         </div>
       </div>
 
+      {/* Past Runs — export any previously persisted run without re-running it */}
+      <Card>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <History className="h-4 w-4 text-primary" /> Past Runs
+          </CardTitle>
+          <Button size="sm" variant="outline" className="text-[10px] h-7" onClick={loadRecentRuns} disabled={loadingRuns}>
+            {loadingRuns ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+            {recentRuns ? "Refresh" : "Load Recent Runs"}
+          </Button>
+        </CardHeader>
+        {recentRuns && (
+          <CardContent className="p-0">
+            {recentRuns.length === 0 ? (
+              <p className="text-xs text-muted-foreground p-3">No persisted runs found.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Run</TableHead>
+                    <TableHead className="text-xs">Engine</TableHead>
+                    <TableHead className="text-xs text-right">Cases</TableHead>
+                    <TableHead className="text-xs text-right">Passed</TableHead>
+                    <TableHead className="text-xs"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentRuns.map(r => (
+                    <TableRow key={r.run_id}>
+                      <TableCell className="text-xs">
+                        <div className="font-mono text-[10px]">{r.run_id}</div>
+                        <div className="text-[10px] text-muted-foreground">{new Date(r.created_at).toLocaleString()}</div>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <Badge variant="outline" className="text-[9px]">{(r.engine_version ?? "unknown").toUpperCase()}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-right font-mono">{r.total_cases}</TableCell>
+                      <TableCell className="text-xs text-right font-mono">{r.passed}/{r.total_cases}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm" variant="outline" className="text-[10px] h-7"
+                          disabled={downloadingRunId === r.run_id}
+                          onClick={() => handleDownloadRun(r.run_id)}
+                        >
+                          {downloadingRunId === r.run_id
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <><Download className="h-3 w-3 mr-1" /> Download</>
+                          }
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
       {/* Running indicator */}
       {running && (
         <Card>
@@ -606,10 +688,18 @@ export default function BenchmarkV10Panel() {
             </Card>
           )}
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
               <CardTitle className="text-sm flex items-center gap-1.5">
                 <BarChart3 className="h-4 w-4 text-primary" /> V1 vs V3 Comparison — {ALL_NEW_CASES.length} cases, real O1 path
               </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-[10px] h-7"
+                onClick={() => downloadAsJson(`v1-vs-v3-${Date.now()}.json`, engineComparison)}
+              >
+                <Download className="h-3 w-3 mr-1" /> Download Full Results (JSON)
+              </Button>
             </CardHeader>
             <CardContent>
               <V10ComparisonPanel comparison={engineComparison.comparison} labelA="V1" labelB="V3" />
