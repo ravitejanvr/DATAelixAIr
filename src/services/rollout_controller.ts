@@ -1,9 +1,11 @@
 /**
- * V2 Engine Rollout Controller
- * 
- * Controls staged activation of the probabilistic engine V2.
+ * Engine Rollout Controller
+ *
+ * Controls staged activation of the promoted engine (V3 as of the item
+ * 6/7 decision, see ROADMAP.md — this file predates that and its comments
+ * used to say V2; the default engine, not the rollout mechanism, changed).
  * ALL users are deterministically bucketed — no exceptions.
- * Admins/internal users get rollout_percentage = 100 (always V2).
+ * Admins/internal users get rollout_percentage = 100 (always the promoted engine).
  */
 
 export interface RolloutConfig {
@@ -13,15 +15,12 @@ export interface RolloutConfig {
   internal_user_ids: string[];
   /** Whether rollout is active at all */
   enabled: boolean;
-  /** Log predictions above this confidence for audit */
-  high_confidence_audit_threshold: number;
 }
 
 const DEFAULT_ROLLOUT: RolloutConfig = {
   rollout_percentage: 10,
   internal_user_ids: [],
   enabled: true,
-  high_confidence_audit_threshold: 0.85,
 };
 
 let currentConfig: RolloutConfig = { ...DEFAULT_ROLLOUT };
@@ -115,21 +114,6 @@ export function selectEngine(input: RolloutInput): RolloutDecision {
   return decision;
 }
 
-/**
- * Legacy API — delegates to selectEngine.
- */
-export function shouldUseV2(userId?: string, visitId?: string): boolean {
-  const decision = selectEngine({ userId, sessionId: visitId });
-  return decision.engine_selected === "v2";
-}
-
-/**
- * Check if a prediction should be audit-logged based on confidence.
- */
-export function shouldAuditLog(topConfidence: number): boolean {
-  return topConfidence >= currentConfig.high_confidence_audit_threshold;
-}
-
 /** Simple deterministic hash for consistent bucketing */
 function simpleHash(str: string): number {
   let hash = 0;
@@ -139,42 +123,4 @@ function simpleHash(str: string): number {
     hash = hash & hash;
   }
   return Math.abs(hash);
-}
-
-// ── Audit Logger ──
-
-export interface V2AuditEntry {
-  visit_id: string;
-  engine: EngineVersion;
-  top_diagnosis_id: string;
-  top_confidence: number;
-  v1_v2_delta?: number;
-  ranking_changed: boolean;
-  timestamp: string;
-}
-
-const auditBuffer: V2AuditEntry[] = [];
-const AUDIT_FLUSH_SIZE = 20;
-
-export function logV2Audit(entry: V2AuditEntry): void {
-  auditBuffer.push(entry);
-  console.log(
-    `[V2Audit] ${entry.engine.toUpperCase()} | top=${entry.top_diagnosis_id.substring(0, 8)} ` +
-    `conf=${(entry.top_confidence * 100).toFixed(1)}% | delta=${entry.v1_v2_delta?.toFixed(3) ?? "N/A"} | ` +
-    `rank_changed=${entry.ranking_changed}`
-  );
-
-  if (auditBuffer.length >= AUDIT_FLUSH_SIZE) {
-    flushAuditBuffer();
-  }
-}
-
-export function getAuditBuffer(): readonly V2AuditEntry[] {
-  return auditBuffer;
-}
-
-async function flushAuditBuffer(): Promise<void> {
-  if (auditBuffer.length === 0) return;
-  const batch = auditBuffer.splice(0, auditBuffer.length);
-  console.log(`[V2Audit] Flushed ${batch.length} audit entries`);
 }
