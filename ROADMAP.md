@@ -57,7 +57,7 @@ as it happens.
 |---|---|---|---|
 | 6 | Run the controlled V1-vs-V3 comparison on the real O1 path, same 120 cases, retrieval-vs-ranking split by organ system | Reasoning Engine | **Done 2026-09-20** — see decision record below. |
 | 7 | Decide: keep V3, revert to V1, or scope differential ranking down entirely — record the decision and why | Reasoning Engine | **Done 2026-09-20 — kept V3.** See decision record below. |
-| 8 | Kill the V2 shadow engine (pure waste regardless of the V1/V3 outcome) | Reasoning Engine | **Unblocked, not yet done** — item 7 landing removes the last reason to wait; do this next. |
+| 8 | Kill the V2 shadow engine (pure waste regardless of the V1/V3 outcome) | Reasoning Engine | **Done 2026-09-20** — removed `engine_registry.ts`'s automatic fire-and-forget shadow run (`shadow_engine` config, the shadow branch in `runInference()`, `logShadowComparison()`) and the dead `SystemModeIndicator.tsx` display of it. Also removed genuinely-unused legacy V2-audit code found alongside it (`shouldUseV2`, `logV2Audit`, `getAuditBuffer` in `rollout_controller.ts` — defined, exported, never called anywhere). V2 itself (`ENGINE_REGISTRY.v2`, the "Latent-State" adapter and its edge function) is left in place and still explicitly selectable — only the automatic parallel invocation on every request is gone. |
 | 9 | Consolidate the three fragmented safety-detection mechanisms into one auditable path | Deterministic Safety | Next priority — the item 7 run is itself evidence for this (see below). |
 | 10 | Explicitly define and test must-not-miss escalation as its own deterministic surface, decoupled from full differential accuracy | Deterministic Safety | Next priority, alongside item 9. |
 

@@ -33,7 +33,7 @@ export default function SystemModeIndicator() {
       <Badge
         variant="outline"
         className="gap-1 text-[10px] font-mono border-primary/40 text-primary bg-primary/5"
-        title={`Engine: ${engineConfig.active_engine.toUpperCase()} | Shadow: ${engineConfig.shadow_engine?.toUpperCase() || "none"}`}
+        title={`Engine: ${engineConfig.active_engine.toUpperCase()}`}
       >
         <Cpu className="h-3 w-3" />
         {engineConfig.active_engine.toUpperCase()}

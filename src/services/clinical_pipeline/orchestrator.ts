@@ -77,7 +77,7 @@ import { applyFailureDerivedRules } from "@/services/clinical_pipeline/failure_d
 import { mergeActivations, expandKG } from "@/services/kg";
 import { isPhase5ContextCandidatesEnabled, isBayesianSystemicLikelihoodEnabled, isClinicalPriorityResolutionEnabled, isProbabilisticEngineV2Enabled } from "@/services/feature_flags";
 import { detectContextAwareSafetyFlags } from "@/services/context_engine/context_aware_safety";
-import { shouldUseV2, shouldAuditLog, logV2Audit, getRolloutConfig, selectEngine } from "@/services/rollout_controller";
+import { getRolloutConfig, selectEngine } from "@/services/rollout_controller";
 import { runInference, getActiveEngineVersion, type EngineVersion, type InferenceResult } from "@/services/engine_registry";
 
 // ── Public Types ──
