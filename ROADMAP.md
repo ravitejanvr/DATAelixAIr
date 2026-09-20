@@ -61,7 +61,7 @@ as it happens.
 | 9 | Consolidate the three fragmented safety-detection mechanisms into one auditable path | Deterministic Safety | Superseded by item 23 below — the ledger/override loop *is* the auditable path; build it once, wire consolidation into it rather than doing this separately. |
 | 10 | Explicitly define and test must-not-miss escalation as its own deterministic surface, decoupled from full differential accuracy | Deterministic Safety | Still open, still next after item 23 — the item 7 run is the evidence: overall ranking accuracy and must-not-miss detection moved independently, so this needs its own surface and its own tests. |
 | 23 | Make the conscience/override loop real: wire `ai-decision-ledger` (already built, zero callers) + `SafetyOverrideDialog` (already built, never rendered) into the live path, so every AI decision a doctor acts on is ledgered and every override requires acknowledgment + a logged reason, on top of the `safety_block`/`safety_override` gate `finalize-consultation` already enforces. Pull item 20 (Governance, P4) forward into this — it's the same work, don't build it twice. | Deterministic Safety / Governance | **First slice done 2026-09-20** — `Clinical.tsx`'s finalize flow now renders `SafetyOverrideDialog` (instead of relying on the generic review checkbox) whenever `safetyResults` contains a critical/blocking-severity alert, and records an `ai-decision-ledger` entry on every finalize via the new `buildFinalizeLedgerEntry()` (`src/services/oversight_engine/finalize_ledger.ts`) — `overridden`/`safety_override` with the logged reason when critical alerts exist, `accepted`/`safety_review` otherwise. `buildFinalizeLedgerEntry` throws (blocking finalize) if critical alerts exist with no ≥10-char reason — this is what makes the loop unbypassable from calling code, not just discouraged by the dialog; regression-tested in `finalize_ledger.test.ts` (9 cases). **Scope not yet covered, tracked as fast-follow:** this ledgers the finalize-time safety decision only, not every individual AI suggestion (e.g. per-diagnosis-candidate accept/reject) — "every AI decision" from the direction record is not fully met yet. Also not yet done: this only covers the O1/`Clinical.tsx` cockpit path — `ClinicalInteraction.tsx` (V4) has no equivalent gate yet, which is exactly the item-24 pipeline-unification gap. |
-| 24 | Unify the O1 (`Clinical.tsx` cockpit) and V4 (`ClinicalInteraction.tsx` conversational) paths into one canonical pipeline producing a single SSAL, closing the authority rank-divergence gap found in the layers/services inventory | Reasoning Engine | Not started — sequenced after item 23 so the conscience loop covers the whole product, not half of it. |
+| 24 | Unify the O1 (`Clinical.tsx` cockpit) and V4 (`ClinicalInteraction.tsx` conversational) paths into one canonical pipeline producing a single SSAL, closing the authority rank-divergence gap found in the layers/services inventory | Reasoning Engine | **Root cause found and fixed 2026-09-20** — see decision record below. Not a rebuild: one function's field selection was wrong. |
 | 25 | Real-world data: read-only FHIR ingestion (meds, labs, problem list, prior encounters) feeding `context_engine`/`kg`, so reasoning isn't limited to one visit's transcript | Pre-Visit Brief / Reasoning Engine | Not started — new item, see direction record below. |
 | 26 | Delete confirmed-dead code from the architecture inventory (5 zero-importer service dirs, 5 zero-importer `src/layers/*` modules + the dead `layers/index.ts` aggregator, `validate-clinical-system` — a second, fully dead 1578-line diagnostic pipeline, `save-prescription`, `order-lab-tests`, `patient-explanation`). Note: `generate-prescription` and `generate-lab-orders` were originally miscategorized as dead in the first census pass below and are **not** to be deleted — see the correction note in the decision record. | Hygiene | Not started — low-risk cleanup, can run in parallel with 23–25. |
 
@@ -218,6 +218,55 @@ future improvement covers the whole product, not just the cockpit half) → **re
 25, parallelizable with 24) → **dead-code cleanup** (item 26, parallelizable with all of the above) →
 **learning loop** (item 27, P4 — deferred until item 23 is producing real decision/outcome data to
 learn from).
+
+### Item 24 decision record — pipeline unification root cause, 2026-09-20
+
+**Context for this record.** Coming into this, the working theory (from the layers/services
+inventory) was that the cockpit/conversational divergence was an architectural-fragmentation
+problem — two independently-evolved ranking systems (O1's `clinical_priority_resolution.ts` vs
+V4's `authority/resolveAuthority()`) that would need reconciling. Given this product has already
+been through multiple prior architecture-rebuild and pipeline-finalization iterations that didn't
+stick, that theory was investigated fully — read `authority/index.ts`, `pipeline/index.ts`,
+`orchestrator_bridge.ts`, `clinical_priority_resolution.ts`, and `ssal_name_resolution.ts` in full —
+before writing any code, specifically to avoid proposing another rebuild.
+
+**What was actually found: a one-function bridge bug, not an architecture problem.**
+`orchestrator_bridge.ts`'s `o1ResultToV4Reasoning()` — the mapping function that exists
+specifically so V4 (`ClinicalInteraction.tsx`) reasons through O1 (`runUnifiedClinicalPipeline`)
+instead of running a second pipeline ("No reasoning happens here — mapping only," per its own
+header) — built `v3Diagnoses` (which feeds `resolveAuthority()`'s final ranking) from
+`result.ddx.differential_diagnoses`: the raw, pre-fusion DDX candidate list. It should have used
+`result.bayesian.diagnoses` (fusedBayesian) — O1's own actual final ranking, which
+`orchestrator.ts` itself treats as canonical (its own SOAP generation comment: *"SSAL: Use
+fusedBayesian (post-override) for SOAP diagnosis ranking"*) and which `Clinical.tsx` (cockpit)
+already consumes correctly. fusedBayesian carries `clinical_priority_resolution.ts`'s must-not-miss
+rank promotion, evidence-updated posteriors, and resolved `diagnosis_name`/`rank`
+(`enrichBayesianWithNames`) — none of which the raw DDX list has. Reading the wrong field meant V4
+silently re-derived a different ranking from an earlier, unprocessed stage of O1's own pipeline,
+then ran its own separate (and simpler, text-match-based) safety promotion on top of that already-
+wrong base. That's the entire root cause — not two architectures needing reconciliation, one
+function reading the wrong property on a type it already had access to.
+
+**Fix.** Changed `o1ResultToV4Reasoning()` to source `v3Diagnoses` from `result.bayesian.diagnoses`
+(with a fallback to the DDX list only when `bayesian` is unavailable — mirroring O1's own
+fusedBayesian-unavailable fallback pattern, not a second independent path). `ddxCandidates` (which
+feeds V4's cognitive/completeness layers and genuinely needs the DDX shape —
+`supporting_features`/`contradicting_features`/`category`, absent from `BayesianDiagnosis`) is
+unchanged. Confirmed the fix actually reaches the UI: `ClinicalInteraction.tsx` renders
+`result.ssal.diagnoses` directly (line 469), which is now built from the corrected `v3Diagnoses`.
+Regression test (`orchestrator_bridge.test.ts`, 4 cases) constructs a case where DDX's raw order and
+fusedBayesian's priority-resolved order disagree (a must-not-miss diagnosis promoted to rank 1) and
+asserts the bridge reflects fusedBayesian's order, not DDX's — this is what would have caught the
+original bug. Full suite green (18 files, 69 passed, 2 skipped pending live auth), `tsc -b --noEmit`
+clean.
+
+**What this does and doesn't close.** This makes both UIs reason from the same final ranking data —
+the primary source of divergence. It does **not** touch `resolveAuthority()`'s own additional
+safety-promotion step (V4-only, driven by V4's separate `analyzeSafety()` layer) — that's a smaller,
+separate question of whether V4's safety layer is redundant with the `clinical-safety` edge function
+`Clinical.tsx` calls directly, which is item 9's fragmented-safety-detection territory (deferred into
+item 23, not reopened here). Not a rebuild, no new architecture, no files beyond the bridge and its
+test touched — consistent with the Architecture Freeze v1.0 still in effect.
 
 **P2 — the actual product**
 

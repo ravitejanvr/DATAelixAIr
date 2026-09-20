@@ -76,6 +76,9 @@ export function v4InputToO1Input(input: V4PipelineInput): O1PipelineInput {
 export function o1ResultToV4Reasoning(result: O1PipelineResult | null): BridgedReasoning {
   const ranked = result?.ddx?.differential_diagnoses || [];
 
+  // ddxCandidates feed the cognitive/completeness layers, which need the raw
+  // DDX shape (supporting/contradicting feature IDs, category) — that part of
+  // the bridge is correct as-is and stays sourced from the DDX engine output.
   const ddxCandidates: DDXCandidate[] = ranked.map((d: any) => ({
     diagnosis_id: String(d.diagnosis_id ?? d.diagnosis_name ?? ""),
     diagnosis_name: String(d.diagnosis_name ?? ""),
@@ -90,13 +93,36 @@ export function o1ResultToV4Reasoning(result: O1PipelineResult | null): BridgedR
     category: String(d.category ?? d.system ?? "unspecified"),
   }));
 
-  const v3Diagnoses = ranked.map((d: any, i: number) => ({
-    diagnosis_id: String(d.diagnosis_id ?? d.diagnosis_name ?? ""),
-    diagnosis_name: String(d.diagnosis_name ?? ""),
-    probability: Number(d.probability ?? 0),
-    rank: i + 1,
-    source: "o1_unified_pipeline",
-  }));
+  // v3Diagnoses feeds resolveAuthority()'s final ranking — this must be O1's
+  // actual final output (fusedBayesian, on `result.bayesian`), not the raw
+  // pre-fusion DDX candidate list. O1 itself treats `bayesian.diagnoses` as
+  // canonical for ranking (see orchestrator.ts's own SOAP generation: "Use
+  // fusedBayesian (post-override) for SOAP diagnosis ranking") — it carries
+  // clinical-priority-resolution's must-not-miss promotion, evidence-updated
+  // posteriors, and resolved diagnosis_name/rank (enrichBayesianWithNames),
+  // none of which the raw DDX list has. Reading `ddx.differential_diagnoses`
+  // here silently discarded all of that and let V4 re-derive a *different*
+  // ranking from earlier, unprocessed data — the root cause of the cockpit
+  // (O1/Clinical.tsx) vs conversational (V4/ClinicalInteraction.tsx) rank
+  // divergence found in the 2026-09-20 architecture inventory (ROADMAP item 24).
+  const bayesianDiagnoses = result?.bayesian?.diagnoses;
+  const v3Diagnoses = bayesianDiagnoses && bayesianDiagnoses.length > 0
+    ? bayesianDiagnoses.map((d: any, i: number) => ({
+        diagnosis_id: String(d.diagnosis_id ?? ""),
+        diagnosis_name: String(d.diagnosis_name ?? d.diagnosis_id ?? ""),
+        probability: Number(d.posterior_probability ?? 0),
+        rank: Number(d.rank ?? i + 1),
+        source: "o1_fused_bayesian",
+      }))
+    : ranked.map((d: any, i: number) => ({
+        // Fallback only: mirrors orchestrator.ts's own fusedBayesian-unavailable
+        // fallback to the raw DDX list, not a second independent ranking path.
+        diagnosis_id: String(d.diagnosis_id ?? d.diagnosis_name ?? ""),
+        diagnosis_name: String(d.diagnosis_name ?? ""),
+        probability: Number(d.probability ?? 0),
+        rank: i + 1,
+        source: "o1_unified_pipeline_ddx_fallback",
+      }));
 
   return { ddxCandidates, v3Diagnoses, o1Result: result ?? null };
 }
