@@ -37,6 +37,108 @@ Research (the governance/verification paper, the terminology-platform paper, PhD
 runs in parallel throughout — it isn't a phase, it's a lane that draws evidence from every phase
 as it happens.
 
+**Current top priority, 2026-09-24: publish on arXiv.** The immediate goal is a decent, honest,
+defensible paper — weight for a PhD application in AI health, not a comprehensive research program.
+Engineering work (items 25–26) is paused, not abandoned — see "Publication priority" below for the
+topic decision and outline.
+
+---
+
+## Publication priority (active, 2026-09-24)
+
+**Why this jumps the queue.** A PhD application needs evidence of real research capability now, not
+after the product is pilot-ready — that timeline doesn't fit an application cycle. Three candidate
+topics were assessed against a strict bar: novel enough to be worth writing, defensible without
+overclaiming (this project has repeatedly refused to publish accuracy numbers it can't back — a
+paper is the same discipline, in public, permanently), and genuinely near-complete rather than
+requiring new work to invent.
+
+### Candidate 1 — Terminology ingestion pipeline (RECOMMENDED — start here)
+
+**What it is.** The SNOMED CT ingestion platform already built and running:
+`docs/terminology-pipeline.md`, `docs/terminology-e2e-report.md`, `.lovable/a7-terminology-binding-report.md`.
+A resource-constrained (serverless edge function: 256 MB / 150 s per invocation, no `COPY FROM
+STDIN` support) chunked, resumable, idempotent loader for a 500k+ row biomedical ontology into a
+generic FHIR-shaped terminology store designed to host RxNorm/ICD/LOINC/UCUM/ATC without further
+migrations, driven by `pg_cron` rather than a long-lived worker. Concrete measured results already
+exist: ~35k rows/s at batch=5000 (vs ~10.5k at batch=1000), a synthetic E2E harness that exercises
+the complete production pipeline safely and self-cleans, an automated post-import verification suite
+(orphan relationships, duplicate codes, broken hierarchy targets, search-index shortfall), and a
+downstream KG-identity-resolution layer with measured shadow-parity results (87/87 concepts bound,
+0 collisions, 0 divergences, activated with zero added runtime latency since resolution is offline).
+
+**Why this is the fastest real submission.** Every number in the paper already exists and was
+already measured, not invented for publication. It makes zero clinical-accuracy claims, so it
+carries none of the "unverified" risk the rest of this roadmap has spent real effort avoiding — it's
+a systems/data-engineering contribution (practical constraints and solutions for ingesting large
+biomedical ontologies under serverless resource limits), not a clinical-AI-efficacy one. Natural
+target: a workshop paper or short systems paper (e.g. an MLHC/CHIL/AMIA workshop track, or a direct
+arXiv cs.DB/cs.CL preprint) — realistic to draft from existing internal docs plus the measured
+numbers already in git history.
+
+**Working outline:**
+1. Problem: biomedical ontology ingestion (SNOMED CT, ~500k+ concepts) assumed to need a persistent
+   worker/ETL host; can it run entirely on serverless edge functions with hard per-invocation limits?
+2. Platform constraints discovered empirically (the "Platform decisions" table — each row is a
+   measured negative or positive result, not a design guess) and the architecture they forced:
+   chunked batched-INSERT over `COPY FROM STDIN`, cron-driven queue over long-lived worker, staging/
+   generic schema separation.
+3. Correctness under this architecture: the automated post-import verification suite as the
+   mechanism that makes "resumable, chunked, idempotent" a checkable property rather than a claim —
+   and the synthetic E2E harness as a repeatable, production-data-safe way to test the *actual*
+   pipeline rather than a mock of it.
+4. Downstream payoff: deterministic, offline KG-to-terminology identity resolution (measured 100%
+   coverage, 0 collisions, 0 divergence, no runtime latency cost) as a worked example of what the
+   platform enables once it exists.
+5. Limitations, honestly: single-institution, one ontology fully proven end-to-end (SNOMED CT) with
+   the multi-code-system design not yet exercised on a second system; no claim about diagnostic
+   accuracy or clinical outcomes anywhere in the paper.
+
+### Candidate 2 — Silent verification failure in AI-assisted clinical software development
+
+**What it is.** CLAUDE.md's standing rule already tracks four dated, real incidents where a
+verification mechanism kept reporting green while the thing it was supposed to verify had silently
+stopped being true: the March 2026 O1/O2 benchmark split, the CI auth-fallback masking (2026-09-18),
+the benchmark_v9/v10 dead-`mode`-parameter bug (2026-09-19, ~6 months undetected), and the bare
+`tsc --noEmit` no-op baked into the project's own documented typecheck command (found the same day).
+This session's architecture inventory (2026-09-20) surfaced a fifth, related-but-distinct pattern —
+"born dead" code (safety modules, an entire aggregator layer, a 1578-line second diagnostic pipeline,
+all written to spec and never wired to anything that runs) — which isn't masking exactly, but is the
+same root cause from the other direction: verification (tests, type-checks, code review) that checks
+naming and shape but never checks whether a thing is actually in the call graph.
+
+**Why this is higher-novelty but slower.** Most AI-safety and software-verification literature
+addresses models failing or tests being absent; this is the narrower, more specific claim that
+*verification infrastructure itself* can silently decay under AI-assisted (and specifically
+AI-pair-programmed / "vibe-coded") development in ways traditional code review doesn't catch,
+with a project's own git history as the case-study evidence. That's a genuinely novel framing worth
+a paper — but unlike Candidate 1, the material exists as scattered incident notes, not a coherent
+document, and a credible paper needs a real taxonomy (not just a list) and honest positioning
+against existing software-testing/verification-decay literature. More writing effort, higher ceiling.
+
+### Candidate 3 — Decoupled safety-layer evaluation for clinical differential-diagnosis systems
+
+**What it is.** The V1-vs-V3 decision record (item 6/7 above) already contains the empirical basis:
+aggregate accuracy improved broadly (Top-1 +12pp) while the adversarial/must-not-miss layer's top-5
+accuracy *regressed* (-7pp) and safety specificity stayed flat — a single blended accuracy number
+would have hidden that split entirely. The methodological claim — aggregate diagnostic-accuracy
+metrics can mask safety-critical regressions in specific severity strata, so evaluation of clinical
+DDx systems needs the safety-critical surface decoupled and reported separately — is defensible as a
+framework/methods contribution.
+
+**Why this needs the most careful framing.** The underlying case data is 120 internally-authored
+benchmark cases, not externally-provenanced or clinician-reviewed ground truth (that's P3, items
+15–17, not done yet). Framed as "here is a decoupled evaluation methodology, demonstrated on our own
+benchmark suite, with the specific failure mode it would have caught" — defensible. Framed as a
+claim about this system's actual clinical accuracy or safety — not defensible yet, and would
+undermine the credibility of the other two candidates if conflated with either.
+
+**Decision: start with Candidate 1.** It is the only one of the three that requires assembly, not
+new synthesis or new rigor — the risk of stalling on "still writing" is lowest. Candidates 2 and 3
+remain queued; 2 is the stronger long-term contribution if there's time for a second paper, 3 is the
+one to write only after P3's real ground truth exists, so its claims can be about actual accuracy
+rather than only about the evaluation method.
+
 ---
 
 ## Product backlog, prioritized
