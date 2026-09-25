@@ -55,66 +55,89 @@ before committing to a plan — see the decision record below. The original thre
 candidates (terminology pipeline, verification-masking taxonomy, decoupled safety evaluation) are
 superseded by two better-evidenced candidates found in the backup's actual usage/benchmark history.
 
-### LEAD PAPER — Benchmark-to-production divergence via a hard-coded fast-path pipeline
+### LEAD PAPER — Unrecorded metric provenance during active engine tuning
 
-**Confirmed mechanism, 2026-09-25, validated against live DB + git history, not inferred:**
+**Revised 2026-09-25 after a deliberate adversarial/blind re-check** — the 2026-09-25 "confirmed
+mechanism" write-up below this line (in prior revisions) overstated the finding. Two AI-generated
+accounts (mine and Lovable's) had converged on a dramatic, tidy explanation — weak evidence on its
+own, since both are more likely to agree on an interesting story than a boring one, and the prompts
+that produced it were leading. Re-checked via a blind prompt that withheld the prior conclusion and
+asked Lovable to reconstruct events independently, actively look for a benign explanation, and
+attack the claim rather than confirm it. Recorded here in full because the correction *is* the
+finding — this is exactly the discipline gap the paper itself is about, caught in the act of writing
+the paper about it.
 
-On 2026-09-08, seven benchmark runs over the same fixed 120-case suite took Top-1 accuracy from a
-true baseline of 35% to 56% (the 23% reading mid-sequence, at 05:46 UTC, was a reverted experiment —
-using it as the baseline would overstate the paper's own claim by ~12 points). Per-case flip analysis:
-31 of 120 cases flipped wrong→right and 6 flipped right→wrong between the first and last run (37
-total flips, net +25). Most of the gain was not distributed — one late run (05:46→07:11 UTC window)
-delivered +16 of the day's +21 net gain from a single change, spread evenly across noisy/ambiguous/
-adversarial case types (7/7/6), so it wasn't memorizing individual cases. No held-out set existed to
-check whether it would generalize.
+**What's actually confirmed, narrower than before:**
 
-It didn't. On 2026-09-18, the same configuration was independently remeasured on the actual
-production path: **28%** — below even the day's true 35% starting point, let alone the benchmark's
-claimed 56%.
+On 2026-09-08, the benchmark dashboard's fast path (`runBenchmarkPipeline`, "O2") scored a candidate
+list produced directly by the diagnosis-scoring engine — the exact component that day's tuning was
+changing (five same-day notes: missing candidates, unused priors, prior compression, specificity
+weighting; most measurements that day ran the engine directly, ~0.6s/case, and said so). That is a
+defensible choice *for engine-tuning work* — the fast path measured the thing being changed. It
+stops being defensible only once those numbers get reported as end-to-end product accuracy, because
+the fast path's list is not the same as the final, post-processed list a doctor actually sees.
+Nothing in `benchmark_suite_runs`/`benchmark_suite_results` recorded which list, or which underlying
+engine (V1/V3), any given stored row actually scored — only a cosmetic `pipeline_mode` phase label,
+identical across Sep 8/18/20 regardless of what ran underneath. Real per-case engine tracking only
+started 2026-09-19.
 
-**Why, precisely — confirmed via git history + live-DB validation, not assumption:**
-`benchmark_v10`'s `runSingleV10Case()` branches on an `executionMode: "production" | "benchmark"`
-parameter — `"benchmark"` calls `runBenchmarkPipeline()` (O2, `benchmark_mode.ts`), `"production"`
-calls `runUnifiedClinicalPipeline()` (O1, the real orchestrator). The benchmark dashboard's UI
-**hard-coded `executionMode: "benchmark"` at every `runV10Suite()` call site** (six call sites,
-unchanged from 2026-03-25 until fixed 2026-09-18, commit `fe33552f`) — there was no toggle, and
-neither `benchmark_suite_runs` nor `benchmark_suite_results` recorded which pipeline actually ran
-(only a cosmetic `pipeline_mode` phase label, identically "phase10" across Sep 8/18/20 regardless of
-which engine executed — real per-case engine tracking only started 2026-09-19). **The operator had
-no way to know, and the database had no way to record, which pipeline had run.** A latency-based
-attempt to distinguish the two post hoc failed — confirmed-O1 runs ranged 5.2s–32.6s per case,
-fully overlapping the Sep 8 range (5.0–6.5s), so speed cannot be used as evidence either way; this
-was tested and rejected, not assumed to work.
+**What's ruled out, checked rather than assumed:**
+- **Speed as a motive or as forensic evidence** — tested twice, failed both times. The fast path
+  wasn't measurably faster in practice (5.1–6.5s/case on Sep 8 vs. 5.3s on a warm confirmed-production
+  run on Sep 18), so "hard-coded for speed" isn't even the right motive to attribute; and a
+  latency-based attempt to tell O1/O2 apart post hoc failed (confirmed-O1 runs ranged 5.2s–32.6s,
+  fully overlapping the Sep 8 range).
+- **Code drift between Sep 8 and the Sep 18 remeasurement** — essentially none; the only changes to
+  shared/engine code between the last Sep 8 run (09:29) and the first Sep 18 remeasurement (09:11)
+  were to the benchmark runner itself.
+- **Case-set instability or non-determinism** — zero; repeat runs on the same pipeline match
+  case-for-case.
+- **Deliberate concealment** — no evidence found. The relevant default (`executionMode: "benchmark"`)
+  was set with no comment in the commit that introduced it (`5f1e00fc`, 2026-03-25); nothing suggests
+  anyone knowingly chose it for this specific day's work.
 
-O2 was not a slimmed-down copy of O1: it scores with the V1 engine against its own candidate list,
-while O1 uses V3 and a frozen final ranking. By Sep 8, 04:46 UTC, O1 had already received 155
-commits and O2 only 30 since the March 25 refactor (156/31 by Sep 18) — the drift was essentially
-complete *before* the tuning session, not something that accumulated during it. The day's edits did
-touch `ddx-engine`, shared by both pipelines, so some of the day's changes did ship to production —
-but nothing measured their effect on O1 until the Sep 18 remeasurement.
+**What does NOT hold up, corrected 2026-09-25:** the original "56% (benchmark) vs. 28% (production)"
+headline comparison is not a clean before/after on the same instrument, and should not be presented
+as one. Nobody ran real production on Sep 8, before or after tuning — there is no valid pre-tuning
+production baseline at all. The Sep 18 "28%" remeasurement itself is contaminated: `engine_force.ts`
+(deterministic engine pinning) wasn't added until 2026-09-19, so those runs went through the
+probabilistic rollout, not a forced engine, and worked out (from routing each case's `visit_id`
+under the then-live 10% rollout) to ~84% V1 / 16% V3 — V1 being the weaker engine later replaced by
+V3 as production default. Pinned-engine runs confirm the effect directly: V1 alone scored 26%
+(31/120), V3 alone 37.5% (45/120) — so the defensible comparator is 56% vs. 37.5%, not 56% vs. 28%,
+and even that comparator conflates three effects that can't be cleanly separated with only 120 cases
+and no held-out set: (1) which list got scored (the largest factor), (2) engine-mix contamination in
+the comparator (~10 points), (3) tuning directly on the only cases available. A true isolating
+experiment (re-running a pre-Sep-8 snapshot of the engine and data through production) isn't
+cleanly reconstructable now.
 
-**Working thesis (Lovable's suggested wording, adopted):** "Tuning was validated against a fast-path
-pipeline hard-coded at every benchmark UI call site. It used a different scoring engine and had
-fully diverged from production months earlier. Nothing the operator could see showed which pipeline
-ran, and nothing recorded it." This is a stronger, more specific claim than generic dev-set
-overfitting — it's a concrete, dated case of *benchmark-serving skew with no observability into
-which system was actually measured*, and it's the same root-cause shape as this project's other
-documented masking incidents (the O1/O2 split, the benchmark_v9/v10 dead-`mode`-parameter bug),
-not a coincidental second story.
+**Corrected thesis:** *"The reported metric was read from a tuned internal candidate list, not the
+list shown to the doctor, and nothing recorded which."* This is an unrecorded-metric-provenance /
+eval-artifact-identity finding during active engine tuning — narrower than the original
+"benchmark-to-production divergence" framing, but more defensible, and arguably a cleaner
+contribution: it's closer to the industry-recognized *eval/serving mismatch* failure mode than to
+classical dev-set overfitting, and it still ties to this project's other documented masking
+incidents through the same root cause (no recorded provenance of what was actually measured), not
+through the abandoned "hidden pipeline swap" framing.
 
-**Related work to read and position against before writing** (found via literature check,
-2026-09-24 — none appear to cover this exact case, but all are close enough to require explicit
-differentiation): Dwork et al., *reusable holdout / adaptive data analysis* (the canonical theory
-for repeated-tuning overfitting); *training-serving skew* (the right applied term); *The Benchmark
-Lottery*; *The widening evaluation gap in medical LLM research, 2023–2026* (arXiv 2609.11770 —
-closest existing survey, read carefully to position the contribution as a concrete instrumented case
-study rather than a restatement); *GAPS* (clinically-grounded AI-clinician benchmark, for framing).
+**Related work to read and position against before writing** (literature check, 2026-09-24 — none
+appear to cover this exact case, but all close enough to require explicit differentiation): Dwork et
+al., *reusable holdout / adaptive data analysis*; *training-serving skew* / eval-serving mismatch
+(the right applied term for the corrected thesis); *The Benchmark Lottery*; *The widening evaluation
+gap in medical LLM research, 2023–2026* (arXiv 2609.11770); *GAPS* (clinically-grounded AI-clinician
+benchmark).
 
-**Scope discipline:** this is a development-practice / evaluation-methodology paper. It makes no
-claim about this system's actual diagnostic accuracy or clinical safety — say that explicitly in the
-paper, don't let a reviewer infer it. The 120 cases are internally-authored synthetic cases, which is
-irrelevant to this paper's claim (about benchmark-vs-production divergence, not diagnostic
-correctness) but should still be stated plainly.
+**Scope discipline:** development-practice / evaluation-methodology paper. No claim about this
+system's actual diagnostic accuracy or clinical safety — state that explicitly. The 120 cases are
+internally-authored synthetic cases — irrelevant to this paper's claim but state it plainly anyway.
+Do not resurrect the 56-vs-28 framing in the writing; use 56-vs-37.5 with the three-factor breakdown
+if a "vs. production" number is needed at all, and lead with the provenance claim instead of a
+before/after number wherever possible.
+
+**Methodology note worth keeping in the paper itself:** the correction process above — two AI
+systems converging on a dramatic explanation under leading prompts, then a deliberate blind
+re-check narrowing it to something more defensible — is itself relevant supporting material for a
+paper about unverified metrics, not just process trivia to omit.
 
 **Not yet decided:** whether to release the run logs / flip-analysis / analysis script as an
 artifact. Given the paper's subject is evaluation discipline, doing so is on-theme, not just
@@ -154,10 +177,15 @@ India-specific brand coverage grows substantially.
 ### Still open, unrelated to the paper decision but flagged repeatedly and not yet actioned
 
 Three RLS/access-control gaps from an automated security check, left open at an earlier explicit
-choice to defer: spoofable shared-report links, spoofable patient visit-status links, and
-`physiological_states` readable by any signed-in user (not scoped to that user's own patients).
-Raised again by Lovable unprompted on 2026-09-25. Needs an explicit decision — fix now, or set a
-date — rather than continuing to defer by default.
+choice to defer. Reassessed 2026-09-25 under the same adversarial/blind check used above (asked to
+attack its own earlier "spoofable" framing, not just repeat it):
+- Shared report + patient visit-status links: token-gated, closer to a private link than "anyone can
+  fake it" — the original framing overstated it. Real residual risk depends on token entropy and
+  expiry, which hasn't been checked yet. Worth a short hardening pass, not an active-leak fix.
+- `physiological_states` readable by any signed-in user: 400 rows of reference definitions (state
+  name, description, body system), no patient data — looks like a false alarm.
+**Decision needed, not yet given:** confirm token entropy/expiry before treating the link issue as
+low-risk, then go/no-go on the short hardening pass; dismiss the third pending that confirmation.
 
 ---
 
