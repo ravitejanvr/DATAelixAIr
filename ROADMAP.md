@@ -44,100 +44,120 @@ topic decision and outline.
 
 ---
 
-## Publication priority (active, 2026-09-24)
+## Publication priority (active, 2026-09-25)
 
 **Why this jumps the queue.** A PhD application needs evidence of real research capability now, not
-after the product is pilot-ready — that timeline doesn't fit an application cycle. Three candidate
-topics were assessed against a strict bar: novel enough to be worth writing, defensible without
-overclaiming (this project has repeatedly refused to publish accuracy numbers it can't back — a
-paper is the same discipline, in public, permanently), and genuinely near-complete rather than
-requiring new work to invent.
+after the product is pilot-ready — that timeline doesn't fit an application cycle.
 
-### Candidate 1 — Terminology ingestion pipeline (RECOMMENDED — start here)
+**Revised 2026-09-24→25** after weighing options against a live Supabase backup (accessed by a
+separate session/agent this one can't reach) and validating every material claim through Lovable
+before committing to a plan — see the decision record below. The original three engineering-session
+candidates (terminology pipeline, verification-masking taxonomy, decoupled safety evaluation) are
+superseded by two better-evidenced candidates found in the backup's actual usage/benchmark history.
 
-**What it is.** The SNOMED CT ingestion platform already built and running:
-`docs/terminology-pipeline.md`, `docs/terminology-e2e-report.md`, `.lovable/a7-terminology-binding-report.md`.
-A resource-constrained (serverless edge function: 256 MB / 150 s per invocation, no `COPY FROM
-STDIN` support) chunked, resumable, idempotent loader for a 500k+ row biomedical ontology into a
-generic FHIR-shaped terminology store designed to host RxNorm/ICD/LOINC/UCUM/ATC without further
-migrations, driven by `pg_cron` rather than a long-lived worker. Concrete measured results already
-exist: ~35k rows/s at batch=5000 (vs ~10.5k at batch=1000), a synthetic E2E harness that exercises
-the complete production pipeline safely and self-cleans, an automated post-import verification suite
-(orphan relationships, duplicate codes, broken hierarchy targets, search-index shortfall), and a
-downstream KG-identity-resolution layer with measured shadow-parity results (87/87 concepts bound,
-0 collisions, 0 divergences, activated with zero added runtime latency since resolution is offline).
+### LEAD PAPER — Benchmark-to-production divergence via a hard-coded fast-path pipeline
 
-**Why this is the fastest real submission.** Every number in the paper already exists and was
-already measured, not invented for publication. It makes zero clinical-accuracy claims, so it
-carries none of the "unverified" risk the rest of this roadmap has spent real effort avoiding — it's
-a systems/data-engineering contribution (practical constraints and solutions for ingesting large
-biomedical ontologies under serverless resource limits), not a clinical-AI-efficacy one. Natural
-target: a workshop paper or short systems paper (e.g. an MLHC/CHIL/AMIA workshop track, or a direct
-arXiv cs.DB/cs.CL preprint) — realistic to draft from existing internal docs plus the measured
-numbers already in git history.
+**Confirmed mechanism, 2026-09-25, validated against live DB + git history, not inferred:**
 
-**Working outline:**
-1. Problem: biomedical ontology ingestion (SNOMED CT, ~500k+ concepts) assumed to need a persistent
-   worker/ETL host; can it run entirely on serverless edge functions with hard per-invocation limits?
-2. Platform constraints discovered empirically (the "Platform decisions" table — each row is a
-   measured negative or positive result, not a design guess) and the architecture they forced:
-   chunked batched-INSERT over `COPY FROM STDIN`, cron-driven queue over long-lived worker, staging/
-   generic schema separation.
-3. Correctness under this architecture: the automated post-import verification suite as the
-   mechanism that makes "resumable, chunked, idempotent" a checkable property rather than a claim —
-   and the synthetic E2E harness as a repeatable, production-data-safe way to test the *actual*
-   pipeline rather than a mock of it.
-4. Downstream payoff: deterministic, offline KG-to-terminology identity resolution (measured 100%
-   coverage, 0 collisions, 0 divergence, no runtime latency cost) as a worked example of what the
-   platform enables once it exists.
-5. Limitations, honestly: single-institution, one ontology fully proven end-to-end (SNOMED CT) with
-   the multi-code-system design not yet exercised on a second system; no claim about diagnostic
-   accuracy or clinical outcomes anywhere in the paper.
+On 2026-09-08, seven benchmark runs over the same fixed 120-case suite took Top-1 accuracy from a
+true baseline of 35% to 56% (the 23% reading mid-sequence, at 05:46 UTC, was a reverted experiment —
+using it as the baseline would overstate the paper's own claim by ~12 points). Per-case flip analysis:
+31 of 120 cases flipped wrong→right and 6 flipped right→wrong between the first and last run (37
+total flips, net +25). Most of the gain was not distributed — one late run (05:46→07:11 UTC window)
+delivered +16 of the day's +21 net gain from a single change, spread evenly across noisy/ambiguous/
+adversarial case types (7/7/6), so it wasn't memorizing individual cases. No held-out set existed to
+check whether it would generalize.
 
-### Candidate 2 — Silent verification failure in AI-assisted clinical software development
+It didn't. On 2026-09-18, the same configuration was independently remeasured on the actual
+production path: **28%** — below even the day's true 35% starting point, let alone the benchmark's
+claimed 56%.
 
-**What it is.** CLAUDE.md's standing rule already tracks four dated, real incidents where a
-verification mechanism kept reporting green while the thing it was supposed to verify had silently
-stopped being true: the March 2026 O1/O2 benchmark split, the CI auth-fallback masking (2026-09-18),
-the benchmark_v9/v10 dead-`mode`-parameter bug (2026-09-19, ~6 months undetected), and the bare
-`tsc --noEmit` no-op baked into the project's own documented typecheck command (found the same day).
-This session's architecture inventory (2026-09-20) surfaced a fifth, related-but-distinct pattern —
-"born dead" code (safety modules, an entire aggregator layer, a 1578-line second diagnostic pipeline,
-all written to spec and never wired to anything that runs) — which isn't masking exactly, but is the
-same root cause from the other direction: verification (tests, type-checks, code review) that checks
-naming and shape but never checks whether a thing is actually in the call graph.
+**Why, precisely — confirmed via git history + live-DB validation, not assumption:**
+`benchmark_v10`'s `runSingleV10Case()` branches on an `executionMode: "production" | "benchmark"`
+parameter — `"benchmark"` calls `runBenchmarkPipeline()` (O2, `benchmark_mode.ts`), `"production"`
+calls `runUnifiedClinicalPipeline()` (O1, the real orchestrator). The benchmark dashboard's UI
+**hard-coded `executionMode: "benchmark"` at every `runV10Suite()` call site** (six call sites,
+unchanged from 2026-03-25 until fixed 2026-09-18, commit `fe33552f`) — there was no toggle, and
+neither `benchmark_suite_runs` nor `benchmark_suite_results` recorded which pipeline actually ran
+(only a cosmetic `pipeline_mode` phase label, identically "phase10" across Sep 8/18/20 regardless of
+which engine executed — real per-case engine tracking only started 2026-09-19). **The operator had
+no way to know, and the database had no way to record, which pipeline had run.** A latency-based
+attempt to distinguish the two post hoc failed — confirmed-O1 runs ranged 5.2s–32.6s per case,
+fully overlapping the Sep 8 range (5.0–6.5s), so speed cannot be used as evidence either way; this
+was tested and rejected, not assumed to work.
 
-**Why this is higher-novelty but slower.** Most AI-safety and software-verification literature
-addresses models failing or tests being absent; this is the narrower, more specific claim that
-*verification infrastructure itself* can silently decay under AI-assisted (and specifically
-AI-pair-programmed / "vibe-coded") development in ways traditional code review doesn't catch,
-with a project's own git history as the case-study evidence. That's a genuinely novel framing worth
-a paper — but unlike Candidate 1, the material exists as scattered incident notes, not a coherent
-document, and a credible paper needs a real taxonomy (not just a list) and honest positioning
-against existing software-testing/verification-decay literature. More writing effort, higher ceiling.
+O2 was not a slimmed-down copy of O1: it scores with the V1 engine against its own candidate list,
+while O1 uses V3 and a frozen final ranking. By Sep 8, 04:46 UTC, O1 had already received 155
+commits and O2 only 30 since the March 25 refactor (156/31 by Sep 18) — the drift was essentially
+complete *before* the tuning session, not something that accumulated during it. The day's edits did
+touch `ddx-engine`, shared by both pipelines, so some of the day's changes did ship to production —
+but nothing measured their effect on O1 until the Sep 18 remeasurement.
 
-### Candidate 3 — Decoupled safety-layer evaluation for clinical differential-diagnosis systems
+**Working thesis (Lovable's suggested wording, adopted):** "Tuning was validated against a fast-path
+pipeline hard-coded at every benchmark UI call site. It used a different scoring engine and had
+fully diverged from production months earlier. Nothing the operator could see showed which pipeline
+ran, and nothing recorded it." This is a stronger, more specific claim than generic dev-set
+overfitting — it's a concrete, dated case of *benchmark-serving skew with no observability into
+which system was actually measured*, and it's the same root-cause shape as this project's other
+documented masking incidents (the O1/O2 split, the benchmark_v9/v10 dead-`mode`-parameter bug),
+not a coincidental second story.
 
-**What it is.** The V1-vs-V3 decision record (item 6/7 above) already contains the empirical basis:
-aggregate accuracy improved broadly (Top-1 +12pp) while the adversarial/must-not-miss layer's top-5
-accuracy *regressed* (-7pp) and safety specificity stayed flat — a single blended accuracy number
-would have hidden that split entirely. The methodological claim — aggregate diagnostic-accuracy
-metrics can mask safety-critical regressions in specific severity strata, so evaluation of clinical
-DDx systems needs the safety-critical surface decoupled and reported separately — is defensible as a
-framework/methods contribution.
+**Related work to read and position against before writing** (found via literature check,
+2026-09-24 — none appear to cover this exact case, but all are close enough to require explicit
+differentiation): Dwork et al., *reusable holdout / adaptive data analysis* (the canonical theory
+for repeated-tuning overfitting); *training-serving skew* (the right applied term); *The Benchmark
+Lottery*; *The widening evaluation gap in medical LLM research, 2023–2026* (arXiv 2609.11770 —
+closest existing survey, read carefully to position the contribution as a concrete instrumented case
+study rather than a restatement); *GAPS* (clinically-grounded AI-clinician benchmark, for framing).
 
-**Why this needs the most careful framing.** The underlying case data is 120 internally-authored
-benchmark cases, not externally-provenanced or clinician-reviewed ground truth (that's P3, items
-15–17, not done yet). Framed as "here is a decoupled evaluation methodology, demonstrated on our own
-benchmark suite, with the specific failure mode it would have caught" — defensible. Framed as a
-claim about this system's actual clinical accuracy or safety — not defensible yet, and would
-undermine the credibility of the other two candidates if conflated with either.
+**Scope discipline:** this is a development-practice / evaluation-methodology paper. It makes no
+claim about this system's actual diagnostic accuracy or clinical safety — say that explicitly in the
+paper, don't let a reviewer infer it. The 120 cases are internally-authored synthetic cases, which is
+irrelevant to this paper's claim (about benchmark-vs-production divergence, not diagnostic
+correctness) but should still be stated plainly.
 
-**Decision: start with Candidate 1.** It is the only one of the three that requires assembly, not
-new synthesis or new rigor — the risk of stalling on "still writing" is lowest. Candidates 2 and 3
-remain queued; 2 is the stronger long-term contribution if there's time for a second paper, 3 is the
-one to write only after P3's real ground truth exists, so its claims can be about actual accuracy
-rather than only about the evaluation method.
+**Not yet decided:** whether to release the run logs / flip-analysis / analysis script as an
+artifact. Given the paper's subject is evaluation discipline, doing so is on-theme, not just
+good practice — leaning yes.
+
+### SECOND PAPER (shorter, scoped) — Multilingual symptom normalization for Indian primary care
+
+**What it is.** Compares a lexicon, SNOMED trigram search, and an LLM on mapping Hindi/Telugu/
+Urdu/code-mixed symptom phrases to SNOMED concepts. Live-validated seed data:
+`symptom_language_map` (114 phrases: 92 English, 22 Hindi), `regional_lexicon` (105 entries: 44
+Telugu, 38 English, 15 Hindi, 8 Urdu) — thin, a starting seed only. The real contribution is a new
+double-annotated evaluation set.
+
+**Scope, set deliberately small given a solo applicant and a PhD-application timeline:** ~500
+double-annotated phrases is the realistic ceiling (Lovable's independent estimate: 40–80+
+annotator-hours per language; my own estimate matched before asking), not 1,000. Start with Hindi +
+Telugu (better seed coverage); Urdu and code-mixed registers are future work in the paper, not a
+submission blocker.
+
+**Novelty caveat, unresolved:** literature check (2026-09-24) found no direct prior work on this
+exact question (SNOMED, not ICD-10; three-method comparison; Indian code-mixed languages
+specifically), but found close adjacent work that must be read and cited before claiming novelty:
+*IndiHealthBench*, *"Evaluating Ambient Clinical Scribes in India"* (arXiv, Sept 2026), *"Using LLMs
+for Multilingual Clinical Entity Linking to ICD-10"* (arXiv 2509.04868). Do this reading before
+committing further effort, not after a draft exists.
+
+### DROPPED — Indian brand-to-generic drug normalization resource
+
+Not a licensing problem (all three drug-ingestion functions pull from NLM's public RxNorm service,
+no evidence of scraping a commercial source) — a **premise** problem. RxNorm is US-focused; the
+actual India-specific brand table is only 305 rows. Live-validated: drug master 14,666 rows /
+`rxnorm_id` filled on all of them, brand map 1,822 rows / `rxnorm_cui` filled on 1,750 — the "codes
+mostly missing" concern that motivated dropping this a first time was itself wrong, but the resource
+still isn't what an "Indian brand normalization" paper needs it to be. Not revisited unless the
+India-specific brand coverage grows substantially.
+
+### Still open, unrelated to the paper decision but flagged repeatedly and not yet actioned
+
+Three RLS/access-control gaps from an automated security check, left open at an earlier explicit
+choice to defer: spoofable shared-report links, spoofable patient visit-status links, and
+`physiological_states` readable by any signed-in user (not scoped to that user's own patients).
+Raised again by Lovable unprompted on 2026-09-25. Needs an explicit decision — fix now, or set a
+date — rather than continuing to defer by default.
 
 ---
 
