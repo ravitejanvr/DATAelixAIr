@@ -17,8 +17,6 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.extract-patient-data]
     verify_jwt = false
-  [functions.patient-explanation]
-    verify_jwt = false
   [functions.places-search]
     verify_jwt = false
   [functions.pubmed-search]
@@ -33,8 +31,6 @@ project_id = "mhqdqilzkqvbgtygtlab"
     verify_jwt = false
   [functions.save-consultation]
     verify_jwt = false
-  [functions.finalize-visit]
-    verify_jwt = false
   [functions.generate-patient-report]
     verify_jwt = false
   [functions.register-patient]
@@ -44,10 +40,6 @@ project_id = "mhqdqilzkqvbgtygtlab"
   [functions.record-triage]
     verify_jwt = false
   [functions.record-vitals]
-    verify_jwt = false
-  [functions.save-prescription]
-    verify_jwt = false
-  [functions.order-lab-tests]
     verify_jwt = false
   [functions.generate-invoice]
     verify_jwt = false

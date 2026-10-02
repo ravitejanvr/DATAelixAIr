@@ -1222,7 +1222,7 @@ export async function runUnifiedClinicalPipeline(
 
   console.log(`[ENGINE_AUDIT] ══════════════════════════════════`);
   console.log(`[ENGINE_AUDIT] Rollout decision:`, {
-    engine_selected: activeVersion.toUpperCase(),
+    engine_selected: rolloutDecision.engine_selected.toUpperCase(),
     rollout_percentage: rolloutDecision.rollout_percentage,
     rollout_bucket: rolloutDecision.bucket,
     is_internal_user: rolloutDecision.is_internal,
@@ -1232,7 +1232,7 @@ export async function runUnifiedClinicalPipeline(
     visit_id: input.visit_id || "null",
     cache_bypassed: !!input.skip_cache,
   });
-  console.log(`[ENGINE_AUDIT] ENGINE_SELECTED: ${activeVersion.toUpperCase()}`);
+  console.log(`[ENGINE_AUDIT] ENGINE_SELECTED: ${rolloutDecision.engine_selected.toUpperCase()}`);
   console.log(`[ENGINE_AUDIT] CACHE_STATUS: ${input.skip_cache ? "BYPASSED" : (cache.reasoning_hit ? "HIT" : "MISS")}`);
 
   let advancedEngineFallbackUsed = false;

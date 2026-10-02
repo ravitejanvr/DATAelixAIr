@@ -16,7 +16,7 @@
  *   4. Clinical Extraction Agent (extract-patient-data)
  *   5. Prescription Safety Agent (clinical-safety)
  *   6. Documentation Agent (clinical-soap)
- *   7. Translation Agent (translate-clinical / patient-explanation)
+ *   7. Translation Agent (translate-clinical)
  *
  * Consumers:
  *   - Layer 1 (UI): Clinical workspace pipeline
@@ -128,7 +128,7 @@ export const EMPTY_SOAP: SoapSections = {
 };
 
 // ── Agent 7: Translation Agent ───────────────────────────────
-// Edge Functions: translate-clinical, patient-explanation
+// Edge Functions: translate-clinical
 // Model: Gemini 2.5 Flash (temp 0.2)
 // Purpose: Translate finalized clinical text
 // Safety: Preserve all medical terms exactly. Never alter clinical meaning.

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { isNewPipelineEnabled } from "@/services/feature_flags";
+import type { EngineVersion } from "@/services/engine_registry";
 import type { HypothesisEntry, PipelineEvidence, PipelineCompliance } from "@/components/clinical/ClinicalCopilot";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import IntakeSummary, { type IntakeData } from "@/components/IntakeSummary";
 import ClinicalCopilot from "@/components/clinical/ClinicalCopilot";
 import AiDisclosureBadge from "@/components/AiDisclosureBadge";
 import SystemModeIndicator from "@/components/SystemModeIndicator";
+import { SafetyOverrideDialog, safetyResultsToAlerts } from "@/components/SafetyOverrideDialog";
 
 import ConsultationTimeline from "@/components/ConsultationTimeline";
 import ConsultationComplete from "@/components/ConsultationComplete";
@@ -50,6 +52,8 @@ import {
   emitSafetyAlertMetric,
 } from "@/layers/monitoring/api";
 import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext, buildFullClinicalContext } from "@/lib/clinical-context";
+import { recordAIDecisions } from "@/services/oversight_engine/client";
+import { buildFinalizeLedgerEntry, getCriticalSafetyAlerts } from "@/services/oversight_engine/finalize_ledger";
 
 // Symptom presets
 const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain", "Dizziness", "Back pain", "Dysuria", "Rash", "Joint pain", "Palpitations", "Neck stiffness", "Syncope"];
@@ -265,6 +269,7 @@ export default function Clinical() {
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
   const [pendingRxFromSuggestions, setPendingRxFromSuggestions] = useState<{ drug_name: string; dose: string; frequency: string; duration: string }[]>([]);
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [showOverrideDialog, setShowOverrideDialog] = useState(false);
   const [pipelineComplete, setPipelineComplete] = useState(false);
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [finalizationResults, setFinalizationResults] = useState<any>(null);
@@ -314,6 +319,7 @@ export default function Clinical() {
   const [stageLatencies, setStageLatencies] = useState<Record<string, number>>({});
   const [pipelinePhysiology, setPipelinePhysiology] = useState<any>(null);
   const [pipelineBayesian, setPipelineBayesian] = useState<any>(null);
+  const [pipelineEngineAudit, setPipelineEngineAudit] = useState<{ engine_version: EngineVersion } | null>(null);
 
   // Consultation summary & copilot selections
   const [consultationSummary, setConsultationSummary] = useState("");
@@ -657,6 +663,7 @@ export default function Clinical() {
   }, [chiefComplaint, selectedSymptoms, selectedDiagnoses]);
 
   const safetyAlertCount = safetyResults ? (safetyResults.interaction_flags.length + safetyResults.allergy_flags.length + safetyResults.dose_warnings.length + (safetyResults.vitals_dangers?.length || 0) + (safetyResults.emergency_patterns?.length || 0)) : 0;
+  const criticalSafetyAlerts = useMemo(() => getCriticalSafetyAlerts(safetyResults), [safetyResults]);
 
   // ── Full AI Pipeline ──
   const runFullPipeline = async () => {
@@ -788,6 +795,10 @@ export default function Clinical() {
             }
           },
         );
+
+        if (o1Result.engine_audit) {
+          setPipelineEngineAudit({ engine_version: o1Result.engine_audit.engine_version });
+        }
 
         // Apply final results
         if (o1Result.enabled) {
@@ -1016,9 +1027,26 @@ export default function Clinical() {
   };
 
   // ── Approve & Save ──
-  const approveAndSave = async () => {
+  // Gate: routes to the safety override dialog when there are unresolved critical
+  // safety alerts, instead of letting the generic review checkbox stand in for both
+  // "reviewed and nothing's wrong" and "explicitly overriding a critical danger sign".
+  const handleFinalizeClick = () => {
     if (!user) return;
     if (!reviewConfirmed) { toast({ title: "Confirmation required", description: "Please confirm you have reviewed.", variant: "destructive" }); return; }
+    if (criticalSafetyAlerts.length > 0) {
+      setShowOverrideDialog(true);
+      return;
+    }
+    void finalizeConsultation();
+  };
+
+  const handleConfirmOverride = async (reason: string, acknowledgedAlertIds: string[]) => {
+    setShowOverrideDialog(false);
+    await finalizeConsultation(reason, acknowledgedAlertIds);
+  };
+
+  const finalizeConsultation = async (overrideReason?: string, acknowledgedAlertIds?: string[]) => {
+    if (!user) return;
 
     if (!validationComplete) {
       await runValidation();
@@ -1047,6 +1075,29 @@ export default function Clinical() {
       if (saveError) throw new Error(saveError.message);
       const consultationId = saveData.consultation_id;
       setSavedSessionId(consultationId);
+
+      // Conscience loop (ROADMAP item 23): every finalized consultation gets an
+      // AI-decision-ledger entry. buildFinalizeLedgerEntry throws if there are
+      // critical safety alerts with no valid override reason — that's what makes
+      // this impossible to bypass silently, not just discouraged by the dialog.
+      if (visitId) {
+        try {
+          const ledgerEntry = buildFinalizeLedgerEntry({
+            consultationId,
+            safetyResults,
+            overrideReason,
+            acknowledgedAlertIds,
+          });
+          const recorded = await recordAIDecisions(visitId, [ledgerEntry]);
+          if (recorded === 0) {
+            console.warn("[Clinical] AI decision ledger entry was not recorded for visit", visitId);
+          }
+        } catch (ledgerErr: any) {
+          setIsSaving(false);
+          toast({ title: "Cannot finalize", description: ledgerErr.message, variant: "destructive" });
+          return;
+        }
+      }
 
       if (visitId) {
         try {
@@ -1087,7 +1138,7 @@ export default function Clinical() {
             drugs: pendingRxFromSuggestions.map(d => ({ drug_name: d.drug_name, dosage: d.dose, frequency: d.frequency, duration: d.duration })),
             lab_orders: selectedTests.map(t => ({ test_name: t, priority: "routine" })),
             billing_enabled: true,
-            safety_override: reviewConfirmed,
+            safety_override: reviewConfirmed && (criticalSafetyAlerts.length === 0 || Boolean(overrideReason)),
           },
         });
         if (finalizeError) throw new Error(finalizeError.message);
@@ -1860,7 +1911,7 @@ export default function Clinical() {
                     <span className="text-sm font-semibold text-foreground">Summary</span>
                   </div>
                   <div className="flex gap-1">
-                    <SystemModeIndicator />
+                    <SystemModeIndicator engineVersion={pipelineEngineAudit?.engine_version} />
                     <AiDisclosureBadge label="AI Draft — Review Required" tooltip="These notes were generated by AI. Your doctor reviews and edits all content before finalisation." />
                     {summaryManuallyEdited && (
                       <Button variant="ghost" size="sm" className="h-5 text-xs" onClick={() => { setSummaryManuallyEdited(false); setConsultationSummary(generatedSummary); }}>
@@ -2137,13 +2188,23 @@ export default function Clinical() {
                     </label>
                   </div>
 
-                  <Button onClick={approveAndSave} disabled={isSaving || isFinalizingConsultation || !reviewConfirmed} className="w-full h-9 rounded-xl text-xs font-semibold gap-1.5">
-                    {(isSaving || isFinalizingConsultation) ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Finalizing…</> : <><CheckCircle className="h-3.5 w-3.5" />Finalize & Send</>}
+                  <Button onClick={handleFinalizeClick} disabled={isSaving || isFinalizingConsultation || !reviewConfirmed} className="w-full h-9 rounded-xl text-xs font-semibold gap-1.5">
+                    {(isSaving || isFinalizingConsultation) ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Finalizing…</> : criticalSafetyAlerts.length > 0 ? <><ShieldCheck className="h-3.5 w-3.5" />Review & Override</> : <><CheckCircle className="h-3.5 w-3.5" />Finalize & Send</>}
                   </Button>
                 </div>
               </ClinicalCard>
             </div>
             )}
+
+            <SafetyOverrideDialog
+              open={showOverrideDialog}
+              onOpenChange={setShowOverrideDialog}
+              alerts={safetyResultsToAlerts(safetyResults ?? EMPTY_SAFETY)}
+              safetyResults={safetyResults ?? undefined}
+              onConfirmOverride={handleConfirmOverride}
+              onCancel={() => setShowOverrideDialog(false)}
+              actionLabel="Finalize with Override"
+            />
 
 
           </div>
