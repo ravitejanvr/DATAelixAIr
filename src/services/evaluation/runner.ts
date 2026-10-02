@@ -92,12 +92,13 @@ async function runSingleCase(testCase: EvalCase, userId: string): Promise<EvalCa
       patient_sex: testCase.input.sex,
     };
 
-    console.log("[EVAL_REQUEST]", { case_id: testCase.id, engine: getActiveEngineVersion(), payload });
+    console.log("[EVAL_REQUEST]", { case_id: testCase.id, requested_default: getActiveEngineVersion(), payload });
 
     const inferenceResult = await runInference(payload);
     const data = inferenceResult.result;
 
     const latency = inferenceResult.latency_ms;
+    console.log("[EVAL_RESPONSE]", { case_id: testCase.id, engine_actually_used: inferenceResult.engine_version });
 
     if (!data) {
       console.error("[EVAL_EDGE_ERROR]", { case_id: testCase.id, reason: inferenceResult.fallback_reason });

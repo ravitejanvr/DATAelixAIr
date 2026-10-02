@@ -1,14 +1,25 @@
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { getSystemMode, onSystemModeChange, type SystemMode } from "@/services/system_mode";
-import { getEngineConfig, onEngineConfigChange, type EngineConfig } from "@/services/engine_registry";
+import { getEngineConfig, onEngineConfigChange, type EngineConfig, type EngineVersion } from "@/services/engine_registry";
 import { Activity, FlaskConical, Shield, Cpu } from "lucide-react";
+
+export interface SystemModeIndicatorProps {
+  /**
+   * The engine that actually executed for the current consultation, read
+   * from PipelineResult.engine_audit.engine_version. When provided, this is
+   * shown instead of the static registry default — per-request reality
+   * takes priority over configured intent. Omit only when no pipeline run
+   * has produced a result yet (idle state).
+   */
+  engineVersion?: EngineVersion | null;
+}
 
 /**
  * Displays the current system execution mode AND active engine version.
  * Always visible when rendered — no hidden states.
  */
-export default function SystemModeIndicator() {
+export default function SystemModeIndicator({ engineVersion }: SystemModeIndicatorProps = {}) {
   const [mode, setMode] = useState<SystemMode>(getSystemMode());
   const [engineConfig, setEngineConfig] = useState<EngineConfig>(getEngineConfig());
 
@@ -19,6 +30,9 @@ export default function SystemModeIndicator() {
   }, []);
 
   const config = MODE_DISPLAY[mode.type] ?? MODE_DISPLAY.LIVE_PIPELINE;
+  // Per-request reality (engine_audit) over static config — the static
+  // default is only a stand-in before any consultation has run.
+  const displayedEngine = engineVersion ?? engineConfig.active_engine;
 
   return (
     <div className="flex items-center gap-1">
@@ -33,10 +47,14 @@ export default function SystemModeIndicator() {
       <Badge
         variant="outline"
         className="gap-1 text-[10px] font-mono border-primary/40 text-primary bg-primary/5"
-        title={`Engine: ${engineConfig.active_engine.toUpperCase()}`}
+        title={
+          engineVersion
+            ? `Engine: ${displayedEngine.toUpperCase()} (actually executed)`
+            : `Engine: ${displayedEngine.toUpperCase()} (configured default — no consultation run yet)`
+        }
       >
         <Cpu className="h-3 w-3" />
-        {engineConfig.active_engine.toUpperCase()}
+        {displayedEngine.toUpperCase()}
       </Badge>
     </div>
   );

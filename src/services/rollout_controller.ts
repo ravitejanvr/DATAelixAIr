@@ -18,7 +18,7 @@ export interface RolloutConfig {
 }
 
 const DEFAULT_ROLLOUT: RolloutConfig = {
-  rollout_percentage: 10,
+  rollout_percentage: 100,
   internal_user_ids: [],
   enabled: true,
 };
