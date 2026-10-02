@@ -41,6 +41,7 @@ export interface SessionSnapshot {
   patient_age: number | null;
   patient_sex: string | null;
   patient_name: string | null;
+  patient_id: string | null;
   files: UploadedFile[];
   answered_question_ids: Set<string>;
   turn_count: number;

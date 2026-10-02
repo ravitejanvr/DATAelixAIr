@@ -4,9 +4,14 @@
  * Wave-based parallel execution with Clinical World Model integration.
  *
  *   Wave 0 — PCIE Context Hydration
+ *   Wave 0b — Cross-Visit Patient History Hydration (ROADMAP item 25)
  *   Wave 1 — Context Preparation
- *   Wave 1.5 — Meta-Reasoning Orchestrator (Clinical World Model)
- *   Wave 1.8 — Episodic Memory (patient history, doctor patterns, epidemiology)
+ *   Wave 1.5 — Meta-Reasoning Orchestrator (removed — see "V4 CLEANUP" below; this
+ *              line undercounted as live for a while after removal, fixed alongside
+ *              adding Wave 0b)
+ *   Wave 1.8 — Episodic Memory (removed — same V4 CLEANUP; was never actually
+ *              "patient history, doctor patterns, epidemiology" in practice, its
+ *              DDX probability mods were overwritten by V3 before this was cut)
  *   Wave 2 — Parallel Context Analysis (DDX, Physiology, Preindexed)
  *   Wave 2b — Evidence Retrieval (enriched with DDX results)
  *   Wave 2c — Hypothesis Testing (graph-based DDX validation)
@@ -27,6 +32,8 @@ import {
 } from "@/services/clinical_context";
 import type { ClinicalContext } from "@/lib/clinical-context";
 import { getPatientContext } from "@/services/context_engine/client";
+import { getPatientHistorySummary } from "@/services/patient_history/client";
+import type { PatientHistorySummary } from "@/services/patient_history/types";
 import { fromPCIEContext, toClinicalContext, type UnifiedClinicalContext } from "@/types/clinical-context";
 // NOTE: two unrelated hypothesis_engine modules exist — hypothesis_engine/client.ts
 // (LLM-based, single generate-hypotheses call) and hypothesis_engine/index.ts
@@ -204,6 +211,7 @@ const TIMEOUT = {
   SOAP:            4000,
   CAUSAL_REASONING: 3000,
   EPISODIC_MEMORY:  2000,
+  PATIENT_HISTORY:  2000,
 } as const;
 
 // ── Organ-System Weighting ──
@@ -381,6 +389,27 @@ async function withRetry<T>(
   if (first !== null) return first;
   console.log(`[Pipeline] 🔄 Retrying ${label} (budget: ${Math.round(timeoutMs * 1.3)}ms)`);
   return withTimeout(factory(), Math.round(timeoutMs * 1.3), `${label}_retry`);
+}
+
+/**
+ * Wave 0b merge (ROADMAP item 25): fills medical_history/allergies/
+ * current_medications from the patient's cross-visit history, but ONLY where
+ * this visit's own context doesn't already have them — same "don't overwrite
+ * what was actually collected" rule as Wave 0's PCIE merge just above it.
+ * Extracted as a pure function so it's unit-testable without mocking the
+ * rest of the pipeline (same pattern as withTimeout above).
+ */
+export function mergePatientHistoryIntoContext(
+  ctx: ClinicalContext,
+  history: PatientHistorySummary | null,
+): ClinicalContext {
+  if (!history) return ctx;
+  return {
+    ...ctx,
+    medical_history: ctx.medical_history?.length ? ctx.medical_history : history.medical_history,
+    allergies: ctx.allergies?.length ? ctx.allergies : history.allergies,
+    current_medications: ctx.current_medications?.length ? ctx.current_medications : history.current_medications,
+  };
 }
 
 function extractSymptoms(ctx: ClinicalContext): string[] {
@@ -572,6 +601,34 @@ export async function runUnifiedClinicalPipeline(
   } else if (isBenchmarkVisit) {
     console.log("[Pipeline] Wave 0: Benchmark visit ID detected — skipping PCIE fetch");
     waveLat.wave0_pcie = 0;
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // WAVE 0b — Cross-Visit Patient History Hydration (ROADMAP item 25)
+  // ═══════════════════════════════════════════════════════
+  // PCIE above is a per-visit cache, not a query of the patient's OTHER visits.
+  // This fills that gap from patients.{allergies,current_medications,medical_history}
+  // + recent consultations — same "only fill empty fields" merge as Wave 0, so it
+  // never overwrites anything this visit's own intake already provided.
+  if (ctx.patient_id && !isBenchmarkVisit) {
+    const w0bStart = performance.now();
+    try {
+      const history = await withRetry(
+        () => getPatientHistorySummary(ctx.patient_id!),
+        TIMEOUT.PATIENT_HISTORY,
+        "patient_history_fetch",
+      );
+      ctx = mergePatientHistoryIntoContext(ctx, history);
+      if (history) {
+        console.log(`[Pipeline] Wave 0b: patient history loaded (${history.recent_consultations.length} prior consultations)`);
+      }
+    } catch {
+      console.warn("[Pipeline] Wave 0b: patient history fetch failed, continuing without it");
+    }
+    lat.wave0b_patient_history = Math.round(performance.now() - w0bStart);
+    waveLat.wave0b_patient_history = lat.wave0b_patient_history;
+  } else {
+    waveLat.wave0b_patient_history = 0;
   }
 
   // ═══════════════════════════════════════════════════════

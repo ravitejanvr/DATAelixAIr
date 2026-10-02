@@ -17,6 +17,7 @@ import type { CanonicalFeature, CanonicalizationResult } from "../canonical/type
 import type { PipelineVitals, PipelineLabResult, PipelineInput, ClinicalContext } from "../pipeline/types";
 import type { ExtractedSymptom } from "../scribe_adapter/types";
 import type { TrackedFeature, UploadedFile, SessionSnapshot, DataSource } from "./types";
+import type { PatientHistorySummary } from "../patient_history/types";
 import { canonicalize } from "../canonical/normalizer";
 
 export type { SessionSnapshot, UploadedFile, TrackedFeature, DataSource } from "./types";
@@ -49,6 +50,7 @@ export class SessionContextManager {
   private patientAge: number | null = null;
   private patientSex: string | null = null;
   private patientName: string | null = null;
+  private patientId: string | null = null;
   private files: UploadedFile[] = [];
   private answeredQuestionIds = new Set<string>();
   private turnCount = 0;
@@ -288,6 +290,26 @@ export class SessionContextManager {
     this.lastUpdated = new Date().toISOString();
   }
 
+  /**
+   * Set the patient this session is about (ROADMAP item 25).
+   */
+  setPatientId(patientId: string): void {
+    this.patientId = patientId;
+    this.lastUpdated = new Date().toISOString();
+  }
+
+  /**
+   * Hydrate session state from the patient's own cross-visit history
+   * (ROADMAP item 25). Additive/deduped, same as setMedications/setAllergies
+   * — never removes anything the session already collected this turn.
+   */
+  hydrateFromPatientHistory(summary: PatientHistorySummary): void {
+    this.setMedications(summary.current_medications);
+    this.setAllergies(summary.allergies);
+    this.medicalHistory = [...new Set([...this.medicalHistory, ...summary.medical_history])];
+    this.lastUpdated = new Date().toISOString();
+  }
+
   // ══════════════════════════════════════════════
   // READ METHODS
   // ══════════════════════════════════════════════
@@ -303,6 +325,7 @@ export class SessionContextManager {
       patient_age: this.patientAge,
       patient_sex: this.patientSex,
       patient_name: this.patientName,
+      patient_id: this.patientId,
       vitals: this.vitals,
       medical_history: this.medicalHistory,
       family_history: this.familyHistory,
@@ -369,6 +392,7 @@ export class SessionContextManager {
       patient_age: this.patientAge,
       patient_sex: this.patientSex,
       patient_name: this.patientName,
+      patient_id: this.patientId,
       files: [...this.files],
       answered_question_ids: new Set(this.answeredQuestionIds),
       turn_count: this.turnCount,
@@ -391,6 +415,7 @@ export class SessionContextManager {
     this.patientAge = null;
     this.patientSex = null;
     this.patientName = null;
+    this.patientId = null;
     this.files = [];
     this.answeredQuestionIds.clear();
     this.turnCount = 0;
