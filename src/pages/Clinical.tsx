@@ -54,6 +54,7 @@ import {
 import { type ClinicalContext, EMPTY_CLINICAL_CONTEXT, buildClinicalContext, buildFullClinicalContext } from "@/lib/clinical-context";
 import { recordAIDecisions } from "@/services/oversight_engine/client";
 import { buildFinalizeLedgerEntry, getCriticalSafetyAlerts } from "@/services/oversight_engine/finalize_ledger";
+import { buildSafetyCheckRequest, decideFinalizeGate } from "@/services/oversight_engine/finalize_gate";
 
 // Symptom presets
 const COMMON_SYMPTOMS = ["Fever", "Cough", "Headache", "Body ache", "Vomiting", "Diarrhea", "Cold", "Sore throat", "Fatigue", "Chest pain", "Breathlessness", "Abdominal pain", "Dizziness", "Back pain", "Dysuria", "Rash", "Joint pain", "Palpitations", "Neck stiffness", "Syncope"];
@@ -927,13 +928,48 @@ export default function Clinical() {
         blood_sugar: parseVital(/(?:sugar|glucose|bs|rbs)[:\s]*(\d+)/i),
       };
       const symptoms = [extractedData.chief_complaint, extractedData.associated_symptoms].filter(Boolean).join(", ").split(",").map(s => s.trim()).filter(Boolean);
-      const { data, error } = await supabase.functions.invoke("clinical-safety", { body: { medications, allergies, vitals: vitalsObj, symptoms } });
+      const body = buildSafetyCheckRequest({ medications, allergies, vitals: vitalsObj, symptoms, clinicalContext, chiefComplaint });
+      const { data, error } = await supabase.functions.invoke("clinical-safety", { body });
       if (error) throw new Error(error.message);
       setSafetyResults(data as SafetyResults); timer.stop(true);
       emitSafetyAlertMetric({ interactions: data.interaction_flags?.length || 0, allergies: data.allergy_flags?.length || 0, dose_warnings: data.dose_warnings?.length || 0, vitals_dangers: data.vitals_dangers?.length || 0, emergency_patterns: data.emergency_patterns?.length || 0 });
     } catch (err: any) {
       toast({ title: "Safety check notice", description: err.message || "Could not complete" }); timer.stop(false);
     } finally { setIsRunningSafety(false); }
+  };
+
+  // Safety check on the cockpit's current state. Used by Validate and, always
+  // fresh, by finalize — see finalize_gate.ts for why finalize never gates on
+  // previously-fetched results.
+  const fetchSafetyResults = async (): Promise<SafetyResults> => {
+    const medications = [
+      ...(extractedData.current_medications?.split(",").map(s => s.trim()).filter(Boolean) || []),
+      ...pendingRxFromSuggestions.map(r => `${r.drug_name} ${r.dose} ${r.frequency}`),
+    ];
+    const allergies = [
+      ...(extractedData.allergies?.split(",").map(s => s.trim()).filter(Boolean) || []),
+      ...(selectedPatient?.allergies || []),
+    ];
+    const vitalsObj: Record<string, number | null> = {
+      bp_systolic: patientVitals?.bp_systolic ?? null,
+      bp_diastolic: patientVitals?.bp_diastolic ?? null,
+      pulse: patientVitals?.pulse ?? null,
+      temperature: patientVitals?.temperature ?? null,
+      spo2: patientVitals?.spo2 ?? null,
+      respiratory_rate: patientVitals?.respiratory_rate ?? null,
+      blood_sugar: patientVitals?.blood_sugar ?? null,
+      };
+      const symptoms = [
+        ...selectedSymptoms,
+        ...(extractedData.chief_complaint ? [extractedData.chief_complaint] : []),
+        ...(extractedData.associated_symptoms ? extractedData.associated_symptoms.split(",").map(s => s.trim()).filter(Boolean) : []),
+      ];
+
+      const body = buildSafetyCheckRequest({ medications, allergies, vitals: vitalsObj, symptoms, clinicalContext, chiefComplaint });
+      const { data, error } = await supabase.functions.invoke("clinical-safety", { body });
+
+      if (error) throw new Error(error.message);
+      return data as SafetyResults;
   };
 
   // ── Validate: safety check + guideline compliance + evidence retrieval ──
@@ -943,35 +979,7 @@ export default function Clinical() {
       // 1. Safety check
       setIsRunningSafety(true);
       const timer = startPipelineTimer("safety_controller");
-      const medications = [
-        ...(extractedData.current_medications?.split(",").map(s => s.trim()).filter(Boolean) || []),
-        ...pendingRxFromSuggestions.map(r => `${r.drug_name} ${r.dose} ${r.frequency}`),
-      ];
-      const allergies = [
-        ...(extractedData.allergies?.split(",").map(s => s.trim()).filter(Boolean) || []),
-        ...(selectedPatient?.allergies || []),
-      ];
-      const vitalsObj: Record<string, number | null> = {
-        bp_systolic: patientVitals?.bp_systolic ?? null,
-        bp_diastolic: patientVitals?.bp_diastolic ?? null,
-        pulse: patientVitals?.pulse ?? null,
-        temperature: patientVitals?.temperature ?? null,
-        spo2: patientVitals?.spo2 ?? null,
-        respiratory_rate: patientVitals?.respiratory_rate ?? null,
-        blood_sugar: patientVitals?.blood_sugar ?? null,
-      };
-      const symptoms = [
-        ...selectedSymptoms,
-        ...(extractedData.chief_complaint ? [extractedData.chief_complaint] : []),
-        ...(extractedData.associated_symptoms ? extractedData.associated_symptoms.split(",").map(s => s.trim()).filter(Boolean) : []),
-      ];
-
-      const { data, error } = await supabase.functions.invoke("clinical-safety", {
-        body: { medications, allergies, vitals: vitalsObj, symptoms },
-      });
-
-      if (error) throw new Error(error.message);
-      const results = data as SafetyResults;
+      const results = await fetchSafetyResults();
       setSafetyResults(results);
       setIsRunningSafety(false);
       timer.stop(true);
@@ -1048,9 +1056,28 @@ export default function Clinical() {
   const finalizeConsultation = async (overrideReason?: string, acknowledgedAlertIds?: string[]) => {
     if (!user) return;
 
-    if (!validationComplete) {
-      await runValidation();
+    // Always re-run the safety check and gate on that fresh result — never on
+    // the safetyResults state captured before it (see finalize_gate.ts).
+    setIsRunningSafety(true);
+    let freshSafety: SafetyResults | null = null;
+    try {
+      freshSafety = await fetchSafetyResults();
+      setSafetyResults(freshSafety);
+    } catch (err: any) {
+      console.warn("[Clinical] Finalize-time safety check failed:", err?.message);
+    } finally {
+      setIsRunningSafety(false);
     }
+    const gate = decideFinalizeGate({ freshSafety, overrideReason });
+    if (gate.kind === "check_failed") {
+      toast({ title: "Cannot finalize", description: "The safety check could not run. Please retry.", variant: "destructive" });
+      return;
+    }
+    if (gate.kind === "needs_override") {
+      setShowOverrideDialog(true);
+      return;
+    }
+    const { safety, critical } = gate;
 
     setIsSaving(true);
     try {
@@ -1063,7 +1090,7 @@ export default function Clinical() {
           stabilized_transcript: stabilizedTranscript,
           extracted_data: extractedData,
           soap_sections: soapSections,
-          safety_results: safetyResults,
+          safety_results: safety,
           follow_up_date: followUpDate || null,
           follow_up_notes: followUpNotes,
           review_confirmed: reviewConfirmed,
@@ -1084,7 +1111,7 @@ export default function Clinical() {
         try {
           const ledgerEntry = buildFinalizeLedgerEntry({
             consultationId,
-            safetyResults,
+            safetyResults: safety,
             overrideReason,
             acknowledgedAlertIds,
           });
@@ -1134,11 +1161,11 @@ export default function Clinical() {
             visit_id: visitId,
             extracted_data: extractedData,
             soap_sections: soapSections,
-            safety_results: safetyResults,
+            safety_results: safety,
             drugs: pendingRxFromSuggestions.map(d => ({ drug_name: d.drug_name, dosage: d.dose, frequency: d.frequency, duration: d.duration })),
             lab_orders: selectedTests.map(t => ({ test_name: t, priority: "routine" })),
             billing_enabled: true,
-            safety_override: reviewConfirmed && (criticalSafetyAlerts.length === 0 || Boolean(overrideReason)),
+            safety_override: reviewConfirmed && (critical.length === 0 || Boolean(overrideReason)),
           },
         });
         if (finalizeError) throw new Error(finalizeError.message);

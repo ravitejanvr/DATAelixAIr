@@ -149,6 +149,8 @@ export async function runClinicalPipelineV4(
     features: canonResult.features,
     vitals: input.vitals || null,
     patientAge: input.patient_age ?? null,
+    rawSymptoms,
+    medicalHistory: input.medical_history || [],
   });
 
   // ══════════════════════════════════════════════

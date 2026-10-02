@@ -19,7 +19,16 @@
  *      .lovable/execution-backlog-v1.md A3
  */
 
-// ── Rule-based safety analysis (L7 Trust Layer) ──
+// ── Must-not-miss escalation — the single detection path (ROADMAP 9/10) ──
+export {
+  evaluateMustNotMiss,
+  MNM_RULESET_VERSION,
+  type MnmInput,
+  type MnmResult,
+  type MnmTrigger,
+} from "../../../supabase/functions/_shared/must_not_miss.ts";
+
+// ── Rule-based safety analysis (L7 Trust Layer) — adapter over the above ──
 export { analyzeSafety } from "./index";
 
 // ── Edge-function guardrails (pre-finalization) ──

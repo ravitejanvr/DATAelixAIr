@@ -136,6 +136,7 @@ export async function buildPatientContextObject(
       : null,
     age: input.patient_age,
     medications: mergedMedications,
+    medical_history: input.previous_conditions || [],
   });
 
   // Stage 5: Missing information identification
