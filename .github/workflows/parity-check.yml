@@ -6,6 +6,13 @@ name: O1/O2 Parity Check
 # one flagged as "opt-in and never actually run" during the review that found
 # it — this workflow exists so that stops being true.
 #
+# UPDATE (2026-10-02): O2 (benchmark_mode.ts) is retired. Its parity runs
+# had only ever been green because the 10% rollout bucketed every parity
+# identity onto V1 inside O1, matching V1-only O2. benchmark_parity.test.ts
+# now asserts the engine O1 actually executes for those identities equals
+# engine_registry's active_engine. Workflow and job names deliberately left
+# unchanged so the required-check wiring below keeps matching.
+#
 # UPDATE (2026-09-20): also runs the V4-bridge live parity test
 # (v4_bridge_live_parity.test.ts). Same live-edge-function requirement, same
 # CI test user, so it reuses this job rather than duplicating the
@@ -87,7 +94,7 @@ jobs:
 
       - run: npm ci
 
-      - name: O1/O2 parity (live edge functions)
+      - name: Benchmark cases run the production engine (live edge functions)
         run: RUN_PARITY_CHECK=1 npx vitest run src/tests/contract/benchmark_parity.test.ts
         env:
           PARITY_TEST_PASSWORD: ${{ secrets.PARITY_TEST_PASSWORD }}

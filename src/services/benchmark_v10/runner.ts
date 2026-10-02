@@ -16,7 +16,6 @@ import type {
   LayerMetrics, SuiteRunResult,
 } from "./types";
 import { runUnifiedClinicalPipeline, type PipelineResult } from "@/services/clinical_pipeline/orchestrator";
-import { runBenchmarkPipeline } from "@/services/clinical_pipeline/benchmark_mode";
 import { v10CaseToPipelineInput } from "@/services/benchmark_shared/case_to_context";
 import { diagMatch } from "@/services/benchmark_shared/diagnosis_matching";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,33 +25,27 @@ import { supabase } from "@/integrations/supabase/client";
 export type V10PipelineMode = "phase8" | "phase9" | "phase10";
 /**
  * "production" → runUnifiedClinicalPipeline (O1), the exact path the doctor
- *   workspace uses. This is the only mode whose numbers describe the product.
- * "benchmark"  → runBenchmarkPipeline (O2), a faster, structurally independent
- *   pipeline that scores with V1 only. Retained for latency experiments ONLY and
- *   guarded by src/tests/contract/benchmark_parity.test.ts. Never publish its
- *   accuracy numbers.
+ *   workspace uses — the only execution mode. The faster O2 pipeline
+ *   (benchmark_mode.ts) was retired 2026-10-02: it bypassed engine_registry and
+ *   scored V1-only, so once production actually served V3 (ROADMAP item 28) its
+ *   rankings no longer matched production. Kept as a one-member type so the
+ *   options shape stays explicit about which path runs.
  */
-export type V10ExecutionMode = "production" | "benchmark";
+export type V10ExecutionMode = "production";
 
 /**
  * "production" drives the live orchestrator (multiple sequential edge-function/
  * LLM calls per case) — running several of those concurrently risks provider
- * rate limits/timeouts. "benchmark" is the lightweight O2 pipeline, tuned for
- * higher concurrency. Callers pass a raw `parallelCases` request; this clamps
- * it so a benchmark-tuned value can never leak into a production run — see
- * runner_parallel_cases.test.ts, written after BenchmarkV10Panel.tsx did
- * exactly that (production mode + parallelCases: 5) at every call site.
+ * rate limits/timeouts. Callers pass a raw `parallelCases` request; this clamps
+ * it — see runner_parallel_cases.test.ts, written after BenchmarkV10Panel.tsx
+ * passed parallelCases: 5 (tuned for the old O2 pipeline) at every call site.
  */
 export const PRODUCTION_MAX_PARALLEL_CASES = 1;
-export const BENCHMARK_DEFAULT_PARALLEL_CASES = 5;
 
 export function resolveParallelCases(
-  executionMode: V10ExecutionMode,
+  _executionMode: V10ExecutionMode,
   requested?: number,
 ): number {
-  if (executionMode === "benchmark") {
-    return requested ?? BENCHMARK_DEFAULT_PARALLEL_CASES;
-  }
   if (requested !== undefined && requested > PRODUCTION_MAX_PARALLEL_CASES) {
     console.warn(
       `[BenchmarkV10] parallelCases=${requested} requested for production execution mode; ` +
@@ -65,7 +58,6 @@ export function resolveParallelCases(
 async function runSingleV10Case(
   c: BenchmarkCaseV10,
   mode: V10PipelineMode,
-  executionMode: V10ExecutionMode = "production",
 ): Promise<CaseResult> {
   const t0 = performance.now();
   const failures: string[] = [];
@@ -76,11 +68,7 @@ async function runSingleV10Case(
   // Run through PRODUCTION orchestrator
   let pipelineResult: PipelineResult | null = null;
   try {
-    if (executionMode === "benchmark") {
-      pipelineResult = await runBenchmarkPipeline(pipelineInput);
-    } else {
-      pipelineResult = await runUnifiedClinicalPipeline(pipelineInput);
-    }
+    pipelineResult = await runUnifiedClinicalPipeline(pipelineInput);
   } catch (e) {
     failures.push(`Pipeline error: ${e}`);
   }
@@ -404,8 +392,8 @@ export async function runV10Suite(
   const results: CaseResult[] = [];
   const executionMode = options?.executionMode ?? "production";
   const parallelCases = resolveParallelCases(executionMode, options?.parallelCases);
-  const batchDelay = options?.batchDelayMs ?? (executionMode === "benchmark" ? 1000 : 3000);
-  const caseDelay = options?.caseDelayMs ?? (executionMode === "benchmark" ? 0 : 500);
+  const batchDelay = options?.batchDelayMs ?? 3000;
+  const caseDelay = options?.caseDelayMs ?? 500;
 
   const runId = `v10_${mode}_${Date.now()}`;
   const timestamp = new Date().toISOString();
@@ -434,7 +422,7 @@ export async function runV10Suite(
     const batchResults = await Promise.all(
       batch.map(async (c) => {
         try {
-          return await runSingleV10Case(c, mode, executionMode);
+          return await runSingleV10Case(c, mode);
         } catch (e) {
           console.error(`[BenchmarkV10] Case ${c.case_id} crashed:`, e);
           return {
