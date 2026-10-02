@@ -3091,6 +3091,7 @@ export type Database = {
           recommendation_text: string
           specialty: string
           summary: string
+          superseded_by: string | null
           tier: number
           title: string
           updated_at: string
@@ -3111,6 +3112,7 @@ export type Database = {
           recommendation_text?: string
           specialty?: string
           summary?: string
+          superseded_by?: string | null
           tier?: number
           title: string
           updated_at?: string
@@ -3131,12 +3133,21 @@ export type Database = {
           recommendation_text?: string
           specialty?: string
           summary?: string
+          superseded_by?: string | null
           tier?: number
           title?: string
           updated_at?: string
           version?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "guideline_registry_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "guideline_registry"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       guideline_rules: {
         Row: {
