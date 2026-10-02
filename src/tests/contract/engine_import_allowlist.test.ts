@@ -43,8 +43,9 @@ const ENGINE_CALLS = [
  *
  * - engine client/index modules: they ARE the engines.
  * - orchestrator.ts: O1, the single production entrypoint.
- * - benchmark_mode.ts: O2, quarantined latency-experiment path. Permitted ONLY
- *   while benchmark_parity.test.ts guards it. Not a publishable metric source.
+ * - benchmark_mode.ts (O2) was on this list until 2026-10-02, when it was
+ *   retired: it bypassed engine_registry and stopped matching production once
+ *   production actually served V3. It must not come back — see the test below.
  * - evaluation / v3_benchmark / v3_validation runners: pre-freeze harnesses that
  *   deliberately probe a single engine in isolation, not end-to-end pipelines.
  */
@@ -59,7 +60,6 @@ const ALLOWLIST = new Set<string>([
   "src/services/physiology_engine/index.ts",
   "src/services/uncertainty_engine/client.ts",
   "src/services/clinical_pipeline/orchestrator.ts",
-  "src/services/clinical_pipeline/benchmark_mode.ts",
   "src/services/evaluation/runner.ts",
   "src/services/v3_benchmark/runner.ts",
   "src/services/v3_validation/runner.ts",
@@ -119,22 +119,20 @@ describe("Contract: diagnostic engine invocation is allow-listed", () => {
   it("the allow-list stays small — every entry is a deliberate exception", () => {
     // Guards against the allow-list quietly becoming the escape hatch it is
     // meant to prevent. Raising this number requires an architecture decision.
-    expect(ALLOWLIST.size).toBeLessThanOrEqual(14);
+    expect(ALLOWLIST.size).toBeLessThanOrEqual(13);
   });
 
-  it("O2 remains quarantined: benchmark_mode is imported only by the v10 runner", () => {
+  it("O2 stays retired: nothing imports clinical_pipeline/benchmark_mode", () => {
     const offenders: string[] = [];
     for (const file of allFiles) {
       const rel = relative(REPO_ROOT, file).replace(/\\/g, "/");
-      if (rel === "src/services/benchmark_v10/runner.ts") continue;
-      if (rel === "src/services/clinical_pipeline/benchmark_mode.ts") continue;
-      if (rel.startsWith("src/tests/")) continue;
+      if (rel === "src/tests/contract/engine_import_allowlist.test.ts") continue;
       const code = stripComments(readFileSync(file, "utf8"));
       if (/clinical_pipeline\/benchmark_mode/.test(code)) offenders.push(rel);
     }
     expect(
       offenders,
-      `benchmark_mode (O2) must not spread beyond the v10 runner. Offenders:\n  ${offenders.join("\n  ")}`,
+      `benchmark_mode (O2) was retired 2026-10-02 and must not be reintroduced. Offenders:\n  ${offenders.join("\n  ")}`,
     ).toEqual([]);
   });
 

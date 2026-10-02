@@ -12,6 +12,7 @@
  * read `.diagnosis_name` there silently fell back to the raw UUID
  * `diagnosis_id`. Extracting it here means O1 and O2 call the exact same
  * function and cannot drift apart again — see ssal_name_resolution.test.ts.
+ * (O2 was retired 2026-10-02; O1 is now the only caller.)
  */
 
 import type { BayesianResult } from "@/services/bayesian_engine";

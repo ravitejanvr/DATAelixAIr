@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   resolveParallelCases,
   PRODUCTION_MAX_PARALLEL_CASES,
-  BENCHMARK_DEFAULT_PARALLEL_CASES,
 } from "./runner";
 
 // Regression for: BenchmarkV10Panel.tsx switched every call site from
@@ -24,10 +23,5 @@ describe("resolveParallelCases — production can never inherit a benchmark-tune
 
   it("defaults production to the max when nothing is requested", () => {
     expect(resolveParallelCases("production")).toBe(PRODUCTION_MAX_PARALLEL_CASES);
-  });
-
-  it("leaves benchmark mode's own concurrency requests alone", () => {
-    expect(resolveParallelCases("benchmark", 5)).toBe(5);
-    expect(resolveParallelCases("benchmark")).toBe(BENCHMARK_DEFAULT_PARALLEL_CASES);
   });
 });
