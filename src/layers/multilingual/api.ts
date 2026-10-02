@@ -15,7 +15,7 @@
  *     → normalize-transcript (lexicon lookup, language detection)
  *     → stabilize-transcript (AI stabilization with lexicon context)
  *     → Doctor review & edit
- *     → [optional] translate-clinical / patient-explanation
+ *     → [optional] translate-clinical
  * 
  * Dependencies:
  *   - Layer 10 (Infrastructure): Supabase Edge Functions, regional_lexicon table
@@ -89,7 +89,7 @@ export interface StabilizationResult {
  *             ├─────────────────────────────────┐
  *  ┌──────────▼─────────────┐      ┌───────────▼──────────┐
  *  │ AI Agents (Layer 4)    │      │ translate-clinical   │
- *  │ Extract → Safety       │      │ patient-explanation  │
- *  │ → SOAP generation      │      │ (optional)           │
+ *  │ Extract → Safety       │      │ (optional)           │
+ *  │ → SOAP generation      │      │                      │
  *  └────────────────────────┘      └──────────────────────┘
  */
