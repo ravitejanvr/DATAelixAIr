@@ -21,6 +21,22 @@ export function getCriticalSafetyAlerts(safetyResults: SafetyResults | null): Sa
   );
 }
 
+/**
+ * Which must-not-miss rule set produced the alerts behind this decision, and
+ * which escalation rules fired — so every ledgered finalize can be traced to
+ * the exact rules that gated it. `null` ruleset = response predates the
+ * unified evaluator (edge function not yet redeployed).
+ */
+function mustNotMissAudit(safetyResults: SafetyResults | null): Record<string, unknown> {
+  const mnm = safetyResults?.must_not_miss;
+  return {
+    must_not_miss_ruleset: mnm?.ruleset_version ?? null,
+    must_not_miss_escalations: (mnm?.triggers ?? [])
+      .filter(t => t.tier === "escalation")
+      .map(t => t.rule_id),
+  };
+}
+
 export interface BuildFinalizeLedgerEntryParams {
   consultationId: string;
   safetyResults: SafetyResults | null;
@@ -53,6 +69,7 @@ export function buildFinalizeLedgerEntry(params: BuildFinalizeLedgerEntryParams)
       metadata: {
         acknowledged_alert_ids: params.acknowledgedAlertIds ?? [],
         alert_count: critical.length,
+        ...mustNotMissAudit(params.safetyResults),
       },
     };
   }
@@ -63,5 +80,6 @@ export function buildFinalizeLedgerEntry(params: BuildFinalizeLedgerEntryParams)
     consultation_id: params.consultationId,
     safety_status: "safe",
     doctor_action: "accepted",
+    metadata: mustNotMissAudit(params.safetyResults),
   };
 }

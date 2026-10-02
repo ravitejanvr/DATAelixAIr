@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { evaluateMustNotMiss, toClinicalSafetyShape } from "../_shared/must_not_miss.ts";
+import { checkContextCompleteness } from "../_shared/context_completeness.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,27 +40,6 @@ interface DoseWarning {
   message: string;
 }
 
-interface VitalsDanger {
-  parameter: string;
-  value: number;
-  severity: "warning" | "critical";
-  message: string;
-  action_hint: string;
-}
-
-interface EmergencyPattern {
-  pattern: string;
-  severity: "warning" | "critical";
-  matched_indicators: string[];
-  message: string;
-  action_hint: string;
-}
-
-interface ContextCompletenessIssue {
-  field: string;
-  severity: "blocking" | "warning";
-  message: string;
-}
 
 // --- RxNorm normalization ---
 async function normalizeDrug(name: string): Promise<NormalizedDrug> {
@@ -197,240 +178,10 @@ function checkDoseSanity(medications: string[]): DoseWarning[] {
 }
 
 // --- Dangerous vitals detection ---
-function checkVitalsDangers(vitals: Record<string, number | null | undefined>): VitalsDanger[] {
-  const dangers: VitalsDanger[] = [];
-
-  // Auto-detect temperature unit: values <= 50 are Celsius, > 50 are Fahrenheit
-  const rawTemp = vitals["temperature"];
-  let tempCelsius: number | null = null;
-  if (rawTemp != null) {
-    tempCelsius = rawTemp <= 50 ? rawTemp : (rawTemp - 32) * 5 / 9;
-    // Replace with Celsius value for consistent rule evaluation
-    vitals["temperature"] = tempCelsius;
-  }
-
-  const rules: Array<{
-    key: string; label: string;
-    critical_low?: number; warning_low?: number; warning_high?: number; critical_high?: number;
-    low_action?: string; high_action?: string;
-  }> = [
-    { key: "bp_systolic", label: "Systolic BP", critical_low: 80, warning_low: 90, warning_high: 160, critical_high: 180,
-      low_action: "Evaluate for shock. IV access recommended.", high_action: "Hypertensive crisis. Evaluate end-organ damage." },
-    { key: "bp_diastolic", label: "Diastolic BP", critical_low: 50, warning_low: 60, warning_high: 100, critical_high: 120,
-      low_action: "Evaluate for hypotension and perfusion.", high_action: "Severe hypertension. Urgent evaluation needed." },
-    { key: "pulse", label: "Heart Rate", critical_low: 40, warning_low: 50, warning_high: 120, critical_high: 150,
-      low_action: "Evaluate for bradycardia. ECG recommended.", high_action: "Tachycardia. Rule out sepsis, dehydration, arrhythmia." },
-    { key: "temperature", label: "Temperature (°C)", critical_low: 35.0, warning_low: 36.0, warning_high: 38.5, critical_high: 40.0,
-      low_action: "Hypothermia. Active rewarming needed.", high_action: "High fever. Evaluate for infection or sepsis." },
-    { key: "spo2", label: "SpO₂", critical_low: 88, warning_low: 93,
-      low_action: "Hypoxia. Supplemental oxygen. Evaluate for respiratory distress." },
-    { key: "respiratory_rate", label: "Respiratory Rate", warning_low: 10, critical_low: 8, warning_high: 24, critical_high: 30,
-      low_action: "Bradypnea. Evaluate for CNS depression.", high_action: "Tachypnea. Evaluate for respiratory distress or acidosis." },
-    { key: "blood_sugar", label: "Blood Sugar (mg/dL)", critical_low: 54, warning_low: 70, warning_high: 250, critical_high: 400,
-      low_action: "Hypoglycemia. Administer glucose immediately.", high_action: "Severe hyperglycemia. Evaluate for DKA/HHS." },
-  ];
-
-  for (const rule of rules) {
-    const val = vitals[rule.key];
-    if (val == null) continue;
-
-    if (rule.critical_low != null && val <= rule.critical_low) {
-      dangers.push({ parameter: rule.label, value: val, severity: "critical", message: `${rule.label} critically low: ${val}`, action_hint: rule.low_action || "Urgent evaluation required." });
-    } else if (rule.warning_low != null && val <= rule.warning_low) {
-      dangers.push({ parameter: rule.label, value: val, severity: "warning", message: `${rule.label} below normal: ${val}`, action_hint: rule.low_action || "Monitor closely." });
-    }
-
-    if (rule.critical_high != null && val >= rule.critical_high) {
-      dangers.push({ parameter: rule.label, value: val, severity: "critical", message: `${rule.label} critically high: ${val}`, action_hint: rule.high_action || "Urgent evaluation required." });
-    } else if (rule.warning_high != null && val >= rule.warning_high) {
-      dangers.push({ parameter: rule.label, value: val, severity: "warning", message: `${rule.label} above normal: ${val}`, action_hint: rule.high_action || "Monitor closely." });
-    }
-  }
-
-  return dangers;
-}
-
-// --- Emergency symptom pattern matching ---
-function checkEmergencyPatterns(
-  symptoms: string[],
-  vitals: Record<string, number | null | undefined>
-): EmergencyPattern[] {
-  const patterns: EmergencyPattern[] = [];
-  const symptomsLower = symptoms.map(s => s.toLowerCase());
-  const allText = symptomsLower.join(" ");
-
-  // Hypertensive crisis
-  const systolic = vitals.bp_systolic ?? 0;
-  const diastolic = vitals.bp_diastolic ?? 0;
-  if (systolic >= 180 || diastolic >= 120) {
-    const headache = symptomsLower.some(s => s.includes("headache") || s.includes("head") || s.includes("sir dard"));
-    const vision = symptomsLower.some(s => s.includes("vision") || s.includes("blurr") || s.includes("eye"));
-    const chest = symptomsLower.some(s => s.includes("chest") || s.includes("seene"));
-    const matched = [`BP ${systolic}/${diastolic}`];
-    if (headache) matched.push("headache");
-    if (vision) matched.push("visual disturbance");
-    if (chest) matched.push("chest pain");
-    patterns.push({
-      pattern: "Hypertensive Crisis", severity: "critical", matched_indicators: matched,
-      message: `BP ${systolic}/${diastolic} with associated symptoms suggests hypertensive emergency.`,
-      action_hint: "Immediate BP reduction. Evaluate for end-organ damage (brain, heart, kidneys). Consider IV antihypertensives.",
-    });
-  }
-
-  // Possible sepsis (SIRS criteria)
-  const temp = vitals.temperature ?? 0;
-  const hr = vitals.pulse ?? 0;
-  const rr = vitals.respiratory_rate ?? 0;
-  let sirsCount = 0;
-  const sirsIndicators: string[] = [];
-  if (temp > 100.4 || temp < 96.8) { sirsCount++; sirsIndicators.push(`Temp ${temp}°F`); }
-  if (hr > 90) { sirsCount++; sirsIndicators.push(`HR ${hr}`); }
-  if (rr > 20) { sirsCount++; sirsIndicators.push(`RR ${rr}`); }
-  const infectionHint = symptomsLower.some(s =>
-    s.includes("fever") || s.includes("chills") || s.includes("infection") ||
-    s.includes("bukhar") || s.includes("jvaram") || s.includes("pus") || s.includes("wound")
-  );
-  if (sirsCount >= 2 && infectionHint) {
-    patterns.push({
-      pattern: "Possible Sepsis", severity: "critical", matched_indicators: [...sirsIndicators, "infection signs"],
-      message: `${sirsCount} SIRS criteria met with signs of infection. Evaluate for sepsis.`,
-      action_hint: "Blood cultures, IV fluids, broad-spectrum antibiotics within 1 hour. Lactate level. Consider ICU referral.",
-    });
-  }
-
-  // Respiratory distress
-  const spo2 = vitals.spo2 ?? 100;
-  const breathingSymptoms = symptomsLower.some(s =>
-    s.includes("breathless") || s.includes("dyspnea") || s.includes("difficulty breathing") ||
-    s.includes("oopiritittanam") || s.includes("saans") || s.includes("wheez") || s.includes("stridor")
-  );
-  if ((spo2 < 92 && rr > 24) || (spo2 < 88) || (breathingSymptoms && (spo2 < 94 || rr > 22))) {
-    const matched: string[] = [];
-    if (spo2 < 94) matched.push(`SpO₂ ${spo2}%`);
-    if (rr > 22) matched.push(`RR ${rr}`);
-    if (breathingSymptoms) matched.push("breathing difficulty");
-    patterns.push({
-      pattern: "Respiratory Distress", severity: spo2 < 90 ? "critical" : "warning", matched_indicators: matched,
-      message: `Respiratory compromise detected. SpO₂ ${spo2}%, RR ${rr}.`,
-      action_hint: "Supplemental O₂. Position upright. ABG if available. Evaluate for pneumonia, PE, asthma exacerbation.",
-    });
-  }
-
-  // Hypoglycemic emergency
-  const sugar = vitals.blood_sugar ?? 999;
-  if (sugar <= 54) {
-    const confused = symptomsLower.some(s => s.includes("confus") || s.includes("drowsy") || s.includes("sweating") || s.includes("tremor") || s.includes("unresponsive"));
-    patterns.push({
-      pattern: "Hypoglycemic Emergency", severity: "critical", matched_indicators: [`Sugar ${sugar} mg/dL`, ...(confused ? ["altered consciousness"] : [])],
-      message: `Blood glucose critically low at ${sugar} mg/dL.`,
-      action_hint: "IV dextrose (25g D50) or oral glucose if conscious. Recheck in 15 min. Identify cause.",
-    });
-  }
-
-  // Acute coronary syndrome hints
-  const chestPain = symptomsLower.some(s => s.includes("chest pain") || s.includes("seene mein dard") || s.includes("gunde noppi"));
-  const radiating = symptomsLower.some(s => s.includes("arm") || s.includes("jaw") || s.includes("back") || s.includes("shoulder"));
-  const sweating = symptomsLower.some(s => s.includes("sweat") || s.includes("diaphor") || s.includes("nausea"));
-  if (chestPain && (radiating || sweating || hr > 100)) {
-    const matched = ["chest pain"];
-    if (radiating) matched.push("radiating pain");
-    if (sweating) matched.push("diaphoresis/nausea");
-    if (hr > 100) matched.push(`HR ${hr}`);
-    patterns.push({
-      pattern: "Possible Acute Coronary Syndrome", severity: "critical", matched_indicators: matched,
-      message: "Chest pain with concerning features. Rule out ACS.",
-      action_hint: "ECG immediately. Aspirin 325mg. Troponin. Consider referral to cardiology/ED.",
-    });
-  }
-
-  // Neurological deficit
-  const neuroSymptoms = symptomsLower.some(s =>
-    s.includes("numbness") || s.includes("weakness") || s.includes("paralysis") ||
-    s.includes("slurred speech") || s.includes("confusion") || s.includes("seizure") ||
-    s.includes("loss of consciousness") || s.includes("facial droop")
-  );
-  if (neuroSymptoms) {
-    const matched: string[] = [];
-    if (symptomsLower.some(s => s.includes("weakness") || s.includes("paralysis"))) matched.push("motor deficit");
-    if (symptomsLower.some(s => s.includes("numbness"))) matched.push("sensory deficit");
-    if (symptomsLower.some(s => s.includes("slurred") || s.includes("speech"))) matched.push("speech disturbance");
-    if (symptomsLower.some(s => s.includes("seizure"))) matched.push("seizure");
-    if (symptomsLower.some(s => s.includes("facial droop"))) matched.push("facial droop");
-    patterns.push({
-      pattern: "Neurological Deficit", severity: "critical", matched_indicators: matched,
-      message: "Acute neurological symptoms detected. Requires urgent evaluation.",
-      action_hint: "FAST assessment. CT head if stroke suspected. Neurology referral. Monitor GCS.",
-    });
-  }
-
-  // Severe dehydration
-  const dehydrationSymptoms = symptomsLower.some(s =>
-    s.includes("dehydrat") || s.includes("dry mouth") || s.includes("no urine") ||
-    s.includes("sunken eyes") || s.includes("lethargy")
-  );
-  const vomitDiarrhea = symptomsLower.some(s => s.includes("vomit") || s.includes("diarr"));
-  if (dehydrationSymptoms || (vomitDiarrhea && hr > 100)) {
-    const matched: string[] = [];
-    if (dehydrationSymptoms) matched.push("dehydration signs");
-    if (vomitDiarrhea) matched.push("fluid loss (vomiting/diarrhea)");
-    if (hr > 100) matched.push(`HR ${hr}`);
-    patterns.push({
-      pattern: "Severe Dehydration", severity: hr > 120 ? "critical" : "warning", matched_indicators: matched,
-      message: "Signs of significant dehydration detected.",
-      action_hint: "IV fluid resuscitation. Electrolytes. Monitor urine output. Assess for underlying cause.",
-    });
-  }
-
-  return patterns;
-}
-
-// --- Context Completeness Validation ---
-function checkContextCompleteness(clinical_context: any): {
-  issues: ContextCompletenessIssue[];
-  context_complete: boolean;
-  ai_suggestions_blocked: boolean;
-} {
-  const issues: ContextCompletenessIssue[] = [];
-
-  // Blocking checks — these prevent AI from generating suggestions
-  if (!clinical_context?.chief_complaint || clinical_context.chief_complaint.trim() === "") {
-    issues.push({ field: "chief_complaint", severity: "blocking", message: "Chief complaint is required before AI analysis can proceed." });
-  }
-
-  if (clinical_context?.patient_age == null) {
-    issues.push({ field: "patient_age", severity: "blocking", message: "Patient age is required for safe clinical reasoning." });
-  }
-
-  if (!clinical_context?.patient_sex || clinical_context.patient_sex.trim() === "") {
-    issues.push({ field: "patient_sex", severity: "blocking", message: "Patient sex is required for accurate clinical assessment." });
-  }
-
-  // Warning checks — these allow AI but flag missing data
-  const hasAnyVitals = clinical_context?.blood_pressure || clinical_context?.pulse ||
-    clinical_context?.temperature || clinical_context?.oxygen_saturation;
-  if (!hasAnyVitals) {
-    issues.push({ field: "vitals", severity: "warning", message: "No vitals recorded. Consider recording vitals for comprehensive assessment." });
-  }
-
-  if (clinical_context?.oxygen_saturation == null && clinical_context?.respiratory_rate == null) {
-    issues.push({ field: "respiratory_vitals", severity: "warning", message: "SpO₂ and respiratory rate not recorded. Recommended for respiratory complaints." });
-  }
-
-  if (!clinical_context?.allergies || clinical_context.allergies.length === 0) {
-    issues.push({ field: "allergies", severity: "warning", message: "No allergy information recorded. Verify with patient before prescribing." });
-  }
-
-  if (!clinical_context?.current_medications || clinical_context.current_medications.length === 0) {
-    issues.push({ field: "current_medications", severity: "warning", message: "No current medications recorded. Verify to prevent drug interactions." });
-  }
-
-  const blockingIssues = issues.filter(i => i.severity === "blocking");
-  return {
-    issues,
-    context_complete: blockingIssues.length === 0,
-    ai_suggestions_blocked: blockingIssues.length > 0,
-  };
-}
+// --- Vitals dangers + emergency patterns ---
+// Both come from the shared must-not-miss evaluator (ROADMAP items 9/10) —
+// the same rules V4's analyzeSafety and O1's context-engine risk flags use.
+// Do not add detection logic here; add it to _shared/must_not_miss.ts.
 
 // --- Audit logging helper ---
 async function logSafetyAudit(
@@ -464,6 +215,9 @@ async function logSafetyAudit(
           vitals_danger_count: safetyResults.vitals_dangers?.length || 0,
           emergency_pattern_count: safetyResults.emergency_patterns?.length || 0,
           emergency_patterns: safetyResults.emergency_patterns?.map((p: any) => p.pattern) || [],
+          must_not_miss_ruleset: safetyResults.must_not_miss?.ruleset_version ?? null,
+          must_not_miss_escalations: (safetyResults.must_not_miss?.triggers || [])
+            .filter((t: any) => t.tier === "escalation").map((t: any) => t.rule_id),
           context_complete: contextCompleteness.context_complete,
           context_blocking_fields: contextCompleteness.issues
             .filter((i: any) => i.severity === "blocking")
@@ -648,11 +402,20 @@ serve(async (req) => {
     // 4. Dose sanity
     const dose_warnings = [...checkDoseSanity(medications), ...enhanced_dose_warnings];
 
-    // 5. Vitals danger detection
-    const vitals_dangers = checkVitalsDangers(vitalsObj);
-
-    // 6. Emergency pattern matching
-    const emergency_patterns = checkEmergencyPatterns(symptomList, vitalsObj);
+    // 5–6. Must-not-miss escalation: vitals dangers + emergency patterns
+    const asList = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === "string")
+        : typeof v === "string" && v.trim() ? [v] : [];
+    const must_not_miss = evaluateMustNotMiss({
+      symptoms: [
+        ...(typeof clinical_context?.chief_complaint === "string" ? [clinical_context.chief_complaint] : []),
+        ...symptomList,
+      ],
+      vitals: vitalsObj,
+      age: typeof clinical_context?.patient_age === "number" ? clinical_context.patient_age : null,
+      history: [...asList(clinical_context?.medical_history), ...asList(clinical_context?.risk_factors)],
+    });
+    const { vitals_dangers, emergency_patterns } = toClinicalSafetyShape(must_not_miss);
 
     // 7. Compute overall confidence
     const hasUnrecognized = normalized_drugs.some(d => !d.rxnorm_id);
@@ -680,7 +443,7 @@ serve(async (req) => {
     const result = {
       normalized_drugs, drug_normalization_results, interaction_flags, allergy_flags, dose_warnings,
       structured_warnings, duplicate_therapy_flags, contraindication_flags,
-      vitals_dangers, emergency_patterns, context_completeness,
+      vitals_dangers, emergency_patterns, must_not_miss, context_completeness,
       confidence_level, requires_manual_review,
       ai_suggestions_blocked: context_completeness.ai_suggestions_blocked,
       output_policy: {

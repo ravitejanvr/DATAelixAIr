@@ -18,6 +18,8 @@
  *   - Layer 4 (AI Agents): Safety context for SOAP generation
  */
 
+import type { MnmResult } from "../../../supabase/functions/_shared/must_not_miss.ts";
+
 export interface NormalizedDrug {
   original_name: string;
   rxnorm_id: string | null;
@@ -94,6 +96,8 @@ export interface SafetyResults {
   ai_suggestions_blocked: boolean;
   output_policy: OutputPolicy;
   timestamp: string;
+  /** Full must-not-miss evaluation behind vitals_dangers/emergency_patterns (absent from pre-unification responses). */
+  must_not_miss?: MnmResult;
 }
 
 // ============================================================

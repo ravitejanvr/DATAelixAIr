@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { evaluateMustNotMiss } from "../_shared/must_not_miss.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,37 +85,20 @@ function extractPhrases(text: string) {
 }
 
 // ===== Risk Flag Detection =====
+// Adapter over the shared must-not-miss evaluator (ROADMAP items 9/10) — the
+// same rules clinical-safety, V4 and the client-side context engine use.
+// Do not add detection logic here; add it to _shared/must_not_miss.ts.
 interface RiskFlag { flag_id: string; condition: string; severity: string; trigger_symptoms: string[]; action: string; }
 
-const RISK_RULES = [
-  { id: "acs", condition: "Possible Acute Coronary Syndrome", severity: "critical",
-    triggers: [["chest pain","sweating"],["chest pain","shortness of breath"],["chest pain","nausea"]],
-    action: "Immediate ECG and troponin." },
-  { id: "meningitis", condition: "Possible Meningitis", severity: "critical",
-    triggers: [["fever","stiff neck"],["fever","headache","photophobia"]],
-    action: "Urgent LP consideration. Empirical antibiotics." },
-  { id: "pe", condition: "Possible Pulmonary Embolism", severity: "critical",
-    triggers: [["dyspnea","chest pain"],["shortness of breath","chest pain"]],
-    action: "Consider CTPA. D-dimer." },
-  { id: "sepsis", condition: "Possible Sepsis", severity: "critical",
-    triggers: [["fever","confusion","weakness"]],
-    action: "Blood cultures, lactate. Sepsis-3 criteria." },
-];
-
-function detectRiskFlags(symptoms: string[], vitals?: any): RiskFlag[] {
-  const flags: RiskFlag[] = [];
-  const set = new Set(symptoms.map(s => s.toLowerCase()));
-  for (const rule of RISK_RULES) {
-    for (const combo of rule.triggers) {
-      if (combo.every(t => set.has(t))) {
-        flags.push({ flag_id: rule.id, condition: rule.condition, severity: rule.severity, trigger_symptoms: combo, action: rule.action });
-        break;
-      }
-    }
-  }
-  if (vitals?.temperature >= 39.5) flags.push({ flag_id: "high_fever", condition: "High Fever ≥39.5°C", severity: "high", trigger_symptoms: [], action: "Investigate source." });
-  if (vitals?.spo2 != null && vitals.spo2 < 92) flags.push({ flag_id: "hypoxia", condition: "Hypoxia SpO₂<92%", severity: "critical", trigger_symptoms: [], action: "Supplemental O₂." });
-  return flags;
+function detectRiskFlags(symptoms: string[], vitals?: any, age?: number | null, history?: string[]): RiskFlag[] {
+  const result = evaluateMustNotMiss({ symptoms, vitals: vitals ?? null, age: age ?? null, history: history ?? [] });
+  return result.triggers.map(t => ({
+    flag_id: t.rule_id,
+    condition: t.label,
+    severity: t.tier === "escalation" ? "critical" : "high",
+    trigger_symptoms: t.evidence,
+    action: t.action,
+  }));
 }
 
 // ===== Confidence Scoring =====
@@ -214,7 +198,12 @@ serve(async (req) => {
     const mappedSymptoms = await mapConcepts(supabaseClient, symptoms);
 
     // 6. Risk flags
-    const riskFlags = detectRiskFlags(symptoms, vitals);
+    const riskFlags = detectRiskFlags(
+      [chiefComplaint, ...symptoms],
+      vitals,
+      typeof patient_age === "number" ? patient_age : null,
+      Array.isArray(previous_conditions) ? previous_conditions : [],
+    );
 
     // 7. Missing info
     const missingInfo: string[] = [];
